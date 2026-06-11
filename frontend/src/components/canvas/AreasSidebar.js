@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Layers, Trash2, MapPin, ArrowLeft, Filter } from "lucide-react";
+import { Layers, Trash2, MapPin, ArrowLeft, Filter, ArrowUp, ArrowDown, ArrowLeft as ArrowLeftIcon, ArrowRight, Move } from "lucide-react";
 import { formatArea, formatLength } from "@/lib/geometry";
 import { LAYER_LIST, getLayer, getStatus } from "@/lib/layers";
 import { tonnageForArea, formatTonnage } from "@/lib/tonnage";
@@ -31,6 +31,7 @@ export const AreasSidebar = ({
   onChangeStatus,
   onChangeThickness,
   onChangeDensity,
+  onOffsetShape,
   onAddDelivery,
   onDeleteDelivery,
 }) => {
@@ -134,11 +135,15 @@ export const AreasSidebar = ({
                 <p className="font-mono-data text-[10px] text-[#868E96] leading-relaxed">
                   Edycja: drag uchwytów · klik <b>+</b> wstawia węzeł · <b>Shift+klik</b> usuwa.
                 </p>
+                <OffsetWidget onOffset={onOffsetShape} />
               </>
             ) : (
-              <span className="font-mono-data text-xs text-[#212529]">
-                {formatLength(selectedShape.shape.length_m)} · {selectedShape.shape.points.length} pkt
-              </span>
+              <>
+                <span className="font-mono-data text-xs text-[#212529] block">
+                  {formatLength(selectedShape.shape.length_m)} · {selectedShape.shape.points.length} pkt
+                </span>
+                <OffsetWidget onOffset={onOffsetShape} />
+              </>
             )}
           </div>
         </div>
@@ -329,11 +334,6 @@ const EmptyMsg = ({ children }) => (
 );
 
 const NumInput = ({ label, value, onChange, testId, step = "0.1" }) => {
-  const [val, setVal] = useState(String(value ?? ""));
-  // Sync external value
-  if (parseFloat(val) !== parseFloat(value ?? "")) {
-    // No-op: leave local state until blur; this avoids fighting controlled vs prop sync.
-  }
   return (
     <div>
       <div className="font-mono-data text-[10px] text-[#868E96] uppercase tracking-wider mb-1">{label}</div>
@@ -349,6 +349,49 @@ const NumInput = ({ label, value, onChange, testId, step = "0.1" }) => {
         onKeyDown={(e) => { if (e.key === "Enter") e.target.blur(); }}
         className="w-full px-2 py-1 border border-[#DEE2E6] rounded-sm text-xs font-mono-data bg-white"
       />
+    </div>
+  );
+};
+
+const OffsetWidget = ({ onOffset }) => {
+  const [val, setVal] = useState("0.10");
+  const get = () => {
+    const v = parseFloat(String(val).replace(",", "."));
+    return isFinite(v) && v > 0 ? v : 0;
+  };
+  const btn = "w-7 h-7 rounded-sm border border-[#DEE2E6] bg-white hover:bg-[#F1F3F5] flex items-center justify-center text-[#212529]";
+  return (
+    <div className="border-t border-dashed border-[#E9ECEF] pt-2 mt-1">
+      <div className="font-mono-data text-[10px] uppercase tracking-[0.18em] text-[#868E96] mb-1.5 flex items-center gap-1">
+        <Move className="w-3 h-3" />
+        Odsuń o
+      </div>
+      <div className="flex items-center gap-1.5">
+        <input
+          data-testid={WORKSPACE.offsetInput}
+          type="text"
+          inputMode="decimal"
+          value={val}
+          onChange={(e) => setVal(e.target.value)}
+          className="w-16 px-1.5 py-1 border border-[#DEE2E6] rounded-sm text-xs font-mono-data bg-white"
+        />
+        <span className="font-mono-data text-[10px] text-[#868E96] mr-1">m</span>
+        <button data-testid={WORKSPACE.offsetUp} onClick={() => onOffset(0, -get())} className={btn} title="W górę">
+          <ArrowUp className="w-3.5 h-3.5" />
+        </button>
+        <button data-testid={WORKSPACE.offsetDown} onClick={() => onOffset(0, get())} className={btn} title="W dół">
+          <ArrowDown className="w-3.5 h-3.5" />
+        </button>
+        <button data-testid={WORKSPACE.offsetLeft} onClick={() => onOffset(-get(), 0)} className={btn} title="W lewo">
+          <ArrowLeftIcon className="w-3.5 h-3.5" />
+        </button>
+        <button data-testid={WORKSPACE.offsetRight} onClick={() => onOffset(get(), 0)} className={btn} title="W prawo">
+          <ArrowRight className="w-3.5 h-3.5" />
+        </button>
+      </div>
+      <p className="font-mono-data text-[9px] text-[#868E96] mt-1 leading-relaxed">
+        Strzałki klawiatury = przesuw o wpisaną wartość (Shift = ×10).
+      </p>
     </div>
   );
 };

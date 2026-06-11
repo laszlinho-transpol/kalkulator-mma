@@ -46,10 +46,39 @@ export const zoomToScale = (zoomPct) => (zoomPct / 100) * PX_PER_METER_AT_100;
 
 // ---- Snap & hit-test ----
 
-export const snapToGrid = (world, step) => ({
-  x: Math.round(world.x / step) * step,
-  y: Math.round(world.y / step) * step,
-});
+// Edge-mode snap: each axis snaps INDEPENDENTLY when within `threshold` world units
+// of a grid line. This gives "magnetic grid lines" feel with strongest pull at vertices
+// (when both axes snap simultaneously). Set threshold=null/undefined for old corner-only snap.
+export const snapToGrid = (world, step, threshold = null) => {
+  const gx = Math.round(world.x / step) * step;
+  const gy = Math.round(world.y / step) * step;
+  if (threshold == null) return { x: gx, y: gy };
+  const x = Math.abs(gx - world.x) <= threshold ? gx : world.x;
+  const y = Math.abs(gy - world.y) <= threshold ? gy : world.y;
+  return { x, y };
+};
+
+// Constrain direction (origin → target) to multiples of stepDeg degrees.
+// Returns a new {x,y} on the same ray but at the snapped angle (same distance from origin).
+export const constrainAngle = (origin, target, stepDeg = 15) => {
+  const dx = target.x - origin[0];
+  const dy = target.y - origin[1];
+  const dist = Math.hypot(dx, dy);
+  if (dist < 1e-9) return { x: target.x, y: target.y };
+  const stepRad = (stepDeg * Math.PI) / 180;
+  const angle = Math.atan2(dy, dx);
+  const snapped = Math.round(angle / stepRad) * stepRad;
+  return { x: origin[0] + Math.cos(snapped) * dist, y: origin[1] + Math.sin(snapped) * dist };
+};
+
+// Project target onto a ray of fixed length from origin in direction of cursor.
+export const lockedLengthPoint = (origin, target, lockedLength) => {
+  const dx = target.x - origin[0];
+  const dy = target.y - origin[1];
+  const dist = Math.hypot(dx, dy);
+  if (dist < 1e-9 || !lockedLength || lockedLength <= 0) return { x: target.x, y: target.y };
+  return { x: origin[0] + (dx / dist) * lockedLength, y: origin[1] + (dy / dist) * lockedLength };
+};
 
 // Point in polygon (ray casting)
 export const pointInPolygon = (px, py, pts) => {

@@ -19,6 +19,7 @@ import {
 } from "@/lib/api";
 import {
   snapToGrid, pointInPolygon, closestVertex, closestSegment,
+  constrainAngle, lockedLengthPoint,
 } from "@/lib/geometry";
 import { WORKSPACE } from "@/constants/testIds";
 
@@ -44,6 +45,7 @@ export default function Workspace() {
   const [snapPreview, setSnapPreview] = useState(null);
   const [calibrationMode, setCalibrationMode] = useState(false);
   const [calibrationPoints, setCalibrationPoints] = useState([]);
+  const [lockedLength, setLockedLength] = useState(null);
 
   const viewport = useCanvasViewport();
   const areaTool = useAreaTool();
@@ -55,6 +57,7 @@ export default function Workspace() {
   const shiftHeldRef = useRef(false);
   const dragRef = useRef(null);
   const containerRef = useRef(null);
+  const lengthInputRef = useRef(null);
 
   // Load
   useEffect(() => {
@@ -131,6 +134,29 @@ export default function Workspace() {
         else if (tool === "line" && lineTool.points.length >= 2) { finishLine(); e.preventDefault(); }
       } else if (e.key === "+" || e.key === "=") viewport.zoomIn();
       else if (e.key === "-" || e.key === "_") viewport.zoomOut();
+      else if (e.key === "ArrowUp" || e.key === "ArrowDown" || e.key === "ArrowLeft" || e.key === "ArrowRight") {
+        if (selectedShape) {
+          const step = (e.shiftKey ? 10 : 1) * gridStep;
+          let dx = 0, dy = 0;
+          if (e.key === "ArrowUp") dy = -step;
+          else if (e.key === "ArrowDown") dy = step;
+          else if (e.key === "ArrowLeft") dx = -step;
+          else if (e.key === "ArrowRight") dx = step;
+          e.preventDefault();
+          offsetSelectedShape(dx, dy);
+        }
+      } else if (
+        (tool === "area" || tool === "line") &&
+        (areaTool.points.length > 0 || lineTool.points.length > 0) &&
+        /^[0-9.,]$/.test(e.key)
+      ) {
+        const inp = lengthInputRef.current;
+        if (inp && document.activeElement !== inp) {
+          e.preventDefault();
+          inp.focus();
+          inp.value = e.key === "," ? "." : e.key;
+        }
+      }
     };
     const onKeyUp = (e) => {
       if (e.code === "Space") spaceHeldRef.current = false;
@@ -143,7 +169,7 @@ export default function Workspace() {
       window.removeEventListener("keyup", onKeyUp);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tool, areaTool.points.length, lineTool.points.length, selectedShape, areas, lines, calibrationMode]);
+  }, [tool, areaTool.points.length, lineTool.points.length, selectedShape, areas, lines, calibrationMode, gridStep, lockedLength]);
 
   const getLocalPx = (e) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -152,8 +178,24 @@ export default function Workspace() {
 
   const applySnap = useCallback((w) => {
     if (!snapEnabled || shiftHeldRef.current) return w;
-    return snapToGrid(w, gridStep);
-  }, [snapEnabled, gridStep]);
+    // Edge snap with screen-space threshold (~6 px) — magnetic grid lines.
+    const threshold = 6 / viewport.scale;
+    return snapToGrid(w, gridStep, threshold);
+  }, [snapEnabled, gridStep, viewport.scale]);
+
+  // Compute final point used by drawing tools: applies Shift angle (15°) and lockedLength.
+  const computeDrawPoint = useCallback((wRaw, lastPoint) => {
+    let p = applySnap(wRaw);
+    if (lastPoint) {
+      if (shiftHeldRef.current) {
+        p = constrainAngle(lastPoint, wRaw, 15);
+      }
+      if (lockedLength && lockedLength > 0) {
+        p = lockedLengthPoint(lastPoint, p, lockedLength);
+      }
+    }
+    return p;
+  }, [applySnap, lockedLength]);
 
   const pxPerWorld = viewport.scale;
   const vertexPickWorld = VERTEX_PICK_PX / pxPerWorld;
@@ -220,17 +262,23 @@ export default function Workspace() {
     }
 
     if (tool === "area") {
+      const lastPt = areaTool.points[areaTool.points.length - 1] || null;
+      const draw = lastPt ? computeDrawPoint(wRaw, lastPt) : w;
       if (areaTool.points.length >= 3) {
         const first = areaTool.points[0];
-        const dxPx = (w.x - first[0]) * viewport.scale;
-        const dyPx = (w.y - first[1]) * viewport.scale;
+        const dxPx = (draw.x - first[0]) * viewport.scale;
+        const dyPx = (draw.y - first[1]) * viewport.scale;
         if (Math.hypot(dxPx, dyPx) < 12) { finishArea(); return; }
       }
-      areaTool.addPoint([w.x, w.y]);
+      areaTool.addPoint([draw.x, draw.y]);
+      if (lockedLength) setLockedLength(null);
       return;
     }
     if (tool === "line") {
-      lineTool.addPoint([w.x, w.y]);
+      const lastPt = lineTool.points[lineTool.points.length - 1] || null;
+      const draw = lastPt ? computeDrawPoint(wRaw, lastPt) : w;
+      lineTool.addPoint([draw.x, draw.y]);
+      if (lockedLength) setLockedLength(null);
       return;
     }
     if (tool === "edit") {
@@ -303,14 +351,24 @@ export default function Workspace() {
         ? areas.find((a) => a.id === d.id)
         : lines.find((ln) => ln.id === d.id);
       if (!shape) return;
+      // For edit drag we keep simple snap (no angle/length lock during vertex drag)
       const newPts = shape.points.map((p, i) => (i === d.vertexIdx ? [w.x, w.y] : p));
       updateShapePointsLocal(d.type, d.id, newPts);
       return;
     }
 
-    if (tool === "area") areaTool.setHoverPoint([w.x, w.y]);
-    else if (tool === "line") lineTool.setHoverPoint([w.x, w.y]);
-    else areaTool.setHoverPoint([w.x, w.y]);
+    // Drawing preview: compute effective hover point with angle/lockedLength applied.
+    if (tool === "area") {
+      const lastPt = areaTool.points[areaTool.points.length - 1] || null;
+      const hp = lastPt ? computeDrawPoint(wRaw, lastPt) : w;
+      areaTool.setHoverPoint([hp.x, hp.y]);
+    } else if (tool === "line") {
+      const lastPt = lineTool.points[lineTool.points.length - 1] || null;
+      const hp = lastPt ? computeDrawPoint(wRaw, lastPt) : w;
+      lineTool.setHoverPoint([hp.x, hp.y]);
+    } else {
+      areaTool.setHoverPoint([w.x, w.y]);
+    }
   };
 
   const onPointerUp = async (e) => {
@@ -512,6 +570,47 @@ export default function Workspace() {
     patchAreaAndRecord(selectedShape.id, { density_t_m3: v }, `Gęstość → ${v} t/m³`);
   };
 
+  // Offset selected shape by (dx, dy) meters (translate all points), with undo support.
+  const offsetSelectedShape = async (dx, dy) => {
+    if (!selectedShape || (dx === 0 && dy === 0)) return;
+    const list = selectedShape.type === "area" ? areas : lines;
+    const shape = list.find((s) => s.id === selectedShape.id);
+    if (!shape) return;
+    const oldPts = shape.points;
+    const newPts = oldPts.map(([x, y]) => [x + dx, y + dy]);
+    try {
+      if (selectedShape.type === "area") {
+        const updated = await areasApi.update(projectId, shape.id, { points: newPts });
+        setAreas((arr) => arr.map((a) => (a.id === shape.id ? updated : a)));
+      } else {
+        const updated = await linesApi.update(projectId, shape.id, { points: newPts });
+        setLines((arr) => arr.map((l) => (l.id === shape.id ? updated : l)));
+      }
+      history.record({
+        label: `Odsuń ${selectedShape.type === "area" ? "obszar" : "odcinek"} (${dx.toFixed(2)}, ${dy.toFixed(2)}) m`,
+        undo: async () => {
+          if (selectedShape.type === "area") {
+            const r = await areasApi.update(projectId, shape.id, { points: oldPts });
+            setAreas((arr) => arr.map((a) => (a.id === shape.id ? r : a)));
+          } else {
+            const r = await linesApi.update(projectId, shape.id, { points: oldPts });
+            setLines((arr) => arr.map((l) => (l.id === shape.id ? r : l)));
+          }
+        },
+        redo: async () => {
+          if (selectedShape.type === "area") {
+            const r = await areasApi.update(projectId, shape.id, { points: newPts });
+            setAreas((arr) => arr.map((a) => (a.id === shape.id ? r : a)));
+          } else {
+            const r = await linesApi.update(projectId, shape.id, { points: newPts });
+            setLines((arr) => arr.map((l) => (l.id === shape.id ? r : l)));
+          }
+        },
+      });
+    } catch { toast.error("Nie udało się przesunąć"); }
+  };
+
+
   // Deliveries
   const addDelivery = async (payload) => {
     try {
@@ -642,6 +741,7 @@ export default function Workspace() {
       </div>
 
       <MeasurementPanel
+        ref={lengthInputRef}
         mode={tool === "area" && areaTool.points.length > 0 ? "area"
           : tool === "line" && lineTool.points.length > 0 ? "line" : "idle"}
         points={tool === "line" ? lineTool.points : areaTool.points}
@@ -650,7 +750,10 @@ export default function Workspace() {
         lengthM={lineTool.liveLengthM}
         canFinish={tool === "area" ? areaTool.points.length >= 3 : lineTool.points.length >= 2}
         onFinish={() => (tool === "line" ? finishLine() : finishArea())}
-        onCancel={() => { areaTool.reset(); lineTool.reset(); }}
+        onCancel={() => { areaTool.reset(); lineTool.reset(); setLockedLength(null); }}
+        lockedLength={lockedLength}
+        onSetLockedLength={(v) => setLockedLength(v)}
+        onClearLockedLength={() => setLockedLength(null)}
       />
 
       <TopToolbar
@@ -690,6 +793,7 @@ export default function Workspace() {
         onChangeStatus={changeSelectedStatus}
         onChangeThickness={changeSelectedThickness}
         onChangeDensity={changeSelectedDensity}
+        onOffsetShape={offsetSelectedShape}
         onAddDelivery={addDelivery}
         onDeleteDelivery={deleteDelivery}
       />
