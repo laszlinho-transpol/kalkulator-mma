@@ -1,0 +1,40 @@
+export const HOME = { emergentLink: "emergent-link" };
+
+export const DASHBOARD = {
+  root: "dashboard-root",
+  newProjectBtn: "new-project-btn",
+  projectCard: (id) => `project-card-${id}`,
+  openProjectBtn: (id) => `open-project-${id}`,
+  deleteProjectBtn: (id) => `delete-project-${id}`,
+  createDialog: "create-project-dialog",
+  createDialogName: "create-project-name",
+  createDialogDesc: "create-project-description",
+  createDialogLocation: "create-project-location",
+  createDialogSubmit: "create-project-submit",
+};
+
+export const WORKSPACE = {
+  root: "workspace-root",
+  backToProjects: "workspace-back-btn",
+  canvas: "workspace-canvas",
+  measurementPanel: "measurement-panel",
+  measurementArea: "measurement-area-value",
+  measurementPerimeter: "measurement-perimeter-value",
+  measurementNodes: "measurement-nodes-value",
+  finishAreaBtn: "finish-area-btn",
+  cancelAreaBtn: "cancel-area-btn",
+  toolSelect: "tool-select",
+  toolPan: "tool-pan",
+  toolArea: "tool-area",
+  zoomIn: "zoom-in",
+  zoomOut: "zoom-out",
+  zoomReset: "zoom-reset",
+  zoomLevel: "zoom-level",
+  gridStepSelect: "grid-step-select",
+  statusCoords: "status-coords",
+  statusZoom: "status-zoom",
+  statusGrid: "status-grid",
+  statusTool: "status-tool",
+  sidebarAreaItem: (id) => `area-item-${id}`,
+  sidebarDeleteArea: (id) => `area-delete-${id}`,
+};
