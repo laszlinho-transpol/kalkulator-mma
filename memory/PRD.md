@@ -36,21 +36,28 @@ Polish SaaS for monitoring bitumen mass laying on road construction sites.
 - [x] Sidebar with project info, total area, list of all areas with badge IDs, delete area
 - [x] Status bar: live cursor X/Y in meters, grid step, active tool, areas count, zoom %
 - [x] Full Polish UI, IBM Plex Sans + Chivo + IBM Plex Mono typography, amber/orange accent palette
-- [x] 100% backend pytest + Playwright E2E passing
+
+## Stage 2 implemented (2026-02)
+- [x] **Edycja obszarów (tool E)**: zaznaczanie kliknięciem, drag wierzchołków (białe uchwyty), wstawianie węzła kliknięciem zielonego + na środku segmentu, Shift+klik usuwa węzeł (min 3 area / 2 line), PATCH zapis na pointerup
+- [x] **Snap-to-grid (S)**: toggle w pasku narzędzi + hotkey S; Shift wymusza precyzję; zielony dot pokazuje snap; status bar pokazuje WŁ/WYŁ
+- [x] **Warstwy (kategorie)**: stała lista SMA / AC W / AC P / Beton / Inne z kolorami; layer picker przy zaznaczonym obszarze; filtry warstw w sidebarze (chipy z licznikami); backend normalizuje uppercase i przypisuje kolor wg LAYER_COLORS
+- [x] **Eksport PDF/CSV**: dialog z 2 opcjami; PDF A4 landscape ze snapshotem planszy + tabela obszarów + tabela odcinków (jsPDF + autoTable); CSV z BOM dla Excela, separator `;`
+- [x] **Narzędzie Odcinek (L)**: polilinia, live długość, suma długości w sidebarze, auto ID `L-MM/YY/XXXX` per projekt
+- [x] 100% backend pytest (28/28) + 100% Playwright E2E (39/39)
 
 ## Prioritized backlog (next stages)
 
-### P0 – Stage 2 candidates
-- [ ] Editing existing areas (move/insert/delete vertices)
-- [ ] Snap-to-grid toggle during drawing
-- [ ] Layers / categorization (e.g. SMA, AC, primer)
-- [ ] PDF/CSV export of project + areas
+### P0 – Stage 3 candidates
+- [ ] Kalkulator tonażu masy (m² × grubość × gęstość → tony)
+- [ ] Podkład – tło rysunku (PDF/PNG z georeferencją)
+- [ ] Notatki + zdjęcia jako piny na planszy
+- [ ] Eksport DXF/DWG (CAD)
 
 ### P1
-- [ ] Tooth/asphalt mass calculator (m² × thickness × density → tonnage)
-- [ ] Line/segment measurement tool ("Odcinek")
-- [ ] Photo pins on canvas (geo-tag + thumbnails)
-- [ ] Project sharing/collab (would require auth)
+- [ ] Multi-projekt: kopiowanie obszarów między projektami
+- [ ] Historia zmian (undo/redo)
+- [ ] Pomiar kąta i poziomicy
+- [ ] Kolaboracja w czasie rzeczywistym (wymaga auth)
 
 ### P2
 - [ ] Auth (JWT or Emergent Google)
