@@ -46,12 +46,12 @@ def test_create_area_default_layer_inne(session, pid):
     assert a["color"] == "#1971C2"
 
 
-def test_create_area_layer_ac_w_default_color(session, pid):
+def test_create_area_layer_ac11s_default_color(session, pid):
     r = session.post(f"{API}/projects/{pid}/areas",
-                     json={"points": [[0, 0], [2, 0], [2, 2]], "layer": "AC_W"})
+                     json={"points": [[0, 0], [2, 0], [2, 2]], "layer": "AC11S"})
     assert r.status_code == 200, r.text
     a = r.json()
-    assert a["layer"] == "AC_W"
+    assert a["layer"] == "AC11S"
     assert a["color"].upper() == "#D9480F"
 
 

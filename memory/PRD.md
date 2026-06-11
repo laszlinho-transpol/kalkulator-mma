@@ -45,19 +45,32 @@ Polish SaaS for monitoring bitumen mass laying on road construction sites.
 - [x] **Narzędzie Odcinek (L)**: polilinia, live długość, suma długości w sidebarze, auto ID `L-MM/YY/XXXX` per projekt
 - [x] 100% backend pytest (28/28) + 100% Playwright E2E (39/39)
 
+## Stage 3 implemented (2026-02)
+- [x] **Nowa lista warstw** zgodna z polskimi normami: SMA, AC8S, AC11S, AC11W, AC16W, AC22P, KŁSM (zamiast BETON), INNE — każda z domyślną grubością i gęstością
+- [x] **Kalkulator tonażu LIVE** — każdy obszar ma `thickness_cm` (cm), `density_t_m3`, `status` (planned/in_progress/done); tonaż = m² × grubość × gęstość
+- [x] **Tab "Tonaż"** w sidebarze: agregacja per-warstwa z paskiem postępu (zielony=wykonane, pomarańczowy=w trakcie); podsumowanie globalne PLAN./WYKON./DOSTAW.
+- [x] **Tab "Dostawy" (WZ)** — dodawanie wpisów dostaw (warstwa, tonaż, nr WZ, notatka); porównanie dostarczono vs wykonane (różnica % i ton)
+- [x] **Inspector wybranego obszaru** — picker warstwy + status, edytowalne pola grubości/gęstości; live przeliczenie tonażu
+- [x] **Podkład planszy (PNG/JPG/PDF)** — upload z konwersją PDF→PNG (pdfjs-dist), opacity slider, skala (m/px), rotacja, widoczność; dane w MongoDB kolekcji `backgrounds` jako data URL
+- [x] **Kalibracja 2-punktowa** — kliknij 2 znane punkty + wpisz odległość w metrach → automatyczne dopasowanie skali podkładu
+- [x] **Undo/Redo** (Ctrl+Z, Ctrl+Y, Ctrl+Shift+Z) — 50 akcji w pamięci sesji dla: tworzenia/usuwania obszarów+odcinków+dostaw, edycji punktów, zmiany warstwy/statusu/grubości/gęstości
+- [x] **Eksport PDF/CSV** rozszerzony o tabelę "Tonaż wg warstwy" i sekcję "Dostawy (WZ)"
+- [x] **Testy**: 44/44 backend pytest (Stage 1+2+3 razem) — 100% pass
+
 ## Prioritized backlog (next stages)
 
-### P0 – Stage 3 candidates
-- [ ] Kalkulator tonażu masy (m² × grubość × gęstość → tony)
-- [ ] Podkład – tło rysunku (PDF/PNG z georeferencją)
-- [ ] Notatki + zdjęcia jako piny na planszy
+### P0 – Stage 4 candidates
+- [ ] Notatki + zdjęcia jako piny na planszy (object storage dla zdjęć)
+- [ ] Multi-projekt: kopiowanie obszarów/szablonów między projektami
+- [ ] Persystencja undo/redo (po reload też dostępne)
 - [ ] Eksport DXF/DWG (CAD)
+- [ ] Auth (JWT lub Google) dla kolaboracji
 
 ### P1
-- [ ] Multi-projekt: kopiowanie obszarów między projektami
-- [ ] Historia zmian (undo/redo)
+- [ ] Historia statusów obszaru (kiedy przeszedł z planned → done) — timeline
+- [ ] Powiadomienia / progress alerts (np. "AC11S wykonano 90% — gotowy do odbioru")
 - [ ] Pomiar kąta i poziomicy
-- [ ] Kolaboracja w czasie rzeczywistym (wymaga auth)
+- [ ] Walidacja dostarczono vs wykonano z konfigurowalnym progiem alertu
 
 ### P2
 - [ ] Auth (JWT or Emergent Google)

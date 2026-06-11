@@ -520,13 +520,17 @@ async def add_delivery(project_id: str, payload: DeliveryCreate):
 
 @api_router.delete("/projects/{project_id}/deliveries/{delivery_id}")
 async def remove_delivery(project_id: str, delivery_id: str):
-    res = await db.projects.update_one(
+    project_doc = await db.projects.find_one(
+        {"id": project_id, "deliveries.id": delivery_id},
+        {"_id": 0, "id": 1},
+    )
+    if not project_doc:
+        raise HTTPException(status_code=404, detail="Delivery not found")
+    await db.projects.update_one(
         {"id": project_id},
         {"$pull": {"deliveries": {"id": delivery_id}},
          "$set": {"updated_at": datetime.now(timezone.utc).isoformat()}},
     )
-    if res.modified_count == 0:
-        raise HTTPException(status_code=404, detail="Delivery not found")
     return {"ok": True}
 
 
