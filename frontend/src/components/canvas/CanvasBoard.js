@@ -3,17 +3,30 @@ import { zoomToScale } from "@/lib/geometry";
 import { getLayer } from "@/lib/layers";
 import { WORKSPACE } from "@/constants/testIds";
 
+// Image cache keyed by data_url
+const imgCache = new Map();
+const getImg = (dataUrl) => {
+  if (!dataUrl) return null;
+  if (imgCache.has(dataUrl)) return imgCache.get(dataUrl);
+  const img = new Image();
+  img.src = dataUrl;
+  imgCache.set(dataUrl, img);
+  return img;
+};
+
 export const CanvasBoard = ({
   viewport,
   gridStep,
   tool,
   areas,
   lines,
+  background,           // { data_url, opacity, x, y, scale (m/px), rotation, visible, natural_width, natural_height }
+  calibrationPoints,    // array of [x,y] world coords during calibration
   drawingPoints,
-  drawingMode, // 'area' | 'line' | null
+  drawingMode,
   hoverPoint,
-  selectedShape, // { type:'area'|'line', id } | null
-  snapPreview, // snapped world coord, displayed as ghost dot
+  selectedShape,
+  snapPreview,
   onPointerDown,
   onPointerMove,
   onPointerUp,
@@ -48,12 +61,19 @@ export const CanvasBoard = ({
   }, []);
 
   useEffect(() => {
+    // If background image not yet loaded, schedule a redraw on load.
+    if (background?.data_url) {
+      const img = getImg(background.data_url);
+      if (!img.complete) {
+        img.onload = () => draw();
+      }
+    }
     draw();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     viewport.zoom, viewport.offset.x, viewport.offset.y,
     gridStep, areas, lines, drawingPoints, drawingMode, hoverPoint,
-    selectedShape, snapPreview, tool,
+    selectedShape, snapPreview, tool, background, calibrationPoints,
   ]);
 
   const draw = () => {
@@ -66,9 +86,27 @@ export const CanvasBoard = ({
     const { x: ox, y: oy } = viewport.offset;
     const w2s = (wx, wy) => [(wx - ox) * scale, (wy - oy) * scale];
 
-    // Background
+    // Background fill
     ctx.fillStyle = "#F1F3F5";
     ctx.fillRect(0, 0, w, h);
+
+    // BACKGROUND IMAGE (under grid)
+    if (background?.data_url && background.visible !== false) {
+      const img = getImg(background.data_url);
+      if (img.complete && img.naturalWidth > 0) {
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, Math.min(1, background.opacity ?? 0.5));
+        // Translate to image origin in screen coords (world (bgX, bgY))
+        const [sx, sy] = w2s(background.x || 0, background.y || 0);
+        ctx.translate(sx, sy);
+        ctx.rotate(((background.rotation || 0) * Math.PI) / 180);
+        // image is rendered at (scale_meters_per_pixel * zoom_pixels_per_meter) = scaleFactor screen px per image px
+        const sf = (background.scale || 0.05) * scale;
+        ctx.scale(sf, sf);
+        ctx.drawImage(img, 0, 0);
+        ctx.restore();
+      }
+    }
 
     // GRID
     let step = gridStep;
@@ -79,7 +117,7 @@ export const CanvasBoard = ({
     const yEnd = oy + h / scale;
 
     ctx.lineWidth = 1;
-    ctx.strokeStyle = "#E9ECEF";
+    ctx.strokeStyle = "rgba(173,181,189,0.4)";
     ctx.beginPath();
     for (let x = xStart; x <= xEnd; x += step) {
       const sx = (x - ox) * scale + 0.5;
@@ -92,7 +130,7 @@ export const CanvasBoard = ({
     ctx.stroke();
 
     const majorStep = step * 5;
-    ctx.strokeStyle = "#CED4DA";
+    ctx.strokeStyle = "rgba(108,117,125,0.45)";
     ctx.beginPath();
     const xMajorStart = Math.floor(ox / majorStep) * majorStep;
     const yMajorStart = Math.floor(oy / majorStep) * majorStep;
@@ -106,9 +144,9 @@ export const CanvasBoard = ({
     }
     ctx.stroke();
 
-    // Origin axes
+    // Origin
     ctx.lineWidth = 1.5;
-    ctx.strokeStyle = "#ADB5BD";
+    ctx.strokeStyle = "rgba(73,80,87,0.6)";
     const originX = (0 - ox) * scale;
     const originY = (0 - oy) * scale;
     ctx.beginPath();
@@ -126,11 +164,15 @@ export const CanvasBoard = ({
       const layer = getLayer(a.layer);
       const stroke = a.color || layer.color;
       const isSelected = a.id === selectedAreaId;
+      const status = a.status || "planned";
+      const fillAlpha = status === "done" ? 0.30 : status === "in_progress" ? 0.22 : 0.13;
+      const dashed = status === "planned";
       drawPolygon(ctx, a.points, w2s, {
-        fill: hexToRgba(stroke, isSelected ? 0.28 : 0.15),
+        fill: hexToRgba(stroke, isSelected ? fillAlpha + 0.1 : fillAlpha),
         stroke,
         lineWidth: isSelected ? 3 : 2,
-        label: a.area_id,
+        dashed,
+        label: a.area_id + (status === "done" ? " ✓" : status === "in_progress" ? " ●" : ""),
         labelBg: isSelected ? "#E67700" : "#212529",
         labelFg: "#FFFFFF",
       });
@@ -154,36 +196,52 @@ export const CanvasBoard = ({
       }
     });
 
+    // CALIBRATION OVERLAY
+    if (calibrationPoints && calibrationPoints.length > 0) {
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = "#40C057";
+      ctx.fillStyle = "#40C057";
+      ctx.beginPath();
+      calibrationPoints.forEach((p, i) => {
+        const [sx, sy] = w2s(p[0], p[1]);
+        if (i === 0) ctx.moveTo(sx, sy); else ctx.lineTo(sx, sy);
+      });
+      ctx.stroke();
+      calibrationPoints.forEach((p) => {
+        const [sx, sy] = w2s(p[0], p[1]);
+        ctx.beginPath();
+        ctx.arc(sx, sy, 6, 0, Math.PI * 2);
+        ctx.fillStyle = "#FFFFFF";
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = "#40C057";
+        ctx.stroke();
+      });
+    }
+
     // IN-PROGRESS DRAWING
     if (drawingMode && drawingPoints && drawingPoints.length > 0) {
       const isArea = drawingMode === "area";
       const previewPts = hoverPoint ? [...drawingPoints, hoverPoint] : drawingPoints;
-
-      // Filled preview for area
       if (isArea && previewPts.length >= 3) {
         ctx.beginPath();
         previewPts.forEach((p, i) => {
           const [sx, sy] = w2s(p[0], p[1]);
-          if (i === 0) ctx.moveTo(sx, sy);
-          else ctx.lineTo(sx, sy);
+          if (i === 0) ctx.moveTo(sx, sy); else ctx.lineTo(sx, sy);
         });
         ctx.closePath();
         ctx.fillStyle = "rgba(230, 119, 0, 0.12)";
         ctx.fill();
       }
-
-      // committed segments
       ctx.lineWidth = 2;
       ctx.strokeStyle = isArea ? "#E67700" : "#1971C2";
       ctx.beginPath();
       drawingPoints.forEach((p, i) => {
         const [sx, sy] = w2s(p[0], p[1]);
-        if (i === 0) ctx.moveTo(sx, sy);
-        else ctx.lineTo(sx, sy);
+        if (i === 0) ctx.moveTo(sx, sy); else ctx.lineTo(sx, sy);
       });
       ctx.stroke();
 
-      // dashed preview to hover
       if (hoverPoint && drawingPoints.length > 0) {
         const last = drawingPoints[drawingPoints.length - 1];
         const [sx1, sy1] = w2s(last[0], last[1]);
@@ -191,7 +249,6 @@ export const CanvasBoard = ({
         ctx.setLineDash([5, 4]);
         ctx.strokeStyle = isArea ? "#E67700" : "#1971C2";
         ctx.beginPath(); ctx.moveTo(sx1, sy1); ctx.lineTo(sx2, sy2); ctx.stroke();
-
         if (isArea && drawingPoints.length >= 2) {
           const first = drawingPoints[0];
           const [fsx, fsy] = w2s(first[0], first[1]);
@@ -201,7 +258,6 @@ export const CanvasBoard = ({
         ctx.setLineDash([]);
       }
 
-      // nodes
       drawingPoints.forEach((p, i) => {
         const [sx, sy] = w2s(p[0], p[1]);
         ctx.beginPath();
@@ -214,7 +270,7 @@ export const CanvasBoard = ({
       });
     }
 
-    // Crosshair guides for hover (precise pointing)
+    // CROSSHAIR
     if ((tool === "select" || tool === "area" || tool === "line" || tool === "edit") && hoverPoint) {
       const [sx, sy] = w2s(hoverPoint[0], hoverPoint[1]);
       ctx.strokeStyle = "rgba(33,37,41,0.35)";
@@ -227,7 +283,7 @@ export const CanvasBoard = ({
       ctx.setLineDash([]);
     }
 
-    // Snap indicator (small green dot at snapped position)
+    // SNAP INDICATOR
     if (snapPreview) {
       const [sx, sy] = w2s(snapPreview[0], snapPreview[1]);
       ctx.beginPath();
@@ -271,7 +327,9 @@ const drawPolygon = (ctx, pts, w2s, opts) => {
   if (opts.stroke) {
     ctx.lineWidth = opts.lineWidth || 2;
     ctx.strokeStyle = opts.stroke;
+    if (opts.dashed) ctx.setLineDash([6, 4]); else ctx.setLineDash([]);
     ctx.stroke();
+    ctx.setLineDash([]);
   }
   if (opts.label) drawLabel(ctx, centroid(pts), w2s, opts.label, opts.labelBg, opts.labelFg);
 };
@@ -286,8 +344,6 @@ const drawPolyline = (ctx, pts, w2s, opts) => {
   ctx.lineWidth = opts.lineWidth || 2;
   ctx.strokeStyle = opts.stroke || "#1971C2";
   ctx.stroke();
-
-  // endpoint markers
   pts.forEach((p, i) => {
     if (i !== 0 && i !== pts.length - 1) return;
     const [sx, sy] = w2s(p[0], p[1]);
@@ -296,9 +352,7 @@ const drawPolyline = (ctx, pts, w2s, opts) => {
     ctx.fillStyle = opts.stroke || "#1971C2";
     ctx.fill();
   });
-
   if (opts.label) {
-    // label at midpoint
     const midIdx = Math.floor(pts.length / 2);
     const a = pts[midIdx - 1] || pts[0];
     const b = pts[midIdx] || pts[pts.length - 1];
@@ -308,58 +362,26 @@ const drawPolyline = (ctx, pts, w2s, opts) => {
 };
 
 const drawEditHandles = (ctx, pts, w2s, drawInsertPlus) => {
-  // Vertex handles — white filled circle with thick stroke
   pts.forEach((p) => {
     const [sx, sy] = w2s(p[0], p[1]);
     ctx.beginPath();
     ctx.arc(sx, sy, 6, 0, Math.PI * 2);
-    ctx.fillStyle = "#FFFFFF";
-    ctx.fill();
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = "#E67700";
-    ctx.stroke();
+    ctx.fillStyle = "#FFFFFF"; ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = "#E67700"; ctx.stroke();
   });
-
-  // Midpoint + insertion handles (small green +) - on each segment
-  if (drawInsertPlus) {
-    const n = pts.length;
-    for (let i = 0; i < n; i++) {
-      const a = pts[i];
-      const b = pts[(i + 1) % n];
-      const [sx, sy] = w2s((a[0] + b[0]) / 2, (a[1] + b[1]) / 2);
-      ctx.beginPath();
-      ctx.arc(sx, sy, 5, 0, Math.PI * 2);
-      ctx.fillStyle = "#FFFFFF";
-      ctx.fill();
-      ctx.strokeStyle = "#40C057";
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-      // small +
-      ctx.strokeStyle = "#40C057";
-      ctx.beginPath();
-      ctx.moveTo(sx - 2, sy); ctx.lineTo(sx + 2, sy);
-      ctx.moveTo(sx, sy - 2); ctx.lineTo(sx, sy + 2);
-      ctx.stroke();
-    }
-  } else {
-    // For lines (polyline) insert handles only between segments (not closing one)
-    for (let i = 0; i < pts.length - 1; i++) {
-      const a = pts[i];
-      const b = pts[i + 1];
-      const [sx, sy] = w2s((a[0] + b[0]) / 2, (a[1] + b[1]) / 2);
-      ctx.beginPath();
-      ctx.arc(sx, sy, 5, 0, Math.PI * 2);
-      ctx.fillStyle = "#FFFFFF";
-      ctx.fill();
-      ctx.strokeStyle = "#40C057";
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-      ctx.strokeStyle = "#40C057";
-      ctx.beginPath();
-      ctx.moveTo(sx - 2, sy); ctx.lineTo(sx + 2, sy);
-      ctx.moveTo(sx, sy - 2); ctx.lineTo(sx, sy + 2);
-      ctx.stroke();
-    }
+  const n = drawInsertPlus ? pts.length : pts.length - 1;
+  for (let i = 0; i < n; i++) {
+    const a = pts[i];
+    const b = pts[(i + 1) % pts.length];
+    const [sx, sy] = w2s((a[0] + b[0]) / 2, (a[1] + b[1]) / 2);
+    ctx.beginPath();
+    ctx.arc(sx, sy, 5, 0, Math.PI * 2);
+    ctx.fillStyle = "#FFFFFF"; ctx.fill();
+    ctx.strokeStyle = "#40C057"; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(sx - 2, sy); ctx.lineTo(sx + 2, sy);
+    ctx.moveTo(sx, sy - 2); ctx.lineTo(sx, sy + 2);
+    ctx.stroke();
   }
 };
 
@@ -368,13 +390,13 @@ const drawLabel = (ctx, worldPos, w2s, text, bg, fg) => {
   ctx.font = "600 11px 'IBM Plex Mono', monospace";
   const m = ctx.measureText(text);
   const padX = 6;
-  const w = m.width + padX * 2;
-  const h = 18;
+  const wL = m.width + padX * 2;
+  const hL = 18;
   ctx.fillStyle = bg || "#212529";
-  ctx.fillRect(sx - w / 2, sy - h / 2, w, h);
+  ctx.fillRect(sx - wL / 2, sy - hL / 2, wL, hL);
   ctx.fillStyle = fg || "#FFFFFF";
   ctx.textBaseline = "middle";
-  ctx.fillText(text, sx - w / 2 + padX, sy + 0.5);
+  ctx.fillText(text, sx - wL / 2 + padX, sy + 0.5);
 };
 
 const centroid = (pts) => {

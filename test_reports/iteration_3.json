@@ -1,0 +1,42 @@
+{
+  "summary": "Stage 3 BitumenOps testing complete. Backend pytest stage3: 15/16 pass (1 real minor bug: DELETE non-existent delivery returns 200 instead of 404). Stage 1+2 regression: 27/28 (one stale Stage-2 test for layer 'AC_W' which Stage 3 removed/replaced with AC11W/AC16W — test is obsolete, not a code regression). Frontend Playwright: 13/14 functional assertions PASS — 3 sidebar tabs (tab-areas/tab-tonnage/tab-deliveries) visible, all 9 layer-filter chips present (ALL/SMA/AC8S/AC11S/AC11W/AC16W/AC22P/KLSM/INNE), undo-btn+redo-btn initially disabled, AC11S 10x5m area at 4cm/2.40 t/m³ yields tonnage 4.80 t in tonnage-row-AC11S, delivery POST via UI (AC11S, 25 t, WZ-100) creates delivery-item-{id} with 25.00 t, WZ comparison shows '25.00 t +25.0 t' next to TRAKT/WYKON, background-btn opens background-dialog with background-file drag&drop area, undo-btn enables after UI delivery add and removes delivery on click, redo-btn restores delivery, Ctrl+Z hotkey works, snap-toggle flips WŁ./WYŁ. status-snap. Visual confirmation in screenshot: area created with PLAN. status badge, AC11S filter count (1), Σ T = 4.80 t, dostawa toast displayed. One non-critical test assertion error (wrong sidebar item testid prefix) — functionality verified via screenshot.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "DELETE /api/projects/{pid}/deliveries/{delivery_id}", "issue": "Returns 200 (not 404) for non-existent delivery_id because the same update_one also $set updated_at, making modified_count>=1 even when no $pull matched. Use a separate read or check matched/result of $pull array length instead."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_bitumen_stage3.py",
+    "/app/test_reports/pytest/stage3_results.xml",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "OPTIONAL: Fix DELETE delivery 404 detection — check if any delivery with that id existed (e.g., re-read project doc or use a 2-step find then $pull) so removing a non-existent delivery returns 404 per REST norms.",
+    "Cleanup: remove or update stale Stage-2 test 'test_create_area_layer_ac_w_default_color' in /app/backend/tests/test_bitumen_stage2.py — Stage 3 layer rename (AC_W → AC11W/AC16W) makes the old assertion obsolete (legacy 'AC_W' now correctly falls through to INNE default #1971C2)."
+  ],
+  "critical_code_review_comments": [
+    "Backend ALLOWED_STATUSES enforcement on PATCH is correctly returning 400 — solid validation.",
+    "Background lifecycle (PUT/GET/PATCH/DELETE) works and cascades correctly with project delete; Project.has_background flag is kept in sync.",
+    "LAYER_COLORS supports both 'KŁSM' (unicode) and 'KLSM' (ASCII) aliases → same color #5C3A21 — good defensive design.",
+    "Legacy 'BETON' layer value is preserved as-is (no color in LAYER_COLORS so falls through to INNE default) — this matches the spec but might confuse users since BETON-layer areas display as blue (INNE color). Consider either rejecting unknown layers or adding migration hint.",
+    "Workspace.js is now ~750 lines including new deliveries/background/calibration orchestration — close to/exceeding the 700-line guideline. Recommend extracting useDeliveries, useBackground, and useCalibration hooks for maintainability.",
+    "remove_delivery 404 detection bug (see backend minor issue above) — same pattern (update_one + modified_count) is also used for area_id/line_id $inc patterns but those check find_one first, so OK.",
+    "Frontend redo handler in handleDeleteArea uses a fuzzy 'best-effort' filter (layer + abs(area_m2) < 0.01) which could mis-target an area if user creates two identical-area same-layer polygons — consider tracking the created id from undo() instead."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_bitumen_stage3.py (new pytest suite for Stage 3 — 16 tests covering area status/thickness/density, new layers KLSM/KŁSM/AC22P/AC11S/etc, deliveries CRUD, background lifecycle, cascade delete)"
+  ],
+  "success_rate": {"backend": "93.75% (15/16 stage3) / 95.5% overall (42/44)", "frontend": "92% (13/14 — last failure was a test-side selector typo, not a product bug)"},
+  "test_credentials": "none required (no auth)",
+  "seed_data_creation": "TEST_Stage3, TEST_Stage3_BG, TEST_Stage3_BG2, TEST_Stage3_BG3, TEST_Stage3_Cascade, TEST_Stage3_FE — all created and cleaned up via DELETE /api/projects/{id} in teardown.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Frontend area sidebar testid prefix is sidebarAreaItem(id)=>`sidebar-area-item-{id}` (NOT 'sidebar-area-'). Tonnage row format: 'AC11S{thickness}cm · {density} t/m³{area} m²PLAN{plan} tTRAKT{progress} tWYKON{done} tWZ{delivered} t[+diff]'. Delivery-layer-select is a native <select> — use page.select_option(value='AC11S'). Background dialog initial state shows drag&drop area; after upload it switches to opacity/scale/rotation controls. Undo/redo history is in-memory only (refresh resets, also clears history). API-created areas/deliveries do NOT enter the undo stack; only UI-initiated actions do. Stage 1+2 backend tests still useful but the 'test_create_area_layer_ac_w_default_color' test in test_bitumen_stage2.py is stale and should be updated to use AC11W/AC11S instead of AC_W.",
+  "rca of the issue": "DELETE /api/projects/{pid}/deliveries/{did} bug: `update_one({...}, {'$pull': {...}, '$set': {'updated_at': ...}})` always returns modified_count>=1 because '$set' on updated_at is always applied to the matching project document, regardless of whether the $pull found a delivery to remove. The 404 check should either (a) read the project first and check if delivery id exists, or (b) split into separate update_one calls (first $pull, check result.raw_result.nModified by inspecting deliveries length pre/post), or (c) use modified_count check before adding the $set updated_at."
+}
