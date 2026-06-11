@@ -17,6 +17,18 @@ export const areasApi = {
   list: (projectId) => http.get(`/projects/${projectId}/areas`).then((r) => r.data),
   create: (projectId, data) =>
     http.post(`/projects/${projectId}/areas`, data).then((r) => r.data),
+  update: (projectId, areaId, data) =>
+    http.patch(`/projects/${projectId}/areas/${areaId}`, data).then((r) => r.data),
   remove: (projectId, areaId) =>
     http.delete(`/projects/${projectId}/areas/${areaId}`).then((r) => r.data),
+};
+
+export const linesApi = {
+  list: (projectId) => http.get(`/projects/${projectId}/lines`).then((r) => r.data),
+  create: (projectId, data) =>
+    http.post(`/projects/${projectId}/lines`, data).then((r) => r.data),
+  update: (projectId, lineId, data) =>
+    http.patch(`/projects/${projectId}/lines/${lineId}`, data).then((r) => r.data),
+  remove: (projectId, lineId) =>
+    http.delete(`/projects/${projectId}/lines/${lineId}`).then((r) => r.data),
 };

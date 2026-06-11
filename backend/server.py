@@ -50,8 +50,16 @@ class Project(ProjectBase):
 
 class AreaCreate(BaseModel):
     points: List[Tuple[float, float]] = Field(..., min_length=3)
-    color: Optional[str] = "#E67700"
+    color: Optional[str] = None
     note: Optional[str] = ""
+    layer: Optional[str] = "INNE"
+
+
+class AreaUpdate(BaseModel):
+    points: Optional[List[Tuple[float, float]]] = None
+    color: Optional[str] = None
+    note: Optional[str] = None
+    layer: Optional[str] = None
 
 
 class Area(BaseModel):
@@ -63,6 +71,31 @@ class Area(BaseModel):
     area_m2: float
     perimeter_m: float
     color: str = "#E67700"
+    note: str = ""
+    layer: str = "INNE"
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class LineCreate(BaseModel):
+    points: List[Tuple[float, float]] = Field(..., min_length=2)
+    color: Optional[str] = "#1971C2"
+    note: Optional[str] = ""
+
+
+class LineUpdate(BaseModel):
+    points: Optional[List[Tuple[float, float]]] = None
+    color: Optional[str] = None
+    note: Optional[str] = None
+
+
+class Line(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    project_id: str
+    line_id: str  # L-MM/YY/XXXX
+    points: List[Tuple[float, float]]
+    length_m: float
+    color: str = "#1971C2"
     note: str = ""
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -114,6 +147,22 @@ def _area_to_doc(a: Area) -> dict:
     d = a.model_dump()
     d["created_at"] = d["created_at"].isoformat()
     return d
+
+
+def _line_to_doc(line: Line) -> dict:
+    d = line.model_dump()
+    d["created_at"] = d["created_at"].isoformat()
+    return d
+
+
+# Layer defaults (color used when payload.color is not provided)
+LAYER_COLORS = {
+    "SMA": "#E67700",
+    "AC_W": "#D9480F",
+    "AC_P": "#5C3A21",
+    "BETON": "#495057",
+    "INNE": "#1971C2",
+}
 
 
 # ---------- Project Routes ----------
@@ -168,6 +217,7 @@ async def delete_project(project_id: str):
     if res.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Project not found")
     await db.areas.delete_many({"project_id": project_id})
+    await db.lines.delete_many({"project_id": project_id})
     return {"ok": True}
 
 
@@ -200,18 +250,56 @@ async def create_area(project_id: str, payload: AreaCreate):
     area_m2 = _polygon_area_m2(pts)
     perimeter_m = _polygon_perimeter_m(pts)
 
+    layer = (payload.layer or "INNE").upper()
+    color = payload.color or LAYER_COLORS.get(layer, "#E67700")
+
     area = Area(
         project_id=project_id,
         area_id=area_id_str,
         points=pts,
         area_m2=area_m2,
         perimeter_m=perimeter_m,
-        color=payload.color or "#E67700",
+        color=color,
         note=payload.note or "",
+        layer=layer,
         created_at=now,
     )
     await db.areas.insert_one(_area_to_doc(area))
     return area
+
+
+@api_router.patch("/projects/{project_id}/areas/{area_id}", response_model=Area)
+async def update_area(project_id: str, area_id: str, payload: AreaUpdate):
+    doc = await db.areas.find_one({"id": area_id, "project_id": project_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Area not found")
+
+    update = {}
+    if payload.points is not None:
+        if len(payload.points) < 3:
+            raise HTTPException(status_code=400, detail="At least 3 points required")
+        pts = [tuple(p) for p in payload.points]
+        update["points"] = pts
+        update["area_m2"] = _polygon_area_m2(pts)
+        update["perimeter_m"] = _polygon_perimeter_m(pts)
+    if payload.layer is not None:
+        update["layer"] = payload.layer.upper()
+        # update color to layer default if no explicit color in payload
+        if payload.color is None:
+            update["color"] = LAYER_COLORS.get(update["layer"], doc.get("color", "#E67700"))
+    if payload.color is not None:
+        update["color"] = payload.color
+    if payload.note is not None:
+        update["note"] = payload.note
+
+    if update:
+        await db.areas.update_one({"id": area_id, "project_id": project_id}, {"$set": update})
+        await db.projects.update_one(
+            {"id": project_id},
+            {"$set": {"updated_at": datetime.now(timezone.utc).isoformat()}},
+        )
+        doc.update(update)
+    return Area(**_serialize(doc))
 
 
 @api_router.delete("/projects/{project_id}/areas/{area_id}")
@@ -222,6 +310,97 @@ async def delete_area(project_id: str, area_id: str):
     await db.projects.update_one(
         {"id": project_id},
         {"$inc": {"areas_count": -1},
+         "$set": {"updated_at": datetime.now(timezone.utc).isoformat()}},
+    )
+    return {"ok": True}
+
+
+# ---------- Line Routes ----------
+
+def _polyline_length_m(points: List[Tuple[float, float]]) -> float:
+    n = len(points)
+    if n < 2:
+        return 0.0
+    total = 0.0
+    for i in range(n - 1):
+        x1, y1 = points[i]
+        x2, y2 = points[i + 1]
+        total += ((x2 - x1) ** 2 + (y2 - y1) ** 2) ** 0.5
+    return total
+
+
+@api_router.get("/projects/{project_id}/lines", response_model=List[Line])
+async def list_lines(project_id: str):
+    docs = await db.lines.find({"project_id": project_id}, {"_id": 0}).sort("created_at", 1).to_list(5000)
+    return [Line(**_serialize(d)) for d in docs]
+
+
+@api_router.post("/projects/{project_id}/lines", response_model=Line)
+async def create_line(project_id: str, payload: LineCreate):
+    project_doc = await db.projects.find_one({"id": project_id})
+    if not project_doc:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    updated = await db.projects.find_one_and_update(
+        {"id": project_id},
+        {"$inc": {"line_counter": 1, "lines_count": 1},
+         "$set": {"updated_at": datetime.now(timezone.utc).isoformat()}},
+        return_document=True,
+    )
+    counter = updated["line_counter"]
+    now = datetime.now(timezone.utc)
+    line_id_str = f"L-{now.month:02d}/{now.year % 100:02d}/{counter:04d}"
+
+    pts = [tuple(p) for p in payload.points]
+    length_m = _polyline_length_m(pts)
+
+    line = Line(
+        project_id=project_id,
+        line_id=line_id_str,
+        points=pts,
+        length_m=length_m,
+        color=payload.color or "#1971C2",
+        note=payload.note or "",
+        created_at=now,
+    )
+    await db.lines.insert_one(_line_to_doc(line))
+    return line
+
+
+@api_router.patch("/projects/{project_id}/lines/{line_id}", response_model=Line)
+async def update_line(project_id: str, line_id: str, payload: LineUpdate):
+    doc = await db.lines.find_one({"id": line_id, "project_id": project_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Line not found")
+    update = {}
+    if payload.points is not None:
+        if len(payload.points) < 2:
+            raise HTTPException(status_code=400, detail="At least 2 points required")
+        pts = [tuple(p) for p in payload.points]
+        update["points"] = pts
+        update["length_m"] = _polyline_length_m(pts)
+    if payload.color is not None:
+        update["color"] = payload.color
+    if payload.note is not None:
+        update["note"] = payload.note
+    if update:
+        await db.lines.update_one({"id": line_id, "project_id": project_id}, {"$set": update})
+        await db.projects.update_one(
+            {"id": project_id},
+            {"$set": {"updated_at": datetime.now(timezone.utc).isoformat()}},
+        )
+        doc.update(update)
+    return Line(**_serialize(doc))
+
+
+@api_router.delete("/projects/{project_id}/lines/{line_id}")
+async def delete_line(project_id: str, line_id: str):
+    res = await db.lines.delete_one({"id": line_id, "project_id": project_id})
+    if res.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Line not found")
+    await db.projects.update_one(
+        {"id": project_id},
+        {"$inc": {"lines_count": -1},
          "$set": {"updated_at": datetime.now(timezone.utc).isoformat()}},
     )
     return {"ok": True}

@@ -1,8 +1,12 @@
 import { WORKSPACE } from "@/constants/testIds";
 
-export const StatusBar = ({ cursor, zoom, gridStep, tool, areasCount }) => {
+export const StatusBar = ({ cursor, zoom, gridStep, tool, areasCount, linesCount, snapEnabled }) => {
   const toolLabel =
-    tool === "area" ? "Obszar (rysowanie)" : tool === "pan" ? "Rączka (przesuwanie)" : "Krzyżyk (wybór)";
+    tool === "area" ? "Obszar (rysowanie)"
+    : tool === "line" ? "Odcinek (rysowanie)"
+    : tool === "pan" ? "Rączka (przesuwanie)"
+    : tool === "edit" ? "Edycja (węzły)"
+    : "Krzyżyk (wybór)";
 
   return (
     <div className="status-bar absolute bottom-0 left-0 w-full h-8 flex items-center justify-between px-4 z-30 text-xs font-mono-data">
@@ -15,6 +19,9 @@ export const StatusBar = ({ cursor, zoom, gridStep, tool, areasCount }) => {
         <span data-testid={WORKSPACE.statusGrid}>
           Siatka: <span className="text-[#FFB066]">{gridStep} m</span>
         </span>
+        <span data-testid={WORKSPACE.statusSnap}>
+          Snap: <span className={snapEnabled ? "text-[#40C057]" : "text-[#868E96]"}>{snapEnabled ? "WŁ." : "WYŁ."}</span>
+        </span>
         <span data-testid={WORKSPACE.statusTool}>
           Narzędzie: <span className="text-[#FFB066]">{toolLabel}</span>
         </span>
@@ -22,6 +29,9 @@ export const StatusBar = ({ cursor, zoom, gridStep, tool, areasCount }) => {
       <div className="flex items-center gap-5">
         <span>
           Obszary: <span className="text-[#FFB066]">{areasCount}</span>
+        </span>
+        <span>
+          Odcinki: <span className="text-[#FFB066]">{linesCount}</span>
         </span>
         <span data-testid={WORKSPACE.statusZoom}>
           Zoom: <span className="text-[#FFB066]">{zoom}%</span>
