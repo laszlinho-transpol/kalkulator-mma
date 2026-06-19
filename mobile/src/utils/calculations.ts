@@ -47,7 +47,7 @@ export function obliczPowierzchniFigury(figura: Figura): number {
   }
 }
 
-/** Zwraca długość figury potrzebną do obliczenia pikietażu ciągłego */
+/** Zwraca długość figury [m] – do obliczenia pikietażu i metrów bieżących */
 export function dlugoscFigury(figura: Figura): number {
   switch (figura.typ) {
     case 'prostokat': return (figura as FiguraProstokat).dlugosc;
@@ -62,9 +62,14 @@ export function dlugoscFigury(figura: Figura): number {
   }
 }
 
+/** Łączna długość liniowa [m] wszystkich figur działki */
+export function obliczLacznaDlugosc(dzialka: DzialkaRobocza): number {
+  return round2(dzialka.figury.reduce((sum, f) => sum + dlugoscFigury(f), 0));
+}
+
 // --- Obliczanie wyników figury z pikietażem ---
 
-export function obliczWynikiŚcieżkiFigury(
+export function obliczWynikiSciezkiFigury(
   figura: Figura,
   kierunek: 'rosnacy' | 'malejacy',
 ): WynikiFigury {
@@ -82,9 +87,8 @@ export function obliczWynikiDzialki(
   ciezarObjetosciowy: number,
   tonazAuta: number = DOMYSLNY_TONAZ_AUTA,
 ): WynikiDzialki {
-  const lacznaPowierzchnia = dzialka.figury.reduce(
-    (sum, f) => sum + obliczPowierzchniFigury(f),
-    0,
+  const lacznaPowierzchnia = round2(
+    dzialka.figury.reduce((sum, f) => sum + obliczPowierzchniFigury(f), 0),
   );
 
   const lacznaIloscMasy = round3(
@@ -93,14 +97,20 @@ export function obliczWynikiDzialki(
 
   const iloscSamochodow = Math.ceil(lacznaIloscMasy / tonazAuta);
 
-  return { lacznaPowierzchnia: round2(lacznaPowierzchnia), lacznaIloscMasy, iloscSamochodow };
+  return { lacznaPowierzchnia, lacznaIloscMasy, iloscSamochodow };
 }
 
 // --- Tabela aut z podziałem na rzuty ---
 
+/**
+ * @param lacznaIloscMasy - łączna masa do wbudowania [Mg]
+ * @param lacznasDlugosc  - łączna długość liniowa działki [m bieżące]
+ * @param rzuty           - podział na rzuty (partie aut)
+ * @param tonazAuta       - domyślny tonaż pojedynczego auta [t]
+ */
 export function obliczTabeleAut(
   lacznaIloscMasy: number,
-  lacznaPowierzchnia: number,
+  lacznasDlugosc: number,
   rzuty: Rzut[],
   tonazAuta: number = DOMYSLNY_TONAZ_AUTA,
 ): WpisTabeliAut[] {
@@ -109,14 +119,15 @@ export function obliczTabeleAut(
   let metryNarastajaco = 0;
   let numerAuta = 0;
 
-  const metryNaTone = lacznaPowierzchnia / lacznaIloscMasy; // [m/Mg]
+  // Metry liniowe na tonę masy [m/Mg]
+  const metryNaTone = lacznaIloscMasy > 0 ? lacznasDlugosc / lacznaIloscMasy : 0;
 
   for (const rzut of rzuty) {
     for (let i = 0; i < rzut.iloscSamochodow; i++) {
       numerAuta++;
-      const pozostaloMasy = lacznaIloscMasy - masaNarastajaco;
+      const pozostaloMasy = round3(lacznaIloscMasy - masaNarastajaco);
       const masa = round2(Math.min(tonazAuta, pozostaloMasy));
-      masaNarastajaco = round2(masaNarastajaco + masa);
+      masaNarastajaco = round3(masaNarastajaco + masa);
       const metry = round2(masa * metryNaTone);
       metryNarastajaco = round2(metryNarastajaco + metry);
 
@@ -134,6 +145,29 @@ export function obliczTabeleAut(
   return wyniki;
 }
 
+/** Parsuje string "6+6+4" na tablicę Rzut[] */
+export function parsujRzuty(rzutyString: string): Rzut[] | null {
+  const parts = rzutyString.split('+').map((s) => parseInt(s.trim(), 10));
+  if (parts.some(isNaN) || parts.some((n) => n <= 0)) return null;
+  return parts.map((count, idx) => ({
+    id: String(idx + 1),
+    numerRzutu: idx + 1,
+    iloscSamochodow: count,
+  }));
+}
+
+/** Sprawdza czy podział rzutów ma poprawną sumę */
+export function walidujRzuty(rzutyString: string, wymaganaLiczbaAut: number): boolean {
+  const rzuty = parsujRzuty(rzutyString);
+  if (!rzuty) return false;
+  return rzuty.reduce((s, r) => s + r.iloscSamochodow, 0) === wymaganaLiczbaAut;
+}
+
+/** Generuje domyślny podział rzutów (jeden rzut = wszystkie auta) */
+export function generujDomyslneRzuty(iloscAut: number): Rzut[] {
+  return [{ id: '1', numerRzutu: 1, iloscSamochodow: iloscAut }];
+}
+
 // --- Obliczenia Kontroli (realtime vs plan) ---
 
 export function obliczKontrolę(
@@ -144,26 +178,23 @@ export function obliczKontrolę(
   tonazAuta: number = DOMYSLNY_TONAZ_AUTA,
 ): WynikiKontroli {
   const wyniki = obliczWynikiDzialki(dzialka, ciezarObjetosciowy, tonazAuta);
+  const lacznasDlugosc = obliczLacznaDlugosc(dzialka);
 
-  // Zakryta powierzchnia: przeliczamy z przejechanych metrów
+  // Zakryta powierzchnia z przejechanych metrów liniowych
   const zakrytaPowierzchnia = obliczPowierzchnioweOdStartu(dzialka, przejechaneMetry);
 
-  // Uzyskana grubość z tony i powierzchni
+  // Uzyskana średnia grubość z faktycznie wbudowanych ton i zakrytej powierzchni
   const uzyskanaGrubosc =
-    zakrytaPowierzchnia > 0
+    zakrytaPowierzchnia > 0 && ciezarObjetosciowy > 0
       ? round2((wbudowaneTony / (ciezarObjetosciowy * zakrytaPowierzchnia)) * 100)
       : 0;
 
-  // Bilans masy: ile ton powinniśmy byli wbudować vs ile wbudowaliśmy
+  // Bilans: ile ton wbudowaliśmy ponad lub poniżej planu
   const masaWgZalozen = round3(zakrytaPowierzchnia * (dzialka.grubosc / 100) * ciezarObjetosciowy);
   const bilansMasy = round3(wbudowaneTony - masaWgZalozen);
 
-  const pozostaloMetrow = round2(wyniki.lacznaPowierzchnia > 0
-    ? (wyniki.lacznaPowierzchnia - zakrytaPowierzchnia) /
-      (wyniki.lacznaPowierzchnia / obliczCalkowitaDlugosc(dzialka))
-    : 0);
-
-  const pozostaloPowierzchni = round2(wyniki.lacznaPowierzchnia - zakrytaPowierzchnia);
+  const pozostaloMetrow = round2(Math.max(0, lacznasDlugosc - przejechaneMetry));
+  const pozostaloPowierzchni = round2(Math.max(0, wyniki.lacznaPowierzchnia - zakrytaPowierzchnia));
 
   const sredniaGrubosc = uzyskanaGrubosc > 0 ? uzyskanaGrubosc : dzialka.grubosc;
 
@@ -185,7 +216,7 @@ export function obliczKontrolę(
   };
 }
 
-// --- Pomocnicze: skumulowana powierzchnia od startu do danego metra ---
+// --- Pomocnicze: skumulowana powierzchnia od startu do danego metra liniowego ---
 
 export function obliczPowierzchnioweOdStartu(
   dzialka: DzialkaRobocza,
@@ -202,18 +233,13 @@ export function obliczPowierzchnioweOdStartu(
       powierzchniaCum += powierzchniaF;
       metryCum += dlugoscF;
     } else {
-      // Jesteśmy w środku tej figury
-      const ulamek = (metryOdStartu - metryCum) / dlugoscF;
+      const ulamek = dlugoscF > 0 ? (metryOdStartu - metryCum) / dlugoscF : 0;
       powierzchniaCum += powierzchniaF * ulamek;
       break;
     }
   }
 
-  return round2(powierzchniaCum);
-}
-
-function obliczCalkowitaDlugosc(dzialka: DzialkaRobocza): number {
-  return dzialka.figury.reduce((sum, f) => sum + dlugoscFigury(f), 0);
+  return round2(Math.max(0, powierzchniaCum));
 }
 
 // --- Formatowanie liczb ---
@@ -229,5 +255,5 @@ export function formatLiczby(
   return n
     .toFixed(miejscaPoPrzecinku)
     .replace('.', separator)
-    .replace(/\B(?=(\d{3})+(?!\d))/g, '\u00A0'); // spacja jako separator tysięcy
+    .replace(/\B(?=(\d{3})+(?!\d))/g, '\u00A0');
 }

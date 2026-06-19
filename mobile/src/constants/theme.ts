@@ -52,4 +52,4 @@ export const darkTheme = {
   },
 } as const;
 
-export type AppTheme = typeof lightTheme;
+export type AppTheme = typeof lightTheme | typeof darkTheme;

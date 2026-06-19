@@ -77,33 +77,65 @@ modele danych i store'y. Ekran główny i lista mieszanek są funkcjonalne.
 
 ---
 
+---
+
+## ETAP 1 – Rdzeń aplikacji (pełna funkcjonalność)
+**Data:** 2026-06-19
+**Status:** ✅ UKOŃCZONY
+
+### Co zostało zrobione:
+
+1. **Naprawiono i rozszerzono obliczenia** (`src/utils/calculations.ts`):
+   - Poprawiono `obliczTabeleAut` – używa metrów liniowych (nie m²) dla kolumny "m"
+   - Dodano `obliczLacznaDlugosc`, `parsujRzuty`, `walidujRzuty`, `generujDomyslneRzuty`
+   - Poprawiono `obliczKontrolę` – prawidłowe obliczenia pozostałych metrów/masy
+
+2. **Nowe utilities**:
+   - ✅ `src/utils/dates.ts` – następny dzień roboczy, formatowanie dat, aktualna godzina
+   - ✅ `src/utils/pdfGenerator.ts` – generator raportu HTML→PDF z bilansem końcowym
+
+3. **Nowe komponenty**:
+   - ✅ `src/components/common/NumericInput.tsx` – input numeryczny z jednostką i tooltipem
+   - ✅ `src/components/common/DatePickerButton.tsx` – cross-platform date picker (iOS/Android)
+   - ✅ `src/components/common/MieszankaPicker.tsx` – modal wyboru mieszanki z bazy
+   - ✅ `src/components/shapes/ShapeModal.tsx` – picker 5 figur + formularze wymiarów
+   - ✅ `src/components/sketch/DzialkaSketch.tsx` – wizualizacja 2D (bloki figur + pikietaże + modal po kliknięciu)
+
+4. **Nowe ekrany**:
+   - ✅ `app/plan/nowy.tsx` – pełny formularz: data, tonaż, licznik działek, mieszanka, grubość, pikietaż, kierunek, figury, rzuty, podgląd obliczeń
+   - ✅ `app/plan/[id].tsx` – szczegóły planu (3 zakładki: Plan, Tabela aut, Szkic)
+   - ✅ `app/wbudowywanie/[id].tsx` – Live Tracker (3 zakładki: Plan, Kontrola, Live)
+     - Kontrola: porównanie faktyczne vs plan z kolorowym bilansmem i piktogramami grubości
+     - Live: tabela wpisów aut, formularz dodawania, szkic z postępem, "Zakończ i archiwizuj"
+   - ✅ `app/archiwum/[id].tsx` – szczegóły archiwum (Podsumowanie, Tabela Live, Szkic, generowanie PDF)
+
+5. **Poprawki typów TypeScript**:
+   - `AppTheme = typeof lightTheme | typeof darkTheme` (union type)
+   - Wszystkie komponenty pomocnicze używają `AppTheme`
+
+**Weryfikacja**: `npx tsc --noEmit` → **0 błędów** ✅
+
+---
+
 ## DO ZROBIENIA (kolejne etapy):
 
-### ETAP 1 – Pełny CRUD Mieszanek
-- [ ] Naprawienie literówki w formularzu (`ciezarObjetościowy` → `ciezarObjetosciowy`)
-- [ ] Testy CRUD (dodaj, edytuj, usuń)
+### ETAP 2 – Udostępnianie i integracja
+- [ ] Eksport/Import planu jako JSON (pełny)
+- [ ] Generowanie interaktywnego pliku HTML (offline kalkulator)
+- [ ] Wysyłka PDF e-mailem (expo-mail-composer)
+- [ ] Moduł podziału rzutów – edycja w planie po zapisaniu
 
-### ETAP 2 – Formularz tworzenia Planu
-- [ ] `app/plan/nowy.tsx` – DatePicker, licznik działek
-- [ ] `app/plan/[id].tsx` – widok planu z figurami
-- [ ] Moduł Powierzchni (dodawanie figur geometrycznych)
-- [ ] Podsumowanie planu (masa, auta, tabela)
-- [ ] Szkic 2D działki roboczej
-- [ ] Moduł podziału na rzuty
+### ETAP 3 – Live: animacje SVG
+- [ ] Ikona rozkładarki SVG przesuwająca się po szkicu
+- [ ] Ikony samochodów z przerywanymi liniami na końcu rzutu
+- [ ] Modal szczegółów auta po kliknięciu ikony
 
-### ETAP 3 – Tryb Wbudowywania (Live)
-- [ ] `app/wbudowywanie/[id].tsx` – 3 zakładki (Plan, Kontrola, Live)
-- [ ] Zakładka Kontrola – szybki kalkulator vs plan
-- [ ] Zakładka Live – tabela aut, postęp, szkic z animacją
-- [ ] Akcja "Zakończ i Archiwizuj" + generowanie PDF
-
-### ETAP 4 – Archiwum i Raporty
-- [ ] `app/archiwum/[id].tsx` – podgląd szczegółów
-- [ ] Regeneracja PDF z archiwum
-- [ ] Wysyłka emailem
-
-### ETAP 5 – Udostępnianie
-- [ ] Eksport/Import JSON
-- [ ] Generowanie interaktywnego pliku HTML
+### ETAP 4 – Szlif UX
+- [ ] Ekran edycji istniejącego planu
+- [ ] Walidacja w czasie rzeczywistym w formularzach
+- [ ] Obsługa błędów sieciowych i stanu pustego
+- [ ] Animacje przejść między ekranami
+- [ ] Ikona aplikacji (docelowy design)
+- [ ] Onboarding dla nowych użytkowników
 
 ---
