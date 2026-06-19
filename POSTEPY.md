@@ -247,12 +247,77 @@ modele danych i store'y. Ekran główny i lista mieszanek są funkcjonalne.
 
 ---
 
+---
+
+## ETAP 5 – Konfiguracja EAS Build
+**Data:** 2026-06-19
+**Status:** ✅ UKOŃCZONY
+
+### Co zostało zrobione:
+
+1. **EAS CLI** – zainstalowane (`npx eas-cli@latest`)
+
+2. **`eas.json`** z 4 profilami budowania:
+   - `development` – debug APK z dev clientem (do testów z Expo Go / dev menu)
+   - `preview` – release APK (do sideloadowania na Androidzie bez sklepu)
+   - `preview-sim` – symulator iOS
+   - `production` – AAB dla Play Store, IPA dla App Store z auto-increment
+
+3. **`.npmrc`** – `legacy-peer-deps=true` (rozwiązuje konflikty peerDeps podczas buildu EAS)
+
+4. **`babel.config.js`** – preset babel-preset-expo + react-native-reanimated/plugin
+
+5. **`metro.config.js`** – obsługa plików `.svg` jako komponentów React (react-native-svg-transformer)
+
+6. **Ikona aplikacji** – naprawiona na kwadratowy format 1024×1024 (wszystkie warianty)
+   - `icon.png` – 1024×1024 ✅
+   - `android-icon-foreground.png` – 1024×1024 ✅
+   - `android-icon-background.png` – 1024×1024 ✅
+   - `splash-icon.png` – 1284×2778 ✅
+
+7. **`app.json`** zaktualizowany:
+   - `android.versionCode: 1`
+   - `ios.buildNumber: "1"`
+   - `ios.bundleIdentifier: com.kalkulatormma.app`
+   - `android.package: com.kalkulatormma.app`
+   - Uprawnienia Android (INTERNET, READ/WRITE_EXTERNAL_STORAGE)
+   - iOS NSUsageDescription (kamera, foto, lokalizacja)
+
+**Weryfikacja**: `npx expo-doctor` → **21/21 zdanych** ✅ | `npx tsc --noEmit` → 0 błędów ✅
+
+### Jak uruchomić build:
+
+```bash
+# 1. Przejdź do katalogu mobile
+cd mobile
+
+# 2. Zainstaluj EAS CLI (jednorazowo)
+npm install -g eas-cli
+
+# 3. Zaloguj się do Expo (potrzebujesz konta na expo.dev)
+eas login
+
+# 4. Połącz projekt z Expo (jednorazowo – tworzy wpis w app.json)
+eas init
+
+# 5. Zbuduj APK (Android) – do testów na telefonie bez sklepu
+eas build --platform android --profile preview
+
+# 6. (Opcjonalnie) Build produkcyjny AAB do Play Store
+eas build --platform android --profile production
+```
+
+**WAŻNE:** Do buildu potrzebujesz konta na expo.dev (darmowe).
+Link: https://expo.dev/signup
+
+---
+
 ## DO ZROBIENIA (potencjalne rozszerzenia):
 
-- [ ] EAS Build – build na urządzenie (Android APK / iOS IPA)
-- [ ] Edycja aktywnego wpisu Live (zmiana tonażu/metrów po dodaniu)
+- [ ] Opublikowanie w Google Play Store (eas submit)
+- [ ] Push notifications (expo-notifications)
+- [ ] Edycja aktywnego wpisu Live po dodaniu
 - [ ] Wyszukiwanie w listach mieszanek i archiwum
-- [ ] Więcej kształtów figur (kołowe inne, itp.)
-- [ ] Widżet systemu (Android) z aktywnym planem
+- [ ] Widżet systemu Android z aktywnym planem
 
 ---

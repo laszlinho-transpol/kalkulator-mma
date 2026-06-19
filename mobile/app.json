@@ -8,18 +8,30 @@
     "userInterfaceStyle": "automatic",
     "scheme": "kalkulator-mma",
     "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.kalkulatormma.app"
+      "supportsTablet": false,
+      "bundleIdentifier": "com.kalkulatormma.app",
+      "buildNumber": "1",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Kalkulator MMA nie używa kamery.",
+        "NSPhotoLibraryUsageDescription": "Dostęp do biblioteki zdjęć nie jest wymagany.",
+        "NSLocationWhenInUseUsageDescription": "Kalkulator MMA nie używa lokalizacji."
+      }
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#1A1A2E",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
+        "backgroundColor": "#0F0F1A",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.kalkulatormma.app"
+      "package": "com.kalkulatormma.app",
+      "versionCode": 1,
+      "permissions": [
+        "INTERNET",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -30,10 +42,21 @@
       "expo-sqlite",
       "expo-sharing",
       "expo-mail-composer",
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      [
+        "expo-document-picker",
+        {
+          "iCloudContainerEnvironment": "Production"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": ""
+      }
     }
   }
 }
