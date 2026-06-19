@@ -16,6 +16,8 @@ import { router } from 'expo-router';
 import { usePlanyStore } from '../../src/stores/planyStore';
 import { useLiveStore } from '../../src/stores/liveStore';
 import { lightTheme, darkTheme } from '../../src/constants/theme';
+import { EmptyState } from '../../src/components/common/EmptyState';
+import { AnimatedCard } from '../../src/components/common/AnimatedCard';
 import type { Plan } from '../../src/types';
 
 export default function WbudowywanieScreen() {
@@ -28,12 +30,13 @@ export default function WbudowywanieScreen() {
   const formatujDate = (iso: string) =>
     new Date(iso).toLocaleDateString('pl-PL', { weekday: 'short', day: 'numeric', month: 'long' });
 
-  const renderujPlan = ({ item }: { item: Plan }) => {
+  const renderujPlan = ({ item, index }: { item: Plan; index: number }) => {
     const wpisy = wpisyDlaPlanu(item.id);
     const sumaMetrow = wpisy.reduce((s, w) => s + w.przejechaneMetry, 0);
     const sumaTon = wpisy.reduce((s, w) => s + w.tonazPrzywieziony, 0);
 
     return (
+      <AnimatedCard key={item.id} delay={index * 70}>
       <TouchableOpacity
         style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}
         onPress={() => router.push(`/wbudowywanie/${item.id}` as any)}
@@ -61,6 +64,7 @@ export default function WbudowywanieScreen() {
           <Text style={[styles.strzalka, { color: theme.colors.textSecondary }]}>›</Text>
         </View>
       </TouchableOpacity>
+      </AnimatedCard>
     );
   };
 
@@ -75,19 +79,13 @@ export default function WbudowywanieScreen() {
       </View>
 
       {aktywne.length === 0 ? (
-        <View style={styles.puste}>
-          <Text style={styles.pusteIkona}>🚧</Text>
-          <Text style={[styles.pusteTytul, { color: theme.colors.text }]}>Brak aktywnych planów</Text>
-          <Text style={[styles.pusteOpis, { color: theme.colors.textSecondary }]}>
-            Najpierw utwórz plan w sekcji "Zaplanuj Masę".
-          </Text>
-          <TouchableOpacity
-            style={[styles.przyciskGo, { backgroundColor: theme.colors.secondary }]}
-            onPress={() => router.push('/plan')}
-          >
-            <Text style={styles.przyciskGoTekst}>Przejdź do planowania</Text>
-          </TouchableOpacity>
-        </View>
+        <EmptyState
+          ikona="🚧"
+          tytul="Brak aktywnych planów"
+          opis="Najpierw utwórz plan w sekcji Zaplanuj Masę. Aktywne plany pojawią się tutaj."
+          przyciskTekst="Przejdź do planowania"
+          onPrzycisk={() => router.push('/plan')}
+        />
       ) : (
         <FlatList
           data={aktywne}

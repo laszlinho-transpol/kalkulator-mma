@@ -101,10 +101,16 @@ export default function HomeScreen() {
           { opacity: headerAnim, transform: [{ translateY: headerAnim.interpolate({ inputRange: [0, 1], outputRange: [-20, 0] }) }] },
         ]}
       >
-        <Text style={[styles.logoTekst, { color: theme.colors.primary }]}>⬛ MMA</Text>
-        <Text style={[styles.logoOpis, { color: theme.colors.textSecondary }]}>
-          Kalkulator Mieszanek Asfaltowych
-        </Text>
+        <View style={{ width: 44 }} />
+        <View style={styles.naglowekSrodek}>
+          <Text style={[styles.logoTekst, { color: theme.colors.primary }]}>⬛ MMA</Text>
+          <Text style={[styles.logoOpis, { color: theme.colors.textSecondary }]}>
+            Kalkulator Mieszanek Asfaltowych
+          </Text>
+        </View>
+        <TouchableOpacity onPress={() => router.push('/ustawienia' as any)} style={styles.btnUstawienia}>
+          <Text style={[styles.btnUstawieniaTekst, { color: theme.colors.textSecondary }]}>⚙</Text>
+        </TouchableOpacity>
       </Animated.View>
 
       <ScrollView
@@ -212,13 +218,18 @@ function StatKarta({ liczba, opis, theme, kolor, delay }: {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   naglowek: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 14,
     borderBottomWidth: 1,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
   },
-  logoTekst: { fontSize: 26, fontWeight: '900', letterSpacing: 2 },
-  logoOpis: { fontSize: 12, marginTop: 2, letterSpacing: 0.5 },
+  naglowekSrodek: { flex: 1, alignItems: 'center' },
+  logoTekst: { fontSize: 24, fontWeight: '900', letterSpacing: 2 },
+  logoOpis: { fontSize: 11, marginTop: 2, letterSpacing: 0.5 },
+  btnUstawienia: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  btnUstawieniaTekst: { fontSize: 22 },
   zawartosc: { padding: 16, gap: 16 },
   statystykiRzad: { flexDirection: 'row', gap: 10 },
   statystykiKarta: {

@@ -16,6 +16,8 @@ import {
 import { router } from 'expo-router';
 import { usePlanyStore } from '../../src/stores/planyStore';
 import { lightTheme, darkTheme } from '../../src/constants/theme';
+import { EmptyState } from '../../src/components/common/EmptyState';
+import { AnimatedCard } from '../../src/components/common/AnimatedCard';
 import type { Plan } from '../../src/types';
 
 export default function PlanListaScreen() {
@@ -40,7 +42,8 @@ export default function PlanListaScreen() {
     );
   };
 
-  const renderujPlan = ({ item }: { item: Plan }) => (
+  const renderujPlan = ({ item, index }: { item: Plan; index: number }) => (
+    <AnimatedCard delay={index * 70}>
     <TouchableOpacity
       style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}
       onPress={() => router.push(`/plan/${item.id}` as any)}
@@ -58,6 +61,7 @@ export default function PlanListaScreen() {
         {' • '}Tonaż auta: {item.tonazAuta} t
       </Text>
     </TouchableOpacity>
+    </AnimatedCard>
   );
 
   return (
@@ -84,19 +88,15 @@ export default function PlanListaScreen() {
       </View>
 
       {aktywne.length === 0 ? (
-        <View style={styles.puste}>
-          <Text style={styles.pusteIkona}>📋</Text>
-          <Text style={[styles.pusteTytul, { color: theme.colors.text }]}>Brak aktywnych planów</Text>
-          <Text style={[styles.pusteOpis, { color: theme.colors.textSecondary }]}>
-            Utwórz nowy plan, aby zaplanować dzień wbudowywania.
-          </Text>
-          <TouchableOpacity
-            style={[styles.przyciskPuste, { backgroundColor: theme.colors.primary }]}
-            onPress={() => router.push('/plan/nowy' as any)}
-          >
-            <Text style={styles.przyciskPusteTekst}>Utwórz pierwszy plan</Text>
-          </TouchableOpacity>
-        </View>
+        <EmptyState
+          ikona="📋"
+          tytul="Brak aktywnych planów"
+          opis="Utwórz nowy plan, aby zaplanować dzień wbudowywania lub zaimportuj istniejący z JSON."
+          przyciskTekst="+ Utwórz nowy plan"
+          onPrzycisk={() => router.push('/plan/nowy' as any)}
+          drugPrzyciskTekst="↓ Importuj z JSON"
+          onDrugPrzycisk={() => router.push('/plan/import' as any)}
+        />
       ) : (
         <FlatList
           data={aktywne}

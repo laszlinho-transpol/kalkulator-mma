@@ -23,6 +23,7 @@ import { useMieszankiStore } from '../../src/stores/mieszankiStore';
 import { lightTheme, darkTheme } from '../../src/constants/theme';
 import { InfoTooltip } from '../../src/components/common/InfoTooltip';
 import { AnimatedCard } from '../../src/components/common/AnimatedCard';
+import { EmptyState } from '../../src/components/common/EmptyState';
 import type { Mieszanka } from '../../src/types';
 
 const PUSTE_DANE = {
@@ -165,13 +166,13 @@ export default function MieszankiScreen() {
 
       {/* Lista */}
       {mieszanki.length === 0 ? (
-        <View style={styles.puste}>
-          <Text style={styles.pusteIkona}>🧱</Text>
-          <Text style={[styles.pusteTytul, { color: theme.colors.text }]}>Brak mieszanek</Text>
-          <Text style={[styles.pusteOpis, { color: theme.colors.textSecondary }]}>
-            Dodaj pierwszą mieszankę asfaltową, aby móc planować wbudowywanie.
-          </Text>
-        </View>
+        <EmptyState
+          ikona="🧱"
+          tytul="Brak mieszanek"
+          opis="Dodaj pierwszą recepturę asfaltu, aby móc tworzyć plany wbudowywania."
+          przyciskTekst="+ Dodaj pierwszą mieszankę"
+          onPrzycisk={otworzDodaj}
+        />
       ) : (
         <FlatList
           data={mieszanki}

@@ -73,9 +73,16 @@ export default function PlanDetailScreen() {
             {formatujDatePl(plan.dataWbudowywania).split(',')[0]}
           </Text>
         </View>
-        <TouchableOpacity onPress={() => setUdostepnijModal(true)}>
-          <Text style={[styles.udostepnij, { color: theme.colors.secondary }]}>↑ Udostępnij</Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
+          {plan.status === 'aktywny' && (
+            <TouchableOpacity onPress={() => router.push(`/plan/edytuj/${plan.id}` as any)}>
+              <Text style={[styles.udostepnij, { color: theme.colors.warning }]}>✏ Edytuj</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity onPress={() => setUdostepnijModal(true)}>
+            <Text style={[styles.udostepnij, { color: theme.colors.secondary }]}>↑</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Zakładki z animowanym wskaźnikiem */}

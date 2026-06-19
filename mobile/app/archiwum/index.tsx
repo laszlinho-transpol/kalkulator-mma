@@ -16,6 +16,8 @@ import { router } from 'expo-router';
 import { usePlanyStore } from '../../src/stores/planyStore';
 import { useLiveStore } from '../../src/stores/liveStore';
 import { lightTheme, darkTheme } from '../../src/constants/theme';
+import { EmptyState } from '../../src/components/common/EmptyState';
+import { AnimatedCard } from '../../src/components/common/AnimatedCard';
 import type { Plan } from '../../src/types';
 
 export default function ArchiwumScreen() {
@@ -28,12 +30,13 @@ export default function ArchiwumScreen() {
   const formatujDate = (iso: string) =>
     new Date(iso).toLocaleDateString('pl-PL', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' });
 
-  const renderujPlan = ({ item }: { item: Plan }) => {
+  const renderujPlan = ({ item, index }: { item: Plan; index: number }) => {
     const wpisy = wpisyDlaPlanu(item.id);
     const sumaTon = wpisy.reduce((s, w) => s + w.tonazPrzywieziony, 0);
     const sumaMetrow = wpisy.reduce((s, w) => s + w.przejechaneMetry, 0);
 
     return (
+      <AnimatedCard key={item.id} delay={index * 70}>
       <TouchableOpacity
         style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}
         onPress={() => router.push(`/archiwum/${item.id}` as any)}
@@ -55,6 +58,7 @@ export default function ArchiwumScreen() {
           {item.dzialki.length} {item.dzialki.length === 1 ? 'działka' : 'działki'} • Dotknij, aby zobaczyć szczegóły
         </Text>
       </TouchableOpacity>
+      </AnimatedCard>
     );
   };
 
@@ -69,13 +73,11 @@ export default function ArchiwumScreen() {
       </View>
 
       {archiwalne.length === 0 ? (
-        <View style={styles.puste}>
-          <Text style={styles.pusteIkona}>📁</Text>
-          <Text style={[styles.pusteTytul, { color: theme.colors.text }]}>Archiwum jest puste</Text>
-          <Text style={[styles.pusteOpis, { color: theme.colors.textSecondary }]}>
-            Po zakończeniu realizacji planu trafi on tutaj automatycznie.
-          </Text>
-        </View>
+        <EmptyState
+          ikona="📁"
+          tytul="Archiwum jest puste"
+          opis="Po zakończeniu realizacji planu (przycisk 'Zakończ i Archiwizuj') trafi on tutaj automatycznie."
+        />
       ) : (
         <FlatList
           data={archiwalne}

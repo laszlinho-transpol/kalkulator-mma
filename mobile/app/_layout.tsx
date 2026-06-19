@@ -8,6 +8,7 @@ import { useMieszankiStore } from '../src/stores/mieszankiStore';
 import { usePlanyStore } from '../src/stores/planyStore';
 import { useLiveStore } from '../src/stores/liveStore';
 import { lightTheme, darkTheme } from '../src/constants/theme';
+import { LoadingScreen } from '../src/components/common/LoadingScreen';
 
 const KLUCZ_ONBOARDING = '@mma:onboardingComplete';
 
@@ -19,16 +20,16 @@ export default function RootLayout() {
   const zaladujPlany = usePlanyStore((s) => s.zaladujPlany);
   const zaladujWpisy = useLiveStore((s) => s.zaladujWpisy);
 
-  const [gotowy, setGotowy] = useState(false);
+  const [ladowanie, setLadowanie] = useState(true);
+  const [loadingWidoczny, setLoadingWidoczny] = useState(true);
 
   useEffect(() => {
     const init = async () => {
       await Promise.all([zaladujMieszanki(), zaladujPlany(), zaladujWpisy()]);
       const onboardingComplete = await AsyncStorage.getItem(KLUCZ_ONBOARDING);
-      setGotowy(true);
+      setLadowanie(false);
       if (!onboardingComplete) {
-        // Krótki delay, żeby layout zdążył się zamontować
-        setTimeout(() => router.replace('/onboarding'), 50);
+        setTimeout(() => router.replace('/onboarding'), 600);
       }
     };
     init();
@@ -53,6 +54,10 @@ export default function RootLayout() {
           options={{ headerShown: false, animation: 'fade', gestureEnabled: false }}
         />
         <Stack.Screen name="mieszanki/index" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="ustawienia"
+          options={{ headerShown: false, animation: 'slide_from_right' }}
+        />
         <Stack.Screen name="plan/index" options={{ headerShown: false }} />
         <Stack.Screen
           name="plan/nowy"
@@ -63,11 +68,23 @@ export default function RootLayout() {
           name="plan/import"
           options={{ headerShown: false, animation: 'slide_from_bottom' }}
         />
+        <Stack.Screen
+          name="plan/edytuj/[id]"
+          options={{ headerShown: false, animation: 'slide_from_bottom' }}
+        />
         <Stack.Screen name="wbudowywanie/index" options={{ headerShown: false }} />
         <Stack.Screen name="wbudowywanie/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="archiwum/index" options={{ headerShown: false }} />
         <Stack.Screen name="archiwum/[id]" options={{ headerShown: false }} />
       </Stack>
+
+      {/* Ekran ładowania (znika po załadowaniu danych) */}
+      {loadingWidoczny && (
+        <LoadingScreen
+          widoczny={ladowanie}
+          onUkryj={() => setLoadingWidoczny(false)}
+        />
+      )}
     </>
   );
 }

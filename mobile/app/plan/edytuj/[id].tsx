@@ -1,0 +1,41 @@
+// ============================================================
+// EKRAN: EDYTUJ PLAN – cienki wrapper nad PlanForm z istniejącymi danymi
+// ============================================================
+
+import React from 'react';
+import { View, Text, SafeAreaView, useColorScheme } from 'react-native';
+import { useLocalSearchParams, router } from 'expo-router';
+import { usePlanyStore } from '../../../src/stores/planyStore';
+import { lightTheme, darkTheme } from '../../../src/constants/theme';
+import { PlanForm } from '../../../src/components/plan/PlanForm';
+import type { Plan } from '../../../src/types';
+
+export default function EdytujPlanScreen() {
+  const colorScheme = useColorScheme();
+  const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
+  const { id } = useLocalSearchParams<{ id: string }>();
+
+  const plan = usePlanyStore((s) => s.pobierzPlan(id));
+  const { edytujPlan } = usePlanyStore();
+
+  if (!plan) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background, alignItems: 'center', justifyContent: 'center' }}>
+        <Text style={{ color: theme.colors.danger, fontSize: 16 }}>Plan nie znaleziony.</Text>
+      </SafeAreaView>
+    );
+  }
+
+  const handleZapisz = async (dane: Omit<Plan, 'id' | 'createdAt' | 'updatedAt'>) => {
+    await edytujPlan(id, dane);
+    router.back();
+  };
+
+  return (
+    <PlanForm
+      tytul="Edytuj Plan"
+      initialPlan={plan}
+      onZapisz={handleZapisz}
+    />
+  );
+}

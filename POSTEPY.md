@@ -206,12 +206,53 @@ modele danych i store'y. Ekran główny i lista mieszanek są funkcjonalne.
 
 ---
 
-## DO ZROBIENIA (kolejne etapy):
+---
 
-### ETAP 4 – Ostatni szlif
-- [ ] Ekran edycji istniejącego planu
-- [ ] Splash screen z logo animowanym
-- [ ] Obsługa błędów sieciowych i stanu pustego z lepszymi komunikatami
-- [ ] Testy na fizycznym urządzeniu (Expo Go / EAS Build)
+## ETAP 4 – Edycja planu, Loading screen, Ustawienia, Empty states
+**Data:** 2026-06-19
+**Status:** ✅ UKOŃCZONY
+
+### Co zostało zrobione:
+
+1. **Edycja planu** – refaktoryzacja formularza do reużywalnego komponentu:
+   - `src/components/plan/PlanForm.tsx` – główny formularz (nowy + edycja)
+   - Funkcje konwersji: `dzialkaDoFormu()`, `formDoDzialki()`
+   - `app/plan/nowy.tsx` – uproszczony wrapper (12 linii)
+   - `app/plan/edytuj/[id].tsx` – wrapper z istniejącymi danymi
+   - Przycisk "✏ Edytuj" w szczegółach aktywnego planu
+
+2. **Loading screen** (`src/components/common/LoadingScreen.tsx`):
+   - Animowane logo MMA (spring scale + fade-in)
+   - Animowany pasek postępu (timing)
+   - Fade-out do zera po załadowaniu danych
+   - Integracja z `_layout.tsx` (widoczny podczas ładowania AsyncStorage)
+
+3. **Ekran Ustawień** (`app/ustawienia.tsx`):
+   - Dostęp: ikona ⚙ w nagłówku ekranu głównego
+   - Statystyki bazy (mieszanki, plany, wpisy)
+   - Edytowalny domyślny tonaż auta (zapis do AsyncStorage)
+   - Reset onboardingu (pokaże ekran powitalny przy kolejnym starcie)
+   - Wyczyszczenie wszystkich danych (z potwierdzeniem)
+   - Sekcja "O aplikacji" z wersją i tech stack
+
+4. **EmptyState** (`src/components/common/EmptyState.tsx`):
+   - Reużywalny komponent z ikoną, tytułem, opisem, przyciskiem akcji
+   - Użyty we wszystkich 4 listach: Mieszanki, Plany, Wbudowywanie, Archiwum
+   - AnimatedCard – wlatuje z opóźnieniem
+
+5. **AnimatedCard w listach**:
+   - Mieszanki, Plany, Wbudowywanie, Archiwum – każdy wiersz fade + slide z delay
+
+**Weryfikacja**: `npx tsc --noEmit` → 0 błędów ✅
+
+---
+
+## DO ZROBIENIA (potencjalne rozszerzenia):
+
+- [ ] EAS Build – build na urządzenie (Android APK / iOS IPA)
+- [ ] Edycja aktywnego wpisu Live (zmiana tonażu/metrów po dodaniu)
+- [ ] Wyszukiwanie w listach mieszanek i archiwum
+- [ ] Więcej kształtów figur (kołowe inne, itp.)
+- [ ] Widżet systemu (Android) z aktywnym planem
 
 ---
