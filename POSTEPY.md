@@ -159,19 +159,59 @@ modele danych i store'y. Ekran główny i lista mieszanek są funkcjonalne.
 
 ---
 
+---
+
+## ETAP 3 – Animacje, Ikona, Onboarding, Import JSON
+**Data:** 2026-06-19
+**Status:** ✅ UKOŃCZONY
+
+### Co zostało zrobione:
+
+1. **Ikona aplikacji** (wygenerowana AI):
+   - `assets/icon.png` – ikona główna (rozkładarka + droga + "MMA")
+   - `assets/android-icon-foreground.png` – warstwa przodowa Android
+   - `assets/android-icon-background.png` – ciemne tło Android
+   - `app.json` zaktualizowany (name: "Kalkulator MMA", scheme: "kalkulator-mma")
+
+2. **Onboarding** (`app/onboarding.tsx`):
+   - 4 slajdy z paginacją (ScrollView pagingEnabled)
+   - Animacje fade + spring przy zmianie slajdu
+   - Animowany wskaźnik dot (szerokość 24px gdy aktywny, 8px gdy nieaktywny)
+   - Przycisk "Pomiń" (prawy górny róg)
+   - Przycisk "Dalej →" / "Zacznij pracę →"
+   - Zapis do AsyncStorage (`@mma:onboardingComplete`) po zakończeniu
+   - `_layout.tsx` sprawdza flagę i przekierowuje do onboardingu jeśli pierwsze uruchomienie
+
+3. **Animacje**:
+   - `AnimatedCard` – fade + spring slide-in przy wejściu na ekran (z opóźnieniem kaskadowym)
+   - `AnimatedCounter` – licznik odliczający do wartości docelowej (strona główna: mieszanki/aktywne/archiwum)
+   - `AnimatedTabBar` – pasek zakładek z animowanym wskaźnikiem (translateX timing 220ms)
+   - `PressableScale` – efekt "wciśnięcia" kafelka przy dotknięciu (spring scale 0.96→1.0)
+   - Kaskadowe animacje kafelków na ekranie głównym (delay co 80ms)
+   - Nagłówek Home: animacja fade + slide-down przy starcie
+   - Przejścia ekranów (Expo Router): `slide_from_right`, `slide_from_bottom` (nowy plan), `fade` (Home/Onboarding)
+   - AnimatedTabBar we wszystkich 3 ekranach z zakładkami (Plan, Wbudowywanie, Archiwum)
+   - AnimatedCard na liście mieszanek (fade kaskadowy)
+
+4. **Import JSON** (`app/plan/import.tsx`):
+   - Picker pliku (`expo-document-picker`)
+   - Parsowanie i walidacja struktury
+   - Podgląd przed importem (data, działki, mieszanki)
+   - Auto-import brakujących mieszanek
+   - Generacja nowego ID (brak konfliktów)
+   - Przycisk "↓ Import" na liście planów
+   - `src/utils/jsonImporter.ts` – funkcja `importujJSON()`
+
+**Weryfikacja**: `npx tsc --noEmit` → 0 błędów ✅
+
+---
+
 ## DO ZROBIENIA (kolejne etapy):
 
-### ETAP 3 – Szlif UX i brakujące funkcje
-- [ ] Ekran edycji istniejącego planu (plan/edytuj/[id].tsx)
-- [ ] Obsługa stanu pustego z lepszymi komunikatami
-- [ ] Animacje przejść między ekranami (expo-router transitions)
-- [ ] Ikona aplikacji (finalny design MMA)
-- [ ] Splash screen z logo
-- [ ] Onboarding dla nowych użytkowników (pierwsze uruchomienie)
-
-### ETAP 4 – Import i synchronizacja
-- [ ] Import planu z JSON (wybierz plik lub wklej)
-- [ ] Walidacja importowanego JSON
-- [ ] Obsługa wielu urządzeń (eksport/import przepływ)
+### ETAP 4 – Ostatni szlif
+- [ ] Ekran edycji istniejącego planu
+- [ ] Splash screen z logo animowanym
+- [ ] Obsługa błędów sieciowych i stanu pustego z lepszymi komunikatami
+- [ ] Testy na fizycznym urządzeniu (Expo Go / EAS Build)
 
 ---

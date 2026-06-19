@@ -22,6 +22,7 @@ import { router } from 'expo-router';
 import { useMieszankiStore } from '../../src/stores/mieszankiStore';
 import { lightTheme, darkTheme } from '../../src/constants/theme';
 import { InfoTooltip } from '../../src/components/common/InfoTooltip';
+import { AnimatedCard } from '../../src/components/common/AnimatedCard';
 import type { Mieszanka } from '../../src/types';
 
 const PUSTE_DANE = {
@@ -113,7 +114,8 @@ export default function MieszankiScreen() {
     );
   };
 
-  const renderujMieszanke = ({ item }: { item: Mieszanka }) => (
+  const renderujMieszanke = ({ item, index }: { item: Mieszanka; index: number }) => (
+    <AnimatedCard delay={index * 60}>
     <View style={[styles.pozycja, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
       <View style={styles.pozycjaLewo}>
         <Text style={[styles.rodzaj, { color: theme.colors.text }]}>{item.rodzaj}</Text>
@@ -142,6 +144,7 @@ export default function MieszankiScreen() {
         </TouchableOpacity>
       </View>
     </View>
+    </AnimatedCard>
   );
 
   return (

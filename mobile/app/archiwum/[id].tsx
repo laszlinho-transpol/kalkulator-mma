@@ -13,6 +13,7 @@ import { usePlanyStore } from '../../src/stores/planyStore';
 import { useMieszankiStore } from '../../src/stores/mieszankiStore';
 import { useLiveStore } from '../../src/stores/liveStore';
 import { lightTheme, darkTheme } from '../../src/constants/theme';
+import { AnimatedTabBar } from '../../src/components/common/AnimatedTabBar';
 import { DzialkaSketch } from '../../src/components/sketch/DzialkaSketch';
 import { generujRaportPDF } from '../../src/utils/pdfGenerator';
 import { eksportujJSON, generujInteraktywnyHTML } from '../../src/utils/htmlGenerator';
@@ -106,18 +107,16 @@ export default function ArchiwumDetailScreen() {
         </View>
       </View>
 
-      {/* Zakładki */}
-      <View style={[styles.zakladki, { backgroundColor: theme.colors.card, borderBottomColor: theme.colors.border }]}>
-        {(['podsumowanie', 'live', 'szkic'] as ZakladkaTyp[]).map((z) => {
-          const etykiety: Record<ZakladkaTyp, string> = { podsumowanie: 'Podsumowanie', live: 'Tabela Live', szkic: 'Szkic' };
-          const aktywna = aktywnaZakladka === z;
-          return (
-            <TouchableOpacity key={z} style={[styles.zakladka, aktywna && { borderBottomColor: theme.colors.primary, borderBottomWidth: 2.5 }]} onPress={() => setZakladka(z)}>
-              <Text style={[styles.zakladkaTekst, { color: aktywna ? theme.colors.primary : theme.colors.textSecondary }]}>{etykiety[z]}</Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
+      {/* Zakładki z animowanym wskaźnikiem */}
+      <AnimatedTabBar
+        tabs={[
+          { id: 'podsumowanie', etykieta: 'Podsumowanie' },
+          { id: 'live', etykieta: 'Tabela Live' },
+          { id: 'szkic', etykieta: 'Szkic' },
+        ]}
+        aktywnaId={aktywnaZakladka}
+        onChange={(id) => setZakladka(id as ZakladkaTyp)}
+      />
 
       {/* Selektor działki */}
       {plan.dzialki.length > 1 && aktywnaZakladka !== 'podsumowanie' && (

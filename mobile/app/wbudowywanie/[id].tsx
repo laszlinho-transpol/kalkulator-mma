@@ -15,6 +15,7 @@ import { useMieszankiStore } from '../../src/stores/mieszankiStore';
 import { useLiveStore } from '../../src/stores/liveStore';
 import { lightTheme, darkTheme, type AppTheme } from '../../src/constants/theme';
 import { DzialkaSketch, type WpisLiveMarker } from '../../src/components/sketch/DzialkaSketch';
+import { AnimatedTabBar } from '../../src/components/common/AnimatedTabBar';
 import {
   obliczWynikiDzialki, obliczTabeleAut, obliczLacznaDlugosc,
   obliczKontrolę, obliczPowierzchnioweOdStartu, formatLiczby, generujDomyslneRzuty,
@@ -142,18 +143,17 @@ export default function WbudowywanieDetailScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Zakładki */}
-      <View style={[styles.zakladki, { backgroundColor: theme.colors.card, borderBottomColor: theme.colors.border }]}>
-        {(['plan', 'kontrola', 'live'] as ZakladkaTyp[]).map((z) => {
-          const etykiety: Record<ZakladkaTyp, string> = { plan: 'Plan', kontrola: 'Kontrola', live: '⬤ Live' };
-          const aktywna = aktywnaZakladka === z;
-          return (
-            <TouchableOpacity key={z} style={[styles.zakladka, aktywna && { borderBottomColor: theme.colors.primary, borderBottomWidth: 2.5 }]} onPress={() => setZakladka(z)}>
-              <Text style={[styles.zakladkaTekst, { color: aktywna ? theme.colors.primary : theme.colors.textSecondary }]}>{etykiety[z]}</Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
+      {/* Zakładki z animowanym wskaźnikiem */}
+      <AnimatedTabBar
+        tabs={[
+          { id: 'plan', etykieta: 'Plan' },
+          { id: 'kontrola', etykieta: 'Kontrola' },
+          { id: 'live', etykieta: '⬤ Live' },
+        ]}
+        aktywnaId={aktywnaZakladka}
+        onChange={(id) => setZakladka(id as ZakladkaTyp)}
+        akcentKolor={aktywnaZakladka === 'live' ? theme.colors.success : theme.colors.primary}
+      />
 
       {/* Selektor działki */}
       {aktywnaZakladka !== 'plan' && plan.dzialki.length > 1 && (

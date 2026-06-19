@@ -11,6 +11,7 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { usePlanyStore } from '../../src/stores/planyStore';
 import { useMieszankiStore } from '../../src/stores/mieszankiStore';
 import { lightTheme, darkTheme } from '../../src/constants/theme';
+import { AnimatedTabBar } from '../../src/components/common/AnimatedTabBar';
 import { DzialkaSketch } from '../../src/components/sketch/DzialkaSketch';
 import {
   obliczWynikiDzialki, obliczTabeleAut, obliczLacznaDlugosc,
@@ -77,23 +78,16 @@ export default function PlanDetailScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Zakładki */}
-      <View style={[styles.zakladki, { backgroundColor: theme.colors.card, borderBottomColor: theme.colors.border }]}>
-        {(['plan', 'tabela', 'szkic'] as ZakladkaTyp[]).map((z) => {
-          const etykiety: Record<ZakladkaTyp, string> = { plan: 'Plan', tabela: 'Tabela aut', szkic: 'Szkic' };
-          return (
-            <TouchableOpacity
-              key={z}
-              style={[styles.zakladka, aktywnaZakladka === z && { borderBottomColor: theme.colors.primary, borderBottomWidth: 2.5 }]}
-              onPress={() => setZakladka(z)}
-            >
-              <Text style={[styles.zakladkaTekst, { color: aktywnaZakladka === z ? theme.colors.primary : theme.colors.textSecondary }]}>
-                {etykiety[z]}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
+      {/* Zakładki z animowanym wskaźnikiem */}
+      <AnimatedTabBar
+        tabs={[
+          { id: 'plan', etykieta: 'Plan' },
+          { id: 'tabela', etykieta: 'Tabela aut' },
+          { id: 'szkic', etykieta: 'Szkic' },
+        ]}
+        aktywnaId={aktywnaZakladka}
+        onChange={(id) => setZakladka(id as ZakladkaTyp)}
+      />
 
       <ScrollView contentContainerStyle={styles.zawartosc} showsVerticalScrollIndicator={false}>
 

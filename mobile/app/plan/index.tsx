@@ -67,12 +67,20 @@ export default function PlanListaScreen() {
           <Text style={[styles.wstecz, { color: theme.colors.primary }]}>‹ Wstecz</Text>
         </TouchableOpacity>
         <Text style={[styles.tytul, { color: theme.colors.text }]}>Zaplanuj Masę</Text>
-        <TouchableOpacity
-          style={[styles.przyciskNowy, { backgroundColor: theme.colors.primary }]}
-          onPress={() => router.push('/plan/nowy' as any)}
-        >
-          <Text style={styles.przyciskNowyTekst}>+ Nowy</Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <TouchableOpacity
+            style={[styles.przyciskNowy, { backgroundColor: theme.colors.secondary }]}
+            onPress={() => router.push('/plan/import' as any)}
+          >
+            <Text style={styles.przyciskNowyTekst}>↓ Import</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.przyciskNowy, { backgroundColor: theme.colors.primary }]}
+            onPress={() => router.push('/plan/nowy' as any)}
+          >
+            <Text style={styles.przyciskNowyTekst}>+ Nowy</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {aktywne.length === 0 ? (
