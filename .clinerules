@@ -1,0 +1,116 @@
+# KALKULATOR MMA – REGUŁY PROJEKTU
+# ============================================================
+# Plik obowiązkowy do przeczytania na początku KAŻDEGO nowego czatu.
+# Jest to jedyne i niepodzielne źródło prawdy o zasadach projektu.
+# ============================================================
+
+## CEL PROJEKTU
+
+Budujemy mobilną aplikację "Kalkulator MMA" (Kalkulator Mieszanek Mineralno-Asfaltowych)
+dla kierowników budów i majstrów pracujących przy układaniu asfaltu na drogach.
+Aplikacja działa offline, na telefonach (Android i iOS).
+
+Główna specyfikacja projektu: plik `cel_projektu.pdf` (aktualizowany przez właściciela).
+**Na początku każdego nowego zadania sprawdź ten plik pod kątem zmian.**
+
+## STACK TECHNOLOGICZNY
+
+| Warstwa             | Technologia                                              |
+|---------------------|----------------------------------------------------------|
+| Framework mobilny   | React Native + Expo SDK 56                               |
+| Język               | TypeScript (strict)                                      |
+| Nawigacja           | Expo Router (plikowa, w katalogu `app/`)                 |
+| Stan globalny       | Zustand                                                  |
+| Baza danych lokalna | AsyncStorage (dane główne) + expo-sqlite (jeśli potrzeba)|
+| PDF                 | expo-print                                               |
+| Udostępnianie       | expo-sharing + expo-mail-composer                        |
+| Grafika SVG         | react-native-svg                                         |
+| DatePicker          | @react-native-community/datetimepicker                   |
+| Motywy              | własny system (lightTheme / darkTheme) – Dark/Light auto |
+
+## STRUKTURA PROJEKTU
+
+```
+/workspace/mobile/           ← katalog główny aplikacji mobilnej
+├── app/                     ← ekrany (Expo Router – routing plikowy)
+│   ├── _layout.tsx          ← root layout (ładowanie store'ów, nawigacja globalna)
+│   ├── index.tsx            ← ekran główny (Home – 4 kafelki)
+│   ├── mieszanki/           ← CRUD bazy mieszanek asfaltowych
+│   ├── plan/                ← tworzenie i przeglądanie planów wbudowywania
+│   ├── wbudowywanie/        ← realizacja live (3 zakładki: Plan, Kontrola, Live)
+│   └── archiwum/            ← zakończone roboty + generowanie PDF
+├── src/
+│   ├── components/
+│   │   ├── common/          ← ThemedView, ThemedText, InfoTooltip, itp.
+│   │   ├── shapes/          ← formularze figur geometrycznych
+│   │   └── sketch/          ← wizualizacja 2D działki roboczej
+│   ├── stores/              ← Zustand: mieszankiStore, planyStore, liveStore
+│   ├── utils/
+│   │   ├── calculations.ts  ← obliczenia: powierzchnia, masa, kontrola
+│   │   └── chainage.ts      ← pikietaż (kilometraż ciągły)
+│   ├── types/index.ts       ← definicje TypeScript (Mieszanka, Plan, Figura, itd.)
+│   └── constants/
+│       ├── index.ts         ← stałe (tonaz auta = 25.5t, kolory, format pikietażu)
+│       └── theme.ts         ← lightTheme / darkTheme
+├── assets/svg/              ← pliki SVG: rozkładarka, samochód-wywrotka
+├── .clinerules              ← TEN PLIK
+├── POSTEPY.md               ← dziennik postępów (aktualizuj po każdym zadaniu)
+└── app.json                 ← konfiguracja Expo
+```
+
+## KLUCZOWE WZORY OBLICZENIOWE
+
+| Figura         | Wzór powierzchni [m²]                                      |
+|----------------|------------------------------------------------------------|
+| Prostokąt      | szerokość × długość                                        |
+| Trapez         | ((szer1 + szer2) / 2) × długość                            |
+| Trójkąt        | (szerokość × długość) / 2                                  |
+| Pierścień koł. | szerokość × ((dł_zewn + dł_wewn) / 2)                     |
+| Wjazd          | (L × s) + (R1² + R2²) × 0.2146                            |
+
+Ilość masy [Mg] = Powierzchnia × (Grubość_cm / 100) × Ciężar_objętościowy
+Ilość aut       = ceil(Masa_Mg / Tonaz_auta)   [domyślnie 25.5t, edytowalne]
+
+## PIKIETAŻ (KILOMETRAŻ CIĄGŁY)
+
+- Format wyświetlania: km+mmm (np. 105+500)
+- Kierunek "rosnący": każda kolejna figura dodaje swoją długość do pikietażu
+- Kierunek "malejący": każda figura odejmuje swoją długość od pikietażu
+- Nowa figura dziedziczy automatycznie pikietaż końcowy poprzedniej
+
+## UI / UX – ZASADY STAŁE
+
+1. Orientacja: tylko pionowa (portrait)
+2. Tryb ciemny i jasny: automatyczny wg ustawień systemu
+3. Przy każdej opcji jest ikonka "i" – po kliknięciu wyjaśnia zasadę działania (InfoTooltip)
+4. Tekst w kafelkach menu nie może być ucinany – wyrazy w całości
+5. Płynne scrollowanie we wszystkich listach
+6. Dane są zachowywane lokalnie (Zustand + AsyncStorage) – offline-first
+
+## TRZY ŻELAZNE ZASADY (OBOWIĄZKOWE)
+
+### ZASADA 1 – ZAWSZE PYTAJ I WERYFIKUJ ROZUMOWANIE
+Zanim zaczniesz pisać lub modyfikować jakikolwiek kod, musisz w 1-2 zdaniach podsumować,
+jak zrozumiałeś pomysł właściciela i zapytać, czy o to mu chodziło.
+Zacznij pracę dopiero, gdy właściciel potwierdzi Twoje rozumowanie.
+
+### ZASADA 2 – BEZWZGLĘDNE TESTOWANIE
+Po wprowadzeniu każdej zmiany w kodzie masz obowiązek samodzielnie uruchomić
+testy/kompilację w terminalu (np. `npx tsc --noEmit`).
+Jeśli wystąpi błąd – sam go zdiagnozuj i napraw.
+Melduj gotowość TYLKO wtedy, gdy aplikacja kompiluje się bez błędów.
+
+### ZASADA 3 – WERYFIKACJA PDF I DOKUMENTACJA POSTĘPÓW
+Na początku każdego nowego zadania: sprawdź plik `cel_projektu.pdf` pod kątem nowości.
+Po zakończeniu zadania: zaktualizuj plik `POSTEPY.md` z precyzyjnym opisem co działa
+i na jakim etapie jesteśmy.
+
+## KONWENCJE KODOWANIA
+
+- Nazwy zmiennych i funkcji po **polsku** (zgodnie z domeną)
+- Komentarze po polsku
+- Jeden ekran = jeden plik w `app/`
+- Komponenty wielokrotnego użytku → `src/components/`
+- Żadnych `console.log` w kodzie produkcyjnym
+- Wartości magiczne → stałe w `src/constants/`
+- Zawsze sprawdzaj typy z `src/types/index.ts`
