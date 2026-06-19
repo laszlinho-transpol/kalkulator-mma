@@ -5,7 +5,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  SafeAreaView, useColorScheme, Alert, Share,
+  SafeAreaView, useColorScheme, Alert, Modal, Pressable,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { usePlanyStore } from '../../src/stores/planyStore';
@@ -14,9 +14,10 @@ import { lightTheme, darkTheme } from '../../src/constants/theme';
 import { DzialkaSketch } from '../../src/components/sketch/DzialkaSketch';
 import {
   obliczWynikiDzialki, obliczTabeleAut, obliczLacznaDlugosc,
-  formatLiczby, parsujRzuty, generujDomyslneRzuty,
+  formatLiczby, generujDomyslneRzuty,
 } from '../../src/utils/calculations';
 import { formatujDatePl } from '../../src/utils/dates';
+import { eksportujJSON, generujInteraktywnyHTML } from '../../src/utils/htmlGenerator';
 import type { DzialkaRobocza, Rzut } from '../../src/types';
 import type { AppTheme } from '../../src/constants/theme';
 
@@ -32,6 +33,7 @@ export default function PlanDetailScreen() {
 
   const [aktywnaZakladka, setZakladka] = useState<ZakladkaTyp>('plan');
   const [wybranaIdx, setWybranaIdx] = useState(0);
+  const [udostepnijModal, setUdostepnijModal] = useState(false);
 
   if (!plan) {
     return (
@@ -48,14 +50,14 @@ export default function PlanDetailScreen() {
 
   const getMieszanka = (id: string) => mieszanki.find((m) => m.id === id);
 
-  const generujJSONString = (): string => {
-    return JSON.stringify({ wersja: '1.0', plan }, null, 2);
+  const udostepnijJSON = async () => {
+    try { await eksportujJSON(plan, mieszanki); } catch { /* cancelled */ }
+    setUdostepnijModal(false);
   };
 
-  const udostepnijJSON = async () => {
-    try {
-      await Share.share({ message: generujJSONString(), title: `Plan MMA – ${formatujDatePl(plan.dataWbudowywania)}` });
-    } catch { /* user cancelled */ }
+  const udostepnijHTML = async () => {
+    try { await generujInteraktywnyHTML(plan, mieszanki); } catch { /* cancelled */ }
+    setUdostepnijModal(false);
   };
 
   return (
@@ -70,8 +72,8 @@ export default function PlanDetailScreen() {
             {formatujDatePl(plan.dataWbudowywania).split(',')[0]}
           </Text>
         </View>
-        <TouchableOpacity onPress={udostepnijJSON}>
-          <Text style={[styles.udostepnij, { color: theme.colors.secondary }]}>↑ JSON</Text>
+        <TouchableOpacity onPress={() => setUdostepnijModal(true)}>
+          <Text style={[styles.udostepnij, { color: theme.colors.secondary }]}>↑ Udostępnij</Text>
         </TouchableOpacity>
       </View>
 
@@ -202,9 +204,48 @@ export default function PlanDetailScreen() {
 
         <View style={{ height: 32 }} />
       </ScrollView>
+
+      {/* Modal udostępniania */}
+      <Modal visible={udostepnijModal} transparent animationType="slide" onRequestClose={() => setUdostepnijModal(false)}>
+        <Pressable style={uStyles.tlo} onPress={() => setUdostepnijModal(false)}>
+          <Pressable style={[uStyles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+            <Text style={[uStyles.tytul, { color: theme.colors.text }]}>Udostępnij plan</Text>
+            <TouchableOpacity style={[uStyles.btn, { backgroundColor: `${theme.colors.info}15`, borderColor: theme.colors.info }]} onPress={udostepnijJSON}>
+              <Text style={[uStyles.btnIkona]}>📦</Text>
+              <View>
+                <Text style={[uStyles.btnTytul, { color: theme.colors.text }]}>Eksportuj do aplikacji</Text>
+                <Text style={[uStyles.btnOpis, { color: theme.colors.textSecondary }]}>Plik .json do importu przez innego użytkownika</Text>
+              </View>
+            </TouchableOpacity>
+            <TouchableOpacity style={[uStyles.btn, { backgroundColor: `${theme.colors.secondary}15`, borderColor: theme.colors.secondary }]} onPress={udostepnijHTML}>
+              <Text style={uStyles.btnIkona}>🌐</Text>
+              <View>
+                <Text style={[uStyles.btnTytul, { color: theme.colors.text }]}>Generuj interaktywny HTML</Text>
+                <Text style={[uStyles.btnOpis, { color: theme.colors.textSecondary }]}>Samodzielny kalkulator offline w przeglądarce</Text>
+              </View>
+            </TouchableOpacity>
+            <TouchableOpacity style={[uStyles.btnAnuluj, { borderColor: theme.colors.border }]} onPress={() => setUdostepnijModal(false)}>
+              <Text style={[uStyles.btnAnulujTekst, { color: theme.colors.textSecondary }]}>Anuluj</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
     </SafeAreaView>
   );
 }
+
+const uStyles = StyleSheet.create({
+  tlo: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  karta: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, borderTopWidth: 1, borderLeftWidth: 1, borderRightWidth: 1 },
+  tytul: { fontSize: 17, fontWeight: '700', marginBottom: 16, textAlign: 'center' },
+  btn: { flexDirection: 'row', alignItems: 'center', gap: 14, borderWidth: 1, borderRadius: 14, padding: 14, marginBottom: 10 },
+  btnIkona: { fontSize: 28 },
+  btnTytul: { fontSize: 15, fontWeight: '700', marginBottom: 2 },
+  btnOpis: { fontSize: 12 },
+  btnAnuluj: { borderWidth: 1, borderRadius: 12, paddingVertical: 13, alignItems: 'center', marginTop: 4 },
+  btnAnulujTekst: { fontSize: 15, fontWeight: '600' },
+});
 
 // ---- Tabela aut ----
 function TabelaAut({ dzialka, tonazAuta, rzuty, mieszankiAll, theme }: {

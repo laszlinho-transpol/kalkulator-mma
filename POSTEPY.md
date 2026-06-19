@@ -117,25 +117,61 @@ modele danych i store'y. Ekran główny i lista mieszanek są funkcjonalne.
 
 ---
 
+---
+
+## ETAP 2 – Live SVG + Udostępnianie
+**Data:** 2026-06-19
+**Status:** ✅ UKOŃCZONY
+
+### Co zostało zrobione:
+
+1. **SVG: Rozkładarka** (`assets/svg/Rozkladarka.tsx`):
+   - Widok z boku – kabina, skrzynia zasypowa (hopper), stół wyrównujący (screed) z elementami grzewczymi
+   - Obsługa kierunku pracy (rosnący/malejący = obrót SVG)
+   - Kolor: pomarańczowy (#E8A020)
+
+2. **SVG: Wywrotka** (`assets/svg/Wywrotka.tsx`):
+   - Widok z boku – kabina, skrzynia wywrotu z numerem auta na skrzyni
+   - Numer widoczny na materiale wywrotu (żądanie z PDF)
+
+3. **DzialkaSketch – tryb Live** (przepisany na SVG):
+   - Nakładka 70% czarnego na całą działkę (surowe podłoże)
+   - Nakładka 100% czarnego na część wykonaną (świeży asfalt)
+   - Żółta linia granicy wykonania
+   - Rozkładarka SVG przesuwa się do bieżącego frontu robót
+   - Linie przerywane na końcu każdego auta
+   - Ikony wywrotek z lewej strony szkicu (klikalne)
+   - Pikietaże po prawej stronie
+
+4. **Modal kliknięcia auta** w wbudowywanie/[id].tsx:
+   - Otwiera się po kliknięciu ikony wywrotki na szkicu
+   - Pokazuje: tonaż, metry, zakrytą powierzchnię, uzyskaną grubość (z ▲▼), bilans masy (zielony/czerwony)
+   - Komentarz kierowcy jeśli podany
+
+5. **Udostępnianie** (modale z opcjami):
+   - Eksport JSON: `eksportujJSON()` → plik .json przez share sheet
+   - Interaktywny HTML: `generujInteraktywnyHTML()` → samodzielny offline kalkulator z zakładkami Plan/Kontrola/Tabela aut
+   - Modal udostępniania w planie (JSON + HTML)
+   - Modal udostępniania w archiwum (PDF + email + JSON + HTML)
+   - Wysyłka e-mail: `expo-mail-composer`
+
+**Weryfikacja**: `npx tsc --noEmit` → 0 błędów ✅ | `npx expo-doctor` → 21/21 ✅
+
+---
+
 ## DO ZROBIENIA (kolejne etapy):
 
-### ETAP 2 – Udostępnianie i integracja
-- [ ] Eksport/Import planu jako JSON (pełny)
-- [ ] Generowanie interaktywnego pliku HTML (offline kalkulator)
-- [ ] Wysyłka PDF e-mailem (expo-mail-composer)
-- [ ] Moduł podziału rzutów – edycja w planie po zapisaniu
+### ETAP 3 – Szlif UX i brakujące funkcje
+- [ ] Ekran edycji istniejącego planu (plan/edytuj/[id].tsx)
+- [ ] Obsługa stanu pustego z lepszymi komunikatami
+- [ ] Animacje przejść między ekranami (expo-router transitions)
+- [ ] Ikona aplikacji (finalny design MMA)
+- [ ] Splash screen z logo
+- [ ] Onboarding dla nowych użytkowników (pierwsze uruchomienie)
 
-### ETAP 3 – Live: animacje SVG
-- [ ] Ikona rozkładarki SVG przesuwająca się po szkicu
-- [ ] Ikony samochodów z przerywanymi liniami na końcu rzutu
-- [ ] Modal szczegółów auta po kliknięciu ikony
-
-### ETAP 4 – Szlif UX
-- [ ] Ekran edycji istniejącego planu
-- [ ] Walidacja w czasie rzeczywistym w formularzach
-- [ ] Obsługa błędów sieciowych i stanu pustego
-- [ ] Animacje przejść między ekranami
-- [ ] Ikona aplikacji (docelowy design)
-- [ ] Onboarding dla nowych użytkowników
+### ETAP 4 – Import i synchronizacja
+- [ ] Import planu z JSON (wybierz plik lub wklej)
+- [ ] Walidacja importowanego JSON
+- [ ] Obsługa wielu urządzeń (eksport/import przepływ)
 
 ---
