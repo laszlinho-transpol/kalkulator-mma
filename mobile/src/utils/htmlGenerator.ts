@@ -229,7 +229,7 @@ function obliczKontrolę(dzIdx) {
 </html>`;
 
   const fileName = `plan_mma_${plan.dataWbudowywania.slice(0, 10)}.html`;
-  const filePath = `${Paths.cache.uri}${fileName}`;
+  const filePath = `${Paths.document.uri}${fileName}`;
   await writeAsStringAsync(filePath, html, { encoding: EncodingType.UTF8 });
   await Sharing.shareAsync(filePath, { mimeType: 'text/html', dialogTitle: 'Udostępnij interaktywny plan HTML' });
 }
@@ -244,7 +244,7 @@ export async function eksportujJSON(
   const dane = { wersja: '1.0', eksportowano: new Date().toISOString(), plan, mieszanki };
   const json = JSON.stringify(dane, null, 2);
   const fileName = `plan_mma_${plan.dataWbudowywania.slice(0, 10)}.json`;
-  const filePath = `${Paths.cache.uri}${fileName}`;
+  const filePath = `${Paths.document.uri}${fileName}`;
   await writeAsStringAsync(filePath, json, { encoding: EncodingType.UTF8 });
   await Sharing.shareAsync(filePath, { mimeType: 'application/json', dialogTitle: 'Eksportuj plan JSON' });
 }

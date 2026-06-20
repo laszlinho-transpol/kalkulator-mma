@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useMieszankiStore } from '../src/stores/mieszankiStore';
 import { usePlanyStore } from '../src/stores/planyStore';
 import { useLiveStore } from '../src/stores/liveStore';
@@ -45,7 +46,7 @@ export default function RootLayout() {
   };
 
   return (
-    <>
+    <SafeAreaProvider>
       <StatusBar style={theme.colors.statusBar} />
       <Stack screenOptions={headerOpacje}>
         <Stack.Screen name="index" options={{ headerShown: false, animation: 'fade' }} />
@@ -85,6 +86,6 @@ export default function RootLayout() {
           onUkryj={() => setLoadingWidoczny(false)}
         />
       )}
-    </>
+    </SafeAreaProvider>
   );
 }

@@ -5,13 +5,15 @@
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  SafeAreaView, useColorScheme, Alert, Modal, Pressable,
+  useColorScheme, Alert, Modal, Pressable,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePlanyStore } from '../../src/stores/planyStore';
 import { useMieszankiStore } from '../../src/stores/mieszankiStore';
 import { lightTheme, darkTheme } from '../../src/constants/theme';
 import { AnimatedTabBar } from '../../src/components/common/AnimatedTabBar';
+import { AppHeader } from '../../src/components/common/AppHeader';
 import { DzialkaSketch } from '../../src/components/sketch/DzialkaSketch';
 import {
   obliczWynikiDzialki, obliczTabeleAut, obliczLacznaDlugosc,
@@ -35,17 +37,16 @@ export default function PlanDetailScreen() {
   const [aktywnaZakladka, setZakladka] = useState<ZakladkaTyp>('plan');
   const [wybranaIdx, setWybranaIdx] = useState(0);
   const [udostepnijModal, setUdostepnijModal] = useState(false);
+  const insets = useSafeAreaInsets();
 
   if (!plan) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-        <TouchableOpacity onPress={() => router.back()} style={{ padding: 20 }}>
-          <Text style={{ color: theme.colors.primary, fontSize: 17 }}>‹ Wstecz</Text>
-        </TouchableOpacity>
+      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+        <AppHeader tytul="Plan" lewy={{ tekst: '‹ Wstecz', onPress: () => router.back() }} />
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
           <Text style={{ color: theme.colors.textSecondary, fontSize: 16 }}>Plan nie znaleziony.</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -62,28 +63,16 @@ export default function PlanDetailScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      {/* Nagłówek */}
-      <View style={[styles.naglowek, { backgroundColor: theme.colors.card, borderBottomColor: theme.colors.border }]}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Text style={[styles.wstecz, { color: theme.colors.primary }]}>‹ Wstecz</Text>
-        </TouchableOpacity>
-        <View style={styles.naglowekSrodek}>
-          <Text style={[styles.tytul, { color: theme.colors.text }]} numberOfLines={1}>
-            {formatujDatePl(plan.dataWbudowywania).split(',')[0]}
-          </Text>
-        </View>
-        <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
-          {plan.status === 'aktywny' && (
-            <TouchableOpacity onPress={() => router.push(`/plan/edytuj/${plan.id}` as any)}>
-              <Text style={[styles.udostepnij, { color: theme.colors.warning }]}>✏ Edytuj</Text>
-            </TouchableOpacity>
-          )}
-          <TouchableOpacity onPress={() => setUdostepnijModal(true)}>
-            <Text style={[styles.udostepnij, { color: theme.colors.secondary }]}>↑</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <AppHeader
+        tytul={formatujDatePl(plan.dataWbudowywania).split(',')[0]}
+        lewy={{ tekst: '‹ Wstecz', onPress: () => router.back() }}
+        prawy={{ tekst: '↑ Udostępnij', onPress: () => setUdostepnijModal(true), kolor: theme.colors.secondary }}
+        przyciski={plan.status === 'aktywny' ? [
+          { tekst: '✏ Edytuj plan', onPress: () => router.push(`/plan/edytuj/${plan.id}` as any), kolor: theme.colors.warning },
+          { tekst: '▶ Wbudowywanie', onPress: () => router.push(`/wbudowywanie/${plan.id}` as any), kolor: '#fff', tlo: theme.colors.success },
+        ] : []}
+      />
 
       {/* Zakładki z animowanym wskaźnikiem */}
       <AnimatedTabBar
@@ -203,7 +192,7 @@ export default function PlanDetailScreen() {
           </>
         )}
 
-        <View style={{ height: 32 }} />
+        <View style={{ height: insets.bottom + 24 }} />
       </ScrollView>
 
       {/* Modal udostępniania */}
@@ -232,7 +221,7 @@ export default function PlanDetailScreen() {
         </Pressable>
       </Modal>
 
-    </SafeAreaView>
+    </View>
   );
 }
 
