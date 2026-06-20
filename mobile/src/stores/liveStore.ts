@@ -7,9 +7,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { WpisLive } from '../types';
 
 const KLUCZ_STORAGE = '@mma:live';
+const KLUCZ_ZAKONCZONE = '@mma:dzialkiZakonczone';
+
+/** Klucz: planId, wartość: lista ID zakończonych działek */
+type ZakonczoneMap = Record<string, string[]>;
 
 interface LiveStore {
   wpisy: WpisLive[];
+  dzialkiZakonczone: ZakonczoneMap;
   zaladowane: boolean;
   zaladujWpisy: () => Promise<void>;
   dodajWpisAuta: (wpis: Omit<WpisLive, 'id' | 'createdAt'>) => Promise<void>;
@@ -18,6 +23,9 @@ interface LiveStore {
   wpisyDlaPlanu: (planId: string) => WpisLive[];
   wpisyDlaDzialki: (planId: string, dzialkaId: string) => WpisLive[];
   wyczyścWpisyPlanu: (planId: string) => Promise<void>;
+  czyDzialkaZakonczona: (planId: string, dzialkaId: string) => boolean;
+  zakonczDzialke: (planId: string, dzialkaId: string) => Promise<void>;
+  cofnijZakonczenieDzialki: (planId: string, dzialkaId: string) => Promise<void>;
 }
 
 const generujId = (): string =>
@@ -27,18 +35,26 @@ const zapiszDoStorage = async (wpisy: WpisLive[]) => {
   await AsyncStorage.setItem(KLUCZ_STORAGE, JSON.stringify(wpisy));
 };
 
+const zapiszZakonczone = async (mapa: ZakonczoneMap) => {
+  await AsyncStorage.setItem(KLUCZ_ZAKONCZONE, JSON.stringify(mapa));
+};
+
 export const useLiveStore = create<LiveStore>((set, get) => ({
   wpisy: [],
+  dzialkiZakonczone: {},
   zaladowane: false,
 
   zaladujWpisy: async () => {
     try {
-      const json = await AsyncStorage.getItem(KLUCZ_STORAGE);
-      if (json) {
-        set({ wpisy: JSON.parse(json), zaladowane: true });
-      } else {
-        set({ zaladowane: true });
-      }
+      const [json, jsonZ] = await Promise.all([
+        AsyncStorage.getItem(KLUCZ_STORAGE),
+        AsyncStorage.getItem(KLUCZ_ZAKONCZONE),
+      ]);
+      set({
+        wpisy: json ? JSON.parse(json) : [],
+        dzialkiZakonczone: jsonZ ? JSON.parse(jsonZ) : {},
+        zaladowane: true,
+      });
     } catch {
       set({ zaladowane: true });
     }
@@ -77,7 +93,35 @@ export const useLiveStore = create<LiveStore>((set, get) => ({
 
   wyczyścWpisyPlanu: async (planId) => {
     const zaktualizowane = get().wpisy.filter((w) => w.planId !== planId);
-    set({ wpisy: zaktualizowane });
+    const { [planId]: _, ...resztaZakonczonych } = get().dzialkiZakonczone;
+    set({ wpisy: zaktualizowane, dzialkiZakonczone: resztaZakonczonych });
     await zapiszDoStorage(zaktualizowane);
+    await zapiszZakonczone(resztaZakonczonych);
+  },
+
+  czyDzialkaZakonczona: (planId, dzialkaId) => {
+    const lista = get().dzialkiZakonczone[planId] ?? [];
+    return lista.includes(dzialkaId);
+  },
+
+  zakonczDzialke: async (planId, dzialkaId) => {
+    const poprzednia = get().dzialkiZakonczone[planId] ?? [];
+    if (poprzednia.includes(dzialkaId)) return;
+    const nowa: ZakonczoneMap = {
+      ...get().dzialkiZakonczone,
+      [planId]: [...poprzednia, dzialkaId],
+    };
+    set({ dzialkiZakonczone: nowa });
+    await zapiszZakonczone(nowa);
+  },
+
+  cofnijZakonczenieDzialki: async (planId, dzialkaId) => {
+    const poprzednia = get().dzialkiZakonczone[planId] ?? [];
+    const nowa: ZakonczoneMap = {
+      ...get().dzialkiZakonczone,
+      [planId]: poprzednia.filter((id) => id !== dzialkaId),
+    };
+    set({ dzialkiZakonczone: nowa });
+    await zapiszZakonczone(nowa);
   },
 }));

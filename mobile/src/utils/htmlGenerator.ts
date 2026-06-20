@@ -2,12 +2,10 @@
 // GENERATOR INTERAKTYWNEGO HTML – samodzielny offline kalkulator
 // ============================================================
 
-import { writeAsStringAsync, EncodingType } from 'expo-file-system';
-import { Paths } from 'expo-file-system';
-import * as Sharing from 'expo-sharing';
 import type { Plan } from '../types';
 import { formatujDatePl } from './dates';
-import { formatLiczby } from './calculations';
+import { formatLiczby, generujDomyslneRzuty } from './calculations';
+import { zapiszIUdostepnijPlik } from './fileExport';
 
 export async function generujInteraktywnyHTML(
   plan: Plan,
@@ -128,7 +126,8 @@ ${plan.dzialki.map((dz, dIdx) => {
     return s;
   }, 0);
   const masa = pow * (dz.grubosc / 100) * mie.ciezarObjetosciowy;
-  const rzuty = plan.rzuty && plan.rzuty.length > 0 ? plan.rzuty : [{ numerRzutu: 1, iloscSamochodow: Math.ceil(masa / plan.tonazAuta) }];
+  const iloscAut = Math.ceil(masa / plan.tonazAuta);
+  const rzuty = generujDomyslneRzuty(iloscAut);
   let rows = '';
   let cumMasa = 0; let cumMetry = 0; let nr = 0;
   const metryNaTone = masa > 0 ? len / masa : 0;
@@ -229,9 +228,7 @@ function obliczKontrolę(dzIdx) {
 </html>`;
 
   const fileName = `plan_mma_${plan.dataWbudowywania.slice(0, 10)}.html`;
-  const filePath = `${Paths.document.uri}${fileName}`;
-  await writeAsStringAsync(filePath, html, { encoding: EncodingType.UTF8 });
-  await Sharing.shareAsync(filePath, { mimeType: 'text/html', dialogTitle: 'Udostępnij interaktywny plan HTML' });
+  await zapiszIUdostepnijPlik(fileName, html, 'text/html', 'Udostępnij interaktywny plan HTML');
 }
 
 /**
@@ -244,7 +241,5 @@ export async function eksportujJSON(
   const dane = { wersja: '1.0', eksportowano: new Date().toISOString(), plan, mieszanki };
   const json = JSON.stringify(dane, null, 2);
   const fileName = `plan_mma_${plan.dataWbudowywania.slice(0, 10)}.json`;
-  const filePath = `${Paths.document.uri}${fileName}`;
-  await writeAsStringAsync(filePath, json, { encoding: EncodingType.UTF8 });
-  await Sharing.shareAsync(filePath, { mimeType: 'application/json', dialogTitle: 'Eksportuj plan JSON' });
+  await zapiszIUdostepnijPlik(fileName, json, 'application/json', 'Eksportuj plan JSON');
 }

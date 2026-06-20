@@ -5,14 +5,15 @@
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  SafeAreaView, useColorScheme, ActivityIndicator, Alert,
-  Modal, Pressable,
+  ActivityIndicator, Alert, Modal, Pressable,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAppTheme } from '../../src/context/ThemeContext';
+import { AppHeader } from '../../src/components/common/AppHeader';
 import { usePlanyStore } from '../../src/stores/planyStore';
 import { useMieszankiStore } from '../../src/stores/mieszankiStore';
 import { useLiveStore } from '../../src/stores/liveStore';
-import { lightTheme, darkTheme } from '../../src/constants/theme';
 import { AnimatedTabBar } from '../../src/components/common/AnimatedTabBar';
 import { DzialkaSketch } from '../../src/components/sketch/DzialkaSketch';
 import { generujRaportPDF } from '../../src/utils/pdfGenerator';
@@ -28,8 +29,8 @@ import type { AppTheme } from '../../src/constants/theme';
 type ZakladkaTyp = 'podsumowanie' | 'live' | 'szkic';
 
 export default function ArchiwumDetailScreen() {
-  const colorScheme = useColorScheme();
-  const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
+  const { theme } = useAppTheme();
+  const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
 
   const plan = usePlanyStore((s) => s.pobierzPlan(id));
@@ -43,14 +44,12 @@ export default function ArchiwumDetailScreen() {
 
   if (!plan) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-        <TouchableOpacity onPress={() => router.back()} style={{ padding: 20 }}>
-          <Text style={{ color: theme.colors.primary, fontSize: 17 }}>‹ Wstecz</Text>
-        </TouchableOpacity>
+      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+        <AppHeader tytul="Archiwum" lewy={{ tekst: '‹ Wstecz', onPress: () => router.back() }} />
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
           <Text style={{ color: theme.colors.textSecondary }}>Plan nie znaleziony.</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -85,27 +84,20 @@ export default function ArchiwumDetailScreen() {
   const bilansMasy = sumaMasyLive - sumaMasyPlan;
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      {/* Nagłówek */}
-      <View style={[styles.naglowek, { backgroundColor: theme.colors.card, borderBottomColor: theme.colors.border }]}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Text style={[styles.wstecz, { color: theme.colors.primary }]}>‹ Wstecz</Text>
-        </TouchableOpacity>
-        <Text style={[styles.tytulN, { color: theme.colors.text }]} numberOfLines={1}>
-          {formatujDatePl(plan.dataWbudowywania).split(',')[0]}
-        </Text>
-        <View style={{ flexDirection: 'row', gap: 12 }}>
-          <TouchableOpacity onPress={() => setUdostepnijModal(true)}>
-            <Text style={[styles.btnPDF, { color: theme.colors.secondary }]}>↑ Udostępnij</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={handleGenerujPDF} disabled={generujePDF}>
-            {generujePDF
-              ? <ActivityIndicator color={theme.colors.primary} />
-              : <Text style={[styles.btnPDF, { color: theme.colors.primary }]}>📄 PDF</Text>
-            }
-          </TouchableOpacity>
-        </View>
-      </View>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <AppHeader
+        tytul={formatujDatePl(plan.dataWbudowywania).split(',')[0]}
+        lewy={{ tekst: '‹ Wstecz', onPress: () => router.back() }}
+        przyciski={[
+          { tekst: '↑ Udostępnij', onPress: () => setUdostepnijModal(true), kolor: theme.colors.secondary },
+          {
+            tekst: generujePDF ? '…' : '📄 PDF',
+            onPress: handleGenerujPDF,
+            kolor: theme.colors.primary,
+            disabled: generujePDF,
+          },
+        ]}
+      />
 
       {/* Zakładki z animowanym wskaźnikiem */}
       <AnimatedTabBar
@@ -133,7 +125,7 @@ export default function ArchiwumDetailScreen() {
         </ScrollView>
       )}
 
-      <ScrollView contentContainerStyle={styles.zawartosc} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.zawartosc, { paddingBottom: insets.bottom + 24 }]} showsVerticalScrollIndicator={false}>
 
         {/* ======== PODSUMOWANIE ======== */}
         {aktywnaZakladka === 'podsumowanie' && (
@@ -172,7 +164,7 @@ export default function ArchiwumDetailScreen() {
                   <Text style={[styles.kartaTytul, { color: theme.colors.primary }]}>{dz.nazwa}</Text>
                   <IR label="Mieszanka" v={mie?.rodzaj ?? '–'} theme={theme} />
                   <IR label="Grubość" v={`${dz.grubosc} cm`} theme={theme} />
-                  {wyniki && <IR label="Masa planu" v={`${formatLiczby(wyniki.lacznaIloscMasy, 3)} Mg`} theme={theme} />}
+                  {wyniki && <IR label="Masa planu" v={`${formatLiczby(wyniki.lacznaIloscMasy, 2)} Mg`} theme={theme} />}
                   {wpisyDz.length > 0 && (
                     <>
                       <IR label="Wbudowano" v={`${formatLiczby(sumaTonDz, 2)} Mg`} theme={theme} bold />
@@ -246,7 +238,7 @@ export default function ArchiwumDetailScreen() {
 
       {/* Modal udostępniania */}
       <Modal visible={udostepnijModal} transparent animationType="slide" onRequestClose={() => setUdostepnijModal(false)}>
-        <Pressable style={uStyles.tlo} onPress={() => setUdostepnijModal(false)}>
+        <Pressable style={[uStyles.tlo, { paddingBottom: insets.bottom }]} onPress={() => setUdostepnijModal(false)}>
           <Pressable style={[uStyles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
             <Text style={[uStyles.tytul, { color: theme.colors.text }]}>Udostępnij archiwum</Text>
             <TouchableOpacity style={[uStyles.btn, { backgroundColor: `${theme.colors.primary}15`, borderColor: theme.colors.primary }]} onPress={async () => { setUdostepnijModal(false); handleGenerujPDF(); }}>
@@ -257,11 +249,11 @@ export default function ArchiwumDetailScreen() {
               <Text style={uStyles.btnIkona}>✉️</Text>
               <View><Text style={[uStyles.btnTytul, { color: theme.colors.text }]}>Wyślij e-mailem</Text><Text style={[uStyles.btnOpis, { color: theme.colors.textSecondary }]}>Otwórz klienta poczty z raportem</Text></View>
             </TouchableOpacity>
-            <TouchableOpacity style={[uStyles.btn, { backgroundColor: `${theme.colors.info}15`, borderColor: theme.colors.info }]} onPress={async () => { setUdostepnijModal(false); try { await eksportujJSON(plan, mieszanki); } catch {} }}>
+            <TouchableOpacity style={[uStyles.btn, { backgroundColor: `${theme.colors.info}15`, borderColor: theme.colors.info }]} onPress={async () => { setUdostepnijModal(false); try { await eksportujJSON(plan, mieszanki); } catch (e) { Alert.alert('Błąd', e instanceof Error ? e.message : 'Nie udało się wyeksportować JSON.'); } }}>
               <Text style={uStyles.btnIkona}>📦</Text>
               <View><Text style={[uStyles.btnTytul, { color: theme.colors.text }]}>Eksportuj JSON</Text><Text style={[uStyles.btnOpis, { color: theme.colors.textSecondary }]}>Import przez innego użytkownika aplikacji</Text></View>
             </TouchableOpacity>
-            <TouchableOpacity style={[uStyles.btn, { backgroundColor: `${theme.colors.secondary}15`, borderColor: theme.colors.secondary }]} onPress={async () => { setUdostepnijModal(false); try { await generujInteraktywnyHTML(plan, mieszanki); } catch {} }}>
+            <TouchableOpacity style={[uStyles.btn, { backgroundColor: `${theme.colors.secondary}15`, borderColor: theme.colors.secondary }]} onPress={async () => { setUdostepnijModal(false); try { await generujInteraktywnyHTML(plan, mieszanki); } catch (e) { Alert.alert('Błąd', e instanceof Error ? e.message : 'Nie udało się wygenerować HTML.'); } }}>
               <Text style={uStyles.btnIkona}>🌐</Text>
               <View><Text style={[uStyles.btnTytul, { color: theme.colors.text }]}>Generuj interaktywny HTML</Text><Text style={[uStyles.btnOpis, { color: theme.colors.textSecondary }]}>Kalkulator offline w przeglądarce</Text></View>
             </TouchableOpacity>
@@ -272,7 +264,7 @@ export default function ArchiwumDetailScreen() {
         </Pressable>
       </Modal>
 
-    </SafeAreaView>
+    </View>
   );
 }
 

@@ -5,14 +5,15 @@
 import React, { useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  useColorScheme, Animated, Dimensions,
+  Animated, Dimensions,
 } from 'react-native';
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMieszankiStore } from '../src/stores/mieszankiStore';
 import { usePlanyStore } from '../src/stores/planyStore';
-import { lightTheme, darkTheme, type AppTheme } from '../src/constants/theme';
+import { useAppTheme } from '../src/context/ThemeContext';
+import type { AppTheme } from '../src/constants/theme';
 import { AnimatedCounter } from '../src/components/common/AnimatedCounter';
 
 const { width: SCREEN_W } = Dimensions.get('window');
@@ -36,8 +37,7 @@ const KAFELKI: Kafelek[] = [
 ];
 
 export default function HomeScreen() {
-  const colorScheme = useColorScheme();
-  const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
+  const { theme, isDark } = useAppTheme();
   const insets = useSafeAreaInsets();
 
   const mieszanki = useMieszankiStore((s) => s.mieszanki);
@@ -73,7 +73,7 @@ export default function HomeScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+      <StatusBar style={isDark ? 'light' : 'dark'} />
 
       {/* Nagłówek z bezpiecznym marginesem */}
       <Animated.View

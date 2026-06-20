@@ -1,45 +1,46 @@
 // ============================================================
-// EKRAN: USTAWIENIA – tonaż domyślny, onboarding, o aplikacji
+// EKRAN: USTAWIENIA – tonaż, motyw, onboarding, o aplikacji
 // ============================================================
 
 import React, { useEffect, useState } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, SafeAreaView,
-  useColorScheme, ScrollView, Switch, Alert, TextInput,
+  View, Text, StyleSheet, TouchableOpacity,
+  ScrollView, Alert, TextInput,
 } from 'react-native';
 import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { lightTheme, darkTheme, type AppTheme } from '../src/constants/theme';
+import { useAppTheme } from '../src/context/ThemeContext';
+import { AppHeader } from '../src/components/common/AppHeader';
 import { AnimatedCard } from '../src/components/common/AnimatedCard';
 import { useMieszankiStore } from '../src/stores/mieszankiStore';
 import { usePlanyStore } from '../src/stores/planyStore';
 import { useLiveStore } from '../src/stores/liveStore';
+import {
+  pobierzUstawienia, zapiszUstawienia,
+  WERSJA_APLIKACJI, CHANGELOG, KLUCZ_USTAWIEN,
+  type MotywPreferencja,
+} from '../src/utils/settings';
+import type { AppTheme } from '../src/constants/theme';
 
 const KLUCZ_ONBOARDING = '@mma:onboardingComplete';
-const KLUCZ_USTAWIEN = '@mma:settings';
-const WERSJA_APLIKACJI = '1.0.0';
 
-interface Ustawienia {
-  tonazDomyslny: number;
-}
+const IKONY_STAT: Record<string, string> = {
+  mieszanki: '🏭',
+  plany: '📋',
+  archiwum: '📁',
+  live: '🛣️',
+};
 
-const DOMYSLNE_USTAWIENIA: Ustawienia = { tonazDomyslny: 25.5 };
-
-export async function pobierzUstawienia(): Promise<Ustawienia> {
-  try {
-    const json = await AsyncStorage.getItem(KLUCZ_USTAWIEN);
-    if (json) return { ...DOMYSLNE_USTAWIENIA, ...JSON.parse(json) };
-  } catch {}
-  return DOMYSLNE_USTAWIENIA;
-}
-
-export async function zapiszUstawienia(u: Ustawienia): Promise<void> {
-  await AsyncStorage.setItem(KLUCZ_USTAWIEN, JSON.stringify(u));
-}
+const OPCJE_MOTYWU: { id: MotywPreferencja; label: string; ikona: string }[] = [
+  { id: 'auto', label: 'Auto', ikona: '📱' },
+  { id: 'dark', label: 'Ciemny', ikona: '🌙' },
+  { id: 'light', label: 'Jasny', ikona: '☀️' },
+];
 
 export default function UstawieniaScreen() {
-  const colorScheme = useColorScheme();
-  const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
+  const { theme, preferencja, ustawPreferencje } = useAppTheme();
+  const insets = useSafeAreaInsets();
 
   const [tonazStr, setTonazStr] = useState('25.5');
   const [zapisano, setZapisano] = useState(false);
@@ -58,9 +59,14 @@ export default function UstawieniaScreen() {
       Alert.alert('Błąd', 'Podaj prawidłowy tonaż (np. 25.5).');
       return;
     }
-    await zapiszUstawienia({ tonazDomyslny: tonaz });
+    const u = await pobierzUstawienia();
+    await zapiszUstawienia({ ...u, tonazDomyslny: tonaz });
     setZapisano(true);
     setTimeout(() => setZapisano(false), 2000);
+  };
+
+  const zmienMotyw = async (m: MotywPreferencja) => {
+    await ustawPreferencje(m);
   };
 
   const resetujOnboarding = () => {
@@ -94,6 +100,7 @@ export default function UstawieniaScreen() {
               '@mma:mieszanki',
               '@mma:plany',
               '@mma:live',
+              '@mma:dzialkiZakonczone',
               KLUCZ_USTAWIEN,
             ]);
             Alert.alert('Gotowe', 'Wszystkie dane zostały wyczyszczone. Uruchom aplikację ponownie.', [
@@ -105,35 +112,66 @@ export default function UstawieniaScreen() {
     );
   };
 
+  const aktualnyChangelog = CHANGELOG[0];
+
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <View style={[styles.naglowek, { backgroundColor: theme.colors.card, borderBottomColor: theme.colors.border }]}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Text style={[styles.wstecz, { color: theme.colors.primary }]}>‹ Wstecz</Text>
-        </TouchableOpacity>
-        <Text style={[styles.tytul, { color: theme.colors.text }]}>Ustawienia</Text>
-        <View style={{ width: 60 }} />
-      </View>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <AppHeader
+        tytul="Ustawienia"
+        lewy={{ tekst: '‹ Wstecz', onPress: () => router.back() }}
+      />
 
-      <ScrollView contentContainerStyle={styles.zawartosc} showsVerticalScrollIndicator={false}>
-
+      <ScrollView
+        contentContainerStyle={[styles.zawartosc, { paddingBottom: insets.bottom + 24 }]}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Statystyki bazy */}
         <AnimatedCard delay={0}>
           <View style={[styles.sekcja, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
             <Text style={[styles.sekcjaTytul, { color: theme.colors.textSecondary }]}>TWOJA BAZA DANYCH</Text>
-            <StatRow ikona="🧱" label="Mieszanek" wartosc={mieszanki.length} theme={theme} />
-            <StatRow ikona="📋" label="Planów" wartosc={plany.length} theme={theme} />
-            <StatRow ikona="✓" label="Archiwalnych" wartosc={plany.filter(p => p.status === 'archiwalny').length} theme={theme} />
-            <StatRow ikona="🚚" label="Wpisów Live" wartosc={wpisy.length} theme={theme} />
+            <StatRow ikona={IKONY_STAT.mieszanki} label="Mieszanek" wartosc={mieszanki.length} theme={theme} />
+            <StatRow ikona={IKONY_STAT.plany} label="Planów" wartosc={plany.length} theme={theme} />
+            <StatRow ikona={IKONY_STAT.archiwum} label="Archiwalnych" wartosc={plany.filter(p => p.status === 'archiwalny').length} theme={theme} />
+            <StatRow ikona={IKONY_STAT.live} label="Wpisów Live" wartosc={wpisy.length} theme={theme} />
+          </View>
+        </AnimatedCard>
+
+        {/* Motyw */}
+        <AnimatedCard delay={60}>
+          <View style={[styles.sekcja, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+            <Text style={[styles.sekcjaTytul, { color: theme.colors.textSecondary }]}>WYGLĄD APLIKACJI</Text>
+            <Text style={[styles.opisSekcji, { color: theme.colors.textSecondary }]}>
+              Wybierz motyw. „Auto" dopasowuje się do ustawień telefonu.
+            </Text>
+            <View style={styles.motywRow}>
+              {OPCJE_MOTYWU.map((op) => (
+                <TouchableOpacity
+                  key={op.id}
+                  style={[
+                    styles.motywBtn,
+                    {
+                      borderColor: preferencja === op.id ? theme.colors.primary : theme.colors.border,
+                      backgroundColor: preferencja === op.id ? `${theme.colors.primary}20` : theme.colors.background,
+                    },
+                  ]}
+                  onPress={() => zmienMotyw(op.id)}
+                >
+                  <Text style={styles.motywIkona}>{op.ikona}</Text>
+                  <Text style={[styles.motywLabel, { color: preferencja === op.id ? theme.colors.primary : theme.colors.text }]}>
+                    {op.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
         </AnimatedCard>
 
         {/* Domyślny tonaż */}
-        <AnimatedCard delay={80}>
+        <AnimatedCard delay={120}>
           <View style={[styles.sekcja, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
             <Text style={[styles.sekcjaTytul, { color: theme.colors.textSecondary }]}>DOMYŚLNY TONAŻ AUTA</Text>
             <Text style={[styles.opisSekcji, { color: theme.colors.textSecondary }]}>
-              Tonaż wstępnie wpisywany w każdym nowym planie. Możesz go zmienić przy tworzeniu planu.
+              Tonaż wstępnie wpisywany w każdym nowym planie.
             </Text>
             <View style={styles.tonazRow}>
               <TextInput
@@ -156,10 +194,9 @@ export default function UstawieniaScreen() {
         </AnimatedCard>
 
         {/* Aplikacja */}
-        <AnimatedCard delay={160}>
+        <AnimatedCard delay={180}>
           <View style={[styles.sekcja, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
             <Text style={[styles.sekcjaTytul, { color: theme.colors.textSecondary }]}>APLIKACJA</Text>
-
             <AkcjaRow
               ikona="🎬"
               label="Pokaż ponownie wstęp"
@@ -168,11 +205,9 @@ export default function UstawieniaScreen() {
               onPress={resetujOnboarding}
               kolor={theme.colors.info}
             />
-
             <View style={[styles.sep, { backgroundColor: theme.colors.border }]} />
-
             <AkcjaRow
-              ikona="🗑"
+              ikona="🗑️"
               label="Wyczyść wszystkie dane"
               opis="Usuwa mieszanki, plany i wpisy Live"
               theme={theme}
@@ -182,28 +217,34 @@ export default function UstawieniaScreen() {
           </View>
         </AnimatedCard>
 
-        {/* O aplikacji */}
+        {/* O aplikacji + changelog */}
         <AnimatedCard delay={240}>
           <View style={[styles.sekcja, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
             <Text style={[styles.sekcjaTytul, { color: theme.colors.textSecondary }]}>O APLIKACJI</Text>
-
             <View style={[styles.appInfo, { backgroundColor: theme.colors.background, borderRadius: 12 }]}>
               <Text style={[styles.appNazwa, { color: theme.colors.primary }]}>⬛ Kalkulator MMA</Text>
               <Text style={[styles.appWersja, { color: theme.colors.textSecondary }]}>Wersja {WERSJA_APLIKACJI}</Text>
               <Text style={[styles.appOpis, { color: theme.colors.textSecondary }]}>
-                Aplikacja mobilna do planowania i kontrolowania wbudowywania mieszanek mineralno-asfaltowych na budowach drogowych.
+                Aplikacja mobilna do planowania i kontrolowania wbudowywania mieszanek mineralno-asfaltowych.
               </Text>
-              <View style={[styles.techRow, { borderTopColor: theme.colors.border }]}>
-                <Text style={[styles.techLabel, { color: theme.colors.textSecondary }]}>React Native + Expo SDK 56</Text>
-                <Text style={[styles.techLabel, { color: theme.colors.textSecondary }]}>TypeScript · Zustand</Text>
-              </View>
             </View>
+
+            {aktualnyChangelog && (
+              <View style={[styles.changelogBox, { backgroundColor: `${theme.colors.primary}10`, borderColor: theme.colors.primary }]}>
+                <Text style={[styles.changelogTytul, { color: theme.colors.primary }]}>
+                  Nowości w v{aktualnyChangelog.wersja} ({aktualnyChangelog.data})
+                </Text>
+                {aktualnyChangelog.zmiany.map((z, i) => (
+                  <Text key={i} style={[styles.changelogPunkt, { color: theme.colors.text }]}>
+                    • {z}
+                  </Text>
+                ))}
+              </View>
+            )}
           </View>
         </AnimatedCard>
-
-        <View style={{ height: 32 }} />
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -235,16 +276,16 @@ function AkcjaRow({ ikona, label, opis, theme, onPress, kolor }: {
   );
 }
 
-
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  naglowek: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1 },
-  wstecz: { fontSize: 17, minWidth: 60 },
-  tytul: { fontSize: 17, fontWeight: '700' },
   zawartosc: { padding: 16, gap: 12 },
   sekcja: { borderRadius: 14, padding: 16, borderWidth: 1 },
   sekcjaTytul: { fontSize: 11, fontWeight: '700', letterSpacing: 0.5, marginBottom: 12 },
   opisSekcji: { fontSize: 13, lineHeight: 19, marginBottom: 12 },
+  motywRow: { flexDirection: 'row', gap: 10 },
+  motywBtn: { flex: 1, borderWidth: 1.5, borderRadius: 12, paddingVertical: 14, alignItems: 'center', gap: 4 },
+  motywIkona: { fontSize: 22 },
+  motywLabel: { fontSize: 13, fontWeight: '700' },
   statRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, gap: 12 },
   statIkona: { fontSize: 20, width: 28 },
   statLabel: { flex: 1, fontSize: 15 },
@@ -265,6 +306,7 @@ const styles = StyleSheet.create({
   appNazwa: { fontSize: 20, fontWeight: '900', letterSpacing: 2 },
   appWersja: { fontSize: 13 },
   appOpis: { fontSize: 13, lineHeight: 19, marginTop: 4 },
-  techRow: { borderTopWidth: 1, marginTop: 12, paddingTop: 12, gap: 4 },
-  techLabel: { fontSize: 11 },
+  changelogBox: { borderWidth: 1, borderRadius: 10, padding: 12, marginTop: 12, gap: 6 },
+  changelogTytul: { fontSize: 12, fontWeight: '800', marginBottom: 4 },
+  changelogPunkt: { fontSize: 12, lineHeight: 18 },
 });

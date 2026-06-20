@@ -5,7 +5,7 @@
 import React, { useState, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  TextInput, useColorScheme, Alert, KeyboardAvoidingView,
+  TextInput, Alert, KeyboardAvoidingView,
   Platform, Modal, Pressable, Dimensions,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
@@ -13,7 +13,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePlanyStore } from '../../src/stores/planyStore';
 import { useMieszankiStore } from '../../src/stores/mieszankiStore';
 import { useLiveStore } from '../../src/stores/liveStore';
-import { lightTheme, darkTheme, type AppTheme } from '../../src/constants/theme';
+import { useAppTheme } from '../../src/context/ThemeContext';
+import type { AppTheme } from '../../src/constants/theme';
 import { DzialkaSketch, type WpisLiveMarker } from '../../src/components/sketch/DzialkaSketch';
 import { AppHeader } from '../../src/components/common/AppHeader';
 import { AnimatedTabBar } from '../../src/components/common/AnimatedTabBar';
@@ -39,15 +40,14 @@ const KOLUMNY = [
 ];
 
 export default function WbudowywanieDetailScreen() {
-  const colorScheme = useColorScheme();
-  const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
+  const { theme } = useAppTheme();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
 
   const plan = usePlanyStore((s) => s.pobierzPlan(id));
   const archiwizujPlan = usePlanyStore((s) => s.archiwizujPlan);
   const mieszanki = useMieszankiStore((s) => s.mieszanki);
-  const { wpisyDlaDzialki, dodajWpisAuta, usunWpisAuta } = useLiveStore();
+  const { wpisyDlaDzialki, dodajWpisAuta, usunWpisAuta, czyDzialkaZakonczona, zakonczDzialke, cofnijZakonczenieDzialki } = useLiveStore();
 
   const [aktywnaZakladka, setZakladka] = useState<ZakladkaTyp>('plan');
   const [wybranaIdx, setWybranaIdx] = useState(0);
@@ -82,6 +82,7 @@ export default function WbudowywanieDetailScreen() {
   const mieszanka = getMieszanka(wybraDzialka?.mieszankaId ?? '');
 
   const wpisyBiezacej = wpisyDlaDzialki(plan.id, wybraDzialka?.id ?? '');
+  const dzialkaZakonczona = wybraDzialka ? czyDzialkaZakonczona(plan.id, wybraDzialka.id) : false;
   const sumaTonLive = wpisyBiezacej.reduce((s, w) => s + w.tonazPrzywieziony, 0);
   const sumaMetrLive = wpisyBiezacej.reduce((s, w) => s + w.przejechaneMetry, 0);
   const grubosc = wybraDzialka?.grubosc ?? 0;
@@ -89,9 +90,11 @@ export default function WbudowywanieDetailScreen() {
   // Markery aut
   const markery: WpisLiveMarker[] = [];
   let cumM = 0;
-  for (const wpis of wpisyBiezacej) {
+  for (let i = 0; i < wpisyBiezacej.length; i++) {
+    const wpis = wpisyBiezacej[i];
     cumM += wpis.przejechaneMetry;
-    markery.push({ wpis, metryKumulatywne: cumM });
+    const ostatnieAuto = dzialkaZakonczona && i === wpisyBiezacej.length - 1;
+    markery.push({ wpis, metryKumulatywne: cumM, ostatnieAuto });
   }
 
   // Obliczenia Kontrola
@@ -127,7 +130,25 @@ export default function WbudowywanieDetailScreen() {
   const pozostaloMasyWgPlan = mieszanka ? Math.round(pozostaloPowLive * (grubosc / 100) * mieszanka.ciezarObjetosciowy * 1000) / 1000 : 0;
   const pozostaloMasyWgSr = mieszanka ? Math.round(pozostaloPowLive * (srGr / 100) * mieszanka.ciezarObjetosciowy * 1000) / 1000 : 0;
 
-  const zakoncz = () => Alert.alert('Zakończ i archiwizuj', 'Czy na pewno chcesz zakończyć ten plan?', [
+  const zakonczDzialkeLive = () => {
+    if (wpisyBiezacej.length === 0) {
+      Alert.alert('Brak aut', 'Dodaj co najmniej jedno auto, zanim zakończysz działkę.');
+      return;
+    }
+    Alert.alert(
+      'Zakończ działkę roboczą',
+      `Auto #${wpisyBiezacej.length} zostanie oznaczone jako ostatnie. Działka „${wybraDzialka.nazwa}" będzie ukończona.`,
+      [
+        { text: 'Anuluj', style: 'cancel' },
+        {
+          text: 'Zakończ działkę',
+          onPress: async () => { await zakonczDzialke(plan.id, wybraDzialka.id); },
+        },
+      ],
+    );
+  };
+
+  const zakonczPlan = () => Alert.alert('Zakończ i archiwizuj', 'Czy na pewno chcesz zakończyć cały plan?', [
     { text: 'Anuluj', style: 'cancel' },
     { text: 'Zakończ', style: 'destructive', onPress: async () => { await archiwizujPlan(plan.id); router.replace('/archiwum' as any); } },
   ]);
@@ -158,7 +179,7 @@ export default function WbudowywanieDetailScreen() {
         tytul={formatujDatePl(plan.dataWbudowywania).split(',')[0]}
         podtytul={wybraDzialka?.nazwa}
         lewy={{ tekst: '‹ Wstecz', onPress: () => router.back() }}
-        prawy={{ tekst: 'Zakończ', onPress: zakoncz, kolor: '#fff', tlo: theme.colors.danger }}
+        prawy={{ tekst: 'Zakończ plan', onPress: zakonczPlan, kolor: '#fff', tlo: theme.colors.danger }}
       />
 
       <AnimatedTabBar
@@ -322,6 +343,20 @@ export default function WbudowywanieDetailScreen() {
               )}
 
               {/* Formularz nowego auta */}
+              {dzialkaZakonczona ? (
+                <View style={[styles.karta, { backgroundColor: `${theme.colors.success}15`, borderColor: theme.colors.success }]}>
+                  <Text style={[styles.kartaTytul, { color: theme.colors.success }]}>✓ Działka zakończona</Text>
+                  <Text style={[styles.opisMaly, { color: theme.colors.textSecondary }]}>
+                    Ostatnie auto: #{wpisyBiezacej.length}. Możesz przejść do kolejnej działki lub zakończyć cały plan.
+                  </Text>
+                  <TouchableOpacity
+                    style={[styles.btnCofnijZakonczenie, { borderColor: theme.colors.border }]}
+                    onPress={() => cofnijZakonczenieDzialki(plan.id, wybraDzialka.id)}
+                  >
+                    <Text style={{ color: theme.colors.textSecondary, fontWeight: '600' }}>Cofnij zakończenie</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
               <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
                 <Text style={[styles.kartaTytul, { color: theme.colors.text }]}>Auto #{wpisyBiezacej.length + 1}</Text>
                 <NumInput label="Tonaż [Mg]" value={nowyTonaz} onChange={setNowyTonaz} theme={theme} placeholder={String(plan.tonazAuta)} />
@@ -334,7 +369,13 @@ export default function WbudowywanieDetailScreen() {
                 <TouchableOpacity style={[styles.btnDodajAuto, { backgroundColor: theme.colors.success }]} onPress={dodajWpisLive}>
                   <Text style={styles.btnDodajAutoTekst}>+ Dodaj auto #{wpisyBiezacej.length + 1}</Text>
                 </TouchableOpacity>
+                {wpisyBiezacej.length > 0 && (
+                  <TouchableOpacity style={[styles.btnZakonczDzialke, { backgroundColor: theme.colors.primary }]} onPress={zakonczDzialkeLive}>
+                    <Text style={styles.btnZakonczDzialkeTekst}>✓ Zakończ działkę (auto #{wpisyBiezacej.length} = ostatnie)</Text>
+                  </TouchableOpacity>
+                )}
               </View>
+              )}
             </>
           )}
         </ScrollView>
@@ -358,7 +399,7 @@ export default function WbudowywanieDetailScreen() {
 
         return (
           <Modal visible transparent animationType="slide" onRequestClose={() => setAutaModal(null)}>
-            <Pressable style={styles.modalTlo} onPress={() => setAutaModal(null)}>
+            <Pressable style={[styles.modalTlo, { paddingBottom: insets.bottom }]} onPress={() => setAutaModal(null)}>
               <Pressable style={[styles.modalKarta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
                 <Text style={[styles.modalTytul, { color: theme.colors.text }]}>Auto #{wpis.numerAuta}</Text>
                 <Text style={[styles.opisMaly, { color: theme.colors.textSecondary, marginBottom: 8 }]}>Godz. {wpis.godzinaWybudowania}</Text>
@@ -522,6 +563,9 @@ const styles = StyleSheet.create({
   komentarzInput: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, fontSize: 14, minHeight: 48, marginBottom: 12 },
   btnDodajAuto: { paddingVertical: 13, borderRadius: 12, alignItems: 'center' },
   btnDodajAutoTekst: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  btnZakonczDzialke: { marginTop: 10, paddingVertical: 13, borderRadius: 12, alignItems: 'center' },
+  btnZakonczDzialkeTekst: { color: '#fff', fontSize: 14, fontWeight: '700', textAlign: 'center' },
+  btnCofnijZakonczenie: { marginTop: 12, paddingVertical: 11, borderRadius: 10, borderWidth: 1, alignItems: 'center' },
   modalTlo: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalKarta: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, borderTopWidth: 1, borderLeftWidth: 1, borderRightWidth: 1 },
   modalTytul: { fontSize: 17, fontWeight: '700', marginBottom: 2 },

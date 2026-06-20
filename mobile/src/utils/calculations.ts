@@ -91,13 +91,38 @@ export function obliczWynikiDzialki(
     dzialka.figury.reduce((sum, f) => sum + obliczPowierzchniFigury(f), 0),
   );
 
-  const lacznaIloscMasy = round3(
+  const lacznaIloscMasy = round2(
     lacznaPowierzchnia * (dzialka.grubosc / 100) * ciezarObjetosciowy,
   );
 
   const iloscSamochodow = Math.ceil(lacznaIloscMasy / tonazAuta);
 
   return { lacznaPowierzchnia, lacznaIloscMasy, iloscSamochodow };
+}
+
+/** Suma mas i aut dla całego planu (auta = suma per działka, nie ceil z łącznej masy) */
+export function obliczSumePlanu(
+  dzialki: DzialkaRobocza[],
+  pobierzCiezar: (mieszankaId: string) => number | undefined,
+  tonazAuta: number = DOMYSLNY_TONAZ_AUTA,
+): { sumaMasy: number; sumaAut: number } {
+  let sumaMasy = 0;
+  let sumaAut = 0;
+  for (const dz of dzialki) {
+    const ciezar = pobierzCiezar(dz.mieszankaId);
+    if (!ciezar) continue;
+    const w = obliczWynikiDzialki(dz, ciezar, tonazAuta);
+    sumaMasy = round2(sumaMasy + w.lacznaIloscMasy);
+    sumaAut += w.iloscSamochodow;
+  }
+  return { sumaMasy, sumaAut };
+}
+
+/** Rzuty dopasowane do liczby aut danej działki */
+export function rzutyDlaDzialki(rzuty: Rzut[], iloscAut: number): Rzut[] {
+  const suma = rzuty.reduce((s, r) => s + r.iloscSamochodow, 0);
+  if (suma === iloscAut && suma > 0) return rzuty;
+  return generujDomyslneRzuty(iloscAut);
 }
 
 // --- Tabela aut z podziałem na rzuty ---
@@ -125,9 +150,9 @@ export function obliczTabeleAut(
   for (const rzut of rzuty) {
     for (let i = 0; i < rzut.iloscSamochodow; i++) {
       numerAuta++;
-      const pozostaloMasy = round3(lacznaIloscMasy - masaNarastajaco);
+      const pozostaloMasy = round2(lacznaIloscMasy - masaNarastajaco);
       const masa = round2(Math.min(tonazAuta, pozostaloMasy));
-      masaNarastajaco = round3(masaNarastajaco + masa);
+      masaNarastajaco = round2(masaNarastajaco + masa);
       const metry = round2(masa * metryNaTone);
       metryNarastajaco = round2(metryNarastajaco + metry);
 

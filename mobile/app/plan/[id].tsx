@@ -5,19 +5,19 @@
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  useColorScheme, Alert, Modal, Pressable,
+  Alert, Modal, Pressable,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePlanyStore } from '../../src/stores/planyStore';
 import { useMieszankiStore } from '../../src/stores/mieszankiStore';
-import { lightTheme, darkTheme } from '../../src/constants/theme';
+import { useAppTheme } from '../../src/context/ThemeContext';
 import { AnimatedTabBar } from '../../src/components/common/AnimatedTabBar';
 import { AppHeader } from '../../src/components/common/AppHeader';
 import { DzialkaSketch } from '../../src/components/sketch/DzialkaSketch';
 import {
   obliczWynikiDzialki, obliczTabeleAut, obliczLacznaDlugosc,
-  formatLiczby, generujDomyslneRzuty,
+  formatLiczby, obliczSumePlanu, rzutyDlaDzialki,
 } from '../../src/utils/calculations';
 import { formatujDatePl } from '../../src/utils/dates';
 import { eksportujJSON, generujInteraktywnyHTML } from '../../src/utils/htmlGenerator';
@@ -27,8 +27,7 @@ import type { AppTheme } from '../../src/constants/theme';
 type ZakladkaTyp = 'plan' | 'tabela' | 'szkic';
 
 export default function PlanDetailScreen() {
-  const colorScheme = useColorScheme();
-  const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
+  const { theme } = useAppTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
 
   const plan = usePlanyStore((s) => s.pobierzPlan(id));
@@ -53,13 +52,15 @@ export default function PlanDetailScreen() {
   const getMieszanka = (id: string) => mieszanki.find((m) => m.id === id);
 
   const udostepnijJSON = async () => {
-    try { await eksportujJSON(plan, mieszanki); } catch { /* cancelled */ }
     setUdostepnijModal(false);
+    try { await eksportujJSON(plan, mieszanki); }
+    catch (e) { Alert.alert('Błąd', e instanceof Error ? e.message : 'Nie udało się udostępnić pliku JSON.'); }
   };
 
   const udostepnijHTML = async () => {
-    try { await generujInteraktywnyHTML(plan, mieszanki); } catch { /* cancelled */ }
     setUdostepnijModal(false);
+    try { await generujInteraktywnyHTML(plan, mieszanki); }
+    catch (e) { Alert.alert('Błąd', e instanceof Error ? e.message : 'Nie udało się wygenerować pliku HTML.'); }
   };
 
   return (
@@ -106,7 +107,7 @@ export default function PlanDetailScreen() {
                   <InfoRow label="Figury" wartosc={`${dz.figury.length}`} theme={theme} />
                   <View style={[styles.podsumWrap, { backgroundColor: `${theme.colors.primary}10`, borderColor: theme.colors.primary }]}>
                     <SummaryRow label="Powierzchnia" wartosc={`${formatLiczby(wyniki.lacznaPowierzchnia)} m²`} theme={theme} />
-                    <SummaryRow label="Masa" wartosc={`${formatLiczby(wyniki.lacznaIloscMasy, 3)} Mg`} theme={theme} bold />
+                    <SummaryRow label="Masa" wartosc={`${formatLiczby(wyniki.lacznaIloscMasy, 2)} Mg`} theme={theme} bold />
                     <SummaryRow label="Samochodów" wartosc={`${wyniki.iloscSamochodow}`} theme={theme} bold />
                   </View>
                 </View>
@@ -117,17 +118,14 @@ export default function PlanDetailScreen() {
             <View style={[styles.kartaDzialki, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
               <Text style={[styles.kartaTytul, { color: theme.colors.text }]}>RAZEM</Text>
               {(() => {
-                let suma = 0, sumaAut = 0;
-                plan.dzialki.forEach((dz) => {
-                  const m = getMieszanka(dz.mieszankaId);
-                  if (!m) return;
-                  const w = obliczWynikiDzialki(dz, m.ciezarObjetosciowy, plan.tonazAuta);
-                  suma += w.lacznaIloscMasy;
-                });
-                sumaAut = Math.ceil(suma / plan.tonazAuta);
+                const { sumaMasy, sumaAut } = obliczSumePlanu(
+                  plan.dzialki,
+                  (id) => getMieszanka(id)?.ciezarObjetosciowy,
+                  plan.tonazAuta,
+                );
                 return (
                   <View style={[styles.podsumWrap, { backgroundColor: `${theme.colors.success}10`, borderColor: theme.colors.success }]}>
-                    <SummaryRow label="Łączna masa" wartosc={`${formatLiczby(suma, 2)} Mg`} theme={theme} bold />
+                    <SummaryRow label="Łączna masa" wartosc={`${formatLiczby(sumaMasy, 2)} Mg`} theme={theme} bold />
                     <SummaryRow label="Łącznie aut" wartosc={`${sumaAut}`} theme={theme} bold />
                   </View>
                 );
@@ -197,7 +195,7 @@ export default function PlanDetailScreen() {
 
       {/* Modal udostępniania */}
       <Modal visible={udostepnijModal} transparent animationType="slide" onRequestClose={() => setUdostepnijModal(false)}>
-        <Pressable style={uStyles.tlo} onPress={() => setUdostepnijModal(false)}>
+        <Pressable style={[uStyles.tlo, { paddingBottom: insets.bottom }]} onPress={() => setUdostepnijModal(false)}>
           <Pressable style={[uStyles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
             <Text style={[uStyles.tytul, { color: theme.colors.text }]}>Udostępnij plan</Text>
             <TouchableOpacity style={[uStyles.btn, { backgroundColor: `${theme.colors.info}15`, borderColor: theme.colors.info }]} onPress={udostepnijJSON}>
@@ -250,7 +248,7 @@ function TabelaAut({ dzialka, tonazAuta, rzuty, mieszankiAll, theme }: {
 
   const wyniki = obliczWynikiDzialki(dzialka, mieszanka.ciezarObjetosciowy, tonazAuta);
   const lacznasDlugosc = obliczLacznaDlugosc(dzialka);
-  const rzutyDoUzycia = (rzuty as any[]).length > 0 ? rzuty as any : generujDomyslneRzuty(wyniki.iloscSamochodow);
+  const rzutyDoUzycia = rzutyDlaDzialki(rzuty, wyniki.iloscSamochodow);
   const tabela = obliczTabeleAut(wyniki.lacznaIloscMasy, lacznasDlugosc, rzutyDoUzycia, tonazAuta);
 
   let ostatniRzut = 0;

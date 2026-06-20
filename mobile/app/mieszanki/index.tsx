@@ -2,26 +2,26 @@
 // EKRAN: MIESZANKI – lista i CRUD receptur asfaltowych
 // ============================================================
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
-  View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, TextInput,
-  Alert, useColorScheme, KeyboardAvoidingView, Platform, ScrollView,
+  View, Text, StyleSheet, TouchableOpacity, Modal, TextInput,
+  Alert, KeyboardAvoidingView, Platform, ScrollView, SectionList,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMieszankiStore } from '../../src/stores/mieszankiStore';
-import { lightTheme, darkTheme, type AppTheme } from '../../src/constants/theme';
+import { useAppTheme } from '../../src/context/ThemeContext';
 import { InfoTooltip } from '../../src/components/common/InfoTooltip';
 import { AnimatedCard } from '../../src/components/common/AnimatedCard';
 import { EmptyState } from '../../src/components/common/EmptyState';
 import { AppHeader } from '../../src/components/common/AppHeader';
 import type { Mieszanka } from '../../src/types';
+import type { AppTheme } from '../../src/constants/theme';
 
 const PUSTE_DANE = { rodzaj: '', nrRecepty: '', ciezarObjetosciowy: '', wytwórnia: '' };
 
 export default function MieszankiScreen() {
-  const colorScheme = useColorScheme();
-  const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
+  const { theme } = useAppTheme();
   const insets = useSafeAreaInsets();
 
   const { mieszanki, dodajMieszanke, edytujMieszanke, usunMieszanke } = useMieszankiStore();
@@ -59,13 +59,25 @@ export default function MieszankiScreen() {
     { text: 'Usuń', style: 'destructive', onPress: () => usunMieszanke(m.id) },
   ]);
 
+  const sekcje = useMemo(() => {
+    const mapa = new Map<string, Mieszanka[]>();
+    for (const m of mieszanki) {
+      const klucz = m.wytwórnia?.trim() || 'Bez wytwórni';
+      if (!mapa.has(klucz)) mapa.set(klucz, []);
+      mapa.get(klucz)!.push(m);
+    }
+    return Array.from(mapa.entries())
+      .sort(([a], [b]) => a.localeCompare(b, 'pl'))
+      .map(([tytul, data]) => ({ title: tytul, data }));
+  }, [mieszanki]);
+
   const renderujMieszanke = ({ item, index }: { item: Mieszanka; index: number }) => (
     <AnimatedCard delay={index * 60}>
       <View style={[styles.pozycja, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
         <View style={styles.pozycjaLewo}>
           <Text style={[styles.rodzaj, { color: theme.colors.text }]}>{item.rodzaj}</Text>
           <Text style={[styles.szczegoły, { color: theme.colors.textSecondary }]}>
-            ρ = {item.ciezarObjetosciowy.toFixed(3)} t/m³{item.wytwórnia ? `  •  ${item.wytwórnia}` : ''}
+            ρ = {item.ciezarObjetosciowy.toFixed(3)} t/m³
           </Text>
           {item.nrRecepty ? <Text style={[styles.recepta, { color: theme.colors.textSecondary }]}>Recepta: {item.nrRecepty}</Text> : null}
         </View>
@@ -81,6 +93,15 @@ export default function MieszankiScreen() {
     </AnimatedCard>
   );
 
+  const renderujNaglowekSekcji = ({ section }: { section: { title: string } }) => (
+    <View style={[styles.naglowekSekcji, { backgroundColor: `${theme.colors.primary}12`, borderColor: theme.colors.border }]}>
+      <Text style={[styles.naglowekSekcjiTekst, { color: theme.colors.primary }]}>🏭 {section.title}</Text>
+      <Text style={[styles.naglowekSekcjiLiczba, { color: theme.colors.textSecondary }]}>
+        {sekcje.find((s) => s.title === section.title)?.data.length ?? 0}
+      </Text>
+    </View>
+  );
+
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <AppHeader
@@ -92,12 +113,14 @@ export default function MieszankiScreen() {
       {mieszanki.length === 0 ? (
         <EmptyState ikona="🏭" tytul="Brak mieszanek" opis="Dodaj pierwszą recepturę asfaltu, aby móc tworzyć plany wbudowywania." przyciskTekst="+ Dodaj pierwszą mieszankę" onPrzycisk={otworzDodaj} />
       ) : (
-        <FlatList
-          data={mieszanki}
+        <SectionList
+          sections={sekcje}
           keyExtractor={(item) => item.id}
           renderItem={renderujMieszanke}
+          renderSectionHeader={renderujNaglowekSekcji}
           contentContainerStyle={[styles.lista, { paddingBottom: insets.bottom + 16 }]}
           showsVerticalScrollIndicator={false}
+          stickySectionHeadersEnabled={false}
         />
       )}
 
@@ -145,6 +168,12 @@ function EtykietaZTooltip({ label, tooltip, theme }: { label: string; tooltip: s
 const styles = StyleSheet.create({
   container: { flex: 1 },
   lista: { padding: 14, gap: 10 },
+  naglowekSekcji: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, marginBottom: 8, marginTop: 4,
+  },
+  naglowekSekcjiTekst: { fontSize: 13, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.3 },
+  naglowekSekcjiLiczba: { fontSize: 12, fontWeight: '600' },
   pozycja: { borderRadius: 14, padding: 14, borderWidth: 1, flexDirection: 'row', alignItems: 'center', gap: 12 },
   pozycjaLewo: { flex: 1 },
   rodzaj: { fontSize: 17, fontWeight: '700', marginBottom: 4 },

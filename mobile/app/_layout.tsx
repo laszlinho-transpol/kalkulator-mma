@@ -1,21 +1,29 @@
 import { useEffect, useState } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { ThemeProvider, useAppTheme } from '../src/context/ThemeContext';
 import { useMieszankiStore } from '../src/stores/mieszankiStore';
 import { usePlanyStore } from '../src/stores/planyStore';
 import { useLiveStore } from '../src/stores/liveStore';
-import { lightTheme, darkTheme } from '../src/constants/theme';
 import { LoadingScreen } from '../src/components/common/LoadingScreen';
 
 const KLUCZ_ONBOARDING = '@mma:onboardingComplete';
 
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
-  const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
+  return (
+    <SafeAreaProvider>
+      <ThemeProvider>
+        <RootLayoutInner />
+      </ThemeProvider>
+    </SafeAreaProvider>
+  );
+}
+
+function RootLayoutInner() {
+  const { theme } = useAppTheme();
 
   const zaladujMieszanki = useMieszankiStore((s) => s.zaladujMieszanki);
   const zaladujPlany = usePlanyStore((s) => s.zaladujPlany);
@@ -46,7 +54,7 @@ export default function RootLayout() {
   };
 
   return (
-    <SafeAreaProvider>
+    <>
       <StatusBar style={theme.colors.statusBar} />
       <Stack screenOptions={headerOpacje}>
         <Stack.Screen name="index" options={{ headerShown: false, animation: 'fade' }} />
@@ -86,6 +94,6 @@ export default function RootLayout() {
           onUkryj={() => setLoadingWidoczny(false)}
         />
       )}
-    </SafeAreaProvider>
+    </>
   );
 }

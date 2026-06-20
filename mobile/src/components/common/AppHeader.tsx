@@ -5,10 +5,11 @@
 
 import React from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, useColorScheme,
+  View, Text, StyleSheet, TouchableOpacity,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { lightTheme, darkTheme, type AppTheme } from '../../constants/theme';
+import { useAppTheme } from '../../context/ThemeContext';
+import type { AppTheme } from '../../constants/theme';
 
 interface Przycisk {
   tekst: string;
@@ -29,8 +30,7 @@ interface AppHeaderProps {
 }
 
 export function AppHeader({ tytul, podtytul, przyciski, lewy, prawy }: AppHeaderProps) {
-  const colorScheme = useColorScheme();
-  const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
+  const { theme } = useAppTheme();
   const insets = useSafeAreaInsets();
 
   const hasPrzyciski = przyciski && przyciski.length > 0;

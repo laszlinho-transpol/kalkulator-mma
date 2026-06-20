@@ -4,11 +4,14 @@
 
 import React, { useState } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, SafeAreaView,
-  useColorScheme, ScrollView, Alert, ActivityIndicator,
+  View, Text, StyleSheet, TouchableOpacity,
+  ScrollView, Alert, ActivityIndicator,
 } from 'react-native';
 import { router } from 'expo-router';
-import { lightTheme, darkTheme, type AppTheme } from '../../src/constants/theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAppTheme } from '../../src/context/ThemeContext';
+import { AppHeader } from '../../src/components/common/AppHeader';
+import type { AppTheme } from '../../src/constants/theme';
 import { importujJSON, type DaneImportu } from '../../src/utils/jsonImporter';
 import { usePlanyStore } from '../../src/stores/planyStore';
 import { useMieszankiStore } from '../../src/stores/mieszankiStore';
@@ -16,8 +19,8 @@ import { formatujDatePl } from '../../src/utils/dates';
 import { AnimatedCard } from '../../src/components/common/AnimatedCard';
 
 export default function ImportPlanScreen() {
-  const colorScheme = useColorScheme();
-  const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
+  const { theme } = useAppTheme();
+  const insets = useSafeAreaInsets();
 
   const { dodajPlan } = usePlanyStore();
   const { mieszanki: istniejaceMieszanki, dodajMieszanke } = useMieszankiStore();
@@ -87,17 +90,13 @@ export default function ImportPlanScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      {/* Nagłówek */}
-      <View style={[styles.naglowek, { backgroundColor: theme.colors.card, borderBottomColor: theme.colors.border }]}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Text style={[styles.wstecz, { color: theme.colors.primary }]}>‹ Wstecz</Text>
-        </TouchableOpacity>
-        <Text style={[styles.tytul, { color: theme.colors.text }]}>Import planu</Text>
-        <View style={{ width: 60 }} />
-      </View>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <AppHeader
+        tytul="Import planu"
+        lewy={{ tekst: '‹ Wstecz', onPress: () => router.back() }}
+      />
 
-      <ScrollView contentContainerStyle={styles.zawartosc} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.zawartosc, { paddingBottom: insets.bottom + 24 }]} showsVerticalScrollIndicator={false}>
 
         {/* Strefa importu */}
         <AnimatedCard delay={0}>
@@ -165,7 +164,7 @@ export default function ImportPlanScreen() {
 
         <View style={{ height: 32 }} />
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 

@@ -5,12 +5,14 @@
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  TextInput, Alert, SafeAreaView, useColorScheme,
-  KeyboardAvoidingView, Platform,
+  TextInput, Alert, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMieszankiStore } from '../../stores/mieszankiStore';
-import { lightTheme, darkTheme, type AppTheme } from '../../constants/theme';
+import { useAppTheme } from '../../context/ThemeContext';
+import type { AppTheme } from '../../constants/theme';
+import { AppHeader } from '../common/AppHeader';
 import { DatePickerButton } from '../common/DatePickerButton';
 import { NumericInput } from '../common/NumericInput';
 import { MieszankaPicker } from '../common/MieszankaPicker';
@@ -97,8 +99,8 @@ interface PlanFormProps {
 // ---- Główny komponent formularza ----
 
 export function PlanForm({ tytul, initialPlan, onZapisz }: PlanFormProps) {
-  const colorScheme = useColorScheme();
-  const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
+  const { theme } = useAppTheme();
+  const insets = useSafeAreaInsets();
   const { pobierzMieszanke } = useMieszankiStore();
 
   // Inicjalizacja stanu (z planem lub od zera)
@@ -173,14 +175,17 @@ export function PlanForm({ tytul, initialPlan, onZapisz }: PlanFormProps) {
   // ---- Obliczenia sumaryczne ----
   const obliczSume = () => {
     let sumaMasy = 0;
+    let sumaAut = 0;
     for (const dz of dzialki) {
       const mie = pobierzMieszanke(dz.mieszankaId);
       const gr = parseFloat(dz.gruboscStr.replace(',', '.'));
       if (!mie || !gr || dz.figury.length === 0) continue;
       const temp = formDoDzialki(dz);
-      sumaMasy += obliczWynikiDzialki(temp, mie.ciezarObjetosciowy, tonazAuta).lacznaIloscMasy;
+      const w = obliczWynikiDzialki(temp, mie.ciezarObjetosciowy, tonazAuta);
+      sumaMasy += w.lacznaIloscMasy;
+      sumaAut += w.iloscSamochodow;
     }
-    return { sumaMasy, sumaAut: Math.ceil(sumaMasy / tonazAuta) };
+    return { sumaMasy, sumaAut };
   };
 
   const { sumaMasy, sumaAut } = obliczSume();
@@ -215,19 +220,15 @@ export function PlanForm({ tytul, initialPlan, onZapisz }: PlanFormProps) {
 
   // ---- Render ----
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <View style={[styles.naglowek, { backgroundColor: theme.colors.card, borderBottomColor: theme.colors.border }]}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Text style={[styles.wstecz, { color: theme.colors.danger }]}>Anuluj</Text>
-        </TouchableOpacity>
-        <Text style={[styles.tytulN, { color: theme.colors.text }]}>{tytul}</Text>
-        <TouchableOpacity style={[styles.btnZapisz, { backgroundColor: theme.colors.primary }]} onPress={zapisz}>
-          <Text style={styles.btnZapiszTekst}>Zapisz</Text>
-        </TouchableOpacity>
-      </View>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <AppHeader
+        tytul={tytul}
+        lewy={{ tekst: 'Anuluj', onPress: () => router.back(), kolor: theme.colors.danger }}
+        prawy={{ tekst: 'Zapisz', onPress: zapisz, kolor: theme.colors.primary }}
+      />
 
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-        <ScrollView contentContainerStyle={styles.zawartosc} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={[styles.zawartosc, { paddingBottom: insets.bottom + 20 }]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 
           {/* Ogólne */}
           <Sekcja tytul="Ogólne" theme={theme}>
@@ -332,7 +333,7 @@ export function PlanForm({ tytul, initialPlan, onZapisz }: PlanFormProps) {
           />
         );
       })()}
-    </SafeAreaView>
+    </View>
   );
 }
 
