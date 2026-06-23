@@ -316,8 +316,85 @@ Link: https://expo.dev/signup
 
 - [ ] Opublikowanie w Google Play Store (eas submit)
 - [ ] Push notifications (expo-notifications)
-- [ ] Edycja aktywnego wpisu Live po dodaniu
+- [x] Edycja aktywnego wpisu Live po dodaniu
 - [ ] Wyszukiwanie w listach mieszanek i archiwum
 - [ ] Widżet systemu Android z aktywnym planem
+- [ ] Integracja z Google Drive (OAuth + automatyczny upload raportów)
+- [ ] Link do pobrania HTML z własnego serwera (zamiast e-maila)
+
+---
+
+## ETAP 7 – Budowy, grupowanie, LIVE w HTML, załączniki PDF
+**Data:** 2026-06-20
+**Status:** ✅ UKOŃCZONY
+**Branch:** `cursor/kalkulator-mma-etap7-0a0b`
+
+### Co zostało zrobione:
+
+1. **Globalne style UI** (`src/constants/layout.ts`):
+   - Odpowiednik „style.css” – teksty w ramkach, przyciski bez łamania wyrazów
+   - Zastosowane w `AppHeader`, listach, modalach
+
+2. **Komponenty wspólne**:
+   - `CollapsibleSection.tsx` – sekcje zwijane (domyślnie zwinięte)
+   - `SafeModal.tsx` – modal z `AppHeader` i bezpiecznymi marginesami (status bar, przyciski)
+   - `BudowaPicker.tsx` – wybór budowy w formularzu planu
+
+3. **Budowy** (`src/stores/budowyStore.ts`):
+   - Nowy typ `Budowa` (nazwa inwestycji + kod budowy, np. DK25 Mąkowarsko / B128)
+   - Przypisywanie planów do budowy (`Plan.budowaId`)
+   - Lista planów zwijana po budowach, sortowanie po dacie wbudowania
+   - Plany bez budowy – pojedynczy wiersz na końcu
+   - Modal „+ Budowa” na ekranie Zaplanuj Masę
+
+4. **Mieszanki – listy zwijane**:
+   - Ekran mieszanek: grupy po wytwórni (zwinięte domyślnie)
+   - `MieszankaPicker`: SafeModal + grupy wytwórni (jak figury w planie)
+
+5. **LIVE – edycja auta**:
+   - Przycisk ✎ Edytuj przed ✕ Usuń w tabeli aut
+   - Formularz przełącza się w tryb edycji z „Zapisz zmiany”
+
+6. **Szkic – kształty geometryczne** (`DzialkaSketch.tsx`):
+   - Prostokąt, trapez, trójkąt, pierścień (łuk), wjazd – z zachowaniem skali wysokości
+   - Nadal proporcjonalna długość wzdłuż osi drogi
+
+7. **Załączniki PDF/PZT** (`Plan.zalaczniki`):
+   - Dodawanie plików PDF/obrazów w formularzu planu
+   - `ZalacznikiViewer` – zakładki, pinch-zoom w WebView
+   - Podgląd w szczegółach planu
+
+8. **HTML export z trybem LIVE** (`htmlGenerator.ts` v2.0):
+   - Zakładka ● Live w pliku HTML (wpisy aut na budowie)
+   - Formularz autora raportu przed eksportem z aplikacji
+   - Majster podpisuje raport w HTML i pobiera uzupełniony plik
+   - Import raportu HTML z powrotem do aplikacji (`htmlImporter.ts`)
+
+9. **ShapeModal** – migracja na `SafeModal` (bezpieczne marginesy)
+
+10. **PlanForm** – `AppHeader`, wybór budowy, załączniki, kopiowanie plików przy nowym planie
+
+### Gdzie są pliki (ważne dla użytkownika):
+
+| Co | Gdzie |
+|---|---|
+| Kod projektu | `/workspace/mobile/` na serwerze Cursor |
+| APK (EAS Build) | **Nie na dysku lokalnym** – na expo.dev po `eas build` |
+| Dane na telefonie | **AsyncStorage** – lokalnie, offline |
+| Załączniki PDF | Katalog dokumentów aplikacji (`zalaczniki/<planId>/`) |
+| Eksport HTML/JSON | Tymczasowo przy udostępnianiu (share sheet) |
+
+### Przechowywanie danych – odpowiedź na pytanie:
+
+- **Obecnie:** wszystko lokalnie na telefonie (offline-first).
+- **Google Drive / własny dysk:** wymaga osobnej integracji (OAuth + API) – zaplanowane jako przyszłe rozszerzenie.
+- **Link do pobrania zamiast maila:** wymaga serwera lub chmury – nie zaimplementowano w tym etapie.
+
+### Kontynuacja pracy w nowym czacie:
+
+- Wystarczy wskazać AI pliki `.clinerules` i `POSTEPY.md` – zawierają pełny kontekst projektu.
+- Kontynuacja w obecnym czacie zachowuje dodatkowy kontekst rozmowy.
+
+**Weryfikacja**: `npx tsc --noEmit` → **0 błędów** ✅
 
 ---

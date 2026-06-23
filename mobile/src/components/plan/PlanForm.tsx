@@ -5,11 +5,17 @@
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  TextInput, Alert, SafeAreaView, useColorScheme,
+  TextInput, Alert, useColorScheme,
   KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AppHeader } from '../common/AppHeader';
 import { useMieszankiStore } from '../../stores/mieszankiStore';
+import { useBudowyStore } from '../../stores/budowyStore';
+import { BudowaPicker } from '../common/BudowaPicker';
+import { ZalacznikiViewer } from '../common/ZalacznikiViewer';
+import { wybierzIZapiszZalacznik } from '../../utils/zalaczniki';
 import { lightTheme, darkTheme, type AppTheme } from '../../constants/theme';
 import { DatePickerButton } from '../common/DatePickerButton';
 import { NumericInput } from '../common/NumericInput';
@@ -23,7 +29,7 @@ import {
 import { nastepnyDzienRoboczy } from '../../utils/dates';
 import { obliczPikietazFigur, formatujPikietaz, nastepnyPikietaz } from '../../utils/chainage';
 import { DO_METROW_BIEZACYCH, NAZWY_FIGUR } from '../../constants';
-import type { DzialkaRobocza, Figura, KierunekUkladania, Mieszanka, Plan, Rzut } from '../../types';
+import type { DzialkaRobocza, Figura, KierunekUkladania, Mieszanka, Plan, Rzut, ZalacznikPlanu } from '../../types';
 
 // ---- Typ roboczy formularza działki (stringi dla pól numerycznych) ----
 export interface DzialkaForm {
@@ -99,7 +105,14 @@ interface PlanFormProps {
 export function PlanForm({ tytul, initialPlan, onZapisz }: PlanFormProps) {
   const colorScheme = useColorScheme();
   const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
+  const insets = useSafeAreaInsets();
   const { pobierzMieszanke } = useMieszankiStore();
+  const { budowy } = useBudowyStore();
+
+  const [budowaId, setBudowaId] = useState<string | undefined>(initialPlan?.budowaId);
+  const [budowaPicker, setBudowaPicker] = useState(false);
+  const [zalaczniki, setZalaczniki] = useState<ZalacznikPlanu[]>(initialPlan?.zalaczniki ?? []);
+  const [viewerZal, setViewerZal] = useState(false);
 
   // Inicjalizacja stanu (z planem lub od zera)
   const [dataWbudowywania, setData] = useState<Date>(
@@ -205,35 +218,75 @@ export function PlanForm({ tytul, initialPlan, onZapisz }: PlanFormProps) {
     }
     await onZapisz({
       dataWbudowywania: dataWbudowywania.toISOString(),
+      budowaId,
       iloscDzialek: dzialki.length,
       dzialki: dzialki.map(formDoDzialki),
       tonazAuta,
       rzuty,
+      zalaczniki,
       status: 'aktywny',
     });
   };
 
   // ---- Render ----
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <View style={[styles.naglowek, { backgroundColor: theme.colors.card, borderBottomColor: theme.colors.border }]}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Text style={[styles.wstecz, { color: theme.colors.danger }]}>Anuluj</Text>
-        </TouchableOpacity>
-        <Text style={[styles.tytulN, { color: theme.colors.text }]}>{tytul}</Text>
-        <TouchableOpacity style={[styles.btnZapisz, { backgroundColor: theme.colors.primary }]} onPress={zapisz}>
-          <Text style={styles.btnZapiszTekst}>Zapisz</Text>
-        </TouchableOpacity>
-      </View>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <AppHeader
+        tytul={tytul}
+        lewy={{ tekst: 'Anuluj', onPress: () => router.back(), kolor: theme.colors.danger }}
+        prawy={{ tekst: 'Zapisz', onPress: zapisz, kolor: theme.colors.primary }}
+      />
 
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-        <ScrollView contentContainerStyle={styles.zawartosc} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={[styles.zawartosc, { paddingBottom: insets.bottom + 16 }]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 
           {/* Ogólne */}
           <Sekcja tytul="Ogólne" theme={theme}>
             <DatePickerButton label="Data wbudowywania" value={dataWbudowywania} onChange={setData} minimumDate={new Date()} />
+            <View style={{ marginTop: 10 }}>
+              <Text style={[styles.etykieta, { color: theme.colors.textSecondary }]}>Budowa</Text>
+              <TouchableOpacity
+                style={[styles.input, { backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.border, justifyContent: 'center' }]}
+                onPress={() => setBudowaPicker(true)}
+              >
+                <Text style={{ color: theme.colors.text }} numberOfLines={2}>
+                  {budowaId
+                    ? (() => { const b = budowy.find((x) => x.id === budowaId); return b ? `${b.kodBudowy} – ${b.nazwaInwestycji}` : 'Wybrano'; })()
+                    : 'Bez przypisania'}
+                </Text>
+              </TouchableOpacity>
+            </View>
             <NumericInput label="Tonaż auta" value={tonazAutaStr} onChangeText={setTonazAutaStr} unit="t" decimals={1}
-              tooltip="Domyślny ładunek wywrotki (zazwyczaj 25,5 t). Możesz zmienić na rzeczywisty tonaż swoich aut." placeholder="25.5" />
+              tooltip="Domyślny ładunek wywrotki (zazwyczaj 25,5 t)." placeholder="25.5" />
+          </Sekcja>
+
+          <Sekcja tytul="Załączniki (PDF / PZT)" theme={theme}>
+            <Text style={[styles.podsumRow, { color: theme.colors.textSecondary, marginBottom: 8 }]}>
+              Plan sytuacyjny, PZT budowy – do podglądu na budowie.
+            </Text>
+            {zalaczniki.map((z) => (
+              <View key={z.id} style={[styles.zalRow, { borderColor: theme.colors.border }]}>
+                <Text style={{ color: theme.colors.text, flex: 1 }} numberOfLines={1}>📎 {z.nazwa}</Text>
+                <TouchableOpacity onPress={() => setZalaczniki((p) => p.filter((x) => x.id !== z.id))}>
+                  <Text style={{ color: theme.colors.danger }}>Usuń</Text>
+                </TouchableOpacity>
+              </View>
+            ))}
+            <TouchableOpacity
+              style={[styles.btnDodajZal, { backgroundColor: `${theme.colors.info}15`, borderColor: theme.colors.info }]}
+              onPress={async () => {
+                const planId = initialPlan?.id ?? 'nowy';
+                const z = await wybierzIZapiszZalacznik(planId);
+                if (z) setZalaczniki((p) => [...p, z]);
+              }}
+            >
+              <Text style={{ color: theme.colors.info, fontWeight: '700' }}>+ Dodaj plik PDF / obraz</Text>
+            </TouchableOpacity>
+            {zalaczniki.length > 0 && (
+              <TouchableOpacity style={{ marginTop: 8 }} onPress={() => setViewerZal(true)}>
+                <Text style={{ color: theme.colors.primary, fontWeight: '600' }}>👁 Podgląd załączników</Text>
+              </TouchableOpacity>
+            )}
           </Sekcja>
 
           {/* Liczba działek */}
@@ -312,12 +365,22 @@ export function PlanForm({ tytul, initialPlan, onZapisz }: PlanFormProps) {
       {mieszankaPickerIdx !== null && (
         <MieszankaPicker
           visible
+          theme={theme}
           selectedId={dzialki[mieszankaPickerIdx]?.mieszankaId ?? ''}
           onSelect={(m: Mieszanka) => updateDzialka(mieszankaPickerIdx!, 'mieszankaId', m.id)}
           onClose={() => setMieszankaPickerIdx(null)}
           onDodajNowa={() => router.push('/mieszanki' as any)}
         />
       )}
+      <BudowaPicker
+        visible={budowaPicker}
+        budowy={budowy}
+        selectedId={budowaId}
+        theme={theme}
+        onSelect={(id) => setBudowaId(id)}
+        onClose={() => setBudowaPicker(false)}
+      />
+      <ZalacznikiViewer visible={viewerZal} zalaczniki={zalaczniki} theme={theme} onClose={() => setViewerZal(false)} />
       {shapeModalIdx !== null && (() => {
         const dz = dzialki[shapeModalIdx];
         const temp = formDoDzialki(dz);
@@ -332,7 +395,7 @@ export function PlanForm({ tytul, initialPlan, onZapisz }: PlanFormProps) {
           />
         );
       })()}
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -528,11 +591,6 @@ const sekcjaStyles = StyleSheet.create({
 // ---- Style ----
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  naglowek: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1 },
-  wstecz: { fontSize: 17 },
-  tytulN: { fontSize: 17, fontWeight: '700' },
-  btnZapisz: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10 },
-  btnZapiszTekst: { color: '#fff', fontWeight: '700', fontSize: 14 },
   zawartosc: { padding: 16, gap: 0 },
   kartaDzialki: { borderRadius: 14, padding: 16, borderWidth: 1, marginBottom: 16 },
   kartaDzialkiTytul: { fontSize: 14, fontWeight: '800', marginBottom: 14, textTransform: 'uppercase', letterSpacing: 0.5 },
@@ -570,4 +628,6 @@ const styles = StyleSheet.create({
   licznikBtnTekst: { fontSize: 22, fontWeight: '300', lineHeight: 28 },
   licznikWartosc: { fontSize: 20, fontWeight: '700', minWidth: 24, textAlign: 'center' },
   bladRzuty: { fontSize: 13, marginTop: 4 },
+  zalRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, borderBottomWidth: 1 },
+  btnDodajZal: { borderWidth: 1, borderRadius: 10, paddingVertical: 12, alignItems: 'center', marginTop: 8 },
 });

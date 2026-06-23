@@ -4,17 +4,14 @@
 
 import React, { useState } from 'react';
 import {
-  Modal,
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  SafeAreaView,
   useColorScheme,
-  KeyboardAvoidingView,
-  Platform,
 } from 'react-native';
+import { SafeModal } from '../common/SafeModal';
 import { lightTheme, darkTheme } from '../../constants/theme';
 import { NumericInput } from '../common/NumericInput';
 import { obliczPowierzchniFigury } from '../../utils/calculations';
@@ -192,29 +189,15 @@ export function ShapeModal({ visible, numeracja, kilometrazPoczatkowy, onDodaj, 
   const info = FIGURY_INFO.find((f) => f.typ === selectedTyp);
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={zamknij}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-        <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.modalBackground }]}>
-          {/* Nagłówek */}
-          <View style={[styles.naglowek, { borderBottomColor: theme.colors.border }]}>
-            <TouchableOpacity onPress={selectedTyp ? () => setSelectedTyp(null) : zamknij}>
-              <Text style={[styles.anuluj, { color: theme.colors.danger }]}>
-                {selectedTyp ? '‹ Zmień' : 'Anuluj'}
-              </Text>
-            </TouchableOpacity>
-            <Text style={[styles.tytul, { color: theme.colors.text }]}>
-              Figura #{numeracja}
-            </Text>
-            {selectedTyp ? (
-              <TouchableOpacity onPress={dodaj}>
-                <Text style={[styles.dodajBtn, { color: theme.colors.primary }]}>Dodaj</Text>
-              </TouchableOpacity>
-            ) : (
-              <View style={{ width: 60 }} />
-            )}
-          </View>
-
-          <ScrollView contentContainerStyle={styles.zawartosc} keyboardShouldPersistTaps="handled">
+    <SafeModal
+      visible={visible}
+      tytul={selectedTyp ? `Figura #${numeracja}` : `Figura #${numeracja}`}
+      theme={theme}
+      onClose={zamknij}
+      lewy={{ tekst: selectedTyp ? '‹ Zmień' : 'Anuluj', onPress: selectedTyp ? () => setSelectedTyp(null) : zamknij, kolor: theme.colors.danger }}
+      prawy={selectedTyp ? { tekst: 'Dodaj', onPress: dodaj, kolor: theme.colors.primary } : undefined}
+    >
+      <ScrollView contentContainerStyle={styles.zawartosc} keyboardShouldPersistTaps="handled">
             {/* KROK 1: Wybór kształtu */}
             {!selectedTyp && (
               <>
@@ -304,24 +287,11 @@ export function ShapeModal({ visible, numeracja, kilometrazPoczatkowy, onDodaj, 
               </>
             )}
           </ScrollView>
-        </SafeAreaView>
-      </KeyboardAvoidingView>
-    </Modal>
+    </SafeModal>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  naglowek: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 16,
-    borderBottomWidth: 1,
-  },
-  tytul: { fontSize: 17, fontWeight: '700' },
-  anuluj: { fontSize: 17, minWidth: 60 },
-  dodajBtn: { fontSize: 17, fontWeight: '700', minWidth: 60, textAlign: 'right' },
   zawartosc: { padding: 20, gap: 4 },
   sekcjaTytul: { fontSize: 13, fontWeight: '600', marginBottom: 8, textTransform: 'uppercase' },
   pikietazInfo: { fontSize: 13, marginBottom: 16 },

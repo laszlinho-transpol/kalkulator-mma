@@ -101,7 +101,75 @@ function TruckTopSVG({ x, y, nrAuta }: { x: number; y: number; nrAuta: number })
   );
 }
 
-// ---- Główny komponent ----
+function maxSzerokoscFigury(figura: Figura): number {
+  switch (figura.typ) {
+    case 'prostokat': return figura.szerokosc;
+    case 'trapez': return Math.max(figura.szerokosc1, figura.szerokosc2);
+    case 'trojkat': return figura.szerokosc;
+    case 'pierscien': return figura.szerokosc * 1.5;
+    case 'wjazd': return figura.s;
+    default: return 1;
+  }
+}
+
+function maxSzerokoscDzialki(figury: Figura[]): number {
+  return Math.max(...figury.map(maxSzerokoscFigury), 1);
+}
+
+function szerNaPix(szer: number, maxSzer: number): number {
+  return Math.max(6, (szer / maxSzer) * SKETCH_W);
+}
+
+function FiguraKsztalt({
+  figura, yFig, hFig, maxSzer, fill, stroke, strokeW, onPress,
+}: {
+  figura: Figura; yFig: number; hFig: number; maxSzer: number;
+  fill: string; stroke: string; strokeW: number; onPress: () => void;
+}) {
+  const cx = LEFT_MARGIN + SKETCH_W / 2;
+  const x0 = LEFT_MARGIN;
+
+  switch (figura.typ) {
+    case 'prostokat': {
+      const w = szerNaPix(figura.szerokosc, maxSzer);
+      return (
+        <SvgRect x={cx - w / 2} y={yFig} width={w} height={hFig} rx="2"
+          fill={fill} stroke={stroke} strokeWidth={strokeW} onPress={onPress} />
+      );
+    }
+    case 'trapez': {
+      const w1 = szerNaPix(figura.szerokosc1, maxSzer);
+      const w2 = szerNaPix(figura.szerokosc2, maxSzer);
+      const pts = `${cx - w1 / 2},${yFig} ${cx + w1 / 2},${yFig} ${cx + w2 / 2},${yFig + hFig} ${cx - w2 / 2},${yFig + hFig}`;
+      return <SvgPolygon points={pts} fill={fill} stroke={stroke} strokeWidth={strokeW} onPress={onPress} />;
+    }
+    case 'trojkat': {
+      const w = szerNaPix(figura.szerokosc, maxSzer);
+      const pts = `${cx - w / 2},${yFig} ${cx + w / 2},${yFig} ${cx},${yFig + hFig}`;
+      return <SvgPolygon points={pts} fill={fill} stroke={stroke} strokeWidth={strokeW} onPress={onPress} />;
+    }
+    case 'pierscien': {
+      const wZewn = szerNaPix(figura.szerokosc * 1.35, maxSzer);
+      const wWewn = szerNaPix(figura.szerokosc * 0.55, maxSzer);
+      const bulge = Math.min(hFig * 0.2, 14);
+      const d = `M ${cx - wZewn / 2} ${yFig} Q ${cx} ${yFig + bulge} ${cx + wZewn / 2} ${yFig} L ${cx + wWewn / 2} ${yFig + hFig} Q ${cx} ${yFig + hFig - bulge} ${cx - wWewn / 2} ${yFig + hFig} Z`;
+      return <SvgPath d={d} fill={fill} stroke={stroke} strokeWidth={strokeW} onPress={onPress} />;
+    }
+    case 'wjazd': {
+      const w = szerNaPix(figura.s, maxSzer);
+      const udzialL = figura.L / Math.max(figura.L + figura.R1 + figura.R2, 1);
+      const yL = yFig + hFig * Math.min(udzialL, 0.75);
+      const pts = `${cx - w / 2},${yFig} ${cx + w / 2},${yFig} ${cx + w / 2},${yL} ${cx + w / 4},${yFig + hFig} ${cx - w / 4},${yFig + hFig} ${cx - w / 2},${yL}`;
+      return <SvgPolygon points={pts} fill={fill} stroke={stroke} strokeWidth={strokeW} onPress={onPress} />;
+    }
+    default:
+      return (
+        <SvgRect x={x0} y={yFig} width={SKETCH_W} height={hFig}
+          fill={fill} stroke={stroke} strokeWidth={strokeW} onPress={onPress} />
+      );
+  }
+}
+
 
 export interface WpisLiveMarker {
   wpis: WpisLive;
@@ -131,6 +199,7 @@ export function DzialkaSketch({ dzialka, ciezarObjetosciowy, wykonaneMetry = 0, 
   }
 
   const heights = obliczWysokosci(figury);
+  const maxSzer = maxSzerokoscDzialki(figury);
   const pikietaze = obliczPikietazFigur(dzialka);
   const cumMetry = cumMetryFigur(figury);
   const cumHeights: number[] = [];
@@ -153,14 +222,19 @@ export function DzialkaSketch({ dzialka, ciezarObjetosciowy, wykonaneMetry = 0, 
             const hFig = heights[idx];
             const cx = LEFT_MARGIN + SKETCH_W / 2;
             const isEven = idx % 2 === 0;
+            const fill = isEven ? '#E8A02020' : '#2E86AB20';
+            const stroke = isEven ? '#E8A020' : '#2E86AB';
 
             return (
               <SvgG key={figura.id}>
-                <SvgRect
-                  x={LEFT_MARGIN} y={yFig} width={SKETCH_W} height={hFig}
-                  fill={isEven ? '#E8A02020' : '#2E86AB20'}
-                  stroke={isEven ? '#E8A020' : '#2E86AB'}
-                  strokeWidth="1.5"
+                <FiguraKsztalt
+                  figura={figura}
+                  yFig={yFig}
+                  hFig={hFig}
+                  maxSzer={maxSzer}
+                  fill={fill}
+                  stroke={stroke}
+                  strokeW={1.5}
                   onPress={() => setSelectedFigura(figura)}
                 />
                 <SvgText x={cx - 10} y={yFig + hFig / 2 + 5} fontSize="11" fontWeight="700" fill={isEven ? '#E8A020' : '#2E86AB'} textAnchor="middle">{idx + 1}</SvgText>

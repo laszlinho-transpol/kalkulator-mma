@@ -47,7 +47,7 @@ export default function WbudowywanieDetailScreen() {
   const plan = usePlanyStore((s) => s.pobierzPlan(id));
   const archiwizujPlan = usePlanyStore((s) => s.archiwizujPlan);
   const mieszanki = useMieszankiStore((s) => s.mieszanki);
-  const { wpisyDlaDzialki, dodajWpisAuta, usunWpisAuta } = useLiveStore();
+  const { wpisyDlaDzialki, dodajWpisAuta, edytujWpisAuta, usunWpisAuta } = useLiveStore();
 
   const [aktywnaZakladka, setZakladka] = useState<ZakladkaTyp>('plan');
   const [wybranaIdx, setWybranaIdx] = useState(0);
@@ -61,6 +61,7 @@ export default function WbudowywanieDetailScreen() {
   const [nowyMetry, setNowyMetry] = useState('');
   const [nowyKomentarz, setNowyKomentarz] = useState('');
   const [nowyGodzina, setNowyGodzina] = useState(aktualnaGodzina());
+  const [edytowanyWpisId, setEdytowanyWpisId] = useState<string | null>(null);
 
   // Modal auta
   const [autaModal, setAutaModal] = useState<{ wpis: WpisLive; idxWpisu: number } | null>(null);
@@ -137,7 +138,30 @@ export default function WbudowywanieDetailScreen() {
     const met = parseFloat(nowyMetry.replace(',', '.'));
     if (isNaN(ton) || ton <= 0) { Alert.alert('Błąd', 'Podaj prawidłowy tonaż.'); return; }
     if (isNaN(met) || met <= 0) { Alert.alert('Błąd', 'Podaj prawidłowe metry.'); return; }
-    await dodajWpisAuta({ planId: plan.id, dzialkaId: wybraDzialka.id, numerAuta: wpisyBiezacej.length + 1, tonazPrzywieziony: ton, przejechaneMetry: met, komentarz: nowyKomentarz.trim() || undefined, godzinaWybudowania: nowyGodzina });
+    if (edytowanyWpisId) {
+      await edytujWpisAuta(edytowanyWpisId, {
+        tonazPrzywieziony: ton,
+        przejechaneMetry: met,
+        komentarz: nowyKomentarz.trim() || undefined,
+        godzinaWybudowania: nowyGodzina,
+      });
+      setEdytowanyWpisId(null);
+    } else {
+      await dodajWpisAuta({ planId: plan.id, dzialkaId: wybraDzialka.id, numerAuta: wpisyBiezacej.length + 1, tonazPrzywieziony: ton, przejechaneMetry: met, komentarz: nowyKomentarz.trim() || undefined, godzinaWybudowania: nowyGodzina });
+    }
+    setNowyTonaz(''); setNowyMetry(''); setNowyKomentarz(''); setNowyGodzina(aktualnaGodzina());
+  };
+
+  const rozpocznijEdycjeWpisu = (wpis: WpisLive) => {
+    setEdytowanyWpisId(wpis.id);
+    setNowyTonaz(String(wpis.tonazPrzywieziony));
+    setNowyMetry(String(wpis.przejechaneMetry));
+    setNowyKomentarz(wpis.komentarz ?? '');
+    setNowyGodzina(wpis.godzinaWybudowania);
+  };
+
+  const anulujEdycjeWpisu = () => {
+    setEdytowanyWpisId(null);
     setNowyTonaz(''); setNowyMetry(''); setNowyKomentarz(''); setNowyGodzina(aktualnaGodzina());
   };
 
@@ -269,6 +293,7 @@ export default function WbudowywanieDetailScreen() {
                           <Text key={k.id} style={[styles.tabelaNaglTekst, { width: k.width, color: theme.colors.textSecondary }]}>{k.label}</Text>
                         ))}
                         <Text style={[styles.tabelaNaglTekst, { width: 32, color: theme.colors.textSecondary }]} />
+                        <Text style={[styles.tabelaNaglTekst, { width: 32, color: theme.colors.textSecondary }]} />
                       </View>
                       {wpisyBiezacej.map((wpis, idxW) => {
                         const { grubosc: grW, doKoncaM } = obliczWierszLive(wpis, idxW);
@@ -285,6 +310,9 @@ export default function WbudowywanieDetailScreen() {
                               </Text>
                               <Text style={[styles.tabelaKom, { width: KOLUMNY[4].width, color: theme.colors.text }]}>{formatLiczby(doKoncaM)}</Text>
                               <Text style={[styles.tabelaKom, { width: KOLUMNY[5].width, color: theme.colors.text }]}>{wpis.godzinaWybudowania}</Text>
+                              <TouchableOpacity onPress={() => rozpocznijEdycjeWpisu(wpis)} style={{ width: 32, alignItems: 'center' }}>
+                                <Text style={{ color: theme.colors.info, fontSize: 15 }}>✎</Text>
+                              </TouchableOpacity>
                               <TouchableOpacity onPress={() => Alert.alert('Usuń', `Auto #${wpis.numerAuta}?`, [
                                 { text: 'Anuluj', style: 'cancel' },
                                 { text: 'Usuń', style: 'destructive', onPress: () => usunWpisAuta(wpis.id) },
@@ -304,7 +332,7 @@ export default function WbudowywanieDetailScreen() {
                         <Text style={[styles.tabelaKom, { width: KOLUMNY[1].width, color: theme.colors.text, fontWeight: '700' }]}>{formatLiczby(sumaTonLive, 2)}</Text>
                         <Text style={[styles.tabelaKom, { width: KOLUMNY[2].width, color: theme.colors.text, fontWeight: '700' }]}>{formatLiczby(sumaMetrLive)}</Text>
                         <Text style={[styles.tabelaKom, { width: KOLUMNY[3].width, color: theme.colors.primary, fontWeight: '700' }]}>{srGr > 0 ? `${formatLiczby(srGr, 2)} cm` : '–'}</Text>
-                        <Text style={[styles.tabelaKom, { width: KOLUMNY[4].width + KOLUMNY[5].width + 32, color: theme.colors.textSecondary }]} />
+                        <Text style={[styles.tabelaKom, { width: KOLUMNY[4].width + KOLUMNY[5].width + 64, color: theme.colors.textSecondary }]} />
                       </View>
                     </View>
                   </ScrollView>
@@ -322,8 +350,10 @@ export default function WbudowywanieDetailScreen() {
               )}
 
               {/* Formularz nowego auta */}
-              <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-                <Text style={[styles.kartaTytul, { color: theme.colors.text }]}>Auto #{wpisyBiezacej.length + 1}</Text>
+              <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: edytowanyWpisId ? theme.colors.warning : theme.colors.border }]}>
+                <Text style={[styles.kartaTytul, { color: theme.colors.text }]}>
+                  {edytowanyWpisId ? `Edycja auta #${wpisyBiezacej.find((w) => w.id === edytowanyWpisId)?.numerAuta ?? '?'}` : `Auto #${wpisyBiezacej.length + 1}`}
+                </Text>
                 <NumInput label="Tonaż [Mg]" value={nowyTonaz} onChange={setNowyTonaz} theme={theme} placeholder={String(plan.tonazAuta)} />
                 <NumInput label="Przejechane metry [m]" value={nowyMetry} onChange={setNowyMetry} theme={theme} />
                 <View style={styles.godzinWrap}>
@@ -331,9 +361,14 @@ export default function WbudowywanieDetailScreen() {
                   <TextInput style={[styles.godzInput, { backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.border, color: theme.colors.text }]} value={nowyGodzina} onChangeText={setNowyGodzina} maxLength={5} placeholder="HH:MM" placeholderTextColor={theme.colors.textSecondary} keyboardType="numbers-and-punctuation" />
                 </View>
                 <TextInput style={[styles.komentarzInput, { backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.border, color: theme.colors.text }]} value={nowyKomentarz} onChangeText={setNowyKomentarz} placeholder="Komentarz / uwagi (opcjonalnie)" placeholderTextColor={theme.colors.textSecondary} multiline />
-                <TouchableOpacity style={[styles.btnDodajAuto, { backgroundColor: theme.colors.success }]} onPress={dodajWpisLive}>
-                  <Text style={styles.btnDodajAutoTekst}>+ Dodaj auto #{wpisyBiezacej.length + 1}</Text>
+                <TouchableOpacity style={[styles.btnDodajAuto, { backgroundColor: edytowanyWpisId ? theme.colors.warning : theme.colors.success }]} onPress={dodajWpisLive}>
+                  <Text style={styles.btnDodajAutoTekst}>{edytowanyWpisId ? '✓ Zapisz zmiany' : `+ Dodaj auto #${wpisyBiezacej.length + 1}`}</Text>
                 </TouchableOpacity>
+                {edytowanyWpisId && (
+                  <TouchableOpacity style={{ marginTop: 10, alignItems: 'center' }} onPress={anulujEdycjeWpisu}>
+                    <Text style={{ color: theme.colors.textSecondary, fontWeight: '600' }}>Anuluj edycję</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             </>
           )}

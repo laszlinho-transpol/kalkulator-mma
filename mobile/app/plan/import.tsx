@@ -10,8 +10,10 @@ import {
 import { router } from 'expo-router';
 import { lightTheme, darkTheme, type AppTheme } from '../../src/constants/theme';
 import { importujJSON, type DaneImportu } from '../../src/utils/jsonImporter';
+import { importujHTML, type DaneImportuHTML } from '../../src/utils/htmlImporter';
 import { usePlanyStore } from '../../src/stores/planyStore';
 import { useMieszankiStore } from '../../src/stores/mieszankiStore';
+import { useLiveStore } from '../../src/stores/liveStore';
 import { formatujDatePl } from '../../src/utils/dates';
 import { AnimatedCard } from '../../src/components/common/AnimatedCard';
 
@@ -21,14 +23,17 @@ export default function ImportPlanScreen() {
 
   const { dodajPlan } = usePlanyStore();
   const { mieszanki: istniejaceMieszanki, dodajMieszanke } = useMieszankiStore();
+  const { importujWpisyPlanu } = useLiveStore();
 
   const [ladowanie, setLadowanie] = useState(false);
   const [podglad, setPodglad] = useState<DaneImportu | null>(null);
+  const [podgladHtml, setPodgladHtml] = useState<DaneImportuHTML | null>(null);
   const [zapisywanie, setZapisywanie] = useState(false);
 
-  const wybierzPlik = async () => {
+  const wybierzPlikJSON = async () => {
     setLadowanie(true);
     setPodglad(null);
+    setPodgladHtml(null);
     const wynik = await importujJSON();
     setLadowanie(false);
 
@@ -42,35 +47,57 @@ export default function ImportPlanScreen() {
     setPodglad(wynik.dane);
   };
 
-  const zatwierdz = async () => {
+  const wybierzPlikHTML = async () => {
+    setLadowanie(true);
+    setPodglad(null);
+    setPodgladHtml(null);
+    const wynik = await importujHTML();
+    setLadowanie(false);
+
+    if (!wynik.sukces) {
+      if (wynik.blad !== 'Anulowano wybór pliku.') {
+        Alert.alert('Błąd importu', wynik.blad);
+      }
+      return;
+    }
+
+    setPodgladHtml(wynik.dane);
+  };
+
+  const importujMieszanki = async (mieszanki: Array<{ rodzaj: string; ciezarObjetosciowy: number; nrRecepty?: string; wytwórnia?: string }>) => {
+    let importowane = 0;
+    for (const mie of mieszanki) {
+      const istnieje = istniejaceMieszanki.some(
+        (m) => m.rodzaj === mie.rodzaj && m.ciezarObjetosciowy === mie.ciezarObjetosciowy,
+      );
+      if (!istnieje) {
+        await dodajMieszanke({
+          rodzaj: mie.rodzaj,
+          nrRecepty: mie.nrRecepty,
+          ciezarObjetosciowy: mie.ciezarObjetosciowy,
+          wytwórnia: mie.wytwórnia,
+        });
+        importowane++;
+      }
+    }
+    return importowane;
+  };
+
+  const zatwierdzJSON = async () => {
     if (!podglad) return;
     setZapisywanie(true);
 
     try {
-      // Importuj brakujące mieszanki
-      let importowaneMieszanki = 0;
-      for (const mie of podglad.mieszanki) {
-        const istnieje = istniejaceMieszanki.some(
-          (m) => m.rodzaj === mie.rodzaj && m.ciezarObjetosciowy === mie.ciezarObjetosciowy,
-        );
-        if (!istnieje) {
-          await dodajMieszanke({
-            rodzaj: mie.rodzaj,
-            nrRecepty: mie.nrRecepty,
-            ciezarObjetosciowy: mie.ciezarObjetosciowy,
-            wytwórnia: mie.wytwórnia,
-          });
-          importowaneMieszanki++;
-        }
-      }
+      const importowaneMieszanki = await importujMieszanki(podglad.mieszanki);
 
-      // Importuj plan
       const planId = await dodajPlan({
         dataWbudowywania: podglad.plan.dataWbudowywania,
+        budowaId: podglad.plan.budowaId,
         iloscDzialek: podglad.plan.iloscDzialek,
         dzialki: podglad.plan.dzialki,
         tonazAuta: podglad.plan.tonazAuta,
         rzuty: podglad.plan.rzuty,
+        zalaczniki: podglad.plan.zalaczniki,
         status: 'aktywny',
       });
 
@@ -83,6 +110,41 @@ export default function ImportPlanScreen() {
     } catch {
       setZapisywanie(false);
       Alert.alert('Błąd', 'Nie udało się zapisać importowanych danych.');
+    }
+  };
+
+  const zatwierdzHTML = async () => {
+    if (!podgladHtml) return;
+    setZapisywanie(true);
+
+    try {
+      const importowaneMieszanki = await importujMieszanki(podgladHtml.mieszanki);
+
+      const planId = await dodajPlan({
+        dataWbudowywania: podgladHtml.plan.dataWbudowywania,
+        budowaId: podgladHtml.plan.budowaId,
+        iloscDzialek: podgladHtml.plan.iloscDzialek,
+        dzialki: podgladHtml.plan.dzialki,
+        tonazAuta: podgladHtml.plan.tonazAuta,
+        rzuty: podgladHtml.plan.rzuty,
+        status: 'aktywny',
+      });
+
+      if (podgladHtml.wpisyLive.length > 0) {
+        await importujWpisyPlanu(planId, podgladHtml.wpisyLive);
+      }
+
+      setZapisywanie(false);
+      const autorInfo = podgladHtml.autorRaportu ? `\nAutor raportu: ${podgladHtml.autorRaportu}` : '';
+      const liveInfo = podgladHtml.wpisyLive.length > 0 ? `\nZaimportowano ${podgladHtml.wpisyLive.length} wpisów Live.` : '';
+      Alert.alert(
+        'Import HTML zakończony',
+        `Plan został zaimportowany z raportu HTML.${autorInfo}${liveInfo}${importowaneMieszanki > 0 ? `\nDodano ${importowaneMieszanki} mieszanek.` : ''}`,
+        [{ text: 'Przejdź do planu', onPress: () => router.replace(`/plan/${planId}` as any) }],
+      );
+    } catch {
+      setZapisywanie(false);
+      Alert.alert('Błąd', 'Nie udało się zapisać importowanych danych HTML.');
     }
   };
 
@@ -104,20 +166,29 @@ export default function ImportPlanScreen() {
           <View style={[styles.strefaImportu, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
             <Text style={styles.ikonaImportu}>📦</Text>
             <Text style={[styles.tytulImportu, { color: theme.colors.text }]}>
-              Importuj plan z pliku JSON
+              Importuj plan
             </Text>
             <Text style={[styles.opisImportu, { color: theme.colors.textSecondary }]}>
-              Wybierz plik .json wyeksportowany z Kalkulatora MMA na innym urządzeniu.
-              Plany z mieszankami zostaną automatycznie dodane do Twojej bazy.
+              Wybierz plik JSON (z aplikacji) lub HTML (raport z budowy z uzupełnionym trybem Live).
             </Text>
             <TouchableOpacity
               style={[styles.btnWybierz, { backgroundColor: theme.colors.primary }]}
-              onPress={wybierzPlik}
+              onPress={wybierzPlikJSON}
               disabled={ladowanie}
             >
               {ladowanie
                 ? <ActivityIndicator color="#fff" />
                 : <Text style={styles.btnWybierzTekst}>Wybierz plik JSON</Text>
+              }
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.btnWybierz, { backgroundColor: theme.colors.secondary, marginTop: 10 }]}
+              onPress={wybierzPlikHTML}
+              disabled={ladowanie}
+            >
+              {ladowanie
+                ? <ActivityIndicator color="#fff" />
+                : <Text style={styles.btnWybierzTekst}>Wybierz raport HTML</Text>
               }
             </TouchableOpacity>
           </View>
@@ -127,7 +198,7 @@ export default function ImportPlanScreen() {
         {podglad && (
           <AnimatedCard delay={100}>
             <View style={[styles.podglad, { backgroundColor: theme.colors.card, borderColor: theme.colors.success }]}>
-              <Text style={[styles.podgladTytul, { color: theme.colors.success }]}>✓ Plik wczytany – podgląd</Text>
+              <Text style={[styles.podgladTytul, { color: theme.colors.success }]}>✓ Plik JSON wczytany</Text>
 
               <WierszInfo label="Data wbudowywania" v={formatujDatePl(podglad.plan.dataWbudowywania)} theme={theme} />
               <WierszInfo label="Działki" v={`${podglad.plan.dzialki.length}`} theme={theme} />
@@ -147,16 +218,51 @@ export default function ImportPlanScreen() {
 
               <TouchableOpacity
                 style={[styles.btnZatwierdz, { backgroundColor: theme.colors.success }]}
-                onPress={zatwierdz}
+                onPress={zatwierdzJSON}
                 disabled={zapisywanie}
               >
                 {zapisywanie
                   ? <ActivityIndicator color="#fff" />
-                  : <Text style={styles.btnZatwierdzTekst}>Importuj plan</Text>
+                  : <Text style={styles.btnZatwierdzTekst}>Importuj plan JSON</Text>
                 }
               </TouchableOpacity>
 
               <TouchableOpacity onPress={() => setPodglad(null)} style={styles.btnAnuluj}>
+                <Text style={[styles.btnAnulujTekst, { color: theme.colors.textSecondary }]}>Wybierz inny plik</Text>
+              </TouchableOpacity>
+            </View>
+          </AnimatedCard>
+        )}
+
+        {podgladHtml && (
+          <AnimatedCard delay={100}>
+            <View style={[styles.podglad, { backgroundColor: theme.colors.card, borderColor: theme.colors.info }]}>
+              <Text style={[styles.podgladTytul, { color: theme.colors.info }]}>✓ Raport HTML wczytany</Text>
+
+              <WierszInfo label="Data wbudowywania" v={formatujDatePl(podgladHtml.plan.dataWbudowywania)} theme={theme} />
+              <WierszInfo label="Działki" v={`${podgladHtml.plan.dzialki.length}`} theme={theme} />
+              {podgladHtml.autorRaportu && (
+                <WierszInfo label="Autor raportu" v={podgladHtml.autorRaportu} theme={theme} />
+              )}
+              <WierszInfo label="Wpisy Live" v={`${podgladHtml.wpisyLive.length}`} theme={theme} />
+
+              <View style={[styles.sep, { backgroundColor: theme.colors.border }]} />
+              <Text style={[styles.podgladOpis, { color: theme.colors.textSecondary }]}>
+                Plan i dane Live zostaną zaimportowane do aplikacji. Możesz też zapisać raport jako PDF z przeglądarki.
+              </Text>
+
+              <TouchableOpacity
+                style={[styles.btnZatwierdz, { backgroundColor: theme.colors.info }]}
+                onPress={zatwierdzHTML}
+                disabled={zapisywanie}
+              >
+                {zapisywanie
+                  ? <ActivityIndicator color="#fff" />
+                  : <Text style={styles.btnZatwierdzTekst}>Importuj raport HTML</Text>
+                }
+              </TouchableOpacity>
+
+              <TouchableOpacity onPress={() => setPodgladHtml(null)} style={styles.btnAnuluj}>
                 <Text style={[styles.btnAnulujTekst, { color: theme.colors.textSecondary }]}>Wybierz inny plik</Text>
               </TouchableOpacity>
             </View>

@@ -2,6 +2,29 @@
 // TYPY DANYCH – KALKULATOR MMA
 // ============================================================
 
+// --- Budowa (inwestycja drogowa) ---
+
+export interface Budowa {
+  id: string;
+  nazwaInwestycji: string;   // np. DK25 Mąkowarsko
+  kodBudowy: string;         // np. B128
+  createdAt: string;
+  updatedAt: string;
+}
+
+// --- Załącznik planu (PDF: PZT, plan sytuacyjny) ---
+
+export type TypZalacznika = 'pdf' | 'obraz';
+
+export interface ZalacznikPlanu {
+  id: string;
+  nazwa: string;
+  typ: TypZalacznika;
+  /** URI pliku w pamięci lokalnej telefonu */
+  uri: string;
+  createdAt: string;
+}
+
 // --- Mieszanki (Mixes) ---
 
 export interface Mieszanka {
@@ -103,10 +126,12 @@ export type StatusPlanu = 'aktywny' | 'archiwalny';
 export interface Plan {
   id: string;
   dataWbudowywania: string;     // ISO date string
+  budowaId?: string;            // opcjonalne przypisanie do budowy
   iloscDzialek: number;
   dzialki: DzialkaRobocza[];
   tonazAuta: number;            // [t], domyślnie 25.5
   rzuty: Rzut[];
+  zalaczniki?: ZalacznikPlanu[];
   status: StatusPlanu;
   createdAt: string;
   updatedAt: string;

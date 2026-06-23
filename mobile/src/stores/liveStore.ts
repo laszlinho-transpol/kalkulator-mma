@@ -18,6 +18,7 @@ interface LiveStore {
   wpisyDlaPlanu: (planId: string) => WpisLive[];
   wpisyDlaDzialki: (planId: string, dzialkaId: string) => WpisLive[];
   wyczyścWpisyPlanu: (planId: string) => Promise<void>;
+  importujWpisyPlanu: (planId: string, wpisy: Omit<WpisLive, 'id' | 'createdAt' | 'planId'>[]) => Promise<void>;
 }
 
 const generujId = (): string =>
@@ -77,6 +78,20 @@ export const useLiveStore = create<LiveStore>((set, get) => ({
 
   wyczyścWpisyPlanu: async (planId) => {
     const zaktualizowane = get().wpisy.filter((w) => w.planId !== planId);
+    set({ wpisy: zaktualizowane });
+    await zapiszDoStorage(zaktualizowane);
+  },
+
+  importujWpisyPlanu: async (planId, wpisyNowe) => {
+    const bezPlanu = get().wpisy.filter((w) => w.planId !== planId);
+    const teraz = new Date().toISOString();
+    const zaimportowane: WpisLive[] = wpisyNowe.map((w) => ({
+      ...w,
+      planId,
+      id: generujId(),
+      createdAt: teraz,
+    }));
+    const zaktualizowane = [...bezPlanu, ...zaimportowane];
     set({ wpisy: zaktualizowane });
     await zapiszDoStorage(zaktualizowane);
   },

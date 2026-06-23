@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { lightTheme, darkTheme, type AppTheme } from '../../constants/theme';
+import { tekstPrzycisk, tekstPrzyciskNaglowkaWrap } from '../../constants/layout';
 
 interface Przycisk {
   tekst: string;
@@ -46,7 +47,7 @@ export function AppHeader({ tytul, podtytul, przyciski, lewy, prawy }: AppHeader
       <View style={styles.rzadTytul}>
         {lewy ? (
           <TouchableOpacity onPress={lewy.onPress} style={styles.przyciskLewy} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-            <Text style={[styles.przyciskTekst, { color: lewy.kolor ?? theme.colors.primary }]}>{lewy.tekst}</Text>
+            <Text style={[tekstPrzyciskNaglowkaWrap, { color: lewy.kolor ?? theme.colors.primary }]} numberOfLines={2}>{lewy.tekst}</Text>
           </TouchableOpacity>
         ) : <View style={styles.przyciskLewy} />}
 
@@ -59,7 +60,7 @@ export function AppHeader({ tytul, podtytul, przyciski, lewy, prawy }: AppHeader
 
         {prawy ? (
           <TouchableOpacity onPress={prawy.onPress} style={styles.przyciskPrawy} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-            <Text style={[styles.przyciskTekst, { color: prawy.kolor ?? theme.colors.primary }]}>{prawy.tekst}</Text>
+            <Text style={[tekstPrzyciskNaglowkaWrap, { color: prawy.kolor ?? theme.colors.primary }]} numberOfLines={2}>{prawy.tekst}</Text>
           </TouchableOpacity>
         ) : <View style={styles.przyciskPrawy} />}
       </View>
@@ -78,7 +79,7 @@ export function AppHeader({ tytul, podtytul, przyciski, lewy, prawy }: AppHeader
               onPress={p.onPress}
               disabled={p.disabled}
             >
-              <Text style={[styles.btnAkcjiTekst, { color: p.kolor ?? theme.colors.primary }]} numberOfLines={1}>
+              <Text style={[tekstPrzycisk, { color: p.kolor ?? theme.colors.primary }]} numberOfLines={2}>
                 {p.tekst}
               </Text>
             </TouchableOpacity>
@@ -114,12 +115,12 @@ const styles = StyleSheet.create({
   },
   btnAkcji: {
     flex: 1,
-    minWidth: 80,
+    minWidth: 72,
     paddingVertical: 9,
-    paddingHorizontal: 12,
+    paddingHorizontal: 8,
     borderRadius: 10,
     borderWidth: 1,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  btnAkcjiTekst: { fontSize: 14, fontWeight: '700' },
 });

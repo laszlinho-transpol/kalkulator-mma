@@ -5,16 +5,20 @@
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  useColorScheme, Alert, Modal, Pressable,
+  useColorScheme, Alert, Modal, Pressable, TextInput,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePlanyStore } from '../../src/stores/planyStore';
 import { useMieszankiStore } from '../../src/stores/mieszankiStore';
+import { useLiveStore } from '../../src/stores/liveStore';
+import { useBudowyStore } from '../../src/stores/budowyStore';
 import { lightTheme, darkTheme } from '../../src/constants/theme';
 import { AnimatedTabBar } from '../../src/components/common/AnimatedTabBar';
 import { AppHeader } from '../../src/components/common/AppHeader';
+import { ZalacznikiViewer } from '../../src/components/common/ZalacznikiViewer';
 import { DzialkaSketch } from '../../src/components/sketch/DzialkaSketch';
+import { tekstPrzycisk, tekstWramce } from '../../src/constants/layout';
 import {
   obliczWynikiDzialki, obliczTabeleAut, obliczLacznaDlugosc,
   formatLiczby, generujDomyslneRzuty,
@@ -33,10 +37,15 @@ export default function PlanDetailScreen() {
 
   const plan = usePlanyStore((s) => s.pobierzPlan(id));
   const mieszanki = useMieszankiStore((s) => s.mieszanki);
+  const budowy = useBudowyStore((s) => s.budowy);
+  const wpisyLive = useLiveStore((s) => s.wpisyDlaPlanu(id));
 
   const [aktywnaZakladka, setZakladka] = useState<ZakladkaTyp>('plan');
   const [wybranaIdx, setWybranaIdx] = useState(0);
   const [udostepnijModal, setUdostepnijModal] = useState(false);
+  const [autorModal, setAutorModal] = useState(false);
+  const [autorNazwa, setAutorNazwa] = useState('');
+  const [viewerZal, setViewerZal] = useState(false);
   const insets = useSafeAreaInsets();
 
   if (!plan) {
@@ -53,21 +62,35 @@ export default function PlanDetailScreen() {
   const getMieszanka = (id: string) => mieszanki.find((m) => m.id === id);
 
   const udostepnijJSON = async () => {
-    try { await eksportujJSON(plan, mieszanki); } catch { /* cancelled */ }
+    try { await eksportujJSON(plan, mieszanki, wpisyLive); } catch { /* cancelled */ }
+    setUdostepnijModal(false);
+  };
+
+  const przygotujHTML = () => {
+    setAutorNazwa('');
+    setAutorModal(true);
     setUdostepnijModal(false);
   };
 
   const udostepnijHTML = async () => {
-    try { await generujInteraktywnyHTML(plan, mieszanki); } catch { /* cancelled */ }
-    setUdostepnijModal(false);
+    if (!autorNazwa.trim()) {
+      Alert.alert('Podaj autora', 'Wpisz imię i nazwisko osoby odpowiedzialnej za raport.');
+      return;
+    }
+    try {
+      await generujInteraktywnyHTML(plan, mieszanki, { autor: autorNazwa.trim(), wpisyLive });
+    } catch { /* cancelled */ }
+    setAutorModal(false);
   };
+
+  const budowa = plan.budowaId ? budowy.find((b) => b.id === plan.budowaId) : undefined;
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <AppHeader
         tytul={formatujDatePl(plan.dataWbudowywania).split(',')[0]}
         lewy={{ tekst: '‹ Wstecz', onPress: () => router.back() }}
-        prawy={{ tekst: '↑ Udostępnij', onPress: () => setUdostepnijModal(true), kolor: theme.colors.secondary }}
+        prawy={{ tekst: 'Udostępnij', onPress: () => setUdostepnijModal(true), kolor: theme.colors.secondary }}
         przyciski={plan.status === 'aktywny' ? [
           { tekst: '✏ Edytuj plan', onPress: () => router.push(`/plan/edytuj/${plan.id}` as any), kolor: theme.colors.warning },
           { tekst: '▶ Wbudowywanie', onPress: () => router.push(`/wbudowywanie/${plan.id}` as any), kolor: '#fff', tlo: theme.colors.success },
@@ -91,8 +114,25 @@ export default function PlanDetailScreen() {
         {aktywnaZakladka === 'plan' && (
           <>
             <InfoRow label="Data" wartosc={formatujDatePl(plan.dataWbudowywania)} theme={theme} />
+            {budowa && (
+              <InfoRow label="Budowa" wartosc={`${budowa.kodBudowy} – ${budowa.nazwaInwestycji}`} theme={theme} />
+            )}
             <InfoRow label="Tonaż auta" wartosc={`${plan.tonazAuta} t`} theme={theme} />
             <InfoRow label="Działki" wartosc={`${plan.dzialki.length}`} theme={theme} />
+
+            {plan.zalaczniki && plan.zalaczniki.length > 0 && (
+              <View style={[styles.kartaDzialki, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+                <Text style={[styles.kartaTytul, { color: theme.colors.info }]}>Załączniki ({plan.zalaczniki.length})</Text>
+                {plan.zalaczniki.map((z) => (
+                  <Text key={z.id} style={[tekstWramce, { color: theme.colors.text, fontSize: 14, marginBottom: 4 }]} numberOfLines={2}>
+                    📎 {z.nazwa}
+                  </Text>
+                ))}
+                <TouchableOpacity style={{ marginTop: 8 }} onPress={() => setViewerZal(true)}>
+                  <Text style={{ color: theme.colors.primary, fontWeight: '700' }}>👁 Podgląd załączników</Text>
+                </TouchableOpacity>
+              </View>
+            )}
 
             {plan.dzialki.map((dz, dzIdx) => {
               const mieszanka = getMieszanka(dz.mieszankaId);
@@ -207,14 +247,45 @@ export default function PlanDetailScreen() {
                 <Text style={[uStyles.btnOpis, { color: theme.colors.textSecondary }]}>Plik .json do importu przez innego użytkownika</Text>
               </View>
             </TouchableOpacity>
-            <TouchableOpacity style={[uStyles.btn, { backgroundColor: `${theme.colors.secondary}15`, borderColor: theme.colors.secondary }]} onPress={udostepnijHTML}>
+            <TouchableOpacity style={[uStyles.btn, { backgroundColor: `${theme.colors.secondary}15`, borderColor: theme.colors.secondary }]} onPress={przygotujHTML}>
               <Text style={uStyles.btnIkona}>🌐</Text>
-              <View>
-                <Text style={[uStyles.btnTytul, { color: theme.colors.text }]}>Generuj interaktywny HTML</Text>
-                <Text style={[uStyles.btnOpis, { color: theme.colors.textSecondary }]}>Samodzielny kalkulator offline w przeglądarce</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={[uStyles.btnTytul, tekstWramce, { color: theme.colors.text }]} numberOfLines={2}>Generuj interaktywny HTML</Text>
+                <Text style={[uStyles.btnOpis, tekstWramce, { color: theme.colors.textSecondary }]} numberOfLines={3}>Kalkulator offline z trybem Live dla majstra na budowie</Text>
               </View>
             </TouchableOpacity>
             <TouchableOpacity style={[uStyles.btnAnuluj, { borderColor: theme.colors.border }]} onPress={() => setUdostepnijModal(false)}>
+              <Text style={[uStyles.btnAnulujTekst, { color: theme.colors.textSecondary }]}>Anuluj</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      <ZalacznikiViewer
+        visible={viewerZal}
+        zalaczniki={plan.zalaczniki ?? []}
+        theme={theme}
+        onClose={() => setViewerZal(false)}
+      />
+
+      <Modal visible={autorModal} transparent animationType="slide" onRequestClose={() => setAutorModal(false)}>
+        <Pressable style={uStyles.tlo} onPress={() => setAutorModal(false)}>
+          <Pressable style={[uStyles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+            <Text style={[uStyles.tytul, { color: theme.colors.text }]}>Autor raportu</Text>
+            <Text style={[uStyles.btnOpis, { color: theme.colors.textSecondary, marginBottom: 12, textAlign: 'center' }]}>
+              Podaj kto przygotowuje raport. Majster na budowie uzupełni dane Live i odeśle plik z powrotem.
+            </Text>
+            <TextInput
+              style={[uStyles.inputAutor, { backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.border, color: theme.colors.text }]}
+              value={autorNazwa}
+              onChangeText={setAutorNazwa}
+              placeholder="np. Jan Kowalski"
+              placeholderTextColor={theme.colors.textSecondary}
+            />
+            <TouchableOpacity style={[uStyles.btnPelny, { backgroundColor: theme.colors.primary }]} onPress={udostepnijHTML}>
+              <Text style={[tekstPrzycisk, { color: '#fff' }]}>Generuj i udostępnij HTML</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[uStyles.btnAnuluj, { borderColor: theme.colors.border }]} onPress={() => setAutorModal(false)}>
               <Text style={[uStyles.btnAnulujTekst, { color: theme.colors.textSecondary }]}>Anuluj</Text>
             </TouchableOpacity>
           </Pressable>
@@ -235,6 +306,8 @@ const uStyles = StyleSheet.create({
   btnOpis: { fontSize: 12 },
   btnAnuluj: { borderWidth: 1, borderRadius: 12, paddingVertical: 13, alignItems: 'center', marginTop: 4 },
   btnAnulujTekst: { fontSize: 15, fontWeight: '600' },
+  inputAutor: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16, marginBottom: 12 },
+  btnPelny: { borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
 });
 
 // ---- Tabela aut ----
