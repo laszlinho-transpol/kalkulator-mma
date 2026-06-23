@@ -314,7 +314,8 @@ Link: https://expo.dev/signup
 
 ## DO ZROBIENIA (potencjalne rozszerzenia):
 
-- [ ] Opublikowanie w Google Play Store (eas submit)
+- [x] Instrukcja publikacji w Google Play (`mobile/PUBLIKACJA_PLAY_STORE.md`)
+- [ ] Opublikowanie w Google Play Store (wymaga Twojego `eas login` + upload AAB)
 - [ ] Push notifications (expo-notifications)
 - [x] Edycja aktywnego wpisu Live po dodaniu
 - [ ] Wyszukiwanie w listach mieszanek i archiwum
