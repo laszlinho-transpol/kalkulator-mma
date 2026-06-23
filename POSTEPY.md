@@ -422,3 +422,20 @@ Link: https://expo.dev/signup
 Szczegóły: **`mobile/PUBLIKACJA_PLAY_STORE.md`**
 
 ---
+
+## ETAP 9 – Porządkowanie repozytorium
+**Data:** 2026-06-23
+**Status:** ✅ UKOŃCZONY
+
+Usunięto stare, nieużywane pliki z poprzedniego projektu (frontend, backend, testy Emergent).
+W repozytorium zostały tylko pliki potrzebne do aplikacji mobilnej:
+
+```
+kalkulator-mma/
+├── mobile/       ← aplikacja Expo
+├── POSTEPY.md
+├── .clinerules
+└── README.md
+```
+
+---
