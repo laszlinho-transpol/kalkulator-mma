@@ -399,3 +399,26 @@ Link: https://expo.dev/signup
 **Weryfikacja**: `npx tsc --noEmit` → **0 błędów** ✅
 
 ---
+
+## ETAP 8 – Publikacja Google Play (przygotowanie)
+**Data:** 2026-06-20
+**Status:** 🟡 W TRAKCIE (wymaga działań właściciela konta)
+
+### Co zostało przygotowane:
+
+1. **`mobile/PUBLIKACJA_PLAY_STORE.md`** – pełna instrukcja po polsku (test wewnętrzny)
+2. **`mobile/publish-play-store.sh`** – skrypt build AAB + opcjonalny submit
+3. **Wersja aplikacji** – `1.2.0` / `versionCode: 4` w `app.json`
+4. **`eas.json`** – profil `production` buduje AAB, submit na tor `internal`
+5. **`.gitignore`** – wykluczenie `google-service-account.json`
+
+### Co musisz zrobić sam:
+
+1. `npx eas login` na swoim komputerze
+2. `npx eas build --platform android --profile production`
+3. Play Console → Test wewnętrzny → wgraj plik `.aab`
+4. Dodaj swój Gmail jako testera → zainstaluj z Play Store
+
+Szczegóły: **`mobile/PUBLIKACJA_PLAY_STORE.md`**
+
+---
