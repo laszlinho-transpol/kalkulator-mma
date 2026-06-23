@@ -45,24 +45,30 @@ Jeśli na końcu widzisz ✅ — aplikacja jest gotowa do buildu.
 
 ---
 
-## Krok 5 – Token Expo (BEZ logowania hasłem)
+## Krok 5 – Token Expo + build (BEZ Git — pobierasz ZIP)
 
-1. Wejdź na: https://expo.dev/accounts/laszlinho/settings/access-tokens  
-2. **Create Token** → skopiuj **sam token** (długi ciąg znaków)  
-3. **Nie wpisuj hasła do konta Expo w terminalu** — token zastępuje login
+Pobrany ZIP **nie jest** repozytorium Git — trzeba powiedzieć EAS, żeby tego nie wymagał.
 
-W PowerShell **dwie osobne komendy** (Enter po każdej):
+W PowerShell wpisz **po jednej linii**:
+
+```powershell
+cd C:\Users\Admin\Desktop\kalkulator-mma-main\mobile
+```
+
+```powershell
+$env:EAS_NO_VCS="1"
+```
 
 ```powershell
 $env:EXPO_TOKEN="wklej_tutaj_sam_token"
 ```
 
 ```powershell
-npm run build:android
+npx eas-cli@latest build --platform android --profile production
 ```
 
-> **Ważne:** W pierwszej linii wklejasz **tylko token**, nie hasło do expo.dev.  
-> **Nie używaj** `npx eas login` jeśli masz token — to zbędne.
+> **Token:** tylko ciąg znaków między cudzysłowami — nie hasło do expo.dev.  
+> **EAS_NO_VCS=1** — konieczne przy pobraniu ZIP (bez Git).
 
 Build trwa ok. **15–20 minut**. Na końcu dostaniesz link do pliku `.aab`.
 
@@ -75,7 +81,7 @@ Build trwa ok. **15–20 minut**. Na końcu dostaniesz link do pliku `.aab`.
 | `could not determine executable to run` | Użyj `npm run build:android` zamiast `npx eas build` |
 | `Not logged in` | Ustaw `$env:EXPO_TOKEN="..."` w **tej samej** sesji PowerShell |
 | `Cannot find path mobile` | Sprawdź ścieżkę: `dir` i dopasuj `cd` |
-| `npx not recognized` | Zainstaluj Node.js i otwórz PowerShell od nowa |
+| `git command not found` / `Repair your Git` | Ustaw `$env:EAS_NO_VCS="1"` przed buildem (patrz Krok 5) |
 
 ---
 
