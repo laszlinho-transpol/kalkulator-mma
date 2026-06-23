@@ -428,14 +428,33 @@ Szczegóły: **`mobile/PUBLIKACJA_PLAY_STORE.md`**
 **Status:** ✅ UKOŃCZONY
 
 Usunięto stare, nieużywane pliki z poprzedniego projektu (frontend, backend, testy Emergent).
-W repozytorium zostały tylko pliki potrzebne do aplikacji mobilnej:
+W repozytorium zostały tylko pliki potrzebne do aplikacji mobilnej.
 
+---
+
+## ETAP 10 – Wersja 1.3.0 + test weryfikacyjny
+**Data:** 2026-06-23
+**Status:** ✅ UKOŃCZONY
+
+### Co zostało zrobione:
+
+1. **Wersja 1.3.0** (`versionCode: 5`) – scalona najnowsza wersja ze wszystkimi poprawkami
+2. **Test przed wydaniem:** `npm run verify` w folderze `mobile/`
+   - TypeScript (`tsc --noEmit`)
+   - 5 testów obliczeń (powierzchnie, masa, rzuty)
+   - Expo Doctor (21/21)
+3. **Lista zmian w aplikacji** – Ustawienia → O aplikacji (CHANGELOG)
+4. **`INSTALACJA_WINDOWS.md`** – instrukcja krok po kroku dla Windows
+5. **Scalenie do gałęzi `main`** – pobieranie ZIP z main zawiera folder `mobile/`
+
+### Jak uruchomić test:
+
+```bash
+cd mobile
+npm install
+npm run verify
 ```
-kalkulator-mma/
-├── mobile/       ← aplikacja Expo
-├── POSTEPY.md
-├── .clinerules
-└── README.md
-```
+
+**Weryfikacja**: `npm run verify` → **wszystkie testy OK** ✅ | Expo Doctor **21/21** ✅
 
 ---

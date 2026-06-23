@@ -14,10 +14,10 @@ import { AnimatedCard } from '../src/components/common/AnimatedCard';
 import { useMieszankiStore } from '../src/stores/mieszankiStore';
 import { usePlanyStore } from '../src/stores/planyStore';
 import { useLiveStore } from '../src/stores/liveStore';
+import { WERSJA_APLIKACJI, CHANGELOG } from '../src/constants/version';
 
 const KLUCZ_ONBOARDING = '@mma:onboardingComplete';
 const KLUCZ_USTAWIEN = '@mma:settings';
-const WERSJA_APLIKACJI = '1.0.0';
 
 interface Ustawienia {
   tonazDomyslny: number;
@@ -190,7 +190,13 @@ export default function UstawieniaScreen() {
             <View style={[styles.appInfo, { backgroundColor: theme.colors.background, borderRadius: 12 }]}>
               <Text style={[styles.appNazwa, { color: theme.colors.primary }]}>⬛ Kalkulator MMA</Text>
               <Text style={[styles.appWersja, { color: theme.colors.textSecondary }]}>Wersja {WERSJA_APLIKACJI}</Text>
-              <Text style={[styles.appOpis, { color: theme.colors.textSecondary }]}>
+              <Text style={[styles.appOpis, { color: theme.colors.textSecondary, marginTop: 8 }]}>
+                Co nowego w {CHANGELOG[0].wersja}:
+              </Text>
+              {CHANGELOG[0].zmiany.map((z, i) => (
+                <Text key={i} style={[styles.changelogPunkt, { color: theme.colors.textSecondary }]}>• {z}</Text>
+              ))}
+              <Text style={[styles.appOpis, { color: theme.colors.textSecondary, marginTop: 10 }]}>
                 Aplikacja mobilna do planowania i kontrolowania wbudowywania mieszanek mineralno-asfaltowych na budowach drogowych.
               </Text>
               <View style={[styles.techRow, { borderTopColor: theme.colors.border }]}>
@@ -265,6 +271,7 @@ const styles = StyleSheet.create({
   appNazwa: { fontSize: 20, fontWeight: '900', letterSpacing: 2 },
   appWersja: { fontSize: 13 },
   appOpis: { fontSize: 13, lineHeight: 19, marginTop: 4 },
+  changelogPunkt: { fontSize: 12, lineHeight: 18, marginTop: 2, paddingLeft: 4 },
   techRow: { borderTopWidth: 1, marginTop: 12, paddingTop: 12, gap: 4 },
   techLabel: { fontSize: 11 },
 });
