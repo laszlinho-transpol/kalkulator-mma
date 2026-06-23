@@ -42,7 +42,7 @@ cd mobile
 npx eas login
 
 # 2. Zbuduj AAB produkcyjny (10–20 min na serwerach Expo)
-npx eas build --platform android --profile production
+npx eas-cli@latest build --platform android --profile production
 ```
 
 Po zakończeniu dostaniesz **link do pobrania pliku `.aab`**.
@@ -104,7 +104,7 @@ Jeśli chcesz, żeby `eas submit` sam wgrywał build:
 cd mobile
 
 # Build + submit na tor wewnętrzny (internal)
-npx eas build --platform android --profile production --auto-submit
+npx eas-cli@latest build --platform android --profile production --auto-submit
 ```
 
 Lub osobno:

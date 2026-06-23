@@ -2,68 +2,83 @@
 
 ## Krok 1 – Pobierz projekt
 
-Pobierz ZIP z GitHub (gałąź **main**):
-
 https://github.com/laszlinho-transpol/kalkulator-mma/archive/refs/heads/main.zip
 
-Rozpakuj np. do: `C:\Users\Admin\kalkulator-mma`
+Rozpakuj np. na Pulpit. Folder będzie nazywał się `kalkulator-mma-main`.
 
-Po rozpakowaniu sprawdź w PowerShell:
+Sprawdź:
 
 ```powershell
-dir C:\Users\Admin\kalkulator-mma\mobile
+dir C:\Users\Admin\Desktop\kalkulator-mma-main\mobile
 ```
-
-Powinieneś zobaczyć: `package.json`, `app.json`, folder `app`.
-
-> **Uwaga:** folder po rozpakowaniu może nazywać się `kalkulator-mma-main` – to normalne.
 
 ---
 
-## Krok 2 – Zainstaluj Node.js
+## Krok 2 – Node.js
 
-1. https://nodejs.org → pobierz **LTS**
-2. Zainstaluj (Next, Next…)
-3. **Zamknij i otwórz PowerShell od nowa**
-4. Sprawdź: `node -v` (powinna być wersja, np. v22.x)
+https://nodejs.org → **LTS** → zainstaluj → **zamknij i otwórz PowerShell od nowa**
+
+```powershell
+node -v
+npm -v
+```
 
 ---
 
-## Krok 3 – Zainstaluj zależności
+## Krok 3 – Zależności
 
 ```powershell
-cd C:\Users\Admin\kalkulator-mma\mobile
-```
-
-(Jeśli folder nazywa się inaczej – dopasuj ścieżkę.)
-
-```powershell
+cd C:\Users\Admin\Desktop\kalkulator-mma-main\mobile
 npm install
 ```
 
 ---
 
-## Krok 4 – Test przed buildem
+## Krok 4 – Test (opcjonalnie, ale zalecany)
 
 ```powershell
 npm run verify
 ```
 
-Jeśli wszystko OK – zobaczysz zielone ✅.
+Jeśli na końcu widzisz ✅ — aplikacja jest gotowa do buildu.  
+(Czerwony `npm error` **po** zielonym komunikacie można zignorować — to znany drobiazg, testy przeszły.)
 
 ---
 
-## Krok 5 – Zbuduj aplikację na Androida
+## Krok 5 – Token Expo (BEZ logowania hasłem)
+
+1. Wejdź na: https://expo.dev/accounts/laszlinho/settings/access-tokens  
+2. **Create Token** → skopiuj **sam token** (długi ciąg znaków)  
+3. **Nie wpisuj hasła do konta Expo w terminalu** — token zastępuje login
+
+W PowerShell **dwie osobne komendy** (Enter po każdej):
 
 ```powershell
-$env:EXPO_TOKEN="twój_token_z_expo.dev"
-npx eas build --platform android --profile production
+$env:EXPO_TOKEN="wklej_tutaj_sam_token"
 ```
 
-Token: https://expo.dev/accounts/laszlinho/settings/access-tokens
+```powershell
+npm run build:android
+```
+
+> **Ważne:** W pierwszej linii wklejasz **tylko token**, nie hasło do expo.dev.  
+> **Nie używaj** `npx eas login` jeśli masz token — to zbędne.
+
+Build trwa ok. **15–20 minut**. Na końcu dostaniesz link do pliku `.aab`.
+
+---
+
+## Rozwiązywanie problemów
+
+| Błąd | Rozwiązanie |
+|------|-------------|
+| `could not determine executable to run` | Użyj `npm run build:android` zamiast `npx eas build` |
+| `Not logged in` | Ustaw `$env:EXPO_TOKEN="..."` w **tej samej** sesji PowerShell |
+| `Cannot find path mobile` | Sprawdź ścieżkę: `dir` i dopasuj `cd` |
+| `npx not recognized` | Zainstaluj Node.js i otwórz PowerShell od nowa |
 
 ---
 
 ## Krok 6 – Google Play
 
-Instrukcja: `mobile/PUBLIKACJA_PLAY_STORE.md`
+`mobile/PUBLIKACJA_PLAY_STORE.md`

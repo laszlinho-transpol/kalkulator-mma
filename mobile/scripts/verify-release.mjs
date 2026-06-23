@@ -30,5 +30,5 @@ run('npx', ['expo-doctor'], 'Expo Doctor');
 
 console.log('\n═══════════════════════════════════════');
 console.log('  ✅ Wszystkie testy przeszły pomyślnie');
-console.log('  Można budować: eas build --profile production');
+console.log('  Można budować: npm run build:android');
 console.log('═══════════════════════════════════════\n');

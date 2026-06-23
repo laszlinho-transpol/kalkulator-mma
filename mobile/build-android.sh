@@ -41,7 +41,7 @@ echo ""
 echo "🔨 Buduję APK Android (profil: preview)..."
 echo "   To zajmie ok. 10-15 minut na serwerach Expo."
 echo ""
-./node_modules/.bin/eas build \
+./node_modules/.bin/npx eas-cli@latest build \
   --platform android \
   --profile preview \
   --non-interactive \

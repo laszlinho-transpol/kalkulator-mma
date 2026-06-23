@@ -36,7 +36,8 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "test": "tsx --test src/utils/calculations.test.ts",
-    "verify": "node scripts/verify-release.mjs"
+    "verify": "node scripts/verify-release.mjs",
+    "build:android": "npx eas-cli@latest build --platform android --profile production"
   },
   "private": true
 }
