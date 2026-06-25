@@ -5,7 +5,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, useColorScheme } from 'react-native';
 import { lightTheme, darkTheme } from '../../constants/theme';
-import { AnimatedCard } from './AnimatedCard';
 
 interface EmptyStateProps {
   ikona: string;
@@ -24,7 +23,7 @@ export function EmptyState({
   const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
 
   return (
-    <AnimatedCard delay={100}>
+    <View style={styles.wrapper}>
       <View style={styles.container}>
         <View style={[styles.ikonaTlo, { backgroundColor: `${theme.colors.primary}15` }]}>
           <Text style={styles.ikona}>{ikona}</Text>
@@ -52,18 +51,19 @@ export function EmptyState({
           </TouchableOpacity>
         )}
       </View>
-    </AnimatedCard>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  wrapper: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   container: {
-    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 40,
-    paddingVertical: 60,
+    paddingVertical: 24,
     gap: 12,
+    width: '100%',
   },
   ikonaTlo: {
     width: 90,

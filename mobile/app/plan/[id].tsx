@@ -19,10 +19,11 @@ import { AppHeader } from '../../src/components/common/AppHeader';
 import { ZalacznikiViewer } from '../../src/components/common/ZalacznikiViewer';
 import { DzialkaSketch } from '../../src/components/sketch/DzialkaSketch';
 import { tekstPrzycisk, tekstWramce } from '../../src/constants/layout';
+import { TabelaAut } from '../../src/components/plan/TabelaAut';
 import {
-  obliczWynikiDzialki, obliczTabeleAut, obliczLacznaDlugosc,
-  formatLiczby, generujDomyslneRzuty,
+  obliczWynikiDzialki, formatLiczby,
 } from '../../src/utils/calculations';
+import { gruboscWbudowywania, gruboscProjektowa, formatujTolerancje } from '../../src/utils/grubosc';
 import { formatujDatePl } from '../../src/utils/dates';
 import { eksportujJSON, generujInteraktywnyHTML } from '../../src/utils/htmlGenerator';
 import type { DzialkaRobocza, Rzut } from '../../src/types';
@@ -120,10 +121,10 @@ export default function PlanDetailScreen() {
             <InfoRow label="Tonaż auta" wartosc={`${plan.tonazAuta} t`} theme={theme} />
             <InfoRow label="Działki" wartosc={`${plan.dzialki.length}`} theme={theme} />
 
-            {plan.zalaczniki && plan.zalaczniki.length > 0 && (
+            {(budowa?.zalaczniki?.length || plan.zalaczniki?.length) ? (
               <View style={[styles.kartaDzialki, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-                <Text style={[styles.kartaTytul, { color: theme.colors.info }]}>Załączniki ({plan.zalaczniki.length})</Text>
-                {plan.zalaczniki.map((z) => (
+                <Text style={[styles.kartaTytul, { color: theme.colors.info }]}>Załączniki budowy ({(budowa?.zalaczniki ?? plan.zalaczniki ?? []).length})</Text>
+                {(budowa?.zalaczniki ?? plan.zalaczniki ?? []).map((z) => (
                   <Text key={z.id} style={[tekstWramce, { color: theme.colors.text, fontSize: 14, marginBottom: 4 }]} numberOfLines={2}>
                     📎 {z.nazwa}
                   </Text>
@@ -132,7 +133,7 @@ export default function PlanDetailScreen() {
                   <Text style={{ color: theme.colors.primary, fontWeight: '700' }}>👁 Podgląd załączników</Text>
                 </TouchableOpacity>
               </View>
-            )}
+            ) : null}
 
             {plan.dzialki.map((dz, dzIdx) => {
               const mieszanka = getMieszanka(dz.mieszankaId);
@@ -142,7 +143,9 @@ export default function PlanDetailScreen() {
                 <View key={dz.id} style={[styles.kartaDzialki, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
                   <Text style={[styles.kartaTytul, { color: theme.colors.primary }]}>{dz.nazwa}</Text>
                   <InfoRow label="Mieszanka" wartosc={`${mieszanka.rodzaj}  ρ=${mieszanka.ciezarObjetosciowy.toFixed(3)}`} theme={theme} />
-                  <InfoRow label="Grubość" wartosc={`${dz.grubosc} cm`} theme={theme} />
+                  <InfoRow label="Grubość projektowa" wartosc={`${gruboscProjektowa(dz)} cm`} theme={theme} />
+                  <InfoRow label="Tolerancja" wartosc={formatujTolerancje(dz)} theme={theme} />
+                  <InfoRow label="Grubość wbudowywania" wartosc={`${gruboscWbudowywania(dz)} cm`} theme={theme} />
                   <InfoRow label="Figury" wartosc={`${dz.figury.length}`} theme={theme} />
                   <View style={[styles.podsumWrap, { backgroundColor: `${theme.colors.primary}10`, borderColor: theme.colors.primary }]}>
                     <SummaryRow label="Powierzchnia" wartosc={`${formatLiczby(wyniki.lacznaPowierzchnia)} m²`} theme={theme} />
@@ -196,7 +199,20 @@ export default function PlanDetailScreen() {
               </ScrollView>
             )}
 
-            <TabelaAut dzialka={plan.dzialki[wybranaIdx]} tonazAuta={plan.tonazAuta} rzuty={plan.rzuty} mieszankiAll={mieszanki} theme={theme} />
+            {(() => {
+              const dz = plan.dzialki[wybranaIdx];
+              const m = getMieszanka(dz.mieszankaId);
+              if (!m) return <Text style={{ color: theme.colors.danger, padding: 16 }}>Brak mieszanki dla tej działki.</Text>;
+              return (
+                <TabelaAut
+                  dzialka={dz}
+                  tonazAuta={plan.tonazAuta}
+                  rzuty={plan.rzuty}
+                  ciezarObjetosciowy={m.ciezarObjetosciowy}
+                  theme={theme}
+                />
+              );
+            })()}
           </>
         )}
 
@@ -263,7 +279,7 @@ export default function PlanDetailScreen() {
 
       <ZalacznikiViewer
         visible={viewerZal}
-        zalaczniki={plan.zalaczniki ?? []}
+        zalaczniki={budowa?.zalaczniki ?? plan.zalaczniki ?? []}
         theme={theme}
         onClose={() => setViewerZal(false)}
       />
@@ -309,62 +325,6 @@ const uStyles = StyleSheet.create({
   inputAutor: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16, marginBottom: 12 },
   btnPelny: { borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
 });
-
-// ---- Tabela aut ----
-function TabelaAut({ dzialka, tonazAuta, rzuty, mieszankiAll, theme }: {
-  dzialka: DzialkaRobocza;
-  tonazAuta: number;
-  rzuty: Rzut[];
-  mieszankiAll: Array<{ id: string; ciezarObjetosciowy: number; rodzaj: string }>;
-  theme: AppTheme;
-}) {
-  const mieszanka = mieszankiAll.find((m) => m.id === dzialka.mieszankaId);
-  if (!mieszanka) return <Text style={{ color: theme.colors.danger, padding: 16 }}>Brak mieszanki dla tej działki.</Text>;
-
-  const wyniki = obliczWynikiDzialki(dzialka, mieszanka.ciezarObjetosciowy, tonazAuta);
-  const lacznasDlugosc = obliczLacznaDlugosc(dzialka);
-  const rzutyDoUzycia = (rzuty as any[]).length > 0 ? rzuty as any : generujDomyslneRzuty(wyniki.iloscSamochodow);
-  const tabela = obliczTabeleAut(wyniki.lacznaIloscMasy, lacznasDlugosc, rzutyDoUzycia, tonazAuta);
-
-  let ostatniRzut = 0;
-  return (
-    <View>
-      <View style={[styles.tabelaNaglowek, { backgroundColor: `${theme.colors.primary}15` }]}>
-        <SummaryRow label="Do wbudowania" wartosc={`${formatLiczby(wyniki.lacznaIloscMasy, 2)} Mg`} theme={theme} bold />
-        <SummaryRow label="Ilość samochodów" wartosc={`${wyniki.iloscSamochodow}`} theme={theme} bold />
-        <SummaryRow label="Łącznie metrów" wartosc={`${formatLiczby(lacznasDlugosc)} m`} theme={theme} />
-      </View>
-
-      {/* Nagłówek tabeli */}
-      <View style={[styles.tabelaRzad, styles.tabelaRzadNagl, { backgroundColor: theme.colors.card }]}>
-        {['L.p.', 'Mg', '∑ Mg', 'm', '∑ m'].map((h) => (
-          <Text key={h} style={[styles.tabelaKomNagl, { color: theme.colors.textSecondary }]}>{h}</Text>
-        ))}
-      </View>
-
-      {tabela.map((wiersz) => {
-        const nowyRzut = wiersz.numerRzutu !== ostatniRzut;
-        ostatniRzut = wiersz.numerRzutu;
-        return (
-          <React.Fragment key={wiersz.numerAuta}>
-            {nowyRzut && (
-              <View style={[styles.rzutSeparator, { backgroundColor: theme.colors.primary }]}>
-                <Text style={styles.rzutLabel}>RZUT {wiersz.numerRzutu}</Text>
-              </View>
-            )}
-            <View style={[styles.tabelaRzad, { backgroundColor: theme.colors.card, borderBottomColor: theme.colors.border }]}>
-              <Text style={[styles.tabelaKom, { color: theme.colors.textSecondary }]}>{wiersz.numerAuta}</Text>
-              <Text style={[styles.tabelaKom, { color: theme.colors.text }]}>{formatLiczby(wiersz.masa)}</Text>
-              <Text style={[styles.tabelaKom, { color: theme.colors.text, fontWeight: '600' }]}>{formatLiczby(wiersz.masaNarastajaco, 2)}</Text>
-              <Text style={[styles.tabelaKom, { color: theme.colors.text }]}>{formatLiczby(wiersz.metry)}</Text>
-              <Text style={[styles.tabelaKom, { color: theme.colors.text, fontWeight: '600' }]}>{formatLiczby(wiersz.metryNarastajaco)}</Text>
-            </View>
-          </React.Fragment>
-        );
-      })}
-    </View>
-  );
-}
 
 // ---- Pomocnicze ----
 function InfoRow({ label, wartosc, theme }: { label: string; wartosc: string; theme: AppTheme }) {

@@ -8,7 +8,7 @@ import type { ZalacznikPlanu } from '../types';
 
 const generujId = () => Date.now().toString(36) + Math.random().toString(36).slice(2);
 
-export async function wybierzIZapiszZalacznik(planId: string): Promise<ZalacznikPlanu | null> {
+export async function wybierzIZapiszZalacznik(ownerId: string, podfolder = 'plany'): Promise<ZalacznikPlanu | null> {
   const wynik = await DocumentPicker.getDocumentAsync({
     type: ['application/pdf', 'image/*'],
     copyToCacheDirectory: true,
@@ -20,7 +20,7 @@ export async function wybierzIZapiszZalacznik(planId: string): Promise<Zalacznik
   const nazwa = asset.name ?? `zalacznik.${ext}`;
   const typ: ZalacznikPlanu['typ'] = asset.mimeType?.startsWith('image/') ? 'obraz' : 'pdf';
 
-  const folder = new File(Paths.document, 'zalaczniki', planId);
+  const folder = new File(Paths.document, 'zalaczniki', podfolder, ownerId);
   if (!folder.exists) folder.create();
 
   const docel = new File(folder, `${generujId()}_${nazwa}`);
@@ -34,6 +34,16 @@ export async function wybierzIZapiszZalacznik(planId: string): Promise<Zalacznik
     uri: docel.uri,
     createdAt: new Date().toISOString(),
   };
+}
+
+/** Załącznik do budowy (PZT, plan sytuacyjny) */
+export async function wybierzIZapiszZalacznikBudowy(budowaId: string): Promise<ZalacznikPlanu | null> {
+  return wybierzIZapiszZalacznik(budowaId, 'budowy');
+}
+
+/** @deprecated użyj wybierzIZapiszZalacznik */
+export async function wybierzIZapiszZalacznikPlanu(planId: string): Promise<ZalacznikPlanu | null> {
+  return wybierzIZapiszZalacznik(planId, 'plany');
 }
 
 export async function kopiujZalacznikiDlaNowegoPlanu(

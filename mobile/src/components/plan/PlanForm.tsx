@@ -14,8 +14,6 @@ import { AppHeader } from '../common/AppHeader';
 import { useMieszankiStore } from '../../stores/mieszankiStore';
 import { useBudowyStore } from '../../stores/budowyStore';
 import { BudowaPicker } from '../common/BudowaPicker';
-import { ZalacznikiViewer } from '../common/ZalacznikiViewer';
-import { wybierzIZapiszZalacznik } from '../../utils/zalaczniki';
 import { lightTheme, darkTheme, type AppTheme } from '../../constants/theme';
 import { DatePickerButton } from '../common/DatePickerButton';
 import { NumericInput } from '../common/NumericInput';
@@ -29,14 +27,16 @@ import {
 import { nastepnyDzienRoboczy } from '../../utils/dates';
 import { obliczPikietazFigur, formatujPikietaz, nastepnyPikietaz } from '../../utils/chainage';
 import { DO_METROW_BIEZACYCH, NAZWY_FIGUR } from '../../constants';
-import type { DzialkaRobocza, Figura, KierunekUkladania, Mieszanka, Plan, Rzut, ZalacznikPlanu } from '../../types';
+import type { DzialkaRobocza, Figura, KierunekUkladania, Mieszanka, Plan, Rzut } from '../../types';
 
 // ---- Typ roboczy formularza działki (stringi dla pól numerycznych) ----
 export interface DzialkaForm {
   id: string;
   nazwa: string;
   mieszankaId: string;
-  gruboscStr: string;
+  gruboscProjektowaStr: string;
+  tolerancjaStr: string;
+  gruboscWbudowywaniaStr: string;
   opis: string;
   kmStr: string;
   mStr: string;
@@ -51,7 +51,9 @@ export function nowyDzialkaForm(idx: number): DzialkaForm {
     id: generujIdForm(),
     nazwa: `Działka ${idx + 1}`,
     mieszankaId: '',
-    gruboscStr: '',
+    gruboscProjektowaStr: '4',
+    tolerancjaStr: '10',
+    gruboscWbudowywaniaStr: '',
     opis: '',
     kmStr: '0',
     mStr: '000',
@@ -62,11 +64,14 @@ export function nowyDzialkaForm(idx: number): DzialkaForm {
 
 /** Konwertuje DzialkaRobocza → DzialkaForm (do edycji) */
 export function dzialkaDoFormu(dz: DzialkaRobocza): DzialkaForm {
+  const wb = dz.gruboscWbudowywania ?? dz.grubosc;
   return {
     id: dz.id,
     nazwa: dz.nazwa,
     mieszankaId: dz.mieszankaId,
-    gruboscStr: String(dz.grubosc),
+    gruboscProjektowaStr: String(dz.gruboscProjektowa ?? dz.grubosc ?? ''),
+    tolerancjaStr: String(dz.tolerancja ?? 10),
+    gruboscWbudowywaniaStr: String(wb ?? ''),
     opis: dz.opis ?? '',
     kmStr: String(dz.kilometrazPoczatkowyKm),
     mStr: String(dz.kilometrazPoczatkowyM).padStart(3, '0'),
@@ -79,11 +84,17 @@ export function dzialkaDoFormu(dz: DzialkaRobocza): DzialkaForm {
 export function formDoDzialki(dz: DzialkaForm): DzialkaRobocza {
   const km = parseInt(dz.kmStr || '0', 10) || 0;
   const m = parseInt(dz.mStr || '0', 10) || 0;
+  const grubWb = parseFloat(dz.gruboscWbudowywaniaStr.replace(',', '.')) || 0;
+  const grubProj = parseFloat(dz.gruboscProjektowaStr.replace(',', '.')) || grubWb;
+  const tolerancja = parseFloat(dz.tolerancjaStr.replace(',', '.')) || 10;
   return {
     id: dz.id,
     nazwa: dz.nazwa || 'Działka',
     mieszankaId: dz.mieszankaId,
-    grubosc: parseFloat(dz.gruboscStr.replace(',', '.')) || 0,
+    grubosc: grubWb,
+    gruboscProjektowa: grubProj,
+    tolerancja,
+    gruboscWbudowywania: grubWb,
     opis: dz.opis || undefined,
     kilometrazPoczatkowyKm: km,
     kilometrazPoczatkowyM: m,
@@ -111,8 +122,6 @@ export function PlanForm({ tytul, initialPlan, onZapisz }: PlanFormProps) {
 
   const [budowaId, setBudowaId] = useState<string | undefined>(initialPlan?.budowaId);
   const [budowaPicker, setBudowaPicker] = useState(false);
-  const [zalaczniki, setZalaczniki] = useState<ZalacznikPlanu[]>(initialPlan?.zalaczniki ?? []);
-  const [viewerZal, setViewerZal] = useState(false);
 
   // Inicjalizacja stanu (z planem lub od zera)
   const [dataWbudowywania, setData] = useState<Date>(
@@ -188,7 +197,7 @@ export function PlanForm({ tytul, initialPlan, onZapisz }: PlanFormProps) {
     let sumaMasy = 0;
     for (const dz of dzialki) {
       const mie = pobierzMieszanke(dz.mieszankaId);
-      const gr = parseFloat(dz.gruboscStr.replace(',', '.'));
+      const gr = parseFloat(dz.gruboscWbudowywaniaStr.replace(',', '.'));
       if (!mie || !gr || dz.figury.length === 0) continue;
       const temp = formDoDzialki(dz);
       sumaMasy += obliczWynikiDzialki(temp, mie.ciezarObjetosciowy, tonazAuta).lacznaIloscMasy;
@@ -204,7 +213,7 @@ export function PlanForm({ tytul, initialPlan, onZapisz }: PlanFormProps) {
       const dz = dzialki[i];
       if (!dz.nazwa.trim()) { Alert.alert('Błąd', `Działka ${i + 1}: podaj nazwę.`); return; }
       if (!dz.mieszankaId) { Alert.alert('Błąd', `Działka "${dz.nazwa}": wybierz mieszankę.`); return; }
-      if (!dz.gruboscStr || parseFloat(dz.gruboscStr) <= 0) { Alert.alert('Błąd', `Działka "${dz.nazwa}": podaj grubość warstwy.`); return; }
+      if (!dz.gruboscWbudowywaniaStr || parseFloat(dz.gruboscWbudowywaniaStr) <= 0) { Alert.alert('Błąd', `Działka "${dz.nazwa}": podaj grubość wbudowywania.`); return; }
       if (dz.figury.length === 0) { Alert.alert('Błąd', `Działka "${dz.nazwa}": dodaj co najmniej jedną figurę.`); return; }
     }
     let rzuty: Rzut[] = generujDomyslneRzuty(sumaAut);
@@ -223,7 +232,6 @@ export function PlanForm({ tytul, initialPlan, onZapisz }: PlanFormProps) {
       dzialki: dzialki.map(formDoDzialki),
       tonazAuta,
       rzuty,
-      zalaczniki,
       status: 'aktywny',
     });
   };
@@ -258,35 +266,6 @@ export function PlanForm({ tytul, initialPlan, onZapisz }: PlanFormProps) {
             </View>
             <NumericInput label="Tonaż auta" value={tonazAutaStr} onChangeText={setTonazAutaStr} unit="t" decimals={1}
               tooltip="Domyślny ładunek wywrotki (zazwyczaj 25,5 t)." placeholder="25.5" />
-          </Sekcja>
-
-          <Sekcja tytul="Załączniki (PDF / PZT)" theme={theme}>
-            <Text style={[styles.podsumRow, { color: theme.colors.textSecondary, marginBottom: 8 }]}>
-              Plan sytuacyjny, PZT budowy – do podglądu na budowie.
-            </Text>
-            {zalaczniki.map((z) => (
-              <View key={z.id} style={[styles.zalRow, { borderColor: theme.colors.border }]}>
-                <Text style={{ color: theme.colors.text, flex: 1 }} numberOfLines={1}>📎 {z.nazwa}</Text>
-                <TouchableOpacity onPress={() => setZalaczniki((p) => p.filter((x) => x.id !== z.id))}>
-                  <Text style={{ color: theme.colors.danger }}>Usuń</Text>
-                </TouchableOpacity>
-              </View>
-            ))}
-            <TouchableOpacity
-              style={[styles.btnDodajZal, { backgroundColor: `${theme.colors.info}15`, borderColor: theme.colors.info }]}
-              onPress={async () => {
-                const planId = initialPlan?.id ?? 'nowy';
-                const z = await wybierzIZapiszZalacznik(planId);
-                if (z) setZalaczniki((p) => [...p, z]);
-              }}
-            >
-              <Text style={{ color: theme.colors.info, fontWeight: '700' }}>+ Dodaj plik PDF / obraz</Text>
-            </TouchableOpacity>
-            {zalaczniki.length > 0 && (
-              <TouchableOpacity style={{ marginTop: 8 }} onPress={() => setViewerZal(true)}>
-                <Text style={{ color: theme.colors.primary, fontWeight: '600' }}>👁 Podgląd załączników</Text>
-              </TouchableOpacity>
-            )}
           </Sekcja>
 
           {/* Liczba działek */}
@@ -380,7 +359,6 @@ export function PlanForm({ tytul, initialPlan, onZapisz }: PlanFormProps) {
         onSelect={(id) => setBudowaId(id)}
         onClose={() => setBudowaPicker(false)}
       />
-      <ZalacznikiViewer visible={viewerZal} zalaczniki={zalaczniki} theme={theme} onClose={() => setViewerZal(false)} />
       {shapeModalIdx !== null && (() => {
         const dz = dzialki[shapeModalIdx];
         const temp = formDoDzialki(dz);
@@ -415,7 +393,7 @@ interface KartaDzialkiProps {
 
 function KartaDzialki({ dz, dzIdx, theme, tonazAuta, pobierzMieszanke, updateDzialka, onMieszankaPicker, onAddShape, onRemoveShape }: KartaDzialkiProps) {
   const mieszanka = pobierzMieszanke(dz.mieszankaId);
-  const grubosc = parseFloat(dz.gruboscStr.replace(',', '.')) || 0;
+  const grubosc = parseFloat(dz.gruboscWbudowywaniaStr.replace(',', '.')) || 0;
   const km = parseInt(dz.kmStr || '0', 10) || 0;
   const m = parseInt(dz.mStr || '0', 10) || 0;
 
@@ -460,9 +438,13 @@ function KartaDzialki({ dz, dzIdx, theme, tonazAuta, pobierzMieszanke, updateDzi
         }
       </TouchableOpacity>
 
-      {/* Grubość */}
-      <NumericInput label="Grubość warstwy *" value={dz.gruboscStr} onChangeText={(v) => updateDzialka(dzIdx, 'gruboscStr', v)} unit="cm"
-        tooltip="Projektowana grubość wbudowywanej warstwy po zagęszczeniu (zazwyczaj 4–8 cm)." required decimals={1} />
+      {/* Grubości warstwy */}
+      <NumericInput label="Grubość projektowa *" value={dz.gruboscProjektowaStr} onChangeText={(v) => updateDzialka(dzIdx, 'gruboscProjektowaStr', v)} unit="cm"
+        tooltip="Grubość projektowa warstwy z dokumentacji (np. 4 cm)." required decimals={1} />
+      <NumericInput label="Tolerancja *" value={dz.tolerancjaStr} onChangeText={(v) => updateDzialka(dzIdx, 'tolerancjaStr', v)} unit="%"
+        tooltip="Dopuszczalna tolerancja grubości, domyślnie ±10%." required decimals={0} />
+      <NumericInput label="Grubość wbudowywania *" value={dz.gruboscWbudowywaniaStr} onChangeText={(v) => updateDzialka(dzIdx, 'gruboscWbudowywaniaStr', v)} unit="cm"
+        tooltip="Planowana grubość po wbudowaniu i zagęszczeniu (np. 3,8 cm). Używana w obliczeniach masy." required decimals={1} />
 
       {/* Opis */}
       <Text style={[styles.etykieta, { color: theme.colors.textSecondary }]}>Opis (opcjonalny)</Text>

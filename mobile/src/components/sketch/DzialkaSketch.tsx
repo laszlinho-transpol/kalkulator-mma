@@ -11,6 +11,7 @@ import {
 import Svg, {
   Rect as SvgRect, Line as SvgLine, Text as SvgText,
   G as SvgG, Circle as SvgCircle, Polygon as SvgPolygon, Path as SvgPath,
+  Defs, ClipPath,
 } from 'react-native-svg';
 import { lightTheme, darkTheme, type AppTheme } from '../../constants/theme';
 import {
@@ -262,21 +263,53 @@ export function DzialkaSketch({ dzialka, ciezarObjetosciowy, wykonaneMetry = 0, 
             );
           })}
 
-          {/* Live mode */}
-          {isLiveMode && (
+          {/* Live mode – zamalowanie przejechanych pól w kształcie figury */}
+          {isLiveMode && wykonaneMetry > 0 && (
             <>
-              {/* Nakładka 70% (surowe podłoże) */}
-              <SvgRect x={LEFT_MARGIN} y={PAD_TOP} width={SKETCH_W} height={yAcc - PAD_TOP} fill="rgba(0,0,0,0.7)" />
-              {/* Nakładka 100% (zrobiony asfalt) */}
-              {paverY > PAD_TOP && (
-                <SvgRect x={LEFT_MARGIN} y={PAD_TOP} width={SKETCH_W} height={paverY - PAD_TOP} fill="rgba(10,10,15,0.95)" />
-              )}
-              {/* Linia granicy */}
+              <Defs>
+                {figury.map((figura, idx) => {
+                  const figStart = cumMetry[idx];
+                  const figLen = dlugoscFigury(figura);
+                  const passedInFig = Math.min(Math.max(wykonaneMetry - figStart, 0), figLen);
+                  if (passedInFig <= 0) return null;
+                  const yFig = cumHeights[idx];
+                  const hFig = heights[idx];
+                  const partialH = hFig * (passedInFig / Math.max(figLen, 1));
+                  return (
+                    <ClipPath key={`clip-${figura.id}`} id={`clip-pass-${figura.id}`}>
+                      <SvgRect x={LEFT_MARGIN - 2} y={yFig} width={SKETCH_W + 4} height={partialH} />
+                    </ClipPath>
+                  );
+                })}
+              </Defs>
+              {figury.map((figura, idx) => {
+                const figStart = cumMetry[idx];
+                const figLen = dlugoscFigury(figura);
+                const passedInFig = Math.min(Math.max(wykonaneMetry - figStart, 0), figLen);
+                if (passedInFig <= 0) return null;
+                const yFig = cumHeights[idx];
+                const hFig = heights[idx];
+                return (
+                  <SvgG key={`pass-${figura.id}`} clipPath={`url(#clip-pass-${figura.id})`}>
+                    <FiguraKsztalt
+                      figura={figura}
+                      yFig={yFig}
+                      hFig={hFig}
+                      maxSzer={maxSzer}
+                      fill="rgba(10,10,15,1)"
+                      stroke="rgba(10,10,15,1)"
+                      strokeW={0}
+                      onPress={() => {}}
+                    />
+                  </SvgG>
+                );
+              })}
+              {/* Linia rozkładarki */}
               {paverY > PAD_TOP && (
                 <SvgLine x1={LEFT_MARGIN - 4} y1={paverY} x2={LEFT_MARGIN + SKETCH_W + 4} y2={paverY} stroke="#E8A020" strokeWidth="2" />
               )}
-              {/* Rozkładarka – widok z góry */}
-              {wykonaneMetry > 0 && paverY > PAD_TOP + 14 && (
+              {/* Rozkładarka */}
+              {paverY > PAD_TOP + 14 && (
                 <PaverTopSVG x={LEFT_MARGIN + SKETCH_W / 2} y={paverY} szer={SKETCH_W - 4} />
               )}
               {/* Markery aut */}

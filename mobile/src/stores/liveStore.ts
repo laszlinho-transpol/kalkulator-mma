@@ -4,12 +4,14 @@
 
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { WpisLive } from '../types';
+import type { WpisLive, SesjaDzialkiLive } from '../types';
 
 const KLUCZ_STORAGE = '@mma:live';
+const KLUCZ_SESJE = '@mma:live_sesje';
 
 interface LiveStore {
   wpisy: WpisLive[];
+  sesje: SesjaDzialkiLive[];
   zaladowane: boolean;
   zaladujWpisy: () => Promise<void>;
   dodajWpisAuta: (wpis: Omit<WpisLive, 'id' | 'createdAt'>) => Promise<void>;
@@ -19,6 +21,9 @@ interface LiveStore {
   wpisyDlaDzialki: (planId: string, dzialkaId: string) => WpisLive[];
   wyczyścWpisyPlanu: (planId: string) => Promise<void>;
   importujWpisyPlanu: (planId: string, wpisy: Omit<WpisLive, 'id' | 'createdAt' | 'planId'>[]) => Promise<void>;
+  czyDzialkaZakonczona: (planId: string, dzialkaId: string) => boolean;
+  oznaczOstatnieAuto: (planId: string, dzialkaId: string) => Promise<void>;
+  wznowDzialke: (planId: string, dzialkaId: string) => Promise<void>;
 }
 
 const generujId = (): string =>
@@ -28,18 +33,28 @@ const zapiszDoStorage = async (wpisy: WpisLive[]) => {
   await AsyncStorage.setItem(KLUCZ_STORAGE, JSON.stringify(wpisy));
 };
 
+const zapiszSesje = async (sesje: SesjaDzialkiLive[]) => {
+  await AsyncStorage.setItem(KLUCZ_SESJE, JSON.stringify(sesje));
+};
+
+const kluczSesji = (planId: string, dzialkaId: string) => `${planId}:${dzialkaId}`;
+
 export const useLiveStore = create<LiveStore>((set, get) => ({
   wpisy: [],
+  sesje: [],
   zaladowane: false,
 
   zaladujWpisy: async () => {
     try {
-      const json = await AsyncStorage.getItem(KLUCZ_STORAGE);
-      if (json) {
-        set({ wpisy: JSON.parse(json), zaladowane: true });
-      } else {
-        set({ zaladowane: true });
-      }
+      const [json, jsonSesje] = await Promise.all([
+        AsyncStorage.getItem(KLUCZ_STORAGE),
+        AsyncStorage.getItem(KLUCZ_SESJE),
+      ]);
+      set({
+        wpisy: json ? JSON.parse(json) : [],
+        sesje: jsonSesje ? JSON.parse(jsonSesje) : [],
+        zaladowane: true,
+      });
     } catch {
       set({ zaladowane: true });
     }
@@ -94,5 +109,26 @@ export const useLiveStore = create<LiveStore>((set, get) => ({
     const zaktualizowane = [...bezPlanu, ...zaimportowane];
     set({ wpisy: zaktualizowane });
     await zapiszDoStorage(zaktualizowane);
+  },
+
+  czyDzialkaZakonczona: (planId, dzialkaId) => {
+    const k = kluczSesji(planId, dzialkaId);
+    return get().sesje.some((s) => kluczSesji(s.planId, s.dzialkaId) === k && s.zakonczona);
+  },
+
+  oznaczOstatnieAuto: async (planId, dzialkaId) => {
+    const k = kluczSesji(planId, dzialkaId);
+    const teraz = new Date().toISOString();
+    const bez = get().sesje.filter((s) => kluczSesji(s.planId, s.dzialkaId) !== k);
+    const zaktualizowane = [...bez, { planId, dzialkaId, zakonczona: true, zakonczonaAt: teraz }];
+    set({ sesje: zaktualizowane });
+    await zapiszSesje(zaktualizowane);
+  },
+
+  wznowDzialke: async (planId, dzialkaId) => {
+    const k = kluczSesji(planId, dzialkaId);
+    const zaktualizowane = get().sesje.filter((s) => kluczSesji(s.planId, s.dzialkaId) !== k);
+    set({ sesje: zaktualizowane });
+    await zapiszSesje(zaktualizowane);
   },
 }));

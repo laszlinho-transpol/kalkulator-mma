@@ -8,6 +8,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useMieszankiStore } from '../src/stores/mieszankiStore';
 import { usePlanyStore } from '../src/stores/planyStore';
 import { useBudowyStore } from '../src/stores/budowyStore';
+import { useWytwornieStore } from '../src/stores/wytwornieStore';
 import { useLiveStore } from '../src/stores/liveStore';
 import { lightTheme, darkTheme } from '../src/constants/theme';
 import { LoadingScreen } from '../src/components/common/LoadingScreen';
@@ -21,6 +22,7 @@ export default function RootLayout() {
   const zaladujMieszanki = useMieszankiStore((s) => s.zaladujMieszanki);
   const zaladujPlany = usePlanyStore((s) => s.zaladujPlany);
   const zaladujBudowy = useBudowyStore((s) => s.zaladujBudowy);
+  const zaladujWytwornie = useWytwornieStore((s) => s.zaladujWytwornie);
   const zaladujWpisy = useLiveStore((s) => s.zaladujWpisy);
 
   const [ladowanie, setLadowanie] = useState(true);
@@ -28,7 +30,7 @@ export default function RootLayout() {
 
   useEffect(() => {
     const init = async () => {
-      await Promise.all([zaladujMieszanki(), zaladujPlany(), zaladujWpisy(), zaladujBudowy()]);
+      await Promise.all([zaladujMieszanki(), zaladujPlany(), zaladujWpisy(), zaladujBudowy(), zaladujWytwornie()]);
       const onboardingComplete = await AsyncStorage.getItem(KLUCZ_ONBOARDING);
       setLadowanie(false);
       if (!onboardingComplete) {

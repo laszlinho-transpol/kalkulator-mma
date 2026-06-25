@@ -2,12 +2,24 @@
 // TYPY DANYCH – KALKULATOR MMA
 // ============================================================
 
+// --- Wytwórnia (zakład produkcyjny) ---
+
+export interface Wytwornia {
+  id: string;
+  nazwa: string;
+  /** Link Google Maps (np. maps.app.goo.gl/...) */
+  linkGoogleMaps?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // --- Budowa (inwestycja drogowa) ---
 
 export interface Budowa {
   id: string;
   nazwaInwestycji: string;   // np. DK25 Mąkowarsko
   kodBudowy: string;         // np. B128
+  zalaczniki?: ZalacznikPlanu[];
   createdAt: string;
   updatedAt: string;
 }
@@ -32,6 +44,8 @@ export interface Mieszanka {
   rodzaj: string;               // np. AC22P, SMA11
   nrRecepty?: string;
   ciezarObjetosciowy: number;   // [t/m3], do 3 miejsc po przecinku
+  wytworniaId?: string;
+  /** @deprecated użyj wytworniaId – zachowane dla importu starych danych */
   wytwórnia?: string;
   createdAt: string;
   updatedAt: string;
@@ -103,7 +117,11 @@ export interface DzialkaRobocza {
   id: string;
   nazwa: string;
   mieszankaId: string;
-  grubosc: number;        // [cm]
+  /** @deprecated użyj gruboscWbudowywania */
+  grubosc: number;        // [cm] – kompatybilność wsteczna
+  gruboscProjektowa?: number;   // [cm]
+  tolerancja?: number;          // [%], domyślnie 10
+  gruboscWbudowywania?: number; // [cm]
   opis?: string;
   kilometrazPoczatkowyKm: number;   // część km, np. 105
   kilometrazPoczatkowyM: number;    // część m, np. 500
@@ -149,6 +167,14 @@ export interface WpisLive {
   komentarz?: string;
   godzinaWybudowania: string;   // HH:MM
   createdAt: string;
+}
+
+/** Stan zakończenia działki w trybie Live („Ostatnie auto”) */
+export interface SesjaDzialkiLive {
+  planId: string;
+  dzialkaId: string;
+  zakonczona: boolean;
+  zakonczonaAt?: string;
 }
 
 // --- Wyniki obliczeń (kalkulowane, nie przechowywane w DB) ---

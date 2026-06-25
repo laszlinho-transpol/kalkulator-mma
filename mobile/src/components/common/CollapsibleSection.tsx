@@ -15,11 +15,14 @@ interface CollapsibleSectionProps {
   domyslnieRozwinieta?: boolean;
   /** Pojedynczy wiersz bez zwijania (np. „bez wytwórni”) */
   plaski?: boolean;
+  akcjaEtykieta?: string;
+  onAkcja?: () => void;
   children: React.ReactNode;
 }
 
 export function CollapsibleSection({
-  tytul, liczba, theme, ikona = '▸', domyslnieRozwinieta = false, plaski = false, children,
+  tytul, liczba, theme, ikona = '▸', domyslnieRozwinieta = false, plaski = false,
+  akcjaEtykieta, onAkcja, children,
 }: CollapsibleSectionProps) {
   const [rozwinieta, setRozwinieta] = useState(domyslnieRozwinieta || plaski);
 
@@ -47,6 +50,11 @@ export function CollapsibleSection({
           {ikona !== '▸' ? `${ikona} ` : ''}{tytul}
         </Text>
         <View style={styles.prawo}>
+          {onAkcja && akcjaEtykieta && (
+            <TouchableOpacity onPress={(e) => { e.stopPropagation?.(); onAkcja(); }} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
+              <Text style={{ color: theme.colors.info, fontSize: 12, fontWeight: '600' }}>{akcjaEtykieta}</Text>
+            </TouchableOpacity>
+          )}
           <Text style={[styles.liczba, { color: theme.colors.textSecondary }]}>{liczba}</Text>
           <Text style={[styles.strzalka, { color: theme.colors.primary }]}>{rozwinieta ? '▼' : '▶'}</Text>
         </View>
