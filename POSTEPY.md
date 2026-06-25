@@ -398,3 +398,72 @@ Link: https://expo.dev/signup
 **Weryfikacja**: `npx tsc --noEmit` → **0 błędów** ✅
 
 ---
+
+## ETAP 8 – Poprawki z PDF (wytwórnie, PZT, LIVE, grubości)
+**Data:** 2026-06-20
+**Status:** ✅ UKOŃCZONY
+**Branch:** `cursor/kalkulator-mma-etap8-0a0b`
+**Wersja aplikacji:** 1.4.0 (versionCode 6)
+
+### Co zostało zrobione:
+
+1. **Naprawa crashu planu** (`app/plan/nowy.tsx`):
+   - Uproszczony zapis planu bez kopiowania załączników przy tworzeniu
+   - Stabilne otwieranie i edycja istniejących planów
+
+2. **Empty states** (`EmptyState.tsx`):
+   - Ikony zgodne z menu głównym
+   - Wyśrodkowanie pionowe na pustych listach
+
+3. **Grubości w planie** (`PlanForm.tsx`, `grubosc.ts`):
+   - Grubość projektowa, tolerancja (%), grubość wbudowywania
+   - Kompatybilność wsteczna ze starym polem `grubosc`
+
+4. **Wbudowywanie → zakładka Plan** (`TabelaAut.tsx`):
+   - Tabela samochodów widoczna podczas realizacji
+
+5. **LIVE – szkic** (`DzialkaSketch.tsx`):
+   - Kolorowanie przejechanej części w kształcie figury (ClipPath)
+   - Bez ciemnej nakładki na nieprzejechanej części
+
+6. **LIVE – sesje działek** (`liveStore.ts`):
+   - Przycisk „Ostatnie auto” (cofnięcie ostatniego wpisu)
+   - Zakończenie dniówki na działce i wznowienie pracy
+
+7. **Zakończenie LIVE + raport PDF** (`wbudowywanie/[id].tsx`, `pdfGenerator.ts`):
+   - Archiwizacja planu po zakończeniu
+   - Generowanie raportu PDF z bilansem
+
+8. **Wytwórnie z Google Maps** (`wytwornieStore.ts`, `mieszanki/index.tsx`):
+   - Dodawanie wytwórni z linku Google Maps
+   - Podgląd mapy, kopiowanie linku, otwarcie w Maps
+   - Wybór wytwórni przy dodawaniu mieszanki
+
+9. **SafeArea** (`plan/import.tsx`, modal auta w `wbudowywanie/[id].tsx`):
+   - Poprawione marginesy na ekranie Import i w modalu auta na szkicu
+
+10. **Załączniki PDF pod budową + PZT** (`plan/index.tsx`, `wbudowywanie/[id].tsx`):
+    - Załączniki przypisane do budowy (nie do planu)
+    - Zakładka PZT w module Wbudowywanie z podglądem PDF
+
+11. **Archiwum po budowach** (`archiwum/index.tsx`):
+    - Lista zakończonych robót pogrupowana po budowach
+
+12. **Wersja i changelog w aplikacji** (`src/constants/version.ts`, `ustawienia.tsx`):
+    - Sekcja „Co nowego” w Ustawieniach
+    - Wersja 1.4.0 w `app.json` i na ekranie O aplikacji
+
+### Nowe pliki:
+- `src/stores/wytwornieStore.ts`
+- `src/utils/grubosc.ts`
+- `src/components/plan/TabelaAut.tsx`
+- `src/constants/version.ts`
+- `src/utils/calculations.test.ts`
+- `src/utils/grubosc.test.ts`
+
+### Weryfikacja (2026-06-20):
+- `npm run verify` → `tsc --noEmit` **0 błędów** ✅
+- Testy jednostkowe (`calculations`, `grubosc`) → **6/6 zaliczonych** ✅
+- `npx expo-doctor` → 19/21 (ostrzeżenia: wersja `expo-clipboard`, lokalny `eas-cli` w lockfile – nie blokuje buildu)
+
+---

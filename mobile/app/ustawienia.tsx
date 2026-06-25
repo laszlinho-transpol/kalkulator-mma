@@ -14,10 +14,10 @@ import { AnimatedCard } from '../src/components/common/AnimatedCard';
 import { useMieszankiStore } from '../src/stores/mieszankiStore';
 import { usePlanyStore } from '../src/stores/planyStore';
 import { useLiveStore } from '../src/stores/liveStore';
+import { WERSJA_APLIKACJI, CHANGELOG } from '../src/constants/version';
 
 const KLUCZ_ONBOARDING = '@mma:onboardingComplete';
 const KLUCZ_USTAWIEN = '@mma:settings';
-const WERSJA_APLIKACJI = '1.0.0';
 
 interface Ustawienia {
   tonazDomyslny: number;
@@ -182,8 +182,28 @@ export default function UstawieniaScreen() {
           </View>
         </AnimatedCard>
 
+        {/* Co nowego */}
+        <AnimatedCard delay={200}>
+          <View style={[styles.sekcja, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+            <Text style={[styles.sekcjaTytul, { color: theme.colors.textSecondary }]}>CO NOWEGO</Text>
+            {CHANGELOG.slice(0, 2).map((wpis) => (
+              <View key={wpis.wersja} style={[styles.changelogWpis, { borderColor: theme.colors.border }]}>
+                <Text style={[styles.changelogWersja, { color: theme.colors.primary }]}>
+                  v{wpis.wersja} · {wpis.data}
+                </Text>
+                <Text style={[styles.changelogTytul, { color: theme.colors.text }]}>{wpis.tytul}</Text>
+                {wpis.zmiany.map((z) => (
+                  <Text key={z} style={[styles.changelogPunkt, { color: theme.colors.textSecondary }]}>
+                    • {z}
+                  </Text>
+                ))}
+              </View>
+            ))}
+          </View>
+        </AnimatedCard>
+
         {/* O aplikacji */}
-        <AnimatedCard delay={240}>
+        <AnimatedCard delay={280}>
           <View style={[styles.sekcja, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
             <Text style={[styles.sekcjaTytul, { color: theme.colors.textSecondary }]}>O APLIKACJI</Text>
 
@@ -261,6 +281,10 @@ const styles = StyleSheet.create({
   akcjaLabel: { fontSize: 15, fontWeight: '600', marginBottom: 2 },
   akcjaOpis: { fontSize: 12 },
   strzalka: { fontSize: 20 },
+  changelogWpis: { borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 10, gap: 4 },
+  changelogWersja: { fontSize: 12, fontWeight: '700' },
+  changelogTytul: { fontSize: 14, fontWeight: '600', marginBottom: 4 },
+  changelogPunkt: { fontSize: 12, lineHeight: 18, paddingLeft: 4 },
   appInfo: { padding: 16, gap: 8 },
   appNazwa: { fontSize: 20, fontWeight: '900', letterSpacing: 2 },
   appWersja: { fontSize: 13 },

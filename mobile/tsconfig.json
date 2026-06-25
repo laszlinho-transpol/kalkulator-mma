@@ -3,6 +3,9 @@
   "compilerOptions": {
     "strict": true
   },
+  "exclude": [
+    "**/*.test.ts"
+  ],
   "include": [
     "**/*.ts",
     "**/*.tsx",
