@@ -314,7 +314,8 @@ Link: https://expo.dev/signup
 
 ## DO ZROBIENIA (potencjalne rozszerzenia):
 
-- [ ] Opublikowanie w Google Play Store (eas submit)
+- [x] Instrukcja publikacji w Google Play (`mobile/PUBLIKACJA_PLAY_STORE.md`)
+- [ ] Opublikowanie w Google Play Store (wymaga Twojego `eas login` + upload AAB)
 - [ ] Push notifications (expo-notifications)
 - [x] Edycja aktywnego wpisu Live po dodaniu
 - [ ] Wyszukiwanie w listach mieszanek i archiwum
@@ -464,6 +465,27 @@ Link: https://expo.dev/signup
 ### Weryfikacja (2026-06-20):
 - `npm run verify` → `tsc --noEmit` **0 błędów** ✅
 - Testy jednostkowe (`calculations`, `grubosc`) → **6/6 zaliczonych** ✅
-- `npx expo-doctor` → 19/21 (ostrzeżenia: wersja `expo-clipboard`, lokalny `eas-cli` w lockfile – nie blokuje buildu)
+- `npx expo-doctor` → 19/21 (ostrzeżenia: wersja `expo-clipboard` – nie blokuje buildu)
+
+### Publikacja Play Store:
+- Instrukcja: `mobile/PUBLIKACJA_PLAY_STORE.md`
+- Skrypt: `mobile/publish-play-store.sh`
+
+---
+
+## ETAP 9 – Porządkowanie repozytorium
+**Data:** 2026-06-26
+**Status:** ✅ UKOŃCZONY
+
+Usunięto stare, nieużywane pliki z poprzedniego projektu (frontend, backend, testy agenta AI).
+W repozytorium zostały tylko pliki potrzebne do aplikacji mobilnej:
+
+```
+kalkulator-mma/
+├── mobile/       ← aplikacja Expo (TYLKO TO BUDUJESZ)
+├── POSTEPY.md
+├── .clinerules
+└── README.md
+```
 
 ---
