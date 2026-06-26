@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.4.0';
+export const WERSJA_APLIKACJI = '1.4.1';
 
 export interface WpisChangelog {
   wersja: string;
@@ -12,6 +12,17 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.4.1',
+    data: '2026-06-26',
+    tytul: 'Naprawa crashu przy starcie (Play Store)',
+    zmiany: [
+      'Naprawiono awarię przy otwieraniu aplikacji po aktualizacji z Play Store',
+      'Poprawione wersje bibliotek natywnych (clipboard, webview, gesture-handler)',
+      'Bezpieczniejszy start aplikacji – nawigacja dopiero gdy system jest gotowy',
+      'Ekran błędu zamiast natychmiastowego zamykania aplikacji',
+    ],
+  },
   {
     wersja: '1.4.0',
     data: '2026-06-20',

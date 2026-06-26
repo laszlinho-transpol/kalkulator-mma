@@ -4,6 +4,36 @@ Instrukcja dla **testów wewnętrznych** (Internal testing). To najszybsza ście
 
 ---
 
+## Szybka ściąga – automatyczna aktualizacja (Windows)
+
+### Jednorazowa konfiguracja (15 min)
+
+1. Zaloguj się: `npx eas-cli@latest login`
+2. Utwórz konto serwisowe Google → pobierz plik JSON
+3. Zapisz jako `mobile/google-service-account.json` (patrz CZĘŚĆ E)
+4. W Play Console dodaj e-mail konta serwisowego z uprawnieniem **Zarządzaj wydaniami**
+
+### Każda kolejna aktualizacja (2 komendy)
+
+W PowerShell, w folderze `mobile`:
+
+```powershell
+$env:EAS_NO_VCS = "1"
+.\publish-play-store.ps1 all
+```
+
+To zrobi **build AAB + automatyczne wysłanie do Play Store** (tor: test wewnętrzny).
+
+Potem w Play Console kliknij **Rozpocznij wdrażanie** (jeśli wymagane) i na telefonie **Aktualizuj** w Play Store.
+
+Alternatywa jedną komendą (po `eas login`):
+
+```powershell
+npm run release:play
+```
+
+---
+
 ## Co musisz mieć
 
 | Element | Status |
@@ -148,10 +178,20 @@ Profil `production` ma `autoIncrement: true` – EAS może sam podbijać `versio
 
 | Problem | Rozwiązanie |
 |---------|-------------|
+| **Aplikacja się nie otwiera / zamyka od razu** | Odinstaluj starą wersję → zainstaluj ponownie z Play Store. Jeśli nadal crash: poczekaj na wersję **1.4.1** (naprawa startu). Stara wersja 1.4.0 mogła mieć niezgodne biblioteki natywne. |
 | „Pakiet już istnieje” | Ktoś wcześniej zarejestrował `com.kalkulatormma.app` – użyj tej samej aplikacji w konsoli |
 | „versionCode musi być większy” | Zwiększ `versionCode` w `app.json` i zbuduj ponownie |
 | Nie widzę aplikacji w Play | Czy zaakceptowałeś link opt-in testera? Czy wydanie jest „wdrożone”? |
 | Brak polityki prywatności | Dodaj URL w Ustawieniach aplikacji w konsoli |
+| Aktualizacja z APK (ręczna) na Play Store | Odinstaluj APK sideloadowany, zainstaluj z Play Store — inny podpis uniemożliwia aktualizację „w miejscu” |
+
+### Diagnoza crashu po aktualizacji (wersja 1.4.0)
+
+Najczęstsze przyczyny:
+1. **Niezgodne wersje bibliotek** (`expo-clipboard`, `react-native-webview`) — naprawione w **1.4.1**
+2. **Nawigacja przed gotowością aplikacji** przy pierwszym uruchomieniu — naprawione w **1.4.1**
+3. **Stara wersja APK + nowa z Play Store** — odinstaluj i zainstaluj od nowa
+4. **Uszkodzone dane lokalne** po aktualizacji — odinstaluj (czyści dane) i zainstaluj ponownie
 
 ---
 

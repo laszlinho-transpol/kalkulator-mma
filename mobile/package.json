@@ -1,13 +1,13 @@
 {
   "name": "mobile",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "main": "expo-router/entry",
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-community/datetimepicker": "9.1.0",
     "babel-preset-expo": "^56.0.15",
     "expo": "~56.0.12",
-    "expo-clipboard": "~8.0.0",
+    "expo-clipboard": "~56.0.4",
     "expo-constants": "~56.0.18",
     "expo-document-picker": "^56.0.4",
     "expo-file-system": "~56.0.8",
@@ -20,10 +20,11 @@
     "expo-status-bar": "~56.0.4",
     "react": "19.2.3",
     "react-native": "0.85.3",
+    "react-native-gesture-handler": "~2.31.1",
     "react-native-safe-area-context": "~5.7.0",
     "react-native-svg": "15.15.4",
     "react-native-svg-transformer": "^1.5.3",
-    "react-native-webview": "^14.0.1",
+    "react-native-webview": "13.16.1",
     "zustand": "^5.0.14"
   },
   "devDependencies": {
@@ -37,7 +38,8 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "test": "tsx --test src/utils/**/*.test.ts",
-    "verify": "tsc --noEmit && tsx --test src/utils/**/*.test.ts"
+    "verify": "tsc --noEmit && tsx --test src/utils/**/*.test.ts",
+    "release:play": "eas build --platform android --profile production --auto-submit --non-interactive"
   },
   "private": true
 }

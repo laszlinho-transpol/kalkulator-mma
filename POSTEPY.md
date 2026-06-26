@@ -489,3 +489,26 @@ kalkulator-mma/
 ```
 
 ---
+
+## ETAP 10 – Naprawa crashu Play Store + auto-submit
+**Data:** 2026-06-26
+**Status:** ✅ UKOŃCZONY
+**Wersja aplikacji:** 1.4.1 (versionCode 7)
+
+### Diagnoza crashu po aktualizacji z Play Store (1.4.0):
+
+1. **Niezgodne wersje bibliotek natywnych** – `expo-clipboard` 8.x i `react-native-webview` 14.x zamiast wersji dla Expo SDK 56
+2. **Nawigacja do onboardingu przed gotowością routera** – `router.replace()` w `_layout.tsx` wywoływane zbyt wcześnie
+3. **Możliwy konflikt APK sideload + Play Store** – różne podpisy cyfrowe
+
+### Naprawy:
+
+1. Poprawne wersje bibliotek: `expo-clipboard`, `react-native-webview`, `react-native-gesture-handler`
+2. `app/_layout.tsx` – bezpieczny start, `useRootNavigationState`, try/catch
+3. `ErrorBoundary.tsx` – ekran błędu zamiast natychmiastowego zamknięcia
+4. `publish-play-store.ps1` – skrypt Windows: build + auto-submit
+5. `npm run release:play` – jedna komenda: build + wysłanie do Play Store
+
+**Weryfikacja**: `npm run verify` → **0 błędów, 6/6 testów** ✅
+
+---
