@@ -572,3 +572,24 @@ Instrukcja instalacji na Windows: `INSTALACJA_WINDOWS.md`
 **Weryfikacja**: `npm run verify` → **0 błędów TS, 10/10 testów** ✅
 
 ---
+
+## ETAP 12 – Naprawa otwierania planu po zapisie (1.5.1)
+**Data:** 2026-06-26
+**Status:** ✅ UKOŃCZONY
+**Wersja aplikacji:** 1.5.1 (versionCode 9)
+
+### Przyczyna błędu
+
+Ekran `plan/[id].tsx` używał `useLiveStore((s) => s.wpisyDlaPlanu(id))`.
+Metoda `filter()` zwracała **nową tablicę** przy każdym renderze → Zustand wykrywał zmianę → nieskończona pętla → „Maximum update depth exceeded”.
+Plan zapisywał się do pamięci, ale ekran szczegółów padał przy otwarciu.
+
+### Naprawa
+
+- Hooki: `useWpisyDlaPlanu`, `usePlanPoId`, `useRouteId`
+- `plan/nowy.tsx`: `router.replace` zamiast `push` po zapisie
+- Test regresji: `useWpisyDlaPlanu.test.ts`
+
+**Weryfikacja**: `npm run verify` → **0 błędów TS, testy OK** ✅
+
+---

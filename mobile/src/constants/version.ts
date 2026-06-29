@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.5.0';
+export const WERSJA_APLIKACJI = '1.5.1';
 
 export interface WpisChangelog {
   wersja: string;
@@ -12,6 +12,16 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.5.1',
+    data: '2026-06-26',
+    tytul: 'Naprawa otwierania planu po zapisie',
+    zmiany: [
+      'Naprawiono błąd „Maximum update depth exceeded” przy otwieraniu planu',
+      'Plan zapisuje się poprawnie i można go edytować oraz udostępniać',
+      'Bezpieczniejsza nawigacja po zapisie nowego planu',
+    ],
+  },
   {
     wersja: '1.5.0',
     data: '2026-06-26',

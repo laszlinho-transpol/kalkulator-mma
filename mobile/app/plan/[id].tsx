@@ -7,12 +7,13 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   useColorScheme, Alert, Modal, Pressable, TextInput,
 } from 'react-native';
-import { useLocalSearchParams, router } from 'expo-router';
+import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { usePlanyStore } from '../../src/stores/planyStore';
 import { useMieszankiStore } from '../../src/stores/mieszankiStore';
-import { useLiveStore } from '../../src/stores/liveStore';
 import { useBudowyStore } from '../../src/stores/budowyStore';
+import { useRouteId } from '../../src/hooks/useRouteId';
+import { usePlanPoId } from '../../src/hooks/usePlanPoId';
+import { useWpisyDlaPlanu } from '../../src/hooks/useWpisyDlaPlanu';
 import { lightTheme, darkTheme } from '../../src/constants/theme';
 import { AnimatedTabBar } from '../../src/components/common/AnimatedTabBar';
 import { AppHeader } from '../../src/components/common/AppHeader';
@@ -34,12 +35,12 @@ type ZakladkaTyp = 'plan' | 'tabela' | 'szkic';
 export default function PlanDetailScreen() {
   const colorScheme = useColorScheme();
   const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const id = useRouteId();
 
-  const plan = usePlanyStore((s) => s.pobierzPlan(id));
+  const plan = usePlanPoId(id);
   const mieszanki = useMieszankiStore((s) => s.mieszanki);
   const budowy = useBudowyStore((s) => s.budowy);
-  const wpisyLive = useLiveStore((s) => s.wpisyDlaPlanu(id));
+  const wpisyLive = useWpisyDlaPlanu(id);
 
   const [aktywnaZakladka, setZakladka] = useState<ZakladkaTyp>('plan');
   const [wybranaIdx, setWybranaIdx] = useState(0);
