@@ -102,6 +102,79 @@ export function obliczWynikiDzialki(
 
 // --- Tabela aut z podziałem na rzuty ---
 
+/** Średnia szerokość figury [m] – powierzchnia / długość */
+export function sredniaSzerokoscFigury(figura: Figura): number {
+  const dl = dlugoscFigury(figura);
+  if (dl <= 0) return 0;
+  return round2(obliczPowierzchniFigury(figura) / dl);
+}
+
+/**
+ * Tabela aut z uwzględnieniem różnych szerokości pól (kolejność figur).
+ * Każde auto zużywa masę proporcjonalnie do powierzchni kolejnych odcinków.
+ */
+export function obliczTabeleAutDlaDzialki(
+  dzialka: DzialkaRobocza,
+  ciezarObjetosciowy: number,
+  rzuty: Rzut[],
+  tonazAuta: number = DOMYSLNY_TONAZ_AUTA,
+): WpisTabeliAut[] {
+  const grubosc = dzialka.gruboscWbudowywania ?? dzialka.grubosc;
+  const wyniki = obliczWynikiDzialki(dzialka, ciezarObjetosciowy, tonazAuta);
+  const segmenty = dzialka.figury.map((f) => {
+    const dl = dlugoscFigury(f);
+    const masaNaM = round3(sredniaSzerokoscFigury(f) * (grubosc / 100) * ciezarObjetosciowy);
+    return { dl, masaNaM, pozostalo: dl };
+  });
+
+  const wynikiAut: WpisTabeliAut[] = [];
+  let masaNarastajaco = 0;
+  let metryNarastajaco = 0;
+  let numerAuta = 0;
+  let segIdx = 0;
+
+  const pobierzMetryDlaMasy = (masaMg: number): number => {
+    let masaPozost = masaMg;
+    let metry = 0;
+    while (masaPozost > 0.0001 && segIdx < segmenty.length) {
+      const seg = segmenty[segIdx];
+      if (seg.masaNaM <= 0 || seg.pozostalo <= 0) {
+        segIdx++;
+        continue;
+      }
+      const maxM = seg.pozostalo * seg.masaNaM;
+      const zuzyj = Math.min(masaPozost, maxM);
+      const m = seg.masaNaM > 0 ? zuzyj / seg.masaNaM : 0;
+      metry = round2(metry + m);
+      seg.pozostalo = round2(seg.pozostalo - m);
+      masaPozost = round3(masaPozost - zuzyj);
+      if (seg.pozostalo <= 0.001) segIdx++;
+    }
+    return metry;
+  };
+
+  for (const rzut of rzuty) {
+    for (let i = 0; i < rzut.iloscSamochodow; i++) {
+      numerAuta++;
+      const pozostaloMasy = round3(wyniki.lacznaIloscMasy - masaNarastajaco);
+      const masa = round2(Math.min(tonazAuta, pozostaloMasy));
+      const metry = pobierzMetryDlaMasy(masa);
+      masaNarastajaco = round3(masaNarastajaco + masa);
+      metryNarastajaco = round2(metryNarastajaco + metry);
+      wynikiAut.push({
+        numerAuta,
+        numerRzutu: rzut.numerRzutu,
+        masa,
+        masaNarastajaco,
+        metry,
+        metryNarastajaco,
+      });
+    }
+  }
+
+  return wynikiAut;
+}
+
 /**
  * @param lacznaIloscMasy - łączna masa do wbudowania [Mg]
  * @param lacznasDlugosc  - łączna długość liniowa działki [m bieżące]
@@ -113,7 +186,13 @@ export function obliczTabeleAut(
   lacznasDlugosc: number,
   rzuty: Rzut[],
   tonazAuta: number = DOMYSLNY_TONAZ_AUTA,
+  dzialka?: DzialkaRobocza,
+  ciezarObjetosciowy?: number,
 ): WpisTabeliAut[] {
+  if (dzialka && ciezarObjetosciowy && dzialka.figury.length > 0) {
+    return obliczTabeleAutDlaDzialki(dzialka, ciezarObjetosciowy, rzuty, tonazAuta);
+  }
+
   const wyniki: WpisTabeliAut[] = [];
   let masaNarastajaco = 0;
   let metryNarastajaco = 0;

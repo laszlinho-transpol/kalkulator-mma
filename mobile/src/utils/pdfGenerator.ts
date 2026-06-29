@@ -12,9 +12,10 @@ interface GenerujPDFOptions {
   plan: Plan;
   wpisyLive: WpisLive[];
   mieszanki: Array<{ id: string; rodzaj: string; ciezarObjetosciowy: number; wytwórnia?: string }>;
+  budowa?: { kodBudowy: string; nazwaInwestycji: string };
 }
 
-export async function generujRaportPDF({ plan, wpisyLive, mieszanki }: GenerujPDFOptions): Promise<void> {
+export async function generujRaportPDF({ plan, wpisyLive, mieszanki, budowa }: GenerujPDFOptions): Promise<void> {
   const getMieszanka = (id: string) => mieszanki.find((m) => m.id === id);
 
   const stylePDF = `
@@ -128,6 +129,7 @@ export async function generujRaportPDF({ plan, wpisyLive, mieszanki }: GenerujPD
 <head><meta charset="utf-8"/><style>${stylePDF}</style></head>
 <body>
   <h1>Raport dnia roboczego – Kalkulator MMA</h1>
+  ${budowa ? `<div class="section-box" style="border-color:#2E86AB"><div class="info-row"><span class="lbl">Budowa</span><span class="val">${budowa.kodBudowy} – ${budowa.nazwaInwestycji}</span></div></div>` : ''}
   <div class="section-box">
     <div class="info-row"><span class="lbl">Data wbudowywania</span><span class="val">${formatujDatePl(plan.dataWbudowywania)}</span></div>
     <div class="info-row"><span class="lbl">Liczba działek</span><span class="val">${plan.dzialki.length}</span></div>

@@ -206,7 +206,7 @@ export default function MieszankiScreen() {
             >
               {w.linkGoogleMaps ? (
                 <TouchableOpacity onPress={otworzMaps} style={{ marginBottom: 6 }}>
-                  <Text style={{ color: theme.colors.info, fontSize: 12 }}>📍 {w.linkGoogleMaps}</Text>
+                  <Text style={{ color: theme.colors.info, fontSize: 13, fontWeight: '600' }}>📍 Lokalizacja wytwórni</Text>
                 </TouchableOpacity>
               ) : null}
               {mieszankiDlaWytworni(w.id).length === 0 ? (

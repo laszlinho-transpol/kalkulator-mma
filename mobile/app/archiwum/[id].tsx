@@ -5,24 +5,30 @@
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  SafeAreaView, useColorScheme, ActivityIndicator, Alert,
+  useColorScheme, ActivityIndicator, Alert,
   Modal, Pressable,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePlanyStore } from '../../src/stores/planyStore';
 import { useMieszankiStore } from '../../src/stores/mieszankiStore';
 import { useLiveStore } from '../../src/stores/liveStore';
+import { useBudowyStore } from '../../src/stores/budowyStore';
 import { lightTheme, darkTheme } from '../../src/constants/theme';
 import { AnimatedTabBar } from '../../src/components/common/AnimatedTabBar';
 import { DzialkaSketch } from '../../src/components/sketch/DzialkaSketch';
+import { TabelaLive } from '../../src/components/plan/TabelaLive';
 import { generujRaportPDF } from '../../src/utils/pdfGenerator';
 import { eksportujJSON, generujInteraktywnyHTML } from '../../src/utils/htmlGenerator';
 import * as MailComposer from 'expo-mail-composer';
 import {
-  obliczWynikiDzialki, obliczLacznaDlugosc,
+  obliczWynikiDzialki,
   formatLiczby,
+  obliczPowierzchnioweOdStartu,
 } from '../../src/utils/calculations';
 import { formatujDatePl } from '../../src/utils/dates';
+import { formatujPikietaz } from '../../src/utils/chainage';
+import { gruboscWbudowywania } from '../../src/utils/grubosc';
 import type { AppTheme } from '../../src/constants/theme';
 
 type ZakladkaTyp = 'podsumowanie' | 'live' | 'szkic';
@@ -34,25 +40,29 @@ export default function ArchiwumDetailScreen() {
 
   const plan = usePlanyStore((s) => s.pobierzPlan(id));
   const mieszanki = useMieszankiStore((s) => s.mieszanki);
+  const budowy = useBudowyStore((s) => s.budowy);
   const { wpisyDlaPlanu } = useLiveStore();
 
   const [aktywnaZakladka, setZakladka] = useState<ZakladkaTyp>('podsumowanie');
   const [wybranaIdx, setWybranaIdx] = useState(0);
   const [generujePDF, setGenerujePDF] = useState(false);
   const [udostepnijModal, setUdostepnijModal] = useState(false);
+  const insets = useSafeAreaInsets();
 
   if (!plan) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <View style={[styles.container, { backgroundColor: theme.colors.background, paddingTop: insets.top }]}>
         <TouchableOpacity onPress={() => router.back()} style={{ padding: 20 }}>
           <Text style={{ color: theme.colors.primary, fontSize: 17 }}>‹ Wstecz</Text>
         </TouchableOpacity>
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
           <Text style={{ color: theme.colors.textSecondary }}>Plan nie znaleziony.</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
+
+  const budowa = plan.budowaId ? budowy.find((b) => b.id === plan.budowaId) : undefined;
 
   const getMieszanka = (mId: string) => mieszanki.find((m) => m.id === mId);
   const wpisyLive = wpisyDlaPlanu(plan.id);
@@ -60,7 +70,7 @@ export default function ArchiwumDetailScreen() {
 
   const handleGenerujPDF = async () => {
     setGenerujePDF(true);
-    try { await generujRaportPDF({ plan, wpisyLive, mieszanki }); }
+    try { await generujRaportPDF({ plan, wpisyLive, mieszanki, budowa: budowa ? { kodBudowy: budowa.kodBudowy, nazwaInwestycji: budowa.nazwaInwestycji } : undefined }); }
     catch { Alert.alert('Błąd', 'Nie udało się wygenerować PDF. Spróbuj ponownie.'); }
     finally { setGenerujePDF(false); }
   };
@@ -83,9 +93,13 @@ export default function ArchiwumDetailScreen() {
   const sumaMasyLive = wpisyLive.reduce((s, w) => s + w.tonazPrzywieziony, 0);
   const sumaMetrLive = wpisyLive.reduce((s, w) => s + w.przejechaneMetry, 0);
   const bilansMasy = sumaMasyLive - sumaMasyPlan;
+  const kmStartGlobal = plan.dzialki.length > 0
+    ? plan.dzialki[0].kilometrazPoczatkowyKm * 1000 + plan.dzialki[0].kilometrazPoczatkowyM
+    : 0;
+  const kmKoniecGlobal = kmStartGlobal + sumaMetrLive;
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <View style={[styles.container, { backgroundColor: theme.colors.background, paddingTop: insets.top }]}>
       {/* Nagłówek */}
       <View style={[styles.naglowek, { backgroundColor: theme.colors.card, borderBottomColor: theme.colors.border }]}>
         <TouchableOpacity onPress={() => router.back()}>
@@ -133,11 +147,16 @@ export default function ArchiwumDetailScreen() {
         </ScrollView>
       )}
 
-      <ScrollView contentContainerStyle={styles.zawartosc} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.zawartosc, { paddingBottom: insets.bottom + 16 }]} showsVerticalScrollIndicator={false}>
 
         {/* ======== PODSUMOWANIE ======== */}
         {aktywnaZakladka === 'podsumowanie' && (
           <>
+            {budowa && (
+              <View style={[styles.karta, { backgroundColor: `${theme.colors.secondary}12`, borderColor: theme.colors.secondary }]}>
+                <Text style={{ color: theme.colors.secondary, fontWeight: '700' }}>{budowa.kodBudowy} – {budowa.nazwaInwestycji}</Text>
+              </View>
+            )}
             {/* Bilans końcowy */}
             <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
               <Text style={[styles.kartaTytul, { color: theme.colors.text }]}>BILANS KOŃCOWY</Text>
@@ -146,8 +165,8 @@ export default function ArchiwumDetailScreen() {
               <IR label="Masa zaplanowana" v={`${formatLiczby(sumaMasyPlan, 2)} Mg`} theme={theme} />
               {wpisyLive.length > 0 && (
                 <>
-                  <IR label="Masa wbudowana" v={`${formatLiczby(sumaMasyLive, 2)} Mg`} theme={theme} />
-                  <IR label="Metry wykonane" v={`${formatLiczby(sumaMetrLive)} m`} theme={theme} />
+                  <IR label="Masa wbudowana" v={`${formatLiczby(sumaMasyLive, 2)} Mg (${bilansMasy >= 0 ? '+' : ''}${formatLiczby(bilansMasy, 2)} Mg)`} theme={theme} />
+                  <IR label="Metry wykonane" v={`${formatLiczby(sumaMetrLive)} m (${formatujPikietaz(kmStartGlobal)} – ${formatujPikietaz(kmKoniecGlobal)})`} theme={theme} />
                   <IR label="Aut przybyło" v={`${wpisyLive.length}`} theme={theme} />
                   <View style={[styles.bilansBoks, { backgroundColor: bilansMasy > 0 ? `${theme.colors.danger}15` : `${theme.colors.success}15`, borderColor: bilansMasy > 0 ? theme.colors.danger : theme.colors.success }]}>
                     <Text style={[styles.bilansLabel, { color: bilansMasy > 0 ? theme.colors.danger : theme.colors.success }]}>
@@ -167,15 +186,22 @@ export default function ArchiwumDetailScreen() {
               const wyniki = mie ? obliczWynikiDzialki(dz, mie.ciezarObjetosciowy, plan.tonazAuta) : null;
               const wpisyDz = wpisyLive.filter((w) => w.dzialkaId === dz.id);
               const sumaTonDz = wpisyDz.reduce((s, w) => s + w.tonazPrzywieziony, 0);
+              const sumaMetrDz = wpisyDz.reduce((s, w) => s + w.przejechaneMetry, 0);
+              const kmStart = dz.kilometrazPoczatkowyKm * 1000 + dz.kilometrazPoczatkowyM;
+              const powLaczna = mie ? obliczPowierzchnioweOdStartu(dz, sumaMetrDz) : 0;
+              const uzyskGr = powLaczna > 0 && mie ? (sumaTonDz / (mie.ciezarObjetosciowy * powLaczna)) * 100 : 0;
+              const grWb = gruboscWbudowywania(dz);
+              const strzalka = uzyskGr > grWb + 0.05 ? ' ▲' : uzyskGr < grWb - 0.05 && uzyskGr > 0 ? ' ▼' : '';
               return (
                 <View key={dz.id} style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
                   <Text style={[styles.kartaTytul, { color: theme.colors.primary }]}>{dz.nazwa}</Text>
                   <IR label="Mieszanka" v={mie?.rodzaj ?? '–'} theme={theme} />
-                  <IR label="Grubość" v={`${dz.grubosc} cm`} theme={theme} />
+                  <IR label="Grubość wbudowywania" v={`${grWb} cm${uzyskGr > 0 ? ` (${formatLiczby(uzyskGr, 2)} cm${strzalka})` : ''}`} theme={theme} />
                   {wyniki && <IR label="Masa planu" v={`${formatLiczby(wyniki.lacznaIloscMasy, 3)} Mg`} theme={theme} />}
                   {wpisyDz.length > 0 && (
                     <>
                       <IR label="Wbudowano" v={`${formatLiczby(sumaTonDz, 2)} Mg`} theme={theme} bold />
+                      <IR label="Metry" v={`${formatLiczby(sumaMetrDz)} m (${formatujPikietaz(kmStart)} – ${formatujPikietaz(kmStart + sumaMetrDz)})`} theme={theme} />
                       <IR label="Aut" v={`${wpisyDz.length}`} theme={theme} />
                     </>
                   )}
@@ -186,45 +212,19 @@ export default function ArchiwumDetailScreen() {
         )}
 
         {/* ======== TABELA LIVE ======== */}
-        {aktywnaZakladka === 'live' && (
+        {aktywnaZakladka === 'live' && wybraDzialka && (
           <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
             <Text style={[styles.kartaTytul, { color: theme.colors.text }]}>
-              {wybraDzialka?.nazwa ?? 'Działka'} – tabela aut
+              {wybraDzialka.nazwa} – tabela aut (Live)
             </Text>
-            {wpisyLive.filter((w) => w.dzialkaId === wybraDzialka?.id).length === 0 ? (
+            {wpisyLive.filter((w) => w.dzialkaId === wybraDzialka.id).length === 0 ? (
               <Text style={[styles.brakWpisow, { color: theme.colors.textSecondary }]}>Brak zapisów Live dla tej działki.</Text>
             ) : (
-              <>
-                <View style={[styles.tabelaNagl, { backgroundColor: `${theme.colors.primary}15` }]}>
-                  {['#', 'Mg', 'm', 'Godz.', 'Komentarz'].map((h) => (
-                    <Text key={h} style={[styles.tabelaKomNagl, { color: theme.colors.textSecondary }]}>{h}</Text>
-                  ))}
-                </View>
-                {wpisyLive.filter((w) => w.dzialkaId === wybraDzialka?.id).map((wp) => (
-                  <View key={wp.id} style={[styles.tabelaRzad, { borderBottomColor: theme.colors.border }]}>
-                    <Text style={[styles.tabelaKom, { color: theme.colors.textSecondary }]}>{wp.numerAuta}</Text>
-                    <Text style={[styles.tabelaKom, { color: theme.colors.text }]}>{formatLiczby(wp.tonazPrzywieziony)}</Text>
-                    <Text style={[styles.tabelaKom, { color: theme.colors.text }]}>{formatLiczby(wp.przejechaneMetry)}</Text>
-                    <Text style={[styles.tabelaKom, { color: theme.colors.text }]}>{wp.godzinaWybudowania}</Text>
-                    <Text style={[styles.tabelaKom, { color: theme.colors.textSecondary, fontSize: 11 }]} numberOfLines={1}>{wp.komentarz ?? '–'}</Text>
-                  </View>
-                ))}
-                {/* Suma */}
-                {(() => {
-                  const wpisyDz = wpisyLive.filter((w) => w.dzialkaId === wybraDzialka?.id);
-                  const st = wpisyDz.reduce((s, w) => s + w.tonazPrzywieziony, 0);
-                  const sm = wpisyDz.reduce((s, w) => s + w.przejechaneMetry, 0);
-                  return (
-                    <View style={[styles.tabelaRzad, styles.tabelaSuma, { backgroundColor: `${theme.colors.primary}10` }]}>
-                      <Text style={[styles.tabelaKom, { color: theme.colors.textSecondary, fontWeight: '700' }]}>∑</Text>
-                      <Text style={[styles.tabelaKom, { color: theme.colors.text, fontWeight: '700' }]}>{formatLiczby(st, 2)}</Text>
-                      <Text style={[styles.tabelaKom, { color: theme.colors.text, fontWeight: '700' }]}>{formatLiczby(sm)}</Text>
-                      <Text style={[styles.tabelaKom, {}]} />
-                      <Text style={[styles.tabelaKom, {}]} />
-                    </View>
-                  );
-                })()}
-              </>
+              <TabelaLive
+                dzialka={wybraDzialka}
+                wpisy={wpisyLive.filter((w) => w.dzialkaId === wybraDzialka.id)}
+                theme={theme}
+              />
             )}
           </View>
         )}
@@ -272,7 +272,7 @@ export default function ArchiwumDetailScreen() {
         </Pressable>
       </Modal>
 
-    </SafeAreaView>
+    </View>
   );
 }
 

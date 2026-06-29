@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.4.1';
+export const WERSJA_APLIKACJI = '1.5.0';
 
 export interface WpisChangelog {
   wersja: string;
@@ -12,6 +12,29 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.5.0',
+    data: '2026-06-26',
+    tytul: 'Etap 11 – poprawki z testów + Niezbędnik masiarza',
+    zmiany: [
+      'Naprawa zapisywania planu (błąd Maximum update depth)',
+      'Budowy bez planów na liście + archiwizuj / usuń',
+      'Udostępnianie planu (JSON/HTML) z listy Zaplanuj masę',
+      'Tabela aut: metry wg szerokości każdego pola',
+      'Kontrola: poprawne kolorowanie grubości (zielony/pomarańczowy/czerwony)',
+      'Menu: ikona aplikacji + sekcja Niezbędnik masiarza',
+      'Kalkulatory: masa, geodezja (start), notatnik',
+      'Mieszanki: „Lokalizacja wytwórni” zamiast długiego linku',
+      'LIVE: przewijany szkic przy wielu autach',
+      'Archiwum: bilans z porównaniem do planu, kilometraż, tabela Live jak plan',
+      'PDF: informacja o budowie w pierwszym wierszu raportu',
+      'Szkic wjazd/pierścień: kolorowanie z lewej do prawej w trybie Live',
+      'Przywracanie budów z archiwum na liście Zaplanuj masę',
+      'Kalkulatory: wydajność grubościowa, wskaźnik rozkładarki, geodezja (spadki, łuki, kąt prosty)',
+      'SafeArea na ustawieniach i archiwum',
+      'Testy zapisywania planów i tabeli aut',
+    ],
+  },
   {
     wersja: '1.4.1',
     data: '2026-06-26',

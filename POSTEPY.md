@@ -512,3 +512,60 @@ kalkulator-mma/
 **Weryfikacja**: `npm run verify` → **0 błędów, 6/6 testów** ✅
 
 ---
+
+## ETAP 11 – Poprawki z testów, Niezbędnik masiarza, archiwum
+**Data:** 2026-06-26
+**Status:** ✅ UKOŃCZONY
+**Branch:** `cursor/kalkulator-mma-etap11-0a0b`
+**Wersja aplikacji:** 1.5.0 (versionCode 8)
+
+### Co zostało zrobione:
+
+1. **Naprawa crashu zapisywania planu** (`PlanForm.tsx`, `plan/nowy.tsx`):
+   - `minimumDate` przez `useMemo` (bez nowego `Date()` przy każdym renderze)
+   - Nawigacja po zapisie przez `router.push` + `InteractionManager`
+
+2. **Zaplanuj masę** (`plan/index.tsx`):
+   - Budowy widoczne na liście nawet bez planów
+   - Przyciski Archiwizuj / Usuń budowę / + Plan
+   - Udostępnianie planu (JSON/HTML) z listy
+   - Sekcja „Budowy w archiwum” z przywracaniem
+
+3. **Wbudowywanie**:
+   - Tabela aut: metry wg szerokości każdego pola (`calculations.ts`, `TabelaAut.tsx`)
+   - Kontrola: kolorowanie grubości zielony/pomarańczowy/czerwony (`grubosc.ts`)
+   - LIVE: szkic scrollowany po lewej, statystyki po prawej
+   - Szkic: wjazd/pierścień – kolorowanie z lewej do prawej w trybie Live
+
+4. **Archiwum** (`archiwum/[id].tsx`):
+   - Bilans z różnicą do planu w nawiasach
+   - Metry z kilometrażem (np. 114+000 – 114+298)
+   - Grubość z uzyskaną + piktogram ▲▼
+   - Tabela Live w układzie jak tabela planu (`TabelaLive.tsx`)
+   - SafeArea (paddingTop/Bottom z insets)
+
+5. **PDF** (`pdfGenerator.ts`):
+   - Pierwszy wiersz z informacją o budowie
+
+6. **Menu główne** (`index.tsx`):
+   - Ikona aplikacji + „Niezbędnik masiarza”
+   - Kafelki: Masa i sprzęt, Geodezja, Notatnik
+
+7. **Niezbędnik masiarza** (`app/niezbednik/`):
+   - Wydajność powierzchniowa i grubościowa
+   - Wskaźnik rozkładarki (walidacja asymetryczna)
+   - Geodezja: spadki, tyczenie łuków, kąt prosty
+   - Notatnik z zapisem wyników z kalkulatorów
+
+8. **Mieszanki**: „Lokalizacja wytwórni” zamiast długiego linku
+
+9. **Ustawienia**: SafeArea (insets)
+
+10. **Testy**:
+    - `calculations.tabela.test.ts` – różne metry przy różnych szerokościach
+    - `grubosc.test.ts` – kolorowanie wg specyfikacji
+    - `planSave.test.ts` – serializacja planu JSON
+
+**Weryfikacja**: `npm run verify` → **0 błędów TS, 10/10 testów** ✅
+
+---

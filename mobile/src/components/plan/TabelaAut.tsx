@@ -28,7 +28,14 @@ export function TabelaAut({
   const wyniki = obliczWynikiDzialki(dzialka, ciezarObjetosciowy, tonazAuta);
   const lacznasDlugosc = obliczLacznaDlugosc(dzialka);
   const rzutyDoUzycia = rzuty.length > 0 ? rzuty : generujDomyslneRzuty(wyniki.iloscSamochodow);
-  const tabela = obliczTabeleAut(wyniki.lacznaIloscMasy, lacznasDlugosc, rzutyDoUzycia, tonazAuta);
+  const tabela = obliczTabeleAut(
+    wyniki.lacznaIloscMasy,
+    lacznasDlugosc,
+    rzutyDoUzycia,
+    tonazAuta,
+    dzialka,
+    ciezarObjetosciowy,
+  );
   const pikietaze = obliczPikietazFigur(dzialka);
   const kmStart = pikietaze.length > 0 ? pikietaze[0].poczatek : 0;
 

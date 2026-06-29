@@ -2,7 +2,7 @@
 // PLAN FORM – reużywalny formularz (Nowy plan / Edycja planu)
 // ============================================================
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   TextInput, Alert, useColorScheme,
@@ -143,6 +143,11 @@ export function PlanForm({ tytul, initialPlan, onZapisz }: PlanFormProps) {
   const [shapeModalIdx, setShapeModalIdx] = useState<number | null>(null);
 
   const tonazAuta = parseFloat(tonazAutaStr.replace(',', '.')) || 25.5;
+  const minimumDataWbudowywania = useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, []);
 
   // ---- Licznik działek ----
   const zmienLiczbeDzialek = (delta: number) => {
@@ -235,8 +240,6 @@ export function PlanForm({ tytul, initialPlan, onZapisz }: PlanFormProps) {
       status: 'aktywny',
     });
   };
-
-  // ---- Render ----
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <AppHeader
@@ -250,7 +253,7 @@ export function PlanForm({ tytul, initialPlan, onZapisz }: PlanFormProps) {
 
           {/* Ogólne */}
           <Sekcja tytul="Ogólne" theme={theme}>
-            <DatePickerButton label="Data wbudowywania" value={dataWbudowywania} onChange={setData} minimumDate={new Date()} />
+            <DatePickerButton label="Data wbudowywania" value={dataWbudowywania} onChange={setData} minimumDate={minimumDataWbudowywania} />
             <View style={{ marginTop: 10 }}>
               <Text style={[styles.etykieta, { color: theme.colors.textSecondary }]}>Budowa</Text>
               <TouchableOpacity

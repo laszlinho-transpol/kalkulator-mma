@@ -10,6 +10,7 @@ import { usePlanyStore } from '../src/stores/planyStore';
 import { useBudowyStore } from '../src/stores/budowyStore';
 import { useWytwornieStore } from '../src/stores/wytwornieStore';
 import { useLiveStore } from '../src/stores/liveStore';
+import { useNotatnikStore } from '../src/stores/notatnikStore';
 import { lightTheme, darkTheme } from '../src/constants/theme';
 import { LoadingScreen } from '../src/components/common/LoadingScreen';
 import { ErrorBoundary } from '../src/components/common/ErrorBoundary';
@@ -26,6 +27,7 @@ export default function RootLayout() {
   const zaladujBudowy = useBudowyStore((s) => s.zaladujBudowy);
   const zaladujWytwornie = useWytwornieStore((s) => s.zaladujWytwornie);
   const zaladujWpisy = useLiveStore((s) => s.zaladujWpisy);
+  const zaladujNotatnik = useNotatnikStore((s) => s.zaladuj);
 
   const [ladowanie, setLadowanie] = useState(true);
   const [loadingWidoczny, setLoadingWidoczny] = useState(true);
@@ -41,6 +43,7 @@ export default function RootLayout() {
           zaladujWpisy(),
           zaladujBudowy(),
           zaladujWytwornie(),
+          zaladujNotatnik(),
         ]);
         const onboardingComplete = await AsyncStorage.getItem(KLUCZ_ONBOARDING);
         if (!onboardingComplete) {
@@ -123,9 +126,18 @@ export default function RootLayout() {
           />
           <Stack.Screen name="wbudowywanie/index" options={{ headerShown: false }} />
           <Stack.Screen name="wbudowywanie/[id]" options={{ headerShown: false }} />
-          <Stack.Screen name="archiwum/index" options={{ headerShown: false }} />
-          <Stack.Screen name="archiwum/[id]" options={{ headerShown: false }} />
-        </Stack>
+        <Stack.Screen name="archiwum/index" options={{ headerShown: false }} />
+        <Stack.Screen name="archiwum/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="niezbednik/index" options={{ headerShown: false }} />
+        <Stack.Screen name="niezbednik/masa/index" options={{ headerShown: false }} />
+        <Stack.Screen name="niezbednik/masa/wydajnosc-powierzchniowa" options={{ headerShown: false }} />
+        <Stack.Screen name="niezbednik/masa/wydajnosc-grubosciowa" options={{ headerShown: false }} />
+        <Stack.Screen name="niezbednik/masa/wskaznik-rozkladarki" options={{ headerShown: false }} />
+        <Stack.Screen name="niezbednik/geodezja/spadki" options={{ headerShown: false }} />
+        <Stack.Screen name="niezbednik/geodezja/luki" options={{ headerShown: false }} />
+        <Stack.Screen name="niezbednik/geodezja/kat-prosty" options={{ headerShown: false }} />
+        <Stack.Screen name="niezbednik/notatnik/index" options={{ headerShown: false }} />
+      </Stack>
 
         {loadingWidoczny && (
           <LoadingScreen

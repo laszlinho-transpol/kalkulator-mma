@@ -15,7 +15,7 @@ import Svg, {
 } from 'react-native-svg';
 import { lightTheme, darkTheme, type AppTheme } from '../../constants/theme';
 import {
-  obliczPowierzchniFigury, dlugoscFigury, obliczWynikiDzialki, formatLiczby,
+  obliczPowierzchniFigury, dlugoscFigury, sredniaSzerokoscFigury, obliczWynikiDzialki, formatLiczby,
 } from '../../utils/calculations';
 import { obliczPikietazFigur, formatujPikietaz } from '../../utils/chainage';
 import { NAZWY_FIGUR } from '../../constants';
@@ -274,6 +274,15 @@ export function DzialkaSketch({ dzialka, ciezarObjetosciowy, wykonaneMetry = 0, 
                   if (passedInFig <= 0) return null;
                   const yFig = cumHeights[idx];
                   const hFig = heights[idx];
+                  const kolorLR = figura.typ === 'wjazd' || figura.typ === 'pierscien';
+                  if (kolorLR) {
+                    const frac = passedInFig / Math.max(figLen, 1);
+                    return (
+                      <ClipPath key={`clip-${figura.id}`} id={`clip-pass-${figura.id}`}>
+                        <SvgRect x={LEFT_MARGIN - 2} y={yFig} width={(SKETCH_W + 4) * frac} height={hFig} />
+                      </ClipPath>
+                    );
+                  }
                   const partialH = hFig * (passedInFig / Math.max(figLen, 1));
                   return (
                     <ClipPath key={`clip-${figura.id}`} id={`clip-pass-${figura.id}`}>
@@ -352,6 +361,7 @@ export function DzialkaSketch({ dzialka, ciezarObjetosciowy, wykonaneMetry = 0, 
                 <View style={[styles.sep, { backgroundColor: theme.colors.border }]} />
                 <WiersInfo label="Powierzchnia" w={`${formatLiczby(pow)} m²`} theme={theme} />
                 <WiersInfo label="Długość" w={`${formatLiczby(dlugFig)} m`} theme={theme} />
+                <WiersInfo label="Śr. szerokość" w={`${formatLiczby(sredniaSzerokoscFigury(selectedFigura))} m`} theme={theme} />
                 <WiersInfo label="Ilość masy" w={`${formatLiczby(masa, 2)} Mg`} theme={theme} />
                 {wykonaneMetry > 0 && (
                   <>

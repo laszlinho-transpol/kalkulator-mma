@@ -10,24 +10,30 @@ import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePlanyStore } from '../../src/stores/planyStore';
 import { useBudowyStore } from '../../src/stores/budowyStore';
+import { useMieszankiStore } from '../../src/stores/mieszankiStore';
+import { useLiveStore } from '../../src/stores/liveStore';
 import { lightTheme, darkTheme } from '../../src/constants/theme';
 import { EmptyState } from '../../src/components/common/EmptyState';
 import { AppHeader } from '../../src/components/common/AppHeader';
 import { SafeModal } from '../../src/components/common/SafeModal';
 import { ZalacznikiViewer } from '../../src/components/common/ZalacznikiViewer';
 import { CollapsibleSection } from '../../src/components/common/CollapsibleSection';
-import { grupujPoKluczu } from '../../src/utils/grouping';
 import { wybierzIZapiszZalacznikBudowy } from '../../src/utils/zalaczniki';
+import { eksportujJSON, generujInteraktywnyHTML } from '../../src/utils/htmlGenerator';
 import { karta, tekstTytul, tekstPodtytul } from '../../src/constants/layout';
-import type { Plan, ZalacznikPlanu } from '../../src/types';
+import type { Plan, ZalacznikPlanu, Budowa } from '../../src/types';
 
 export default function PlanListaScreen() {
   const colorScheme = useColorScheme();
   const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
   const insets = useSafeAreaInsets();
   const { plany, usunPlan } = usePlanyStore();
-  const { budowy, dodajBudowe, edytujBudowe } = useBudowyStore();
+  const { budowy, dodajBudowe, edytujBudowe, usunBudowe, archiwizujBudowe, przywrocBudowe } = useBudowyStore();
+  const mieszanki = useMieszankiStore((s) => s.mieszanki);
+  const wpisy = useLiveStore((s) => s.wpisy);
   const aktywne = plany.filter((p) => p.status === 'aktywny');
+  const budowyAktywne = budowy.filter((b) => b.status !== 'archiwalna');
+  const budowyArchiwalne = budowy.filter((b) => b.status === 'archiwalna');
 
   const [modalBudowa, setModalBudowa] = useState(false);
   const [edytowanaBudowaId, setEdytowanaBudowaId] = useState<string | null>(null);
@@ -43,19 +49,36 @@ export default function PlanListaScreen() {
     const posortowane = [...aktywne].sort(
       (a, b) => new Date(a.dataWbudowywania).getTime() - new Date(b.dataWbudowywania).getTime(),
     );
-    const zKluczem = posortowane.map((p) => {
-      const b = p.budowaId ? budowy.find((x) => x.id === p.budowaId) : undefined;
-      const klucz = b ? `${b.kodBudowy} – ${b.nazwaInwestycji}` : undefined;
-      return { plan: p, kluczGrupy: klucz };
-    });
-    const grupy = grupujPoKluczu(zKluczem, (x) => x.kluczGrupy, 'Plany bez budowy');
-    return grupy.map((g) => ({
-      ...g,
-      elementy: g.elementy.map((x) => x.plan).sort(
-        (a, b) => new Date(a.dataWbudowywania).getTime() - new Date(b.dataWbudowywania).getTime(),
-      ),
+
+    const planyMapa = new Map<string, Plan[]>();
+    for (const b of budowyAktywne) planyMapa.set(b.id, []);
+    const bezBudowy: Plan[] = [];
+
+    for (const p of posortowane) {
+      if (p.budowaId && planyMapa.has(p.budowaId)) {
+        planyMapa.get(p.budowaId)!.push(p);
+      } else {
+        bezBudowy.push(p);
+      }
+    }
+
+    const zBudowa = budowyAktywne.map((b) => ({
+      budowa: b,
+      tytul: `${b.kodBudowy} – ${b.nazwaInwestycji}`,
+      elementy: planyMapa.get(b.id) ?? [],
+      bezPrzypisania: false,
     }));
-  }, [aktywne, budowy]);
+
+    return {
+      zBudowa,
+      bezBudowy: bezBudowy.length > 0 ? [{
+        tytul: 'Plany bez budowy',
+        elementy: bezBudowy,
+        bezPrzypisania: true,
+        budowa: undefined as Budowa | undefined,
+      }] : [],
+    };
+  }, [aktywne, budowyAktywne]);
 
   const potwierdźUsunięcie = (plan: Plan) => Alert.alert('Usuń plan', `Usunąć plan z ${formatujDate(plan.dataWbudowywania)}?`, [
     { text: 'Anuluj', style: 'cancel' },
@@ -98,6 +121,37 @@ export default function PlanListaScreen() {
     setModalBudowa(false);
   };
 
+  const udostepnijPlan = (plan: Plan) => {
+    Alert.alert('Udostępnij plan', 'Wybierz format pliku', [
+      { text: 'Anuluj', style: 'cancel' },
+      { text: 'JSON', onPress: async () => { try { await eksportujJSON(plan, mieszanki, wpisy.filter((w) => w.planId === plan.id)); } catch {} } },
+      { text: 'HTML', onPress: async () => { try { await generujInteraktywnyHTML(plan, mieszanki, { autor: 'Kalkulator MMA', wpisyLive: wpisy.filter((w) => w.planId === plan.id) }); } catch {} } },
+    ]);
+  };
+
+  const potwierdzArchiwizujBudowe = (b: Budowa) => Alert.alert(
+    'Archiwizuj budowę',
+    `Przenieść „${b.kodBudowy}” do archiwum? Budowa zniknie z listy planowania, ale plany pozostaną w systemie.`,
+    [
+      { text: 'Anuluj', style: 'cancel' },
+      { text: 'Archiwizuj', onPress: () => archiwizujBudowe(b.id) },
+    ],
+  );
+
+  const potwierdzUsunBudowe = (b: Budowa) => {
+    const liczbaPlanow = aktywne.filter((p) => p.budowaId === b.id).length;
+    Alert.alert(
+      'Usuń budowę',
+      liczbaPlanow > 0
+        ? `Budowa ma ${liczbaPlanow} aktywnych planów. Usunąć budowę z listy? (Plany pozostaną bez przypisania budowy.)`
+        : `Usunąć budowę „${b.kodBudowy}”?`,
+      [
+        { text: 'Anuluj', style: 'cancel' },
+        { text: 'Usuń', style: 'destructive', onPress: () => usunBudowe(b.id) },
+      ],
+    );
+  };
+
   const renderujPlan = (item: Plan) => (
     <TouchableOpacity
       key={item.id}
@@ -110,6 +164,9 @@ export default function PlanListaScreen() {
         </Text>
         <TouchableOpacity onPress={() => potwierdźUsunięcie(item)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
           <Text style={[styles.usunTekst, { color: theme.colors.danger }]}>Usuń</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => udostepnijPlan(item)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <Text style={[styles.usunTekst, { color: theme.colors.secondary }]}>↗</Text>
         </TouchableOpacity>
       </View>
       <Text style={[tekstPodtytul, { color: theme.colors.textSecondary }]} numberOfLines={2}>
@@ -130,7 +187,7 @@ export default function PlanListaScreen() {
         ]}
       />
 
-      {aktywne.length === 0 ? (
+      {budowyAktywne.length === 0 && aktywne.length === 0 ? (
         <EmptyState
           ikona="📋"
           tytul="Brak aktywnych planów"
@@ -140,23 +197,51 @@ export default function PlanListaScreen() {
         />
       ) : (
         <ScrollView contentContainerStyle={[styles.lista, { paddingBottom: insets.bottom + 16 }]} showsVerticalScrollIndicator={false}>
-          {grupyPlanow.map((grupa) => (
+          {[...grupyPlanow.zBudowa, ...grupyPlanow.bezBudowy].map((grupa) => (
             <CollapsibleSection
-              key={grupa.klucz}
+              key={grupa.tytul}
               tytul={grupa.tytul}
               liczba={grupa.elementy.length}
               theme={theme}
               ikona="🏗️"
               plaski={grupa.bezPrzypisania}
-              akcjaEtykieta={grupa.bezPrzypisania ? undefined : 'Edytuj'}
-              onAkcja={grupa.bezPrzypisania ? undefined : () => {
-                const b = budowy.find((x) => `${x.kodBudowy} – ${x.nazwaInwestycji}` === grupa.tytul);
-                if (b) otworzEdycjeBudowy(b.id);
-              }}
+              akcjaEtykieta={grupa.budowa ? 'Edytuj' : undefined}
+              onAkcja={grupa.budowa ? () => otworzEdycjeBudowy(grupa.budowa!.id) : undefined}
             >
-              {grupa.elementy.map(renderujPlan)}
+              {grupa.budowa && (
+                <View style={styles.akcjeBudowy}>
+                  <TouchableOpacity onPress={() => potwierdzArchiwizujBudowe(grupa.budowa!)}>
+                    <Text style={{ color: theme.colors.warning, fontWeight: '600', fontSize: 13 }}>Archiwizuj</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => potwierdzUsunBudowe(grupa.budowa!)}>
+                    <Text style={{ color: theme.colors.danger, fontWeight: '600', fontSize: 13 }}>Usuń budowę</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => router.push({ pathname: '/plan/nowy', params: { budowaId: grupa.budowa!.id } } as any)}>
+                    <Text style={{ color: theme.colors.primary, fontWeight: '600', fontSize: 13 }}>+ Plan</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+              {grupa.elementy.length === 0 ? (
+                <Text style={{ color: theme.colors.textSecondary, fontSize: 13, paddingVertical: 8 }}>
+                  Brak planów – kliknij „+ Plan”, aby dodać.
+                </Text>
+              ) : (
+                grupa.elementy.map(renderujPlan)
+              )}
             </CollapsibleSection>
           ))}
+          {budowyArchiwalne.length > 0 && (
+            <CollapsibleSection tytul="Budowy w archiwum" liczba={budowyArchiwalne.length} theme={theme} ikona="📦" domyslnieRozwinieta={false}>
+              {budowyArchiwalne.map((b) => (
+                <View key={b.id} style={[styles.kartaArch, { borderColor: theme.colors.border }]}>
+                  <Text style={{ color: theme.colors.text, fontWeight: '600' }}>{b.kodBudowy} – {b.nazwaInwestycji}</Text>
+                  <TouchableOpacity onPress={() => przywrocBudowe(b.id)} style={{ marginTop: 8 }}>
+                    <Text style={{ color: theme.colors.primary, fontWeight: '600' }}>↩ Przywróć do planowania</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </CollapsibleSection>
+          )}
         </ScrollView>
       )}
 
@@ -223,9 +308,11 @@ export default function PlanListaScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   lista: { padding: 14 },
-  kartaNaglowek: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6, gap: 8 },
+  kartaNaglowek: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6, gap: 8, alignItems: 'center' },
+  akcjeBudowy: { flexDirection: 'row', flexWrap: 'wrap', gap: 14, paddingBottom: 10, paddingHorizontal: 4 },
   usunTekst: { fontSize: 13, fontWeight: '600' },
   input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
   zalRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, borderBottomWidth: 1 },
   btnZal: { borderWidth: 1, borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
+  kartaArch: { borderWidth: 1, borderRadius: 10, padding: 12, marginBottom: 8 },
 });

@@ -15,6 +15,8 @@ interface BudowyStore {
   dodajBudowe: (dane: Omit<Budowa, 'id' | 'createdAt' | 'updatedAt'>) => Promise<string>;
   edytujBudowe: (id: string, dane: Partial<Omit<Budowa, 'id' | 'createdAt'>>) => Promise<void>;
   usunBudowe: (id: string) => Promise<void>;
+  archiwizujBudowe: (id: string) => Promise<void>;
+  przywrocBudowe: (id: string) => Promise<void>;
   pobierzBudowe: (id: string) => Budowa | undefined;
 }
 
@@ -41,7 +43,7 @@ export const useBudowyStore = create<BudowyStore>((set, get) => ({
   dodajBudowe: async (dane) => {
     const teraz = new Date().toISOString();
     const id = generujId();
-    const nowa: Budowa = { ...dane, id, createdAt: teraz, updatedAt: teraz };
+    const nowa: Budowa = { ...dane, id, status: dane.status ?? 'aktywna', createdAt: teraz, updatedAt: teraz };
     const zaktualizowane = [...get().budowy, nowa];
     set({ budowy: zaktualizowane });
     await zapiszDoStorage(zaktualizowane);
@@ -58,6 +60,22 @@ export const useBudowyStore = create<BudowyStore>((set, get) => ({
 
   usunBudowe: async (id) => {
     const zaktualizowane = get().budowy.filter((b) => b.id !== id);
+    set({ budowy: zaktualizowane });
+    await zapiszDoStorage(zaktualizowane);
+  },
+
+  archiwizujBudowe: async (id) => {
+    const zaktualizowane = get().budowy.map((b) =>
+      b.id === id ? { ...b, status: 'archiwalna' as const, updatedAt: new Date().toISOString() } : b,
+    );
+    set({ budowy: zaktualizowane });
+    await zapiszDoStorage(zaktualizowane);
+  },
+
+  przywrocBudowe: async (id) => {
+    const zaktualizowane = get().budowy.map((b) =>
+      b.id === id ? { ...b, status: 'aktywna' as const, updatedAt: new Date().toISOString() } : b,
+    );
     set({ budowy: zaktualizowane });
     await zapiszDoStorage(zaktualizowane);
   },

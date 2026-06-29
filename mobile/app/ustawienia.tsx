@@ -4,10 +4,11 @@
 
 import React, { useEffect, useState } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, SafeAreaView,
+  View, Text, StyleSheet, TouchableOpacity,
   useColorScheme, ScrollView, Switch, Alert, TextInput,
 } from 'react-native';
 import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { lightTheme, darkTheme, type AppTheme } from '../src/constants/theme';
 import { AnimatedCard } from '../src/components/common/AnimatedCard';
@@ -40,6 +41,7 @@ export async function zapiszUstawienia(u: Ustawienia): Promise<void> {
 export default function UstawieniaScreen() {
   const colorScheme = useColorScheme();
   const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
+  const insets = useSafeAreaInsets();
 
   const [tonazStr, setTonazStr] = useState('25.5');
   const [zapisano, setZapisano] = useState(false);
@@ -106,7 +108,7 @@ export default function UstawieniaScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <View style={[styles.container, { backgroundColor: theme.colors.background, paddingTop: insets.top }]}>
       <View style={[styles.naglowek, { backgroundColor: theme.colors.card, borderBottomColor: theme.colors.border }]}>
         <TouchableOpacity onPress={() => router.back()}>
           <Text style={[styles.wstecz, { color: theme.colors.primary }]}>‹ Wstecz</Text>
@@ -115,7 +117,7 @@ export default function UstawieniaScreen() {
         <View style={{ width: 60 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.zawartosc} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.zawartosc, { paddingBottom: insets.bottom + 16 }]} showsVerticalScrollIndicator={false}>
 
         {/* Statystyki bazy */}
         <AnimatedCard delay={0}>
@@ -223,7 +225,7 @@ export default function UstawieniaScreen() {
 
         <View style={{ height: 32 }} />
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 

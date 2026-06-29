@@ -20,6 +20,7 @@ export interface Budowa {
   nazwaInwestycji: string;   // np. DK25 Mąkowarsko
   kodBudowy: string;         // np. B128
   zalaczniki?: ZalacznikPlanu[];
+  status?: 'aktywna' | 'archiwalna';
   createdAt: string;
   updatedAt: string;
 }

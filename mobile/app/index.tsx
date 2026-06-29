@@ -5,7 +5,7 @@
 import React, { useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  useColorScheme, Animated, Dimensions,
+  useColorScheme, Animated, Dimensions, Image,
 } from 'react-native';
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -35,6 +35,12 @@ const KAFELKI: Kafelek[] = [
   { id: 'archiwum', tytul: 'Archiwum', podtytul: 'Raporty', ikona: '📁', sciezka: '/archiwum', kolor: '#8B5CF6', delay: 240 },
 ];
 
+const NIEZBEDNIK: Kafelek[] = [
+  { id: 'masa', tytul: 'Masa i sprzęt', podtytul: 'Szybkie sprawdzenie', ikona: '🧮', sciezka: '/niezbednik/masa', kolor: '#E8A020', delay: 0 },
+  { id: 'geodezja', tytul: 'Geodezja i pomiary', podtytul: 'Pomiary niwelatorem', ikona: '📐', sciezka: '/niezbednik/geodezja', kolor: '#2E86AB', delay: 80 },
+  { id: 'notatnik', tytul: 'Notatnik', podtytul: 'Brudnopis drogowca', ikona: '📝', sciezka: '/niezbednik/notatnik', kolor: '#8B5CF6', delay: 160 },
+];
+
 export default function HomeScreen() {
   const colorScheme = useColorScheme();
   const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
@@ -50,6 +56,11 @@ export default function HomeScreen() {
     translateY: new Animated.Value(30),
     scale: new Animated.Value(1),
   }))).current;
+  const animacjeNz = useRef(NIEZBEDNIK.map(() => ({
+    opacity: new Animated.Value(0),
+    translateY: new Animated.Value(30),
+    scale: new Animated.Value(1),
+  }))).current;
 
   const headerAnim = useRef(new Animated.Value(0)).current;
 
@@ -61,12 +72,18 @@ export default function HomeScreen() {
         Animated.spring(animacje[idx].translateY, { toValue: 0, delay: 200 + k.delay, useNativeDriver: true, friction: 8, tension: 80 }),
       ]).start();
     });
+    NIEZBEDNIK.forEach((k, idx) => {
+      Animated.parallel([
+        Animated.timing(animacjeNz[idx].opacity, { toValue: 1, duration: 400, delay: 500 + k.delay, useNativeDriver: true }),
+        Animated.spring(animacjeNz[idx].translateY, { toValue: 0, delay: 500 + k.delay, useNativeDriver: true, friction: 8, tension: 80 }),
+      ]).start();
+    });
   }, []);
 
-  const handleKafelekPress = (kafelek: Kafelek, idx: number) => {
+  const handleKafelekPress = (kafelek: Kafelek, idx: number, animSet = animacje) => {
     Animated.sequence([
-      Animated.spring(animacje[idx].scale, { toValue: 0.95, useNativeDriver: true, speed: 60 }),
-      Animated.spring(animacje[idx].scale, { toValue: 1, useNativeDriver: true, speed: 40 }),
+      Animated.spring(animSet[idx].scale, { toValue: 0.95, useNativeDriver: true, speed: 60 }),
+      Animated.spring(animSet[idx].scale, { toValue: 1, useNativeDriver: true, speed: 40 }),
     ]).start();
     setTimeout(() => router.push(kafelek.sciezka as any), 80);
   };
@@ -85,10 +102,9 @@ export default function HomeScreen() {
       >
         <View style={{ width: 44 }} />
         <View style={styles.naglowekSrodek}>
-          <Text style={[styles.logoTekst, { color: theme.colors.primary }]}>⬛ MMA</Text>
-          <Text style={[styles.logoOpis, { color: theme.colors.textSecondary }]}>
-            Kalkulator Mieszanek Asfaltowych
-          </Text>
+          <Image source={require('../assets/icon.png')} style={styles.ikonaApp} />
+          <Text style={[styles.logoTekst, { color: theme.colors.text }]}>Kalkulator MMA</Text>
+          <Text style={[styles.logoOpis, { color: theme.colors.textSecondary }]}>Niezbędnik masiarza</Text>
         </View>
         <TouchableOpacity onPress={() => router.push('/ustawienia' as any)} style={styles.btnUstawienia}>
           <Text style={[styles.btnUstawieniaTekst, { color: theme.colors.textSecondary }]}>⚙</Text>
@@ -141,6 +157,38 @@ export default function HomeScreen() {
             </Animated.View>
           ))}
         </View>
+
+        <View style={[styles.separator, { borderColor: theme.colors.border }]}>
+          <View style={[styles.sepLinia, { backgroundColor: theme.colors.border }]} />
+          <Text style={[styles.sepTekst, { color: theme.colors.textSecondary }]}>Niezbędnik masiarza</Text>
+          <View style={[styles.sepLinia, { backgroundColor: theme.colors.border }]} />
+        </View>
+
+        <View style={styles.siatkaDuza}>
+          {NIEZBEDNIK.map((kafelek, idx) => (
+            <Animated.View
+              key={kafelek.id}
+              style={{
+                opacity: animacjeNz[idx].opacity,
+                transform: [{ translateY: animacjeNz[idx].translateY }, { scale: animacjeNz[idx].scale }],
+                width: '47.5%',
+              }}
+            >
+              <TouchableOpacity
+                style={[styles.kafelek, { backgroundColor: theme.colors.tileBackground, borderColor: theme.colors.border }]}
+                onPress={() => handleKafelekPress(kafelek, idx, animacjeNz)}
+                activeOpacity={1}
+              >
+                <View style={[styles.ikonaTlo, { backgroundColor: `${kafelek.kolor}20` }]}>
+                  <Text style={styles.ikona}>{kafelek.ikona}</Text>
+                </View>
+                <Text style={[styles.kafelekTytul, { color: theme.colors.text }]} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.7}>{kafelek.tytul}</Text>
+                <Text style={[styles.kafelekPodtytul, { color: kafelek.kolor }]} numberOfLines={2}>{kafelek.podtytul}</Text>
+                <View style={[styles.pasekKoloru, { backgroundColor: kafelek.kolor }]} />
+              </TouchableOpacity>
+            </Animated.View>
+          ))}
+        </View>
       </ScrollView>
     </View>
   );
@@ -167,9 +215,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  naglowekSrodek: { flex: 1, alignItems: 'center' },
-  logoTekst: { fontSize: 24, fontWeight: '900', letterSpacing: 2 },
-  logoOpis: { fontSize: 11, marginTop: 2, letterSpacing: 0.5 },
+  naglowekSrodek: { flex: 1, alignItems: 'center', gap: 4 },
+  ikonaApp: { width: 44, height: 44, borderRadius: 12 },
+  logoTekst: { fontSize: 20, fontWeight: '900', letterSpacing: 0.5 },
+  logoOpis: { fontSize: 12, letterSpacing: 0.3 },
+  separator: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 4 },
+  sepLinia: { flex: 1, height: 1 },
+  sepTekst: { fontSize: 12, fontWeight: '700', letterSpacing: 0.3 },
   btnUstawienia: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   btnUstawieniaTekst: { fontSize: 22 },
   zawartosc: { padding: 14, gap: 14 },

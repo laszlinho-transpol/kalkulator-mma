@@ -5,6 +5,7 @@ import {
   gruboscWbudowywania,
   tolerancjaProcent,
   formatujTolerancje,
+  kolorUzyskanejGrubosci,
 } from './grubosc';
 import type { DzialkaRobocza } from '../types';
 
@@ -37,5 +38,18 @@ describe('grubosc', () => {
     assert.equal(gruboscProjektowa(dzialkaBazowa), 4);
     assert.equal(gruboscWbudowywania(dzialkaBazowa), 4);
     assert.equal(tolerancjaProcent(dzialkaBazowa), 10);
+  });
+
+  it('koloruje uzyskaną grubość wg specyfikacji', () => {
+    const dz: DzialkaRobocza = {
+      ...dzialkaBazowa,
+      gruboscProjektowa: 10,
+      gruboscWbudowywania: 9.6,
+      tolerancja: 10,
+    };
+    assert.equal(kolorUzyskanejGrubosci(9.6, dz), 'zielony');
+    assert.equal(kolorUzyskanejGrubosci(9.5, dz), 'zielony');
+    assert.equal(kolorUzyskanejGrubosci(9.9, dz), 'pomaranczowy');
+    assert.equal(kolorUzyskanejGrubosci(8.5, dz), 'czerwony');
   });
 });

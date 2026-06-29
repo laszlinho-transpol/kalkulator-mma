@@ -22,7 +22,7 @@ import { SafeModal } from '../../src/components/common/SafeModal';
 import { ZalacznikiViewer } from '../../src/components/common/ZalacznikiViewer';
 import { TabelaAut } from '../../src/components/plan/TabelaAut';
 import { generujRaportPDF } from '../../src/utils/pdfGenerator';
-import { gruboscWbudowywania, gruboscProjektowa, formatujTolerancje } from '../../src/utils/grubosc';
+import { gruboscWbudowywania, gruboscProjektowa, formatujTolerancje, kolorUzyskanejGrubosci, kolorGrubosciDoHex } from '../../src/utils/grubosc';
 import {
   obliczWynikiDzialki, obliczLacznaDlugosc, obliczKontrolę,
   obliczPowierzchnioweOdStartu, formatLiczby, generujDomyslneRzuty,
@@ -157,7 +157,10 @@ export default function WbudowywanieDetailScreen() {
         onPress: async () => {
           setGenerujeRaport(true);
           try {
-            await generujRaportPDF({ plan, wpisyLive: wpisyCalegoPlanu, mieszanki });
+            await generujRaportPDF({
+              plan, wpisyLive: wpisyCalegoPlanu, mieszanki,
+              budowa: budowa ? { kodBudowy: budowa.kodBudowy, nazwaInwestycji: budowa.nazwaInwestycji } : undefined,
+            });
             await archiwizujPlan(plan.id);
             router.replace('/archiwum' as any);
           } catch {
@@ -316,7 +319,7 @@ export default function WbudowywanieDetailScreen() {
                 <View style={styles.wynikKontroli}>
                   <Text style={[styles.wynikNagl, { color: theme.colors.text, borderBottomColor: theme.colors.border }]}>Wyniki porównania:</Text>
                   <WynikRow label="Zakryta powierzchnia" wartosc={`${formatLiczby(wynikiKontroli.zakrytaPowierzchnia)} m²`} theme={theme} />
-                  <WynikRowGrubosc uzyskana={wynikiKontroli.uzyskanaGrubosc} planowana={grubosc} theme={theme} />
+                  <WynikRowGrubosc uzyskana={wynikiKontroli.uzyskanaGrubosc} dzialka={wybraDzialka} theme={theme} />
                   <WynikRowBilans bilans={wynikiKontroli.bilansMasy} theme={theme} />
                   <View style={[styles.sep, { backgroundColor: theme.colors.border }]} />
                   <WynikRow label="Do końca metrów" wartosc={`${formatLiczby(wynikiKontroli.pozostaloMetrow)} m`} theme={theme} />
@@ -340,7 +343,7 @@ export default function WbudowywanieDetailScreen() {
                 <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
                   <Text style={[styles.kartaTytul, { color: theme.colors.text }]}>{wybraDzialka.nazwa}</Text>
                   <View style={styles.szkicRow}>
-                    <View style={{ flex: 1 }}>
+                    <ScrollView style={{ flex: 1, maxHeight: Math.max(420, wpisyBiezacej.length * 36 + 200) }} nestedScrollEnabled showsVerticalScrollIndicator>
                       <DzialkaSketch
                         dzialka={wybraDzialka}
                         ciezarObjetosciowy={mieszanka.ciezarObjetosciowy}
@@ -348,7 +351,7 @@ export default function WbudowywanieDetailScreen() {
                         markery={markery}
                         onTruckPress={(wpis, idxW) => { setAutaModal({ wpis, idxWpisu: idxW }); setAutaModalZakladka('szczegoły'); }}
                       />
-                    </View>
+                    </ScrollView>
                     {/* Panel prawej strony */}
                     <View style={[styles.szkicPanel, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}>
                       <PanelStat label="Aut" wartosc={String(wpisyBiezacej.length)} theme={theme} kolor={theme.colors.primary} />
@@ -635,13 +638,17 @@ function WynikRow({ label, wartosc, theme }: { label: string; wartosc: string; t
   );
 }
 
-function WynikRowGrubosc({ uzyskana, planowana, theme }: { uzyskana: number; planowana: number; theme: AppTheme }) {
-  const roznica = uzyskana - planowana;
-  const kolor = Math.abs(roznica) <= 0.05 ? theme.colors.success : theme.colors.danger;
+function WynikRowGrubosc({ uzyskana, dzialka, theme }: { uzyskana: number; dzialka: DzialkaRobocza; theme: AppTheme }) {
+  const wb = gruboscWbudowywania(dzialka);
+  const kolorTyp = kolorUzyskanejGrubosci(uzyskana, dzialka);
+  const kolor = kolorGrubosciDoHex(kolorTyp, theme);
+  const roznica = uzyskana - wb;
   return (
     <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 5 }}>
       <Text style={{ color: theme.colors.textSecondary, fontSize: 13 }}>Uzyskana grubość</Text>
-      <Text style={{ color: kolor, fontSize: 13, fontWeight: '700' }}>{formatLiczby(uzyskana)} cm {roznica > 0.05 ? '▲' : roznica < -0.05 ? '▼' : ''}</Text>
+      <Text style={{ color: kolor, fontSize: 13, fontWeight: '700' }}>
+        {formatLiczby(uzyskana)} cm {roznica > 0.05 ? '▲' : roznica < -0.05 ? '▼' : ''}
+      </Text>
     </View>
   );
 }
