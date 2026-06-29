@@ -45,32 +45,37 @@ Jeśli na końcu widzisz ✅ — aplikacja jest gotowa do buildu.
 
 ---
 
-## Krok 5 – Token Expo + build (BEZ Git — pobierasz ZIP)
+## Krok 5 – Build i wysłanie do Play Store (BEZ Git — pobierasz ZIP)
 
 Pobrany ZIP **nie jest** repozytorium Git — trzeba powiedzieć EAS, żeby tego nie wymagał.
 
-W PowerShell wpisz **po jednej linii**:
+### Najprościej: plik `publish-play-store.cmd`
+
+W PowerShell (w folderze `mobile`):
 
 ```powershell
 cd C:\Users\Admin\Desktop\kalkulator-mma-main\mobile
+npm install
+$env:EAS_NO_VCS = "1"
+npx eas-cli@latest login
+.\publish-play-store.cmd
 ```
+
+Dwukrotne kliknięcie `publish-play-store.cmd` w Eksploratorze też działa.
+
+Build trwa ok. **15–20 minut**. Postęp: https://expo.dev
+
+### Ręcznie (jeśli wolisz komendy)
 
 ```powershell
-$env:EAS_NO_VCS="1"
+cd C:\Users\Admin\Desktop\kalkulator-mma-main\mobile
+$env:EAS_NO_VCS = "1"
+npx eas-cli@latest login
+npx eas-cli@latest build --platform android --profile production --non-interactive
 ```
 
-```powershell
-$env:EXPO_TOKEN="wklej_tutaj_sam_token"
-```
-
-```powershell
-npx eas-cli@latest build --platform android --profile production
-```
-
-> **Token:** tylko ciąg znaków między cudzysłowami — nie hasło do expo.dev.  
-> **EAS_NO_VCS=1** — konieczne przy pobraniu ZIP (bez Git).
-
-Build trwa ok. **15–20 minut**. Na końcu dostaniesz link do pliku `.aab`.
+> **EAS_NO_VCS=1** — konieczne przy pobraniu ZIP (bez Git).  
+> Używaj **`npx eas-cli@latest`**, nie samego `eas` (może nie być zainstalowane).
 
 ---
 
@@ -78,13 +83,17 @@ Build trwa ok. **15–20 minut**. Na końcu dostaniesz link do pliku `.aab`.
 
 | Błąd | Rozwiązanie |
 |------|-------------|
-| `could not determine executable to run` | Użyj `npm run build:android` zamiast `npx eas build` |
-| `Not logged in` | Ustaw `$env:EXPO_TOKEN="..."` w **tej samej** sesji PowerShell |
+| `could not determine executable to run` | Użyj `npm run build:android` lub `npx eas-cli@latest build ...` |
+| `Not logged in` | `npx eas-cli@latest login` w tej samej sesji PowerShell |
 | `Cannot find path mobile` | Sprawdź ścieżkę: `dir` i dopasuj `cd` |
-| `git command not found` / `Repair your Git` | Ustaw `$env:EAS_NO_VCS="1"` przed buildem (patrz Krok 5) |
+| `git command not found` / `Repair your Git` | `$env:EAS_NO_VCS="1"` przed buildem |
+| `not digitally signed` / `UnauthorizedAccess` przy `.ps1` | Użyj **`publish-play-store.cmd`** albo: `Set-ExecutionPolicy -Scope Process Bypass` |
+| `eas is not recognized` | Zamiast `eas` wpisz `npx eas-cli@latest` |
 
 ---
 
 ## Krok 6 – Google Play
 
-`mobile/PUBLIKACJA_PLAY_STORE.md`
+Pełna instrukcja: `mobile/PUBLIKACJA_PLAY_STORE.md`
+
+Po buildzie: Play Console → **Testy** → **Test wewnętrzny** → **Rozpocznij wdrażanie** → na telefonie **Aktualizuj** w Play Store.

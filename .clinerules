@@ -105,6 +105,48 @@ Na początku każdego nowego zadania: sprawdź plik `cel_projektu.pdf` pod kąte
 Po zakończeniu zadania: zaktualizuj plik `POSTEPY.md` z precyzyjnym opisem co działa
 i na jakim etapie jesteśmy.
 
+### ZASADA 4 – WYDANIE NOWEJ WERSJI (Play Store + dokumentacja)
+
+**Przy każdym podbiciu wersji aplikacji** (np. 1.5.0 → 1.6.0) agent MUSI wykonać checklistę:
+
+1. **Wersja w kodzie** – zsynchronizuj:
+   - `mobile/app.json` → `version` i `android.versionCode` (versionCode ZAWSZE +1)
+   - `mobile/package.json` → `version`
+   - `mobile/src/constants/version.ts` → `WERSJA_APLIKACJI` + wpis w `CHANGELOG`
+
+2. **Publikacja Windows (obowiązkowe)** – użytkownik buduje na Windows bez Gita (ZIP):
+   - Utrzymuj plik `mobile/publish-play-store.cmd` (działa bez ExecutionPolicy PowerShell)
+   - Utrzymuj `mobile/publish-play-store.ps1` (z komentarzem o Bypass / użyciu .cmd)
+   - W instrukcjach ZAWSZE podawaj **najpierw `.cmd`**, potem komendy ręczne `npx eas-cli@latest`
+   - NIE polegaj na globalnym `eas` – tylko `npx eas-cli@latest`
+   - Przy ZIP: `$env:EAS_NO_VCS = "1"`
+
+3. **Dokumentacja (aktualizuj ZA KAŻDYM wydaniem)**:
+   - `README.md` → aktualna wersja + skrócona ścieżka Play Store
+   - `INSTALACJA_WINDOWS.md` → krok publikacji (.cmd + obejście błędu „not digitally signed”)
+   - `mobile/PUBLIKACJA_PLAY_STORE.md` → pełna instrukcja
+   - `POSTEPY.md` → nowy etap / wpis w dzienniku
+
+4. **Przed wydaniem** – uruchom `cd mobile && npm run verify` i napraw błędy.
+
+5. **Instrukcja dla właściciela** (w podsumowaniu zadania) – zawsze podaj gotowy blok PowerShell:
+   ```powershell
+   cd mobile
+   npm install
+   $env:EAS_NO_VCS = "1"
+   npx eas-cli@latest login
+   .\publish-play-store.cmd
+   ```
+
+## CZY AGENT CZYTA TEN PLIK AUTOMATYCZNIE?
+
+- W Cursorze reguły z `.clinerules` są ładowane, gdy plik jest w projekcie i wskazany w ustawieniach
+  lub gdy użytkownik / system dołącza go do kontekstu (np. „przeczytaj .clinerules i POSTEPY.md”).
+- **Nie zakładaj**, że każdy nowy czat ma pełną pamięć poprzednich rozmów.
+- Na początku złożonego zadania: **samodzielnie przeczytaj** `.clinerules`, `POSTEPY.md` i ewentualnie `cel_projektu.pdf`.
+- Właściciel **nie musi** za każdym razem przypominać o .clinerules — wystarczy raz dodać plik do
+  Project Rules w Cursorze; agent i tak powinien go otworzyć przy pracy nad tym repozytorium.
+
 ## KONWENCJE KODOWANIA
 
 - Nazwy zmiennych i funkcji po **polsku** (zgodnie z domeną)

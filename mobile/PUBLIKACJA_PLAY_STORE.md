@@ -19,10 +19,17 @@ W PowerShell, w folderze `mobile`:
 
 ```powershell
 $env:EAS_NO_VCS = "1"
-.\publish-play-store.ps1 all
+.\publish-play-store.cmd
 ```
 
-To zrobi **build AAB + automatyczne wysłanie do Play Store** (tor: test wewnętrzny).
+Lub dwukrotne kliknięcie **`publish-play-store.cmd`** w Eksploratorze plików.
+
+Jeśli PowerShell blokuje `.ps1` (błąd „not digitally signed”):
+
+- **Używaj `.cmd`**, nie `.ps1`
+- Albo: `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass` i dopiero `.\publish-play-store.ps1 all`
+
+To zrobi **build AAB + automatyczne wysłanie do Play Store** (jeśli jest `google-service-account.json`).
 
 Potem w Play Console kliknij **Rozpocznij wdrażanie** (jeśli wymagane) i na telefonie **Aktualizuj** w Play Store.
 

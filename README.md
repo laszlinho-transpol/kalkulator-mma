@@ -2,7 +2,7 @@
 
 Aplikacja mobilna (React Native + Expo) do planowania i śledzenia wbudowywania mieszanek mineralno-asfaltowych.
 
-**Aktualna wersja: 1.3.0**
+**Aktualna wersja: 1.5.0** (Android `versionCode` 8)
 
 ## Szybki start
 
@@ -13,14 +13,25 @@ npm run verify    # test przed buildem
 npx expo start    # test na telefonie (Expo Go)
 ```
 
-## Build na Androida / Google Play
+## Aktualizacja w Google Play (Windows)
 
 Szczegóły: `INSTALACJA_WINDOWS.md` i `mobile/PUBLIKACJA_PLAY_STORE.md`
 
-```bash
-cd mobile
-npx eas login
-npx eas build --platform android --profile production
+Pobierz ZIP z gałęzi **`main`**, wejdź do folderu `mobile/`, potem w **PowerShell**:
+
+```powershell
+npm install
+$env:EAS_NO_VCS = "1"
+npx eas-cli@latest login
+.\publish-play-store.cmd
+```
+
+Plik `.cmd` omija blokadę PowerShell dla niepodpisanych skryptów `.ps1`.
+
+Alternatywa (bez skryptu):
+
+```powershell
+npx eas-cli@latest build --platform android --profile production --non-interactive
 ```
 
 ## Pobierz projekt (ZIP)
@@ -33,8 +44,11 @@ Po rozpakowaniu wejdź do folderu `mobile/`.
 
 ```
 kalkulator-mma/
-├── mobile/                 ← aplikacja
-├── INSTALACJA_WINDOWS.md   ← instrukcja krok po kroku (Windows)
-├── POSTEPY.md                ← dziennik postępów
+├── mobile/                      ← aplikacja
+│   ├── publish-play-store.cmd   ← build + Play Store (Windows)
+│   └── publish-play-store.ps1
+├── INSTALACJA_WINDOWS.md        ← instrukcja krok po kroku (Windows)
+├── POSTEPY.md                   ← dziennik postępów
+├── .clinerules                  ← zasady projektu (czytaj przed pracą)
 └── README.md
 ```
