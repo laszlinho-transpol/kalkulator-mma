@@ -10,6 +10,11 @@
 #   - Zalogowanie: npx eas-cli@latest login
 #   - Dla submit: plik google-service-account.json w tym folderze
 #   - Przy ZIP bez Gita: $env:EAS_NO_VCS = "1"
+#
+# Jesli PowerShell blokuje skrypt (niepodpisany):
+#   Opcja A: dwuklik publish-play-store.cmd
+#   Opcja B: Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+#            .\publish-play-store.ps1 all
 
 param(
     [Parameter(Position = 0)]
