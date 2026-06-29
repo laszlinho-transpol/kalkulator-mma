@@ -26,11 +26,14 @@ To zrobi **build AAB + automatyczne wysłanie do Play Store** (tor: test wewnęt
 
 Potem w Play Console kliknij **Rozpocznij wdrażanie** (jeśli wymagane) i na telefonie **Aktualizuj** w Play Store.
 
-Alternatywa jedną komendą (po `eas login`):
+Alternatywa jedną komendą (nie wymaga globalnej instalacji `eas`):
 
 ```powershell
+$env:EAS_NO_VCS = "1"
 npm run release:play
 ```
+
+Używa `npx eas-cli@latest` – działa bez `npm install -g eas-cli`.
 
 ---
 

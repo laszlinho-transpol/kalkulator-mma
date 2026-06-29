@@ -39,7 +39,7 @@
     "web": "expo start --web",
     "test": "tsx --test src/utils/**/*.test.ts",
     "verify": "tsc --noEmit && tsx --test src/utils/**/*.test.ts",
-    "release:play": "eas build --platform android --profile production --auto-submit --non-interactive"
+    "release:play": "npx eas-cli@latest build --platform android --profile production --auto-submit --non-interactive"
   },
   "private": true
 }
