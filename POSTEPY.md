@@ -484,9 +484,12 @@ W repozytorium zostały tylko pliki potrzebne do aplikacji mobilnej:
 kalkulator-mma/
 ├── mobile/       ← aplikacja Expo (TYLKO TO BUDUJESZ)
 ├── POSTEPY.md
+├── INSTALACJA_WINDOWS.md
 ├── .clinerules
 └── README.md
 ```
+
+Instrukcja instalacji na Windows: `INSTALACJA_WINDOWS.md`
 
 ---
 

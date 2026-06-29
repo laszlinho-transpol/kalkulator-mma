@@ -212,7 +212,13 @@ export default function UstawieniaScreen() {
             <View style={[styles.appInfo, { backgroundColor: theme.colors.background, borderRadius: 12 }]}>
               <Text style={[styles.appNazwa, { color: theme.colors.primary }]}>⬛ Kalkulator MMA</Text>
               <Text style={[styles.appWersja, { color: theme.colors.textSecondary }]}>Wersja {WERSJA_APLIKACJI}</Text>
-              <Text style={[styles.appOpis, { color: theme.colors.textSecondary }]}>
+              <Text style={[styles.appOpis, { color: theme.colors.textSecondary, marginTop: 8 }]}>
+                Co nowego w {CHANGELOG[0].wersja}:
+              </Text>
+              {CHANGELOG[0].zmiany.map((z, i) => (
+                <Text key={i} style={[styles.changelogPunkt, { color: theme.colors.textSecondary }]}>• {z}</Text>
+              ))}
+              <Text style={[styles.appOpis, { color: theme.colors.textSecondary, marginTop: 10 }]}>
                 Aplikacja mobilna do planowania i kontrolowania wbudowywania mieszanek mineralno-asfaltowych na budowach drogowych.
               </Text>
               <View style={[styles.techRow, { borderTopColor: theme.colors.border }]}>

@@ -38,7 +38,8 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "test": "tsx --test src/utils/**/*.test.ts",
-    "verify": "tsc --noEmit && tsx --test src/utils/**/*.test.ts",
+    "verify": "node scripts/verify-release.mjs",
+    "build:android": "npx eas-cli@latest build --platform android --profile production",
     "release:play": "npx eas-cli@latest build --platform android --profile production --auto-submit --non-interactive"
   },
   "private": true

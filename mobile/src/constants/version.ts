@@ -7,7 +7,7 @@ export const WERSJA_APLIKACJI = '1.5.0';
 export interface WpisChangelog {
   wersja: string;
   data: string;
-  tytul: string;
+  tytul?: string;
   zmiany: string[];
 }
 
@@ -75,6 +75,7 @@ export const CHANGELOG: WpisChangelog[] = [
       'Szkic z kształtami geometrycznymi (trapez, trójkąt, pierścień, wjazd)',
       'Załączniki PDF/PZT w planie z podglądem',
       'Eksport HTML z trybem Live i import raportu z powrotem',
+      'Test weryfikacyjny przed wydaniem (npm run verify)',
     ],
   },
 ];
@@ -82,3 +83,5 @@ export const CHANGELOG: WpisChangelog[] = [
 export function najnowszyChangelog(): WpisChangelog {
   return CHANGELOG[0];
 }
+
+export const OSTATNI_CHANGELOG = CHANGELOG[0];
