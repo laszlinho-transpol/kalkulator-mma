@@ -8,9 +8,11 @@ import {
   TextInput, useColorScheme, Alert, KeyboardAvoidingView,
   Platform, Modal, Pressable, Dimensions,
 } from 'react-native';
-import { useLocalSearchParams, router } from 'expo-router';
+import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePlanyStore } from '../../src/stores/planyStore';
+import { useRouteId } from '../../src/hooks/useRouteId';
+import { usePlanPoId } from '../../src/hooks/usePlanPoId';
 import { useMieszankiStore } from '../../src/stores/mieszankiStore';
 import { useLiveStore } from '../../src/stores/liveStore';
 import { useBudowyStore } from '../../src/stores/budowyStore';
@@ -48,9 +50,8 @@ export default function WbudowywanieDetailScreen() {
   const colorScheme = useColorScheme();
   const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
   const insets = useSafeAreaInsets();
-  const { id } = useLocalSearchParams<{ id: string }>();
-
-  const plan = usePlanyStore((s) => s.pobierzPlan(id));
+  const id = useRouteId();
+  const plan = usePlanPoId(id);
   const archiwizujPlan = usePlanyStore((s) => s.archiwizujPlan);
   const mieszanki = useMieszankiStore((s) => s.mieszanki);
   const budowy = useBudowyStore((s) => s.budowy);

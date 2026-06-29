@@ -3,7 +3,7 @@
 // ============================================================
 
 import React from 'react';
-import { Alert, InteractionManager } from 'react-native';
+import { Alert } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { usePlanyStore } from '../../src/stores/planyStore';
 import { PlanForm } from '../../src/components/plan/PlanForm';
@@ -16,9 +16,8 @@ export default function NowyPlanScreen() {
   const handleZapisz = async (dane: Omit<Plan, 'id' | 'createdAt' | 'updatedAt'>) => {
     try {
       const planId = await dodajPlan(dane);
-      InteractionManager.runAfterInteractions(() => {
-        router.push(`/plan/${planId}` as any);
-      });
+      // replace zamiast push – unika podwójnego PlanForm na stosie nawigacji
+      router.replace(`/plan/${planId}` as any);
     } catch {
       Alert.alert('Błąd', 'Nie udało się zapisać planu. Spróbuj ponownie.');
     }

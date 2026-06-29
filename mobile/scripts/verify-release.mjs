@@ -25,7 +25,7 @@ console.log('  KALKULATOR MMA – weryfikacja wydania');
 console.log('═══════════════════════════════════════');
 
 run('npx', ['tsc', '--noEmit'], 'Sprawdzanie TypeScript');
-run('npx', ['tsx', '--test', 'src/utils/**/*.test.ts'], 'Testy jednostkowe');
+run('npx', ['tsx', '--test', 'src/**/*.test.ts'], 'Testy jednostkowe');
 run('npx', ['expo-doctor'], 'Expo Doctor');
 
 console.log('\n═══════════════════════════════════════');
