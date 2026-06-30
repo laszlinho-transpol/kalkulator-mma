@@ -34,11 +34,13 @@
   },
   "scripts": {
     "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
     "web": "expo start --web",
     "test": "tsx --test src/**/*.test.ts",
     "verify": "node scripts/verify-release.mjs",
+    "fix:gradle": "node scripts/fix-gradle-foojay.mjs",
+    "prebuild:android": "node scripts/fix-gradle-foojay.mjs && npx expo prebuild --platform android",
     "build:android": "npx eas-cli@latest build --platform android --profile production",
     "release:play": "npx eas-cli@latest build --platform android --profile production --auto-submit --non-interactive"
   },
