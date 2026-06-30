@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePlanyStore } from '../../src/stores/planyStore';
 import { useRouteId } from '../../src/hooks/useRouteId';
 import { usePlanPoId } from '../../src/hooks/usePlanPoId';
+import { useWpisyDlaPlanu } from '../../src/hooks/useWpisyDlaPlanu';
 import { useMieszankiStore } from '../../src/stores/mieszankiStore';
 import { useLiveStore } from '../../src/stores/liveStore';
 import { useBudowyStore } from '../../src/stores/budowyStore';
@@ -35,6 +36,9 @@ import {
   rozdzielMetryNaDzialki,
   obliczBilansLivePlanu,
   dzialkiDoAutoZamkniecia,
+  nastepnyNumerAuta,
+  liczUnikalnychAut,
+  zakresAutNaDzialce,
 } from '../../src/utils/liveProgress';
 import type { DzialkaRobocza, WpisLive } from '../../src/types';
 
@@ -65,9 +69,10 @@ export default function WbudowywanieDetailScreen() {
   const mieszanki = useMieszankiStore((s) => s.mieszanki);
   const budowy = useBudowyStore((s) => s.budowy);
   const {
-    wpisyDlaDzialki, wpisyDlaPlanu, sesje, dodajAutoZRozbiciem, edytujWpisAuta, usunWpisAuta,
+    sesje, dodajAutoZRozbiciem, edytujWpisAuta, usunWpisAuta,
     czyDzialkaZakonczona, oznaczOstatnieAuto, wznowDzialke,
   } = useLiveStore();
+  const wpisyCalegoPlanu = useWpisyDlaPlanu(id);
 
   const [aktywnaZakladka, setZakladka] = useState<ZakladkaTyp>('plan');
   const [wybranaIdx, setWybranaIdx] = useState(0);
@@ -109,13 +114,12 @@ export default function WbudowywanieDetailScreen() {
     ? budowa.zalaczniki
     : (plan.zalaczniki ?? []);
 
-  const wpisyBiezacej = wybraDzialka ? wpisyDlaDzialki(plan.id, wybraDzialka.id) : [];
-  const wpisyCalegoPlanu = wpisyDlaPlanu(plan.id);
+  const wpisyBiezacej = wybraDzialka ? wpisyCalegoPlanu.filter((w) => w.dzialkaId === wybraDzialka.id) : [];
   const aktywnaDzialka = znajdzAktywnaDzialke(plan, wpisyCalegoPlanu, sesje);
   const dzialkaDoWpisu = aktywnaDzialka?.dzialka ?? plan.dzialki[plan.dzialki.length - 1];
   const aktywnaIdx = aktywnaDzialka?.idx ?? -1;
   const dzialkaZakonczonaWpisu = dzialkaDoWpisu ? czyDzialkaZakonczona(plan.id, dzialkaDoWpisu.id) : false;
-  const nastepnyNumerAuta = wpisyCalegoPlanu.length + 1;
+  const kolejnyNumerAuta = nastepnyNumerAuta(wpisyCalegoPlanu);
   const bilansPlanu = obliczBilansLivePlanu(
     plan,
     wpisyCalegoPlanu,
@@ -201,7 +205,7 @@ export default function WbudowywanieDetailScreen() {
             setWidokLiveZbiorczy(true);
             Alert.alert(
               'Przejście do kolejnej działki',
-              `${plan.dzialki[next].nazwa}\nKolejne auto: #${wpisyCalegoPlanu.length + 1}`,
+              `${plan.dzialki[next].nazwa}\nKolejne auto: #${kolejnyNumerAuta}`,
             );
           }
         },
@@ -236,7 +240,7 @@ export default function WbudowywanieDetailScreen() {
       await dodajAutoZRozbiciem(
         {
           planId: plan.id,
-          numerAuta: nastepnyNumerAuta,
+          numerAuta: kolejnyNumerAuta,
           komentarz: nowyKomentarz.trim() || undefined,
           godzinaWybudowania: nowyGodzina,
         },
@@ -248,7 +252,7 @@ export default function WbudowywanieDetailScreen() {
       if (segmenty.length > 1 || doZamkniecia.length > 0) {
         const nazwy = segmenty.map((s) => plan.dzialki[s.dzialkaIdx]?.nazwa).filter(Boolean).join(' → ');
         const msg = segmenty.length > 1
-          ? `Auto #${nastepnyNumerAuta} rozłożone na: ${nazwy}`
+          ? `Auto #${kolejnyNumerAuta} rozłożone na: ${nazwy}`
           : doZamkniecia.length > 0
             ? `Działka „${plan.dzialki.find((d) => d.id === doZamkniecia[0])?.nazwa}” ukończona – kolejne auto na następnej.`
             : '';
@@ -289,11 +293,12 @@ export default function WbudowywanieDetailScreen() {
         onPress={() => setWidokLiveZbiorczy(true)}
       >
         <Text style={{ color: widokLiveZbiorczy ? theme.colors.success : theme.colors.textSecondary, fontWeight: '700', fontSize: 13 }}>
-          Całość ({wpisyCalegoPlanu.length})
+          Całość ({liczUnikalnychAut(wpisyCalegoPlanu)})
         </Text>
       </TouchableOpacity>
       {plan.dzialki.map((dz, idx) => {
-        const n = wpisyDlaDzialki(plan.id, dz.id).length;
+        const wpDz = wpisyCalegoPlanu.filter((w) => w.dzialkaId === dz.id);
+        const n = liczUnikalnychAut(wpDz);
         const aktywna = !widokLiveZbiorczy && wybranaIdx === idx;
         return (
           <TouchableOpacity
@@ -341,7 +346,7 @@ export default function WbudowywanieDetailScreen() {
             const mie = getMieszanka(dz.mieszankaId);
             if (!mie) return null;
             const wyniki = obliczWynikiDzialki(dz, mie.ciezarObjetosciowy, plan.tonazAuta);
-            const wBiez = wpisyDlaDzialki(plan.id, dz.id);
+            const wBiez = wpisyCalegoPlanu.filter((w) => w.dzialkaId === dz.id);
             const cumMDz: WpisLiveMarker[] = [];
             let c = 0;
             for (const w of wBiez) { c += w.przejechaneMetry; cumMDz.push({ wpis: w, metryKumulatywne: c }); }
@@ -415,7 +420,8 @@ export default function WbudowywanieDetailScreen() {
               const dz = plan.dzialki[dzIdx];
               const mie = getMieszanka(dz.mieszankaId);
               if (!mie) return null;
-              const wpisyDz = wpisyDlaDzialki(plan.id, dz.id);
+              const wpisyDz = wpisyCalegoPlanu.filter((w) => w.dzialkaId === dz.id);
+              const zakresAut = zakresAutNaDzialce(wpisyDz);
               const sumaTonDz = wpisyDz.reduce((s, w) => s + w.tonazPrzywieziony, 0);
               const sumaMetrDz = wpisyDz.reduce((s, w) => s + w.przejechaneMetry, 0);
               const grDz = gruboscWbudowywania(dz);
@@ -445,12 +451,13 @@ export default function WbudowywanieDetailScreen() {
                             markery={markeryDz}
                             trybSzkicu="live"
                             scrollowalny={false}
+                            idPrefix={`${dz.id}-`}
                             onTruckPress={(wpis, idxW) => { setAutaModal({ wpis, idxWpisu: idxW }); setAutaModalZakladka('szczegoły'); }}
                           />
                         </ScrollView>
                       </View>
                       <View style={[styles.szkicPanel, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}>
-                        <PanelStat label="Aut" wartosc={String(wpisyDz.length)} theme={theme} kolor={theme.colors.primary} />
+                        <PanelStat label="Aut" wartosc={zakresAut ? `${zakresAut.od}${zakresAut.od !== zakresAut.do ? `–${zakresAut.do}` : ''}` : '0'} theme={theme} kolor={theme.colors.primary} />
                         <PanelStat label="Mg" wartosc={formatLiczby(sumaTonDz, 2)} theme={theme} kolor={theme.colors.text} />
                         <PanelStat label="m" wartosc={formatLiczby(sumaMetrDz)} theme={theme} kolor={theme.colors.text} />
                         {srGrDz > 0 && <PanelStat label="Śr.gr." wartosc={`${formatLiczby(srGrDz, 2)} cm`} theme={theme} kolor={Math.abs(srGrDz - grDz) > 0.3 ? theme.colors.danger : theme.colors.success} />}
@@ -460,7 +467,10 @@ export default function WbudowywanieDetailScreen() {
 
                   {wpisyDz.length > 0 && (
                     <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-                      <Text style={[styles.kartaTytul, { color: theme.colors.text }]}>Tabela aut – {dz.nazwa}</Text>
+                      <Text style={[styles.kartaTytul, { color: theme.colors.text }]}>
+                        Tabela aut – {dz.nazwa}
+                        {zakresAut ? `  (#${zakresAut.od}${zakresAut.od !== zakresAut.do ? `–${zakresAut.do}` : ''})` : ''}
+                      </Text>
                       <ScrollView horizontal showsHorizontalScrollIndicator>
                         <View>
                           <View style={[styles.tabelaNagl, { backgroundColor: `${theme.colors.primary}15` }]}>
@@ -488,7 +498,7 @@ export default function WbudowywanieDetailScreen() {
                                   <TouchableOpacity onPress={() => rozpocznijEdycjeWpisu(wpis)} style={{ width: 32, alignItems: 'center' }}>
                                     <Text style={{ color: theme.colors.info, fontSize: 15 }}>✎</Text>
                                   </TouchableOpacity>
-                                  <TouchableOpacity onPress={() => Alert.alert('Usuń', `Auto #${wpis.numerAuta}?`, [
+                                  <TouchableOpacity onPress={() => Alert.alert('Usuń auto', `Usunąć auto #${wpis.numerAuta} (wszystkie segmenty na planie)?`, [
                                     { text: 'Anuluj', style: 'cancel' },
                                     { text: 'Usuń', style: 'destructive', onPress: () => usunWpisAuta(wpis.id) },
                                   ])} style={{ width: 32, alignItems: 'center' }}>
@@ -543,7 +553,7 @@ export default function WbudowywanieDetailScreen() {
                   <Text style={[styles.kartaTytul, { color: theme.colors.text }]}>
                     {edytowanyWpisId
                       ? `Edycja auta #${wpisyCalegoPlanu.find((w) => w.id === edytowanyWpisId)?.numerAuta ?? '?'}`
-                      : `Auto #${nastepnyNumerAuta}`}
+                      : `Auto #${kolejnyNumerAuta}`}
                   </Text>
                   <Text style={[styles.opisMaly, { color: theme.colors.textSecondary, marginBottom: 8 }]}>
                     {edytowanyWpisId
@@ -561,7 +571,7 @@ export default function WbudowywanieDetailScreen() {
                   </View>
                   <TextInput style={[styles.komentarzInput, { backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.border, color: theme.colors.text }]} value={nowyKomentarz} onChangeText={setNowyKomentarz} placeholder="Komentarz / uwagi (opcjonalnie)" placeholderTextColor={theme.colors.textSecondary} multiline />
                   <TouchableOpacity style={[styles.btnDodajAuto, { backgroundColor: edytowanyWpisId ? theme.colors.warning : theme.colors.success }]} onPress={dodajWpisLive}>
-                    <Text style={styles.btnDodajAutoTekst}>{edytowanyWpisId ? '✓ Zapisz zmiany' : `+ Dodaj auto #${nastepnyNumerAuta}`}</Text>
+                    <Text style={styles.btnDodajAutoTekst}>{edytowanyWpisId ? '✓ Zapisz zmiany' : `+ Dodaj auto #${kolejnyNumerAuta}`}</Text>
                   </TouchableOpacity>
                   {edytowanyWpisId && (
                     <TouchableOpacity style={{ marginTop: 10, alignItems: 'center' }} onPress={anulujEdycjeWpisu}>
@@ -630,7 +640,7 @@ export default function WbudowywanieDetailScreen() {
         const dzModal = plan.dzialki.find((d) => d.id === wpis.dzialkaId);
         const mieModal = dzModal ? getMieszanka(dzModal.mieszankaId) : undefined;
         if (!dzModal || !mieModal) return null;
-        const wpisyDzModal = wpisyDlaDzialki(plan.id, dzModal.id);
+        const wpisyDzModal = wpisyCalegoPlanu.filter((w) => w.dzialkaId === dzModal.id);
         const grModal = gruboscWbudowywania(dzModal);
         const wpisyDo = wpisyDzModal.slice(0, idxWpisu + 1);
         const metryDo = wpisyDo.reduce((s, w) => s + w.przejechaneMetry, 0);

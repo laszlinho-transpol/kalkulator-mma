@@ -7,6 +7,9 @@ import {
   obliczBilansLivePlanu,
   dzialkiDoAutoZamkniecia,
   sumaMetrowDzialki,
+  liczUnikalnychAut,
+  nastepnyNumerAuta,
+  przenumerujAutaPlanu,
 } from './liveProgress';
 
 const dz1: DzialkaRobocza = {
@@ -105,7 +108,10 @@ describe('liveProgress', () => {
   });
 
   it('obliczBilansLivePlanu – sumuje cały plan', () => {
-    const wpisy = [wpis('dz1', 50, 20), wpis('dz2', 25, 12)];
+    const wpisy = [
+      { ...wpis('dz1', 50, 20), numerAuta: 1 },
+      { ...wpis('dz2', 25, 12), numerAuta: 2 },
+    ];
     const bilans = obliczBilansLivePlanu(plan, wpisy, () => 2.4);
     assert.equal(bilans.liczbaAut, 2);
     assert.equal(bilans.lacznyTonaz, 32);
@@ -117,5 +123,24 @@ describe('liveProgress', () => {
   it('sumaMetrowDzialki', () => {
     const wpisy = [wpis('dz1', 30), wpis('dz1', 20)];
     assert.equal(sumaMetrowDzialki(wpisy, 'dz1'), 50);
+  });
+
+  it('nastepnyNumerAuta po usunięciu wszystkich', () => {
+    assert.equal(nastepnyNumerAuta([]), 1);
+    const dwa = [wpis('dz1', 10), { ...wpis('dz2', 5), numerAuta: 2 }];
+    assert.equal(nastepnyNumerAuta(dwa), 3);
+    const poUsun = przenumerujAutaPlanu(dwa.filter((w) => w.numerAuta !== 2), 'p1');
+    assert.equal(liczUnikalnychAut(poUsun.filter((w) => w.planId === 'p1')), 1);
+    assert.equal(nastepnyNumerAuta(poUsun.filter((w) => w.planId === 'p1')), 2);
+  });
+
+  it('przenumerujAutaPlanu – bez luk', () => {
+    const wpisy = [
+      { ...wpis('dz1', 10), numerAuta: 5 },
+      { ...wpis('dz1', 20), numerAuta: 8 },
+    ];
+    const out = przenumerujAutaPlanu(wpisy, 'p1');
+    const planW = out.filter((w) => w.planId === 'p1');
+    assert.deepEqual(planW.map((w) => w.numerAuta), [1, 2]);
   });
 });

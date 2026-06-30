@@ -167,6 +167,8 @@ interface DzialkaSketchProps {
   trybSzkicu?: TrybSzkicu;
   /** false gdy rodzic owija szkic we własnym ScrollView (zakładka LIVE) */
   scrollowalny?: boolean;
+  /** Unikalny prefiks ID clipPath (wymagany gdy kilka szkiców na ekranie) */
+  idPrefix?: string;
 }
 
 export function DzialkaSketch({
@@ -177,6 +179,7 @@ export function DzialkaSketch({
   onTruckPress,
   trybSzkicu = 'standard',
   scrollowalny = true,
+  idPrefix = '',
 }: DzialkaSketchProps) {
   const colorScheme = useColorScheme();
   const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
@@ -203,6 +206,7 @@ export function DzialkaSketch({
   const paverY = metryDoY(figury, heights, Math.min(wykonaneMetry, cumMetry[figury.length - 1] + dlugoscFigury(figury[figury.length - 1])));
   const isLiveMode = wykonaneMetry > 0 || markery.length > 0;
   const isDark = colorScheme === 'dark';
+  const clipId = (figId: string) => `clip-pass-${idPrefix}${figId}`;
 
   const svgContent = (
         <Svg width={SVG_W} height={svgH}>
@@ -268,14 +272,14 @@ export function DzialkaSketch({
                   if (kolorLR) {
                     const frac = passedInFig / Math.max(figLen, 1);
                     return (
-                      <ClipPath key={`clip-${figura.id}`} id={`clip-pass-${figura.id}`}>
+                      <ClipPath key={`clip-${figura.id}`} id={clipId(figura.id)}>
                         <SvgRect x={LEFT_MARGIN - 2} y={yFig} width={(SKETCH_W + 4) * frac} height={hFig} />
                       </ClipPath>
                     );
                   }
                   const partialH = hFig * (passedInFig / Math.max(figLen, 1));
                   return (
-                    <ClipPath key={`clip-${figura.id}`} id={`clip-pass-${figura.id}`}>
+                    <ClipPath key={`clip-${figura.id}`} id={clipId(figura.id)}>
                       <SvgRect x={LEFT_MARGIN - 2} y={yFig} width={SKETCH_W + 4} height={partialH} />
                     </ClipPath>
                   );
@@ -289,7 +293,7 @@ export function DzialkaSketch({
                 const yFig = cumHeights[idx];
                 const hFig = heights[idx];
                 return (
-                  <SvgG key={`pass-${figura.id}`} clipPath={`url(#clip-pass-${figura.id})`}>
+                  <SvgG key={`pass-${figura.id}`} clipPath={`url(#${clipId(figura.id)})`}>
                     <FiguraKsztalt
                       figura={figura}
                       yFig={yFig}

@@ -34,6 +34,43 @@ export interface BilansLivePlanu {
 
 const kluczSesji = (planId: string, dzialkaId: string) => `${planId}:${dzialkaId}`;
 
+/** Liczba logicznych aut (nie segmentów po rozbiciu) */
+export function liczUnikalnychAut(wpisyPlanu: WpisLive[]): number {
+  if (wpisyPlanu.length === 0) return 0;
+  return new Set(wpisyPlanu.map((w) => w.numerAuta)).size;
+}
+
+/** Kolejny numer auta po istniejących (1 gdy brak wpisów) */
+export function nastepnyNumerAuta(wpisyPlanu: WpisLive[]): number {
+  return liczUnikalnychAut(wpisyPlanu) + 1;
+}
+
+/** Po usunięciu aut – ciągła numeracja 1…N bez luk */
+export function przenumerujAutaPlanu(wpisy: WpisLive[], planId: string): WpisLive[] {
+  const planWpisy = wpisy.filter((w) => w.planId === planId);
+  const inne = wpisy.filter((w) => w.planId !== planId);
+  if (planWpisy.length === 0) return wpisy;
+
+  const stareNumery = [...new Set(planWpisy.map((w) => w.numerAuta))].sort((a, b) => a - b);
+  const mapa = new Map(stareNumery.map((stary, i) => [stary, i + 1]));
+
+  const zaktualizowane = [...planWpisy]
+    .sort((a, b) => {
+      if (a.numerAuta !== b.numerAuta) return a.numerAuta - b.numerAuta;
+      return a.createdAt.localeCompare(b.createdAt);
+    })
+    .map((w) => ({ ...w, numerAuta: mapa.get(w.numerAuta) ?? w.numerAuta }));
+
+  return [...inne, ...zaktualizowane];
+}
+
+/** Zakres numerów aut na działce (np. 18–22) */
+export function zakresAutNaDzialce(wpisyDz: WpisLive[]): { od: number; do: number } | null {
+  if (wpisyDz.length === 0) return null;
+  const numery = wpisyDz.map((w) => w.numerAuta);
+  return { od: Math.min(...numery), do: Math.max(...numery) };
+}
+
 /** Suma przejechanych metrów na danej działce */
 export function sumaMetrowDzialki(wpisy: WpisLive[], dzialkaId: string): number {
   return round2(
@@ -197,7 +234,7 @@ export function obliczBilansLivePlanu(
     : pozostalaMasaWgPlanu;
 
   return {
-    liczbaAut: wpisyPlanu.length,
+    liczbaAut: liczUnikalnychAut(wpisyPlanu),
     lacznyTonaz,
     laczneMetry,
     zakrytaPowierzchnia: zakrytaPow,
