@@ -633,3 +633,38 @@ Plan zapisywał się do pamięci, ale ekran szczegółów padał przy otwarciu.
 **Weryfikacja**: `npm run verify` → **testy OK** ✅
 
 ---
+
+## ETAP 15 – LIVE automatyczny postęp między działkami (1.5.4)
+**Data:** 2026-06-30
+**Status:** ✅ UKOŃCZONY
+**Branch:** `cursor/kalkulator-mma-live-progress-0a0b`
+**Wersja aplikacji:** 1.5.4 (versionCode 12)
+
+### Założenie właściciela
+
+Użytkownik wpisuje **auto + metry**, a program:
+- sam liczy pozycję na bieżącej działce,
+- automatycznie przechodzi między działkami gdy metry przekraczają długość odcinka,
+- pokazuje **zbiorczy bilans** całego planu (grubość, powierzchnia, tony).
+
+### Co zostało zrobione
+
+1. **`src/utils/liveProgress.ts`** – rdzeń logiki LIVE:
+   - `znajdzAktywnaDzialke` – pierwsza nieukończona działka
+   - `rozdzielMetryNaDzialki` – rozbicie metrów (i tonażu proporcjonalnie) na kolejne działki
+   - `obliczBilansLivePlanu` – łączna powierzchnia, śr. grubość, pozostała masa
+   - `dzialkiDoAutoZamkniecia` – auto-zamknięcie działki po wypełnieniu metrami
+
+2. **`liveStore.ts`** – `dodajAutoZRozbiciem` (wiele wpisów z jednego auta)
+
+3. **`wbudowywanie/[id].tsx`** – przebudowany LIVE:
+   - karta **„Bilans całego planu”** na górze widoku Całość
+   - formularz bez ręcznego wyboru działki – aktywna wyznaczana z postępu
+   - alert po rozbiciu auta na wiele działek lub auto-zamknięciu działki
+   - przycisk „Ostatnie auto” nadal dostępny jako ręczne zamknięcie
+
+4. **Testy** – `liveProgress.test.ts` (6 scenariuszy)
+
+**Weryfikacja**: `npm run verify` → **0 błędów TS, 27/27 testów, expo-doctor 21/21** ✅
+
+---

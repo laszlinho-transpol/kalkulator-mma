@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.5.3';
+export const WERSJA_APLIKACJI = '1.5.4';
 
 export interface WpisChangelog {
   wersja: string;
@@ -12,6 +12,18 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.5.4',
+    data: '2026-06-30',
+    tytul: 'LIVE – automatyczny postęp między działkami',
+    zmiany: [
+      'LIVE: wpisujesz auto + metry – program sam liczy pozycję na działce',
+      'LIVE: metry automatycznie przechodzą na kolejne działki (rozbicie jednego auta)',
+      'LIVE: działka zamyka się sama po wypełnieniu metrami (bez ręcznego „Ostatnie auto”)',
+      'LIVE: karta „Bilans całego planu” – łączna grubość, powierzchnia, tony',
+      'LIVE: aktywna działka wybierana automatycznie z postępu robót',
+    ],
+  },
   {
     wersja: '1.5.3',
     data: '2026-06-26',
