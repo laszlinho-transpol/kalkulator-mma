@@ -118,6 +118,8 @@ export function obliczTabeleAutDlaDzialki(
   ciezarObjetosciowy: number,
   rzuty: Rzut[],
   tonazAuta: number = DOMYSLNY_TONAZ_AUTA,
+  numerAutaOffset = 0,
+  narastajacoOd: { masa: number; metry: number } = { masa: 0, metry: 0 },
 ): WpisTabeliAut[] {
   const grubosc = dzialka.gruboscWbudowywania ?? dzialka.grubosc;
   const wyniki = obliczWynikiDzialki(dzialka, ciezarObjetosciowy, tonazAuta);
@@ -128,9 +130,9 @@ export function obliczTabeleAutDlaDzialki(
   });
 
   const wynikiAut: WpisTabeliAut[] = [];
-  let masaNarastajaco = 0;
-  let metryNarastajaco = 0;
-  let numerAuta = 0;
+  let masaNarastajaco = narastajacoOd.masa;
+  let metryNarastajaco = narastajacoOd.metry;
+  let numerAuta = numerAutaOffset;
   let segIdx = 0;
 
   const pobierzMetryDlaMasy = (masaMg: number): number => {
@@ -158,6 +160,7 @@ export function obliczTabeleAutDlaDzialki(
       numerAuta++;
       const pozostaloMasy = round3(wyniki.lacznaIloscMasy - masaNarastajaco);
       const masa = round2(Math.min(tonazAuta, pozostaloMasy));
+      if (masa <= 0) break;
       const metry = pobierzMetryDlaMasy(masa);
       masaNarastajaco = round3(masaNarastajaco + masa);
       metryNarastajaco = round2(metryNarastajaco + metry);
@@ -173,6 +176,89 @@ export function obliczTabeleAutDlaDzialki(
   }
 
   return wynikiAut;
+}
+
+/** Wycina fragment podziału rzutów dla N aut (z przesunięciem w globalnej numeracji) */
+export function wycinekRzutow(rzuty: Rzut[], pominAut: number, liczbaAut: number): Rzut[] {
+  if (liczbaAut <= 0) return [];
+  const numeryRzutow: number[] = [];
+  for (const r of rzuty) {
+    for (let i = 0; i < r.iloscSamochodow; i++) numeryRzutow.push(r.numerRzutu);
+  }
+  const wycinek = numeryRzutow.slice(pominAut, pominAut + liczbaAut);
+  if (wycinek.length === 0) return generujDomyslneRzuty(liczbaAut);
+
+  const wynik: Rzut[] = [];
+  for (const nr of wycinek) {
+    const ostatni = wynik[wynik.length - 1];
+    if (ostatni && ostatni.numerRzutu === nr) {
+      ostatni.iloscSamochodow++;
+    } else {
+      wynik.push({
+        id: String(wynik.length + 1),
+        numerRzutu: nr,
+        iloscSamochodow: 1,
+      });
+    }
+  }
+  return wynik;
+}
+
+export interface TabelaAutDzialki {
+  dzialkaId: string;
+  nazwa: string;
+  wiersze: WpisTabeliAut[];
+  numerAutaOd: number;
+  numerAutaDo: number;
+}
+
+export interface TabeleAutPlanu {
+  calosc: WpisTabeliAut[];
+  dzialki: TabelaAutDzialki[];
+  lacznaIloscAut: number;
+}
+
+/** Tabele aut: całość planu + osobno każda działka (ciągła numeracja aut) */
+export function obliczTabeleAutPlanu(
+  dzialki: DzialkaRobocza[],
+  rzutyPlanu: Rzut[],
+  tonazAuta: number,
+  ciezarPoMieszance: (mieszankaId: string) => number | undefined,
+): TabeleAutPlanu {
+  const calosc: WpisTabeliAut[] = [];
+  const poDzialkach: TabelaAutDzialki[] = [];
+  let offset = 0;
+  let masaG = 0;
+  let metryG = 0;
+
+  for (const dz of dzialki) {
+    const ciezar = ciezarPoMieszance(dz.mieszankaId);
+    if (!ciezar || dz.figury.length === 0) continue;
+
+    const wyniki = obliczWynikiDzialki(dz, ciezar, tonazAuta);
+    const n = wyniki.iloscSamochodow;
+    if (n <= 0) continue;
+
+    const rzutyDz = wycinekRzutow(rzutyPlanu, offset, n);
+    const wierszeDz = obliczTabeleAutDlaDzialki(dz, ciezar, rzutyDz, tonazAuta, offset);
+
+    for (const w of wierszeDz) {
+      masaG = round3(masaG + w.masa);
+      metryG = round2(metryG + w.metry);
+      calosc.push({ ...w, masaNarastajaco: masaG, metryNarastajaco: metryG });
+    }
+
+    poDzialkach.push({
+      dzialkaId: dz.id,
+      nazwa: dz.nazwa,
+      wiersze: wierszeDz,
+      numerAutaOd: offset + 1,
+      numerAutaDo: offset + wierszeDz.length,
+    });
+    offset += wierszeDz.length;
+  }
+
+  return { calosc, dzialki: poDzialkach, lacznaIloscAut: offset };
 }
 
 /**

@@ -295,8 +295,8 @@ export function DzialkaSketch({
                       yFig={yFig}
                       hFig={hFig}
                       maxSzer={maxSzer}
-                      fill="rgba(10,10,15,1)"
-                      stroke="rgba(10,10,15,1)"
+                      fill="#000000"
+                      stroke="#000000"
                       strokeW={0}
                       onPress={() => {}}
                     />

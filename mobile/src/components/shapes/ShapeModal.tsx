@@ -2,7 +2,7 @@
 // MODAL FIGUR – wybór kształtu + formularz wymiarów
 // ============================================================
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -84,9 +84,33 @@ interface ShapeModalProps {
   kilometrazPoczatkowy: number; // w metrach bieżących
   onDodaj: (figura: Figura) => void;
   onClose: () => void;
+  /** Edycja istniejącej figury – ten sam modal, przycisk Zapisz */
+  figuraEdytowana?: Figura | null;
+  onZapisz?: (figura: Figura) => void;
 }
 
-export function ShapeModal({ visible, numeracja, kilometrazPoczatkowy, onDodaj, onClose }: ShapeModalProps) {
+function wczytajFormZFigury(figura: Figura) {
+  const fmt = (n: number) => String(n).replace('.', ',');
+  switch (figura.typ) {
+    case 'prostokat':
+      return { typ: figura.typ as TypFigury, prostokat: { szerokosc: fmt(figura.szerokosc), dlugosc: fmt(figura.dlugosc) } };
+    case 'trapez':
+      return { typ: figura.typ, trapez: { szerokosc1: fmt(figura.szerokosc1), szerokosc2: fmt(figura.szerokosc2), dlugosc: fmt(figura.dlugosc) } };
+    case 'trojkat':
+      return { typ: figura.typ, trojkat: { szerokosc: fmt(figura.szerokosc), dlugosc: fmt(figura.dlugosc) } };
+    case 'pierscien':
+      return { typ: figura.typ, pierscien: { szerokosc: fmt(figura.szerokosc), dlugoscZewnetrzna: fmt(figura.dlugoscZewnetrzna), dlugoscWewnetrzna: fmt(figura.dlugoscWewnetrzna) } };
+    case 'wjazd':
+      return { typ: figura.typ, wjazd: { L: fmt(figura.L), s: fmt(figura.s), R1: fmt(figura.R1 ?? 0), R2: fmt(figura.R2 ?? 0) } };
+    default:
+      return null;
+  }
+}
+
+export function ShapeModal({
+  visible, numeracja, kilometrazPoczatkowy, onDodaj, onClose,
+  figuraEdytowana, onZapisz,
+}: ShapeModalProps) {
   const colorScheme = useColorScheme();
   const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
 
@@ -97,6 +121,20 @@ export function ShapeModal({ visible, numeracja, kilometrazPoczatkowy, onDodaj, 
   const [pierscien, setPierscien] = useState<FormPierscien>(PUSTE.pierscien);
   const [wjazd, setWjazd] = useState<FormWjazd>(PUSTE.wjazd);
   const [blad, setBlad] = useState('');
+  const trybEdycji = !!figuraEdytowana;
+
+  useEffect(() => {
+    if (!visible || !figuraEdytowana) return;
+    const dane = wczytajFormZFigury(figuraEdytowana);
+    if (!dane) return;
+    setSelectedTyp(dane.typ);
+    if (dane.prostokat) setProstokat(dane.prostokat);
+    if (dane.trapez) setTrapez(dane.trapez);
+    if (dane.trojkat) setTrojkat(dane.trojkat);
+    if (dane.pierscien) setPierscien(dane.pierscien);
+    if (dane.wjazd) setWjazd(dane.wjazd);
+    setBlad('');
+  }, [visible, figuraEdytowana]);
 
   const resetujForm = () => {
     setSelectedTyp(null);
@@ -175,6 +213,17 @@ export function ShapeModal({ visible, numeracja, kilometrazPoczatkowy, onDodaj, 
       setBlad('Wypełnij wszystkie wymagane wymiary (wartości > 0).');
       return;
     }
+    if (trybEdycji && figuraEdytowana && onZapisz) {
+      const zaktualizowana = {
+        ...figura,
+        id: figuraEdytowana.id,
+        numeracja: figuraEdytowana.numeracja,
+      } as unknown as Figura;
+      onZapisz(zaktualizowana);
+      resetujForm();
+      onClose();
+      return;
+    }
     const pełnaFigura = {
       ...figura,
       id: generujId(),
@@ -191,15 +240,15 @@ export function ShapeModal({ visible, numeracja, kilometrazPoczatkowy, onDodaj, 
   return (
     <SafeModal
       visible={visible}
-      tytul={selectedTyp ? `Figura #${numeracja}` : `Figura #${numeracja}`}
+      tytul={trybEdycji ? `Edytuj figurę #${numeracja}` : `Figura #${numeracja}`}
       theme={theme}
       onClose={zamknij}
-      lewy={{ tekst: selectedTyp ? '‹ Zmień' : 'Anuluj', onPress: selectedTyp ? () => setSelectedTyp(null) : zamknij, kolor: theme.colors.danger }}
-      prawy={selectedTyp ? { tekst: 'Dodaj', onPress: dodaj, kolor: theme.colors.primary } : undefined}
+      lewy={{ tekst: selectedTyp && !trybEdycji ? '‹ Zmień' : 'Anuluj', onPress: selectedTyp && !trybEdycji ? () => setSelectedTyp(null) : zamknij, kolor: theme.colors.danger }}
+      prawy={selectedTyp ? { tekst: trybEdycji ? 'Zapisz' : 'Dodaj', onPress: dodaj, kolor: theme.colors.primary } : undefined}
     >
       <ScrollView contentContainerStyle={styles.zawartosc} keyboardShouldPersistTaps="handled">
-            {/* KROK 1: Wybór kształtu */}
-            {!selectedTyp && (
+            {/* KROK 1: Wybór kształtu (tylko nowa figura) */}
+            {!selectedTyp && !trybEdycji && (
               <>
                 <Text style={[styles.sekcjaTytul, { color: theme.colors.textSecondary }]}>
                   Wybierz kształt figury

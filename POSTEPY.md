@@ -617,3 +617,19 @@ Plan zapisywał się do pamięci, ale ekran szczegółów padał przy otwarciu.
 **Weryfikacja**: `npm run verify` → **0 błędów TS, testy OK** ✅
 
 ---
+
+## ETAP 14 – Edycja figur, tabela aut całość, LIVE zbiorczy (1.5.3)
+**Data:** 2026-06-26
+**Status:** ✅ UKOŃCZONY
+**Wersja aplikacji:** 1.5.3 (versionCode 11)
+
+### Co zostało zrobione
+
+1. **Planowanie** – edycja figur (`ShapeModal` + ✎), usuwanie (✕)
+2. **Tabela aut** (`obliczTabeleAutPlanu`) – zakładka Całość + działki, ciągła numeracja aut, bez pustych wierszy
+3. **LIVE zbiorczy** – widok Całość ze scrollem wszystkich działek, ciągła numeracja produkcji
+4. **Szkic LIVE** – przejechane odcinki zamalowane na czarno
+
+**Weryfikacja**: `npm run verify` → **testy OK** ✅
+
+---
