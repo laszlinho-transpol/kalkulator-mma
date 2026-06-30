@@ -593,3 +593,27 @@ Plan zapisywał się do pamięci, ale ekran szczegółów padał przy otwarciu.
 **Weryfikacja**: `npm run verify` → **0 błędów TS, testy OK** ✅
 
 ---
+
+## ETAP 13 – Szkic LIVE proporcjonalny + publikacja Play Store (1.5.2)
+**Data:** 2026-06-26
+**Status:** ✅ UKOŃCZONY
+**Wersja aplikacji:** 1.5.2 (versionCode 10)
+
+### Co zostało zrobione
+
+1. **Szkic LIVE** (`sketchLayout.ts`, `DzialkaSketch.tsx`, `wbudowywanie/[id].tsx`):
+   - Tryb `live`: wysokość figur wg metrów (~1,15 px/m) zamiast ściskania do 110 px
+   - Lewa kolumna: przewijany szkic w oknie ~42% wysokości ekranu
+   - Prawa kolumna: statystyki (auta, Mg, m, śr. grubość) na stałe
+   - Tryb `standard` bez zmian (plan, archiwum, zakładka Plan w wbudowywaniu)
+
+2. **Publikacja Play Store**:
+   - `publish-play-store.cmd`: `--auto-submit` gdy jest prawdziwy `google-service-account.json`
+   - Wyjaśnienie: `.example` to szablon, nie działa z EAS Submit
+   - `PUBLIKACJA_PLAY_STORE.md` – doprecyzowana CZĘŚĆ E
+
+3. **Testy**: `sketchLayout.test.ts` – proporcje standard vs live
+
+**Weryfikacja**: `npm run verify` → **0 błędów TS, testy OK** ✅
+
+---
