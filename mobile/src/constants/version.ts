@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.5.4';
+export const WERSJA_APLIKACJI = '1.5.5';
 
 export interface WpisChangelog {
   wersja: string;
@@ -12,6 +12,19 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.5.5',
+    data: '2026-06-30',
+    tytul: 'LIVE – usuwanie aut, numeracja ciągła, HTML jak aplikacja',
+    zmiany: [
+      'LIVE: usunięcie auta kasuje wszystkie segmenty i odświeża bilans planu',
+      'LIVE: po usunięciu aut – przenumerowanie 1…N, kolejne auto od właściwego numeru',
+      'LIVE: bilans liczy unikalne auta (nie segmenty po rozbiciu)',
+      'Szkic LIVE: naprawione czarne zamalowanie przy wielu działkach na ekranie',
+      'Tabela aut (plan/HTML): ciągła numeracja między działkami (np. działka 4 od #18)',
+      'Eksport HTML v3.0: tryb LIVE jak w aplikacji (bilans, auto-podział metrów, Całość)',
+    ],
+  },
   {
     wersja: '1.5.4',
     data: '2026-06-30',

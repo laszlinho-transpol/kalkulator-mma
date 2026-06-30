@@ -668,3 +668,21 @@ Użytkownik wpisuje **auto + metry**, a program:
 **Weryfikacja**: `npm run verify` → **0 błędów TS, 27/27 testów, expo-doctor 21/21** ✅
 
 ---
+
+## ETAP 16 – LIVE usuwanie, numeracja, HTML v3 (1.5.5)
+**Data:** 2026-06-30
+**Status:** ✅ UKOŃCZONY
+**Branch:** `cursor/kalkulator-mma-live-progress-0a0b`
+**Wersja aplikacji:** 1.5.5 (versionCode 13)
+
+### Naprawione błędy
+
+1. **Bilans po usunięciu aut** – liczba aut i tony/metry liczone po unikalnych `numerAuta`, reaktywny hook `useWpisyDlaPlanu`
+2. **Usuwanie auta** – `usunAutoPlanu` usuwa wszystkie segmenty jednego auta + `przenumerujAutaPlanu` (kolejne auto od #1 po wyczyszczeniu)
+3. **Szkic czarny** – unikalny `idPrefix` na clipPath przy wielu szkicach w widoku Całość
+4. **Numeracja ciągła** – zakres aut na działce (#18–22), tabela planu/HTML z `obliczTabeleAutPlanu`
+5. **HTML v3.0** – ten sam LIVE co aplikacja: bilans planu, rozdzielanie metrów, widok Całość/działki
+
+**Weryfikacja**: `npm run verify` → **29/29 testów** ✅
+
+---

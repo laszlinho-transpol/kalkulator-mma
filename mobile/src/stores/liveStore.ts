@@ -5,6 +5,7 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { WpisLive, SesjaDzialkiLive } from '../types';
+import { przenumerujAutaPlanu } from '../utils/liveProgress';
 
 const KLUCZ_STORAGE = '@mma:live';
 const KLUCZ_SESJE = '@mma:live_sesje';
@@ -21,6 +22,7 @@ interface LiveStore {
   ) => Promise<void>;
   edytujWpisAuta: (id: string, dane: Partial<Omit<WpisLive, 'id' | 'createdAt'>>) => Promise<void>;
   usunWpisAuta: (id: string) => Promise<void>;
+  usunAutoPlanu: (planId: string, numerAuta: number) => Promise<void>;
   wpisyDlaPlanu: (planId: string) => WpisLive[];
   wpisyDlaDzialki: (planId: string, dzialkaId: string) => WpisLive[];
   wyczyścWpisyPlanu: (planId: string) => Promise<void>;
@@ -101,7 +103,16 @@ export const useLiveStore = create<LiveStore>((set, get) => ({
   },
 
   usunWpisAuta: async (id) => {
-    const zaktualizowane = get().wpisy.filter((w) => w.id !== id);
+    const wpis = get().wpisy.find((w) => w.id === id);
+    if (!wpis) return;
+    await get().usunAutoPlanu(wpis.planId, wpis.numerAuta);
+  },
+
+  usunAutoPlanu: async (planId, numerAuta) => {
+    const poUsunieciu = get().wpisy.filter(
+      (w) => !(w.planId === planId && w.numerAuta === numerAuta),
+    );
+    const zaktualizowane = przenumerujAutaPlanu(poUsunieciu, planId);
     set({ wpisy: zaktualizowane });
     await zapiszDoStorage(zaktualizowane);
   },

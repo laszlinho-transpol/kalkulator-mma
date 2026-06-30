@@ -6,7 +6,8 @@ import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import type { Plan, WpisLive } from '../types';
 import { formatujDatePl } from './dates';
-import { formatLiczby } from './calculations';
+import { formatLiczby, obliczTabeleAutPlanu } from './calculations';
+import { HTML_LIVE_SCRIPT } from './htmlLiveScript';
 
 export interface OpcjeEksportuHTML {
   autor?: string;
@@ -21,7 +22,8 @@ function budujDaneEksportu(
   const mieszankiMap: Record<string, typeof mieszanki[0]> = {};
   for (const m of mieszanki) mieszankiMap[m.id] = m;
 
-  const wpisy = (opcje?.wpisyLive ?? []).filter((w) => w.planId === plan.id).map((w) => ({
+  const wpisy = (opcje?.wpisyLive ?? []).filter((w) => w.planId === plan.id).map((w, i) => ({
+    _lid: w.id || `w${i}`,
     dzialkaId: w.dzialkaId,
     numerAuta: w.numerAuta,
     tonazPrzywieziony: w.tonazPrzywieziony,
@@ -31,10 +33,11 @@ function budujDaneEksportu(
   }));
 
   return {
-    wersja: '2.0',
+    wersja: '3.0',
     plan,
     mieszanki: mieszankiMap,
     wpisyLive: wpisy,
+    sesjeLive: [] as { planId: string; dzialkaId: string; zakonczona: boolean }[],
     autorRaportu: opcje?.autor ?? '',
     wygenerowano: new Date().toISOString(),
   };
@@ -84,6 +87,20 @@ export async function generujInteraktywnyHTML(
   .logo { font-size: 12px; color: var(--muted); margin-bottom: 16px; }
   .autor-info { font-size: 12px; color: var(--muted); margin-bottom: 8px; }
   .live-wpis { border: 1px solid var(--border); border-radius: 8px; padding: 10px; margin-bottom: 8px; }
+  .live-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  .live-tab { flex: 1; min-width: 80px; padding: 10px 8px; border-radius: 20px; border: 1px solid var(--border); background: #252535; color: var(--muted); font-weight: 600; font-size: 12px; cursor: pointer; }
+  .live-tab.active { border-color: var(--green); background: rgba(34,197,94,0.15); color: var(--green); }
+  .bilans-card { border-color: var(--green) !important; background: rgba(34,197,94,0.08) !important; }
+  .bilans-card h2 { color: var(--green) !important; }
+  .aktywna-dz { color: var(--green); font-weight: 600; font-size: 13px; margin-top: 8px; }
+  .card-aktywna { border-color: var(--green) !important; border-width: 2px !important; }
+  .live-tabela { margin-top: 10px; }
+  .btn-mini { background: #3b82f6; color: #fff; border: none; border-radius: 6px; padding: 4px 8px; font-size: 12px; cursor: pointer; }
+  .btn-danger-mini { background: var(--red); }
+  .komentarz { font-size: 11px; color: var(--muted); font-style: italic; }
+  .zakres-aut { font-size: 12px; color: var(--muted); margin-top: 8px; }
+  .pusty { color: var(--muted); text-align: center; padding: 20px; }
+  #live-opis { color: var(--muted); font-size: 13px; margin-bottom: 8px; }
   .fab { position: fixed; bottom: 16px; left: 16px; right: 16px; max-width: 568px; margin: 0 auto; z-index: 100; }
   .modal-tlo { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:200; align-items:flex-end; justify-content:center; }
   .modal-tlo.open { display:flex; }
@@ -138,49 +155,37 @@ ${plan.dzialki.map((dz, dIdx) => `
 </div>
 
 <div id="tab-tabela" class="tab-content">
-${plan.dzialki.map((dz, dIdx) => {
-  const mie = dane.mieszanki[dz.mieszankaId];
-  if (!mie) return '';
-  const pow = dz.figury.reduce((s: number, f: any) => {
-    if (f.typ === 'prostokat') return s + f.szerokosc * f.dlugosc;
-    if (f.typ === 'trapez') return s + ((f.szerokosc1 + f.szerokosc2) / 2) * f.dlugosc;
-    if (f.typ === 'trojkat') return s + (f.szerokosc * f.dlugosc) / 2;
-    if (f.typ === 'pierscien') return s + f.szerokosc * ((f.dlugoscZewnetrzna + f.dlugoscWewnetrzna) / 2);
-    if (f.typ === 'wjazd') return s + f.L * f.s + (f.R1 ** 2 + f.R2 ** 2) * 0.2146;
-    return s;
-  }, 0);
-  const len = dz.figury.reduce((s: number, f: any) => {
-    if (f.typ === 'prostokat' || f.typ === 'trapez' || f.typ === 'trojkat') return s + (f.dlugosc ?? 0);
-    if (f.typ === 'pierscien') return s + ((f.dlugoscZewnetrzna + f.dlugoscWewnetrzna) / 2);
-    if (f.typ === 'wjazd') return s + (f.L ?? 0);
-    return s;
-  }, 0);
-  const masa = pow * (dz.grubosc / 100) * mie.ciezarObjetosciowy;
-  const rzuty = plan.rzuty?.length ? plan.rzuty : [{ numerRzutu: 1, iloscSamochodow: Math.ceil(masa / plan.tonazAuta) }];
-  let rows = '';
-  let cumMasa = 0, cumMetry = 0, nr = 0;
-  const metryNaTone = masa > 0 ? len / masa : 0;
-  for (const rzut of rzuty) {
-    rows += '<tr><td colspan="5" class="rzut-header">RZUT ' + rzut.numerRzutu + '</td></tr>';
-    for (let i = 0; i < rzut.iloscSamochodow; i++) {
-      nr++;
-      const mAuto = Math.min(plan.tonazAuta, masa - cumMasa);
-      cumMasa = Math.round((cumMasa + mAuto) * 1000) / 1000;
-      const mMetry = Math.round(mAuto * metryNaTone * 100) / 100;
-      cumMetry = Math.round((cumMetry + mMetry) * 100) / 100;
-      rows += '<tr><td>' + nr + '</td><td>' + mAuto.toFixed(2) + '</td><td>' + cumMasa.toFixed(2) + '</td><td>' + mMetry.toFixed(2) + '</td><td>' + cumMetry.toFixed(2) + '</td></tr>';
-    }
+${(() => {
+  const tabele = obliczTabeleAutPlanu(
+    plan.dzialki,
+    plan.rzuty ?? [],
+    plan.tonazAuta,
+    (mId) => mieszanki.find((m) => m.id === mId)?.ciezarObjetosciowy,
+  );
+  let html = '<div class="card"><h2>Całość – ciągła numeracja aut</h2><table><thead><tr><th>#</th><th>Mg</th><th>∑ Mg</th><th>m</th><th>∑ m</th></tr></thead><tbody>';
+  for (const w of tabele.calosc) {
+    html += '<tr><td>' + w.numerAuta + '</td><td>' + w.masa.toFixed(2) + '</td><td>' + w.masaNarastajaco.toFixed(2) + '</td><td>' + w.metry.toFixed(2) + '</td><td>' + w.metryNarastajaco.toFixed(2) + '</td></tr>';
   }
-  return '<div class="card"><h2>' + dz.nazwa + ' – Tabela aut</h2><table><thead><tr><th>#</th><th>Mg</th><th>∑ Mg</th><th>m</th><th>∑ m</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
-}).join('')}
+  html += '</tbody></table></div>';
+  for (const td of tabele.dzialki) {
+    html += '<div class="card"><h2>' + td.nazwa + ' – auta ' + td.numerAutaOd + '–' + td.numerAutaDo + '</h2><table><thead><tr><th>#</th><th>Mg</th><th>∑ Mg</th><th>m</th><th>∑ m</th></tr></thead><tbody>';
+    for (const w of td.wiersze) {
+      html += '<tr><td>' + w.numerAuta + '</td><td>' + w.masa.toFixed(2) + '</td><td>' + w.masaNarastajaco.toFixed(2) + '</td><td>' + w.metry.toFixed(2) + '</td><td>' + w.metryNarastajaco.toFixed(2) + '</td></tr>';
+    }
+    html += '</tbody></table></div>';
+  }
+  return html;
+})()}
 </div>
 
 <div id="tab-live" class="tab-content">
-  <p style="color:var(--muted);font-size:13px;margin-bottom:12px">Wpisuj dane z wywrotek na budowie. Na koniec dnia podpisz raport i wyślij plik z powrotem.</p>
+  <p style="color:var(--muted);font-size:13px;margin-bottom:12px">Tryb LIVE jak w aplikacji – metry rozdzielają się automatycznie między działki. Dane zapisują się w przeglądarce (localStorage).</p>
   <div id="live-selektor"></div>
+  <div id="live-bilans"></div>
   <div id="live-lista"></div>
   <div class="card" id="live-form">
     <h2 id="live-form-tytul">Nowe auto</h2>
+    <p id="live-opis"></p>
     <label>Tonaż [Mg]<input type="number" id="live-ton" step="0.01" /></label>
     <label style="margin-top:8px;display:block">Metry [m]<input type="number" id="live-met" step="0.1" /></label>
     <label style="margin-top:8px;display:block">Godzina<input type="text" id="live-godz" placeholder="HH:MM" maxlength="5" /></label>
@@ -209,21 +214,7 @@ ${plan.dzialki.map((dz, dIdx) => {
 const MMA = JSON.parse(document.getElementById('mma-export-data').textContent);
 const PLAN = MMA.plan;
 const MIESZANKI = MMA.mieszanki;
-let WPISY = MMA.wpisyLive || [];
-let AKTYWNA_DZIALKA = 0;
-let EDYCJA_IDX = -1;
-const KLUCZ_LS = 'mma_live_' + PLAN.id;
-
-function zaladujZPamieci() {
-  try {
-    const z = localStorage.getItem(KLUCZ_LS);
-    if (z) WPISY = JSON.parse(z);
-  } catch(e) {}
-}
-function zapiszDoPamieci() {
-  try { localStorage.setItem(KLUCZ_LS, JSON.stringify(WPISY)); } catch(e) {}
-}
-zaladujZPamieci();
+${HTML_LIVE_SCRIPT}
 
 function switchTab(name) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
@@ -260,83 +251,6 @@ function obliczKontrolę(dzIdx) {
   document.getElementById('wynik_'+dzIdx).innerHTML = '<div class="row"><span class="label">Uzyskana grubość</span><span class="val">' + grubosc_uz.toFixed(2) + ' cm</span></div><div class="' + (czyOszcz?'wynik-green':'wynik-red') + '">Bilans: ' + (bilans>0?'+':'') + bilans.toFixed(2) + ' Mg</div>';
 }
 
-function wpisyDlaDzialki(dzId) {
-  return WPISY.filter(w => w.dzialkaId === dzId);
-}
-
-function renderLive() {
-  const sel = document.getElementById('live-selektor');
-  if (PLAN.dzialki.length > 1) {
-    sel.innerHTML = '<div class="card" style="display:flex;gap:8px;flex-wrap:wrap">' +
-      PLAN.dzialki.map((dz,i) => '<button class="btn" style="width:auto;flex:1;min-width:80px;background:' + (i===AKTYWNA_DZIALKA?'var(--primary)':'#333') + '" onclick="wybierzDz('+i+')">' + dz.nazwa + '</button>').join('') + '</div>';
-  } else { sel.innerHTML = ''; }
-  const dz = PLAN.dzialki[AKTYWNA_DZIALKA];
-  const lista = wpisyDlaDzialki(dz.id);
-  let html = '';
-  lista.forEach((w, idx) => {
-    html += '<div class="live-wpis"><div class="row"><span class="label">Auto #' + w.numerAuta + '</span><span class="val">' + w.tonazPrzywieziony + ' Mg / ' + w.przejechaneMetry + ' m</span></div>';
-    html += '<div style="font-size:12px;color:var(--muted)">Godz. ' + w.godzinaWybudowania + (w.komentarz?' • '+w.komentarz:'') + '</div>';
-    html += '<div style="margin-top:8px;display:flex;gap:8px"><button class="btn" style="width:auto;flex:1;background:#3b82f6;font-size:13px;padding:8px" onclick="edytujWpisLive('+idx+')">✎ Edytuj</button>';
-    html += '<button class="btn btn-danger" style="width:auto;flex:1;font-size:13px;padding:8px" onclick="usunWpisLive('+idx+')">Usuń</button></div></div>';
-  });
-  document.getElementById('live-lista').innerHTML = html || '<p style="color:var(--muted);text-align:center;padding:20px">Brak wpisów – dodaj pierwsze auto poniżej.</p>';
-  document.getElementById('live-form-tytul').textContent = EDYCJA_IDX >= 0 ? 'Edycja auta #' + lista[EDYCJA_IDX]?.numerAuta : 'Auto #' + (lista.length + 1);
-}
-
-function wybierzDz(i) { AKTYWNA_DZIALKA = i; EDYCJA_IDX = -1; wyczyscFormLive(); renderLive(); }
-
-function wyczyscFormLive() {
-  document.getElementById('live-ton').value = '';
-  document.getElementById('live-met').value = '';
-  document.getElementById('live-godz').value = '';
-  document.getElementById('live-kom').value = '';
-  document.getElementById('btn-anuluj-edycje').style.display = 'none';
-}
-
-function dodajWpisLive() {
-  const dz = PLAN.dzialki[AKTYWNA_DZIALKA];
-  const ton = parseFloat(document.getElementById('live-ton').value);
-  const met = parseFloat(document.getElementById('live-met').value);
-  const godz = document.getElementById('live-godz').value || new Date().toTimeString().slice(0,5);
-  const kom = document.getElementById('live-kom').value;
-  if (!ton || !met) { alert('Podaj tonaż i metry.'); return; }
-  const lista = wpisyDlaDzialki(dz.id);
-  if (EDYCJA_IDX >= 0) {
-    const w = lista[EDYCJA_IDX];
-    const globalIdx = WPISY.indexOf(w);
-    WPISY[globalIdx] = { ...w, tonazPrzywieziony: ton, przejechaneMetry: met, godzinaWybudowania: godz, komentarz: kom || undefined };
-    EDYCJA_IDX = -1;
-  } else {
-    WPISY.push({ dzialkaId: dz.id, numerAuta: lista.length + 1, tonazPrzywieziony: ton, przejechaneMetry: met, godzinaWybudowania: godz, komentarz: kom || undefined });
-  }
-  zapiszDoPamieci();
-  wyczyscFormLive();
-  renderLive();
-}
-
-function edytujWpisLive(idx) {
-  const dz = PLAN.dzialki[AKTYWNA_DZIALKA];
-  const w = wpisyDlaDzialki(dz.id)[idx];
-  EDYCJA_IDX = idx;
-  document.getElementById('live-ton').value = w.tonazPrzywieziony;
-  document.getElementById('live-met').value = w.przejechaneMetry;
-  document.getElementById('live-godz').value = w.godzinaWybudowania;
-  document.getElementById('live-kom').value = w.komentarz || '';
-  document.getElementById('btn-anuluj-edycje').style.display = 'block';
-  renderLive();
-}
-
-function anulujEdycjeLive() { EDYCJA_IDX = -1; wyczyscFormLive(); renderLive(); }
-
-function usunWpisLive(idx) {
-  const dz = PLAN.dzialki[AKTYWNA_DZIALKA];
-  const w = wpisyDlaDzialki(dz.id)[idx];
-  if (!confirm('Usunąć auto #' + w.numerAuta + '?')) return;
-  WPISY = WPISY.filter(x => x !== w);
-  zapiszDoPamieci();
-  renderLive();
-}
-
 function otworzModalPodpisu() {
   document.getElementById('input-autor').value = MMA.autorRaportu || '';
   document.getElementById('modal-podpis').classList.add('open');
@@ -348,6 +262,7 @@ function zapiszPodpisanyRaport() {
   if (!autor) { alert('Podaj autora raportu.'); return; }
   MMA.autorRaportu = autor;
   MMA.wpisyLive = WPISY;
+  MMA.sesjeLive = SESJE;
   MMA.podpisano = new Date().toISOString();
   document.getElementById('mma-export-data').textContent = JSON.stringify(MMA);
   document.getElementById('autor-info').innerHTML = 'Autor raportu: <strong>' + autor + '</strong> • ' + new Date().toLocaleString('pl-PL');
@@ -362,7 +277,7 @@ function zapiszPodpisanyRaport() {
 }
 </script>
 <p style="color:#4b5563;font-size:11px;text-align:center;margin-top:20px">
-  Wygenerowano: ${new Date().toLocaleString('pl-PL')} | Kalkulator MMA v2.0
+  Wygenerowano: ${new Date().toLocaleString('pl-PL')} | Kalkulator MMA v3.0
 </p>
 </body>
 </html>`;
