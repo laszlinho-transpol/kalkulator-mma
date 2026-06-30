@@ -97,8 +97,6 @@ function dzialkiDoZamk(wpisy,seg){
 }
 let WPISY=MMA.wpisyLive||[];
 let SESJE=MMA.sesjeLive||[];
-let WIDOK_CALOSC=true;
-let WYBRANA_DZ=0;
 let EDYCJA_ID=null;
 const KLUCZ_LS='mma_live_'+PLAN.id;
 const KLUCZ_SES='mma_sesje_'+PLAN.id;
@@ -115,32 +113,21 @@ zaladujPamiec();
 function renderLive(){
   const ak=znajdzAktywna(WPISY);
   const bil=bilansPlanu(WPISY);
-  let sel='<div class="live-tabs">';
-  sel+='<button class="live-tab'+(WIDOK_CALOSC?' active':'')+'" onclick="ustawWidokLive(true)">Całość ('+bil.liczbaAut+')</button>';
-  PLAN.dzialki.forEach((dz,i)=>{
-    const wD=WPISY.filter(w=>w.dzialkaId===dz.id);
-    const n=liczAut(wD);
-    sel+='<button class="live-tab'+(!WIDOK_CALOSC&&WYBRANA_DZ===i?' active':'')+'" onclick="ustawWidokLive(false,'+i+')">'+dz.nazwa+' ('+n+')</button>';
-  });
-  sel+='</div>';
-  document.getElementById('live-selektor').innerHTML=sel;
+  document.getElementById('live-selektor').innerHTML='';
 
-  let bilansHtml='';
-  if(WIDOK_CALOSC){
-    bilansHtml='<div class="card bilans-card"><h2>Bilans całego planu</h2>';
-    bilansHtml+='<div class="row"><span class="label">Aut (łącznie)</span><span class="val">'+bil.liczbaAut+'</span></div>';
-    bilansHtml+='<div class="row"><span class="label">Wbudowano</span><span class="val">'+bil.lacznyTonaz.toFixed(2)+' Mg</span></div>';
-    bilansHtml+='<div class="row"><span class="label">Przejechano</span><span class="val">'+bil.laczneMetry.toFixed(2)+' m</span></div>';
-    bilansHtml+='<div class="row"><span class="label">Zakryta pow.</span><span class="val">'+bil.zakrytaPow.toFixed(2)+' m²</span></div>';
-    if(bil.srGr>0)bilansHtml+='<div class="row"><span class="label">Śr. grubość</span><span class="val">'+bil.srGr.toFixed(2)+' cm</span></div>';
-    bilansHtml+='<div class="row"><span class="label">Pozostało pow.</span><span class="val">'+bil.pozPow.toFixed(2)+' m²</span></div>';
-    bilansHtml+='<div class="row"><span class="label">Do wbudowania</span><span class="val">'+bil.pozMasa.toFixed(2)+' Mg</span></div>';
-    if(ak)bilansHtml+='<p class="aktywna-dz">● Aktywna działka: '+ak.dzialka.nazwa+'</p>';
-    bilansHtml+='</div>';
-  }
+  let bilansHtml='<div class="card bilans-card"><h2>Bilans całego planu</h2>';
+  bilansHtml+='<div class="row"><span class="label">Aut (łącznie)</span><span class="val">'+bil.liczbaAut+'</span></div>';
+  bilansHtml+='<div class="row"><span class="label">Wbudowano</span><span class="val">'+bil.lacznyTonaz.toFixed(2)+' Mg</span></div>';
+  bilansHtml+='<div class="row"><span class="label">Przejechano</span><span class="val">'+bil.laczneMetry.toFixed(2)+' m</span></div>';
+  bilansHtml+='<div class="row"><span class="label">Zakryta pow.</span><span class="val">'+bil.zakrytaPow.toFixed(2)+' m²</span></div>';
+  if(bil.srGr>0)bilansHtml+='<div class="row"><span class="label">Śr. grubość</span><span class="val">'+bil.srGr.toFixed(2)+' cm</span></div>';
+  bilansHtml+='<div class="row"><span class="label">Pozostało pow.</span><span class="val">'+bil.pozPow.toFixed(2)+' m²</span></div>';
+  bilansHtml+='<div class="row"><span class="label">Do wbudowania</span><span class="val">'+bil.pozMasa.toFixed(2)+' Mg</span></div>';
+  if(ak)bilansHtml+='<p class="aktywna-dz">● Aktywna działka: '+ak.dzialka.nazwa+'</p>';
+  bilansHtml+='</div>';
   document.getElementById('live-bilans').innerHTML=bilansHtml;
 
-  const indeksy=WIDOK_CALOSC?PLAN.dzialki.map((_,i)=>i):[WYBRANA_DZ];
+  const indeksy=PLAN.dzialki.map((_,i)=>i);
   let lista='';
   for(const idx of indeksy){
     const dz=PLAN.dzialki[idx];
@@ -173,8 +160,6 @@ function renderLive(){
   document.getElementById('live-opis').textContent=EDYCJA_ID?'Edycja segmentu – metry nie są automatycznie rozdzielane.':(ak?'Program sam liczy pozycję od „'+ak.dzialka.nazwa+'” – metry mogą przejść na kolejne działki.':'Wszystkie działki zakończone.');
   document.getElementById('btn-anuluj-edycje').style.display=EDYCJA_ID?'block':'none';
 }
-
-function ustawWidokLive(calosc,idx){WIDOK_CALOSC=calosc;WYBRANA_DZ=idx??0;EDYCJA_ID=null;wyczyscFormLive();renderLive();}
 
 function wyczyscFormLive(){
   document.getElementById('live-ton').value='';

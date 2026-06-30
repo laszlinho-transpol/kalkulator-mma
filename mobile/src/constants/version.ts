@@ -13,6 +13,20 @@ export interface WpisChangelog {
 
 export const CHANGELOG: WpisChangelog[] = [
   {
+    wersja: '1.5.6',
+    data: '2026-06-30',
+    tytul: 'Kontrola całego dnia, podsumowanie planu, LIVE bez zakładek',
+    zmiany: [
+      'Kontrola: jeden odcinek na cały dzień (tony + metry od startu planu)',
+      'Kontrola: pole „Gdzie powinniśmy dojechać” (metry wg wbudowanych ton)',
+      'Plan: podsumowanie całego dnia (łączna masa, powierzchnia, auta)',
+      'Tabela aut: reszta tonażu przechodzi na kolejną działkę (to samo auto #N)',
+      'LIVE: tylko widok całości – bez zakładek działek',
+      'LIVE: po usunięciu wszystkich aut start od pierwszej działki (czysta karta)',
+      'Eksport HTML: Kontrola całego dnia, podsumowanie planu, LIVE bez zakładek działek',
+    ],
+  },
+  {
     wersja: '1.5.5',
     data: '2026-06-30',
     tytul: 'LIVE – usuwanie aut, numeracja ciągła, HTML jak aplikacja',
