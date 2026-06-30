@@ -19,40 +19,20 @@ import {
 } from '../../utils/calculations';
 import { obliczPikietazFigur, formatujPikietaz } from '../../utils/chainage';
 import { NAZWY_FIGUR } from '../../constants';
+import {
+  SKETCH_LEFT_MARGIN as LEFT_MARGIN,
+  SKETCH_BLOCK_W as SKETCH_W,
+  SKETCH_SVG_W as SVG_W,
+  SKETCH_PAD,
+  obliczWysokosciFigur,
+  cumMetryFigur,
+  metryDoY,
+  type TrybSzkicu,
+} from '../../utils/sketchLayout';
 import type { DzialkaRobocza, Figura, WpisLive } from '../../types';
 
-// ---- Stałe layoutu ----
-const LEFT_MARGIN = 44;   // strefa ikon aut (lewa)
-const SKETCH_W = 80;      // szerokość bloku figury
-const RIGHT_MARGIN = 58;  // strefa pikietażu
-const SVG_W = LEFT_MARGIN + SKETCH_W + RIGHT_MARGIN;
-const MIN_H = 26;
-const MAX_H = 110;
-const PAD_TOP = 12;
-const PAD_BOT = 12;
-
-function obliczWysokosci(figury: Figura[]): number[] {
-  if (figury.length === 0) return [];
-  const lengths = figury.map(dlugoscFigury);
-  const maxLen = Math.max(...lengths, 1);
-  return lengths.map((l) => Math.max(MIN_H, Math.round((l / maxLen) * MAX_H)));
-}
-
-function metryDoY(figury: Figura[], heights: number[], metryOdStartu: number): number {
-  let cumMetry = 0, cumY = PAD_TOP;
-  for (let i = 0; i < figury.length; i++) {
-    const l = dlugoscFigury(figury[i]);
-    if (metryOdStartu <= cumMetry + l) return cumY + ((metryOdStartu - cumMetry) / Math.max(l, 1)) * heights[i];
-    cumMetry += l; cumY += heights[i];
-  }
-  return cumY;
-}
-
-function cumMetryFigur(figury: Figura[]): number[] {
-  const res: number[] = []; let cum = 0;
-  for (const f of figury) { res.push(cum); cum += dlugoscFigury(f); }
-  return res;
-}
+const PAD_TOP = SKETCH_PAD.top;
+const PAD_BOT = SKETCH_PAD.bot;
 
 // ---- Rozkładarka z góry (bird's eye view) ----
 // Wygląda jak maszyna widziana z góry: prostokątny korpus + rozłożone ramiona stołu
@@ -183,9 +163,21 @@ interface DzialkaSketchProps {
   wykonaneMetry?: number;
   markery?: WpisLiveMarker[];
   onTruckPress?: (wpis: WpisLive, idxWpisu: number) => void;
+  /** standard = kompakt (plan, archiwum); live = px/m dla długich odcinków */
+  trybSzkicu?: TrybSzkicu;
+  /** false gdy rodzic owija szkic we własnym ScrollView (zakładka LIVE) */
+  scrollowalny?: boolean;
 }
 
-export function DzialkaSketch({ dzialka, ciezarObjetosciowy, wykonaneMetry = 0, markery = [], onTruckPress }: DzialkaSketchProps) {
+export function DzialkaSketch({
+  dzialka,
+  ciezarObjetosciowy,
+  wykonaneMetry = 0,
+  markery = [],
+  onTruckPress,
+  trybSzkicu = 'standard',
+  scrollowalny = true,
+}: DzialkaSketchProps) {
   const colorScheme = useColorScheme();
   const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
   const [selectedFigura, setSelectedFigura] = useState<Figura | null>(null);
@@ -199,7 +191,7 @@ export function DzialkaSketch({ dzialka, ciezarObjetosciowy, wykonaneMetry = 0, 
     );
   }
 
-  const heights = obliczWysokosci(figury);
+  const heights = obliczWysokosciFigur(figury, trybSzkicu);
   const maxSzer = maxSzerokoscDzialki(figury);
   const pikietaze = obliczPikietazFigur(dzialka);
   const cumMetry = cumMetryFigur(figury);
@@ -212,9 +204,7 @@ export function DzialkaSketch({ dzialka, ciezarObjetosciowy, wykonaneMetry = 0, 
   const isLiveMode = wykonaneMetry > 0 || markery.length > 0;
   const isDark = colorScheme === 'dark';
 
-  return (
-    <>
-      <ScrollView horizontal={false} showsVerticalScrollIndicator={false}>
+  const svgContent = (
         <Svg width={SVG_W} height={svgH}>
           {/* Bloki figur */}
           {figury.map((figura, idx) => {
@@ -336,7 +326,17 @@ export function DzialkaSketch({ dzialka, ciezarObjetosciowy, wykonaneMetry = 0, 
             </>
           )}
         </Svg>
-      </ScrollView>
+  );
+
+  return (
+    <>
+      {scrollowalny ? (
+        <ScrollView horizontal={false} showsVerticalScrollIndicator={trybSzkicu === 'live'} nestedScrollEnabled>
+          {svgContent}
+        </ScrollView>
+      ) : (
+        svgContent
+      )}
 
       {/* Modal figury */}
       {selectedFigura && (() => {

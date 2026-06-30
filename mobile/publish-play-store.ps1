@@ -37,11 +37,21 @@ switch ($Command) {
     "build" {
         Write-Host ""
         Write-Host "Buduje AAB (profil: production)..." -ForegroundColor Yellow
-        npx eas-cli@latest build `
-            --platform android `
-            --profile production `
-            --non-interactive `
-            --message "Kalkulator MMA - aktualizacja Play Store"
+        if (Test-Path "google-service-account.json") {
+            npx eas-cli@latest build `
+                --platform android `
+                --profile production `
+                --non-interactive `
+                --auto-submit `
+                --message "Kalkulator MMA - aktualizacja Play Store"
+        } else {
+            Write-Host "Brak google-service-account.json - tylko build (bez auto-upload)." -ForegroundColor Yellow
+            npx eas-cli@latest build `
+                --platform android `
+                --profile production `
+                --non-interactive `
+                --message "Kalkulator MMA - aktualizacja Play Store"
+        }
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         Write-Host ""
         Write-Host "Build gotowy. Pobierz .aab z expo.dev lub uruchom: .\publish-play-store.ps1 submit" -ForegroundColor Green
@@ -50,7 +60,10 @@ switch ($Command) {
         if (-not (Test-Path "google-service-account.json")) {
             Write-Host ""
             Write-Host "Brak pliku google-service-account.json" -ForegroundColor Red
-            Write-Host "Utworz konto serwisowe Google i zapisz klucz JSON w folderze mobile."
+            Write-Host ""
+            Write-Host "google-service-account.json.example to tylko SZABLON - nie zadziala!" -ForegroundColor Yellow
+            Write-Host "Utworz konto serwisowe w Google Cloud, pobierz klucz JSON i zapisz jako:"
+            Write-Host "  mobile\google-service-account.json"
             Write-Host "Instrukcja: PUBLIKACJA_PLAY_STORE.md -> CZESC E"
             Write-Host ""
             Write-Host "Alternatywa: pobierz AAB z expo.dev i wgraj recznie w Play Console."
@@ -68,7 +81,10 @@ switch ($Command) {
         } else {
             Write-Host ""
             Write-Host "Build gotowy. Brak google-service-account.json - wgraj AAB recznie." -ForegroundColor Yellow
-            Write-Host "Zobacz: PUBLIKACJA_PLAY_STORE.md"
+            Write-Host ""
+            Write-Host "google-service-account.json.example to tylko SZABLON - nie zadziala!" -ForegroundColor Red
+            Write-Host "Potrzebujesz prawdziwego klucza JSON z Google Cloud (patrz PUBLIKACJA_PLAY_STORE.md - CZESC E)."
+            Write-Host "Zapisz go jako: mobile\google-service-account.json (NIE commituj do GitHuba!)"
         }
     }
 }

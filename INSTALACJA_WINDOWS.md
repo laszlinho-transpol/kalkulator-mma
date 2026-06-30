@@ -63,6 +63,9 @@ npx eas-cli@latest login
 
 Dwukrotne kliknięcie `publish-play-store.cmd` w Eksploratorze też działa.
 
+> **Automatyczny upload do Play Store** wymaga pliku `google-service-account.json` w folderze `mobile/`.  
+> Plik `google-service-account.json.example` to **tylko szablon** – nie zadziała. Instrukcja: `PUBLIKACJA_PLAY_STORE.md` → CZĘŚĆ E.
+
 Build trwa ok. **15–20 minut**. Postęp: https://expo.dev
 
 ### Ręcznie (jeśli wolisz komendy)

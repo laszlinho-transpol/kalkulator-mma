@@ -35,6 +35,9 @@ import type { DzialkaRobocza, WpisLive } from '../../src/types';
 type ZakladkaTyp = 'plan' | 'kontrola' | 'live' | 'pzt';
 
 const SCREEN_W = Dimensions.get('window').width;
+const SCREEN_H = Dimensions.get('window').height;
+/** Wysokość okna przewijania szkicu LIVE – ~42% ekranu, min 260 / max 520 px */
+const VIEWPORT_SZKICU_LIVE = Math.min(Math.max(SCREEN_H * 0.42, 260), 520);
 
 // Kolumny tabeli Live (przewijane poziomo)
 const KOLUMNY = [
@@ -344,16 +347,25 @@ export default function WbudowywanieDetailScreen() {
                 <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
                   <Text style={[styles.kartaTytul, { color: theme.colors.text }]}>{wybraDzialka.nazwa}</Text>
                   <View style={styles.szkicRow}>
-                    <ScrollView style={{ flex: 1, maxHeight: Math.max(420, wpisyBiezacej.length * 36 + 200) }} nestedScrollEnabled showsVerticalScrollIndicator>
-                      <DzialkaSketch
-                        dzialka={wybraDzialka}
-                        ciezarObjetosciowy={mieszanka.ciezarObjetosciowy}
-                        wykonaneMetry={sumaMetrLive}
-                        markery={markery}
-                        onTruckPress={(wpis, idxW) => { setAutaModal({ wpis, idxWpisu: idxW }); setAutaModalZakladka('szczegoły'); }}
-                      />
-                    </ScrollView>
-                    {/* Panel prawej strony */}
+                    <View style={[styles.szkicLewy, { maxHeight: VIEWPORT_SZKICU_LIVE, borderColor: theme.colors.border, backgroundColor: theme.colors.background }]}>
+                      <ScrollView
+                        nestedScrollEnabled
+                        showsVerticalScrollIndicator
+                        bounces={false}
+                        contentContainerStyle={{ paddingVertical: 4 }}
+                      >
+                        <DzialkaSketch
+                          dzialka={wybraDzialka}
+                          ciezarObjetosciowy={mieszanka.ciezarObjetosciowy}
+                          wykonaneMetry={sumaMetrLive}
+                          markery={markery}
+                          trybSzkicu="live"
+                          scrollowalny={false}
+                          onTruckPress={(wpis, idxW) => { setAutaModal({ wpis, idxWpisu: idxW }); setAutaModalZakladka('szczegoły'); }}
+                        />
+                      </ScrollView>
+                    </View>
+                    {/* Panel prawej strony – statystyki na stałe */}
                     <View style={[styles.szkicPanel, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}>
                       <PanelStat label="Aut" wartosc={String(wpisyBiezacej.length)} theme={theme} kolor={theme.colors.primary} />
                       <PanelStat label="Mg" wartosc={formatLiczby(sumaTonLive, 2)} theme={theme} kolor={theme.colors.text} />
@@ -676,8 +688,9 @@ const styles = StyleSheet.create({
   wynikKontroli: { marginTop: 14 },
   wynikNagl: { fontSize: 14, fontWeight: '700', borderBottomWidth: 1, paddingBottom: 8, marginBottom: 8 },
   wynikPuste: { borderWidth: 1, borderRadius: 10, padding: 16, alignItems: 'center', marginTop: 16 },
-  szkicRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
-  szkicPanel: { width: 72, borderRadius: 10, borderWidth: 1, padding: 6, gap: 2 },
+  szkicRow: { flexDirection: 'row', gap: 10, alignItems: 'stretch' },
+  szkicLewy: { flex: 1, minWidth: 0, borderRadius: 10, borderWidth: 1, overflow: 'hidden' },
+  szkicPanel: { width: 78, borderRadius: 10, borderWidth: 1, padding: 8, gap: 4, alignSelf: 'flex-start' },
   tabelaNagl: { flexDirection: 'row', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 4 },
   tabelaNaglTekst: { fontSize: 11, fontWeight: '700', textAlign: 'center' },
   tabelaRzad: { flexDirection: 'row', paddingVertical: 9, paddingHorizontal: 4, borderBottomWidth: 1, alignItems: 'center' },

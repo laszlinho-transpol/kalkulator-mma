@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.5.1';
+export const WERSJA_APLIKACJI = '1.5.2';
 
 export interface WpisChangelog {
   wersja: string;
@@ -12,6 +12,18 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.5.2',
+    data: '2026-06-26',
+    tytul: 'Szkic LIVE – proporcje i przewijanie',
+    zmiany: [
+      'LIVE: szkic proporcjonalny do długości odcinka (długie pola czytelne po przewinięciu)',
+      'LIVE: podział ekranu – przewijany szkic po lewej, statystyki po prawej',
+      'Spójny wygląd szkicu w planie, archiwum i LIVE (ten sam komponent)',
+      'Publikacja: wyraźniejsza informacja o google-service-account.json (szablon .example nie wystarczy)',
+      'Skrypt publish-play-store.cmd: automatyczny upload gdy jest prawdziwy klucz JSON',
+    ],
+  },
   {
     wersja: '1.5.1',
     data: '2026-06-26',

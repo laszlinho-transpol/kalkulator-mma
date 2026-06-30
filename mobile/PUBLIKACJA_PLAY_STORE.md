@@ -11,6 +11,9 @@ Instrukcja dla **testów wewnętrznych** (Internal testing). To najszybsza ście
 1. Zaloguj się: `npx eas-cli@latest login`
 2. Utwórz konto serwisowe Google → pobierz plik JSON
 3. Zapisz jako `mobile/google-service-account.json` (patrz CZĘŚĆ E)
+
+> ⚠️ **`google-service-account.json.example` to tylko szablon** – nie wklejaj go ani nie zmieniaj nazwy na `.json` bez prawdziwego klucza z Google Cloud. EAS Submit odrzuci taki plik.
+
 4. W Play Console dodaj e-mail konta serwisowego z uprawnieniem **Zarządzaj wydaniami**
 
 ### Każda kolejna aktualizacja (2 komendy)
@@ -130,7 +133,8 @@ Jeśli chcesz, żeby `eas submit` sam wgrywał build:
 2. **IAM i administracja** → **Konta serwisowe** → **Utwórz**
 3. Pobierz plik JSON z kluczem
 4. Zapisz jako: `mobile/google-service-account.json`  
-   ⚠️ **Nigdy nie commituj tego pliku do GitHuba!**
+   ⚠️ **Nigdy nie commituj tego pliku do GitHuba!**  
+   ⚠️ **`google-service-account.json.example` nie zadziała** – to tylko wzór struktury. Musisz pobrać prawdziwy klucz z Google Cloud Console.
 
 ### 2. Nadaj uprawnienia w Play Console
 
