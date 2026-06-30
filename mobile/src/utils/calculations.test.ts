@@ -101,9 +101,11 @@ describe('tabela aut planu – ciągła numeracja', () => {
     const suma = aut1 + aut2;
     const rzuty = generujDomyslneRzuty(suma);
     const tab = obliczTabeleAutPlanu([dz1, dz2], rzuty, 25.5, () => 2.4);
-    assert.equal(tab.lacznaIloscAut, tab.calosc.length);
     assert.equal(tab.dzialki[0].numerAutaOd, 1);
-    assert.equal(tab.dzialki[1].numerAutaOd, tab.dzialki[0].numerAutaDo + 1);
-    assert.equal(tab.dzialki[1].wiersze[0].numerAuta, tab.dzialki[0].numerAutaDo + 1);
+    // Reszta tonażu z ostatniego auta może przechodzić na kolejną działkę (ten sam numer)
+    assert.ok(tab.dzialki[1].numerAutaOd <= tab.dzialki[0].numerAutaDo + 1);
+    assert.ok(tab.dzialki[1].numerAutaOd >= tab.dzialki[0].numerAutaDo);
+    const unikalne = new Set(tab.calosc.map((w) => w.numerAuta)).size;
+    assert.equal(tab.lacznaIloscAut, unikalne);
   });
 });

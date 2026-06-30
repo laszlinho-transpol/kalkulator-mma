@@ -20,6 +20,7 @@ function czyDzZakonczona(dzId,wpisy){
   return dz?czyDzWypelniona(dz,wpisy):false;
 }
 function znajdzAktywna(wpisy){
+  if(!wpisy.length)return PLAN.dzialki.length?{idx:0,dzialka:PLAN.dzialki[0]}:null;
   for(let i=0;i<PLAN.dzialki.length;i++){
     const dz=PLAN.dzialki[i];
     if(!czyDzZakonczona(dz.id,wpisy))return {idx:i,dzialka:dz};
@@ -231,6 +232,7 @@ function usunWpis(lid){
   if(!confirm('Usunąć auto #'+w.numerAuta+' (wszystkie segmenty)?'))return;
   WPISY=WPISY.filter(x=>x.numerAuta!==w.numerAuta);
   WPISY=przenumeruj(WPISY);
+  if(!WPISY.length)SESJE=[];
   zapiszPamiec();
   renderLive();
 }

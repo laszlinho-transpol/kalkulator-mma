@@ -28,8 +28,14 @@ import { generujRaportPDF } from '../../src/utils/pdfGenerator';
 import { gruboscWbudowywania, gruboscProjektowa, formatujTolerancje, kolorUzyskanejGrubosci, kolorGrubosciDoHex } from '../../src/utils/grubosc';
 import {
   obliczWynikiDzialki, obliczLacznaDlugosc, obliczKontrolę,
-  obliczPowierzchnioweOdStartu, formatLiczby, generujDomyslneRzuty,
+  obliczPowierzchnioweOdStartu, formatLiczby, obliczTabeleAutPlanu,
 } from '../../src/utils/calculations';
+import {
+  obliczKontrolePlanu,
+  obliczPodsumowaniePlanuDnia,
+  budujSegmentyPlanu,
+  metryOdMasyPlanu,
+} from '../../src/utils/planCiagly';
 import { formatujDatePl, aktualnaGodzina } from '../../src/utils/dates';
 import {
   znajdzAktywnaDzialke,
@@ -75,8 +81,6 @@ export default function WbudowywanieDetailScreen() {
   const wpisyCalegoPlanu = useWpisyDlaPlanu(id);
 
   const [aktywnaZakladka, setZakladka] = useState<ZakladkaTyp>('plan');
-  const [wybranaIdx, setWybranaIdx] = useState(0);
-  const [widokLiveZbiorczy, setWidokLiveZbiorczy] = useState(true);
 
   // Kontrola
   const [wbudowaneTonyStr, setWbudowaneTony] = useState('');
@@ -107,14 +111,20 @@ export default function WbudowywanieDetailScreen() {
   }
 
   const getMieszanka = (mId: string) => mieszanki.find((m) => m.id === mId);
-  const wybraDzialka: DzialkaRobocza | undefined = plan.dzialki[wybranaIdx];
-  const mieszanka = wybraDzialka ? getMieszanka(wybraDzialka.mieszankaId) : undefined;
+  const ciezarPoMieszance = (mId: string) => mieszanki.find((m) => m.id === mId)?.ciezarObjetosciowy;
   const budowa = plan.budowaId ? budowy.find((b) => b.id === plan.budowaId) : undefined;
   const zalacznikiPzt = budowa?.zalaczniki?.length
     ? budowa.zalaczniki
     : (plan.zalaczniki ?? []);
 
-  const wpisyBiezacej = wybraDzialka ? wpisyCalegoPlanu.filter((w) => w.dzialkaId === wybraDzialka.id) : [];
+
+  const tabeleAutPlanu = obliczTabeleAutPlanu(
+    plan.dzialki,
+    plan.rzuty,
+    plan.tonazAuta,
+    (mId) => ciezarPoMieszance(mId),
+  );
+  const podsumowanieDnia = obliczPodsumowaniePlanuDnia(plan, ciezarPoMieszance, tabeleAutPlanu);
   const aktywnaDzialka = znajdzAktywnaDzialke(plan, wpisyCalegoPlanu, sesje);
   const dzialkaDoWpisu = aktywnaDzialka?.dzialka ?? plan.dzialki[plan.dzialki.length - 1];
   const aktywnaIdx = aktywnaDzialka?.idx ?? -1;
@@ -123,18 +133,18 @@ export default function WbudowywanieDetailScreen() {
   const bilansPlanu = obliczBilansLivePlanu(
     plan,
     wpisyCalegoPlanu,
-    (mId) => mieszanki.find((m) => m.id === mId)?.ciezarObjetosciowy,
+    ciezarPoMieszance,
   );
-  const sumaMetrLive = wpisyBiezacej.reduce((s, w) => s + w.przejechaneMetry, 0);
-  const grubosc = wybraDzialka ? gruboscWbudowywania(wybraDzialka) : 0;
 
-  // Obliczenia Kontrola
-  let wynikiKontroli = null;
+  // Kontrola całego dnia
   const tonyK = parseFloat(wbudowaneTonyStr.replace(',', '.'));
   const metryK = parseFloat(przejechaneMetryStr.replace(',', '.'));
-  if (wybraDzialka && mieszanka && !isNaN(tonyK) && !isNaN(metryK) && tonyK > 0 && metryK > 0) {
-    wynikiKontroli = obliczKontrolę(tonyK, metryK, wybraDzialka, mieszanka.ciezarObjetosciowy, plan.tonazAuta);
-  }
+  const metryPlanowane = !isNaN(tonyK) && tonyK > 0
+    ? metryOdMasyPlanu(budujSegmentyPlanu(plan.dzialki, ciezarPoMieszance), tonyK)
+    : null;
+  const wynikiKontroli = !isNaN(tonyK) && !isNaN(metryK) && tonyK > 0 && metryK > 0
+    ? obliczKontrolePlanu(plan, tonyK, metryK, ciezarPoMieszance)
+    : null;
 
   // Obliczenia do tabeli Live (grubość + do końca m dla każdego wiersza)
   const obliczWierszLiveDzialki = (dz: DzialkaRobocza, mie: { ciezarObjetosciowy: number }, wpisy: WpisLive[], idxW: number) => {
@@ -184,7 +194,7 @@ export default function WbudowywanieDetailScreen() {
   );
 
   const ostatnieAuto = () => {
-    const dz = aktywnaDzialka?.dzialka ?? wybraDzialka;
+    const dz = aktywnaDzialka?.dzialka;
     if (!dz) return;
     if (czyDzialkaZakonczona(plan.id, dz.id)) {
       Alert.alert('Wznów działkę', 'Czy chcesz wznowić rozpisywanie aut na tej działce?', [
@@ -199,10 +209,8 @@ export default function WbudowywanieDetailScreen() {
         text: 'Zakończ działkę',
         onPress: async () => {
           await oznaczOstatnieAuto(plan.id, dz.id);
-          const next = (aktywnaDzialka?.idx ?? wybranaIdx) + 1;
+          const next = (aktywnaDzialka?.idx ?? 0) + 1;
           if (next < plan.dzialki.length) {
-            setWybranaIdx(next);
-            setWidokLiveZbiorczy(true);
             Alert.alert(
               'Przejście do kolejnej działki',
               `${plan.dzialki[next].nazwa}\nKolejne auto: #${kolejnyNumerAuta}`,
@@ -275,51 +283,13 @@ export default function WbudowywanieDetailScreen() {
     setNowyTonaz(''); setNowyMetry(''); setNowyKomentarz(''); setNowyGodzina(aktualnaGodzina());
   };
 
-  // Selektor działki (kontrola / PZT)
-  const SelectorDzialek = () => plan.dzialki.length > 1 ? (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.selectorScroll, { backgroundColor: theme.colors.card }]}>
-      {plan.dzialki.map((dz, idx) => (
-        <TouchableOpacity key={dz.id} style={[styles.selectorBtn, { borderColor: wybranaIdx === idx ? theme.colors.primary : theme.colors.border, backgroundColor: wybranaIdx === idx ? `${theme.colors.primary}15` : theme.colors.inputBackground }]} onPress={() => setWybranaIdx(idx)}>
-          <Text style={{ color: wybranaIdx === idx ? theme.colors.primary : theme.colors.textSecondary, fontWeight: '600', fontSize: 13 }}>{dz.nazwa}</Text>
-        </TouchableOpacity>
-      ))}
-    </ScrollView>
-  ) : null;
-
-  const SelectorLive = () => (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.selectorScroll, { backgroundColor: theme.colors.card }]}>
-      <TouchableOpacity
-        style={[styles.selectorBtn, { borderColor: widokLiveZbiorczy ? theme.colors.success : theme.colors.border, backgroundColor: widokLiveZbiorczy ? `${theme.colors.success}15` : theme.colors.inputBackground }]}
-        onPress={() => setWidokLiveZbiorczy(true)}
-      >
-        <Text style={{ color: widokLiveZbiorczy ? theme.colors.success : theme.colors.textSecondary, fontWeight: '700', fontSize: 13 }}>
-          Całość ({liczUnikalnychAut(wpisyCalegoPlanu)})
-        </Text>
-      </TouchableOpacity>
-      {plan.dzialki.map((dz, idx) => {
-        const wpDz = wpisyCalegoPlanu.filter((w) => w.dzialkaId === dz.id);
-        const n = liczUnikalnychAut(wpDz);
-        const aktywna = !widokLiveZbiorczy && wybranaIdx === idx;
-        return (
-          <TouchableOpacity
-            key={dz.id}
-            style={[styles.selectorBtn, { borderColor: aktywna ? theme.colors.primary : theme.colors.border, backgroundColor: aktywna ? `${theme.colors.primary}15` : theme.colors.inputBackground }]}
-            onPress={() => { setWidokLiveZbiorczy(false); setWybranaIdx(idx); }}
-          >
-            <Text style={{ color: aktywna ? theme.colors.primary : theme.colors.textSecondary, fontWeight: '600', fontSize: 13 }}>
-              {dz.nazwa} ({n})
-            </Text>
-          </TouchableOpacity>
-        );
-      })}
-    </ScrollView>
-  );
+  // Selektor działki – usunięty (kontrola i LIVE = cały odcinek dnia)
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <AppHeader
         tytul={formatujDatePl(plan.dataWbudowywania).split(',')[0]}
-        podtytul={wybraDzialka?.nazwa}
+        podtytul={plan.dzialki.length > 1 ? `Całość dnia · ${plan.dzialki.length} działki` : plan.dzialki[0]?.nazwa}
         lewy={{ tekst: '‹ Wstecz', onPress: () => router.back() }}
         prawy={{ tekst: generujeRaport ? '…' : 'Zakończ', onPress: zakonczIArchiwizuj, kolor: '#fff', tlo: theme.colors.danger }}
       />
@@ -336,23 +306,35 @@ export default function WbudowywanieDetailScreen() {
         akcentKolor={aktywnaZakladka === 'live' ? theme.colors.success : theme.colors.primary}
       />
 
-      {aktywnaZakladka === 'live' ? <SelectorLive /> : aktywnaZakladka !== 'plan' ? <SelectorDzialek /> : null}
-
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={[styles.zawartosc, { paddingBottom: insets.bottom + 20 }]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 
           {/* ======== PLAN ======== */}
-          {aktywnaZakladka === 'plan' && plan.dzialki.map((dz, dzIdx) => {
+          {aktywnaZakladka === 'plan' && (
+            <>
+              <View style={[styles.karta, { backgroundColor: `${theme.colors.primary}10`, borderColor: theme.colors.primary }]}>
+                <Text style={[styles.kartaTytul, { color: theme.colors.primary }]}>Podsumowanie całego dnia</Text>
+                <IR label="Działki robocze" v={String(podsumowanieDnia.liczbaDzialek)} theme={theme} />
+                <IR label="Łączna masa do wbudowania" v={`${formatLiczby(podsumowanieDnia.lacznaMasa, 3)} Mg`} theme={theme} bold />
+                <IR label="Łączna powierzchnia" v={`${formatLiczby(podsumowanieDnia.lacznaPowierzchnia)} m²`} theme={theme} />
+                <IR label="Łącznie metrów" v={`${formatLiczby(podsumowanieDnia.laczneMetry)} m`} theme={theme} />
+                <IR label="Samochodów (plan)" v={String(podsumowanieDnia.lacznaIloscAut)} theme={theme} bold />
+              </View>
+              {plan.dzialki.map((dz) => {
             const mie = getMieszanka(dz.mieszankaId);
             if (!mie) return null;
             const wyniki = obliczWynikiDzialki(dz, mie.ciezarObjetosciowy, plan.tonazAuta);
             const wBiez = wpisyCalegoPlanu.filter((w) => w.dzialkaId === dz.id);
+            const tabelaDz = tabeleAutPlanu.dzialki.find((t) => t.dzialkaId === dz.id);
             const cumMDz: WpisLiveMarker[] = [];
             let c = 0;
             for (const w of wBiez) { c += w.przejechaneMetry; cumMDz.push({ wpis: w, metryKumulatywne: c }); }
             return (
               <View key={dz.id} style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-                <Text style={[styles.kartaTytul, { color: theme.colors.primary }]}>{dz.nazwa}</Text>
+                <Text style={[styles.kartaTytul, { color: theme.colors.primary }]}>
+                  {dz.nazwa}
+                  {tabelaDz ? `  (auta ${tabelaDz.numerAutaOd}–${tabelaDz.numerAutaDo})` : ''}
+                </Text>
                 <IR label="Mieszanka" v={`${mie.rodzaj}  ρ=${mie.ciezarObjetosciowy.toFixed(3)}`} theme={theme} />
                 <IR label="Grubość projektowa" v={`${gruboscProjektowa(dz)} cm`} theme={theme} />
                 <IR label="Tolerancja" v={formatujTolerancje(dz)} theme={theme} />
@@ -368,6 +350,13 @@ export default function WbudowywanieDetailScreen() {
                     rzuty={plan.rzuty}
                     ciezarObjetosciowy={mie.ciezarObjetosciowy}
                     theme={theme}
+                    wiersze={tabelaDz?.wiersze}
+                    naglowek={tabelaDz ? {
+                      doWbudowania: `${formatLiczby(tabelaDz.wiersze.reduce((s, w) => s + w.masa, 0), 2)} Mg`,
+                      iloscAut: `${tabelaDz.numerAutaOd}–${tabelaDz.numerAutaDo}`,
+                      rzuty: [...new Set(tabelaDz.wiersze.map((w) => w.numerRzutu))].join('+'),
+                      lacznieMetrow: `${formatLiczby(obliczLacznaDlugosc(dz))} m`,
+                    } : undefined}
                   />
                 </View>
                 <View style={{ marginTop: 12 }}>
@@ -382,29 +371,50 @@ export default function WbudowywanieDetailScreen() {
               </View>
             );
           })}
+            </>
+          )}
 
           {/* ======== KONTROLA ======== */}
-          {aktywnaZakladka === 'kontrola' && wybraDzialka && mieszanka && (
+          {aktywnaZakladka === 'kontrola' && (
             <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-              <Text style={[styles.kartaTytul, { color: theme.colors.text }]}>Szybka kontrola</Text>
-              <Text style={[styles.opisMaly, { color: theme.colors.textSecondary }]}>Wpisz faktyczne dane z budowy, aby porównać z planem.</Text>
+              <Text style={[styles.kartaTytul, { color: theme.colors.text }]}>Kontrola całego dnia</Text>
+              <Text style={[styles.opisMaly, { color: theme.colors.textSecondary }]}>
+                Wpisz łączne tony i metry od startu pierwszej działki – program pokaże pozycję na całym odcinku.
+              </Text>
               <NumInput label="Wbudowane tony [Mg]" value={wbudowaneTonyStr} onChange={setWbudowaneTony} theme={theme} />
-              <NumInput label="Przejechane metry [m]" value={przejechaneMetryStr} onChange={setPrzejechaneMetry} theme={theme} />
+              <View style={{ marginBottom: 10 }}>
+                <Text style={{ color: theme.colors.textSecondary, fontSize: 13, fontWeight: '600', marginBottom: 5 }}>Gdzie powinniśmy dojechać</Text>
+                <View style={[styles.poleSzare, { backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.border }]}>
+                  <Text style={{ color: theme.colors.textSecondary, fontSize: 16 }}>
+                    {metryPlanowane != null ? `${formatLiczby(metryPlanowane)} m od startu` : '— wpisz tony powyżej —'}
+                  </Text>
+                </View>
+              </View>
+              <NumInput label="Przejechane metry [m] od startu" value={przejechaneMetryStr} onChange={setPrzejechaneMetry} theme={theme} />
               {wynikiKontroli ? (
                 <View style={styles.wynikKontroli}>
                   <Text style={[styles.wynikNagl, { color: theme.colors.text, borderBottomColor: theme.colors.border }]}>Wyniki porównania:</Text>
+                  {wynikiKontroli.lokalizacja && (
+                    <WynikRow
+                      label="Pozycja na planie"
+                      wartosc={`${wynikiKontroli.lokalizacja.dzialkaNazwa}, ${formatLiczby(wynikiKontroli.lokalizacja.metryWDzialce)} m w działce`}
+                      theme={theme}
+                    />
+                  )}
+                  <WynikRow label="Metry od startu (fakt)" wartosc={`${formatLiczby(wynikiKontroli.lokalizacja?.metryGlobalne ?? metryK)} m`} theme={theme} />
+                  <WynikRow label="Metry od startu (wg ton)" wartosc={`${formatLiczby(wynikiKontroli.metryPlanowaneOdTonow)} m`} theme={theme} />
                   <WynikRow label="Zakryta powierzchnia" wartosc={`${formatLiczby(wynikiKontroli.zakrytaPowierzchnia)} m²`} theme={theme} />
-                  <WynikRowGrubosc uzyskana={wynikiKontroli.uzyskanaGrubosc} dzialka={wybraDzialka} theme={theme} />
+                  <WynikRow label="Uzyskana grubość" wartosc={`${formatLiczby(wynikiKontroli.uzyskanaGrubosc)} cm`} theme={theme} />
                   <WynikRowBilans bilans={wynikiKontroli.bilansMasy} theme={theme} />
                   <View style={[styles.sep, { backgroundColor: theme.colors.border }]} />
-                  <WynikRow label="Do końca metrów" wartosc={`${formatLiczby(wynikiKontroli.pozostaloMetrow)} m`} theme={theme} />
+                  <WynikRow label="Do końca metrów (plan)" wartosc={`${formatLiczby(wynikiKontroli.pozostaloMetrow)} m`} theme={theme} />
                   <WynikRow label="Do wbudowania pow." wartosc={`${formatLiczby(wynikiKontroli.pozostaloPowierzchni)} m²`} theme={theme} />
-                  <WynikRow label={`Wg planu (${grubosc} cm)`} wartosc={`${formatLiczby(wynikiKontroli.pozostaloMasyWgZalozen, 2)} Mg`} theme={theme} />
-                  <WynikRow label={`Wg śr. (${formatLiczby(wynikiKontroli.uzyskanaGrubosc, 2)} cm)`} wartosc={`${formatLiczby(wynikiKontroli.pozostaloMasyWgSredniej, 2)} Mg`} theme={theme} />
+                  <WynikRow label={`Do wbudowania wg planu (${formatLiczby(wynikiKontroli.sredniaGruboscPlanu)} cm)`} wartosc={`${formatLiczby(wynikiKontroli.pozostaloMasyWgZalozen, 2)} Mg`} theme={theme} />
+                  <WynikRow label={`Do wbudowania wg śr. (${formatLiczby(wynikiKontroli.uzyskanaGrubosc, 2)} cm)`} wartosc={`${formatLiczby(wynikiKontroli.pozostaloMasyWgSredniej, 2)} Mg`} theme={theme} />
                 </View>
               ) : (
                 <View style={[styles.wynikPuste, { backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.border }]}>
-                  <Text style={[styles.opisMaly, { color: theme.colors.textSecondary, textAlign: 'center' }]}>Wpisz tony i metry, aby zobaczyć porównanie.</Text>
+                  <Text style={[styles.opisMaly, { color: theme.colors.textSecondary, textAlign: 'center' }]}>Wpisz tony i metry od startu planu, aby zobaczyć porównanie.</Text>
                 </View>
               )}
             </View>
@@ -412,9 +422,7 @@ export default function WbudowywanieDetailScreen() {
 
           {/* ======== LIVE ======== */}
           {aktywnaZakladka === 'live' && (() => {
-            const indeksyDzialek = widokLiveZbiorczy
-              ? plan.dzialki.map((_, i) => i)
-              : [wybranaIdx];
+            const indeksyDzialek = plan.dzialki.map((_, i) => i);
 
             const renderBlokDzialki = (dzIdx: number) => {
               const dz = plan.dzialki[dzIdx];
@@ -525,8 +533,7 @@ export default function WbudowywanieDetailScreen() {
 
             return (
               <>
-                {widokLiveZbiorczy && (
-                  <View style={[styles.karta, { backgroundColor: `${theme.colors.success}10`, borderColor: theme.colors.success }]}>
+                <View style={[styles.karta, { backgroundColor: `${theme.colors.success}10`, borderColor: theme.colors.success }]}>
                     <Text style={[styles.kartaTytul, { color: theme.colors.success }]}>Bilans całego planu</Text>
                     <IR label="Aut (łącznie)" v={String(bilansPlanu.liczbaAut)} theme={theme} bold />
                     <IR label="Wbudowano" v={`${formatLiczby(bilansPlanu.lacznyTonaz, 2)} Mg`} theme={theme} bold />
@@ -545,7 +552,6 @@ export default function WbudowywanieDetailScreen() {
                       </Text>
                     )}
                   </View>
-                )}
 
                 {indeksyDzialek.map(renderBlokDzialki)}
 
@@ -820,6 +826,7 @@ const styles = StyleSheet.create({
   komentarzInput: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, fontSize: 14, minHeight: 48, marginBottom: 12 },
   btnDodajAuto: { paddingVertical: 13, borderRadius: 12, alignItems: 'center' },
   btnDodajAutoTekst: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  poleSzare: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12 },
   btnOstatnieAuto: { paddingVertical: 12, borderRadius: 12, alignItems: 'center', borderWidth: 1 },
   modalTlo: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalKarta: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, borderTopWidth: 1, borderLeftWidth: 1, borderRightWidth: 1 },

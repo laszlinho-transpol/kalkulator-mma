@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.5.5';
+export const WERSJA_APLIKACJI = '1.5.6';
 
 export interface WpisChangelog {
   wersja: string;

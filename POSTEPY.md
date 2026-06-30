@@ -686,3 +686,27 @@ Użytkownik wpisuje **auto + metry**, a program:
 **Weryfikacja**: `npm run verify` → **29/29 testów** ✅
 
 ---
+
+## ETAP 17 – Kontrola całego dnia, plan zbiorczy, LIVE bez zakładek (1.5.6)
+**Data:** 2026-06-30
+**Status:** ✅ UKOŃCZONY
+**Branch:** `cursor/kalkulator-mma-live-progress-0a0b`
+**Wersja aplikacji:** 1.5.6 (versionCode 14)
+
+### Co zostało zrobione
+
+1. **`planCiagly.ts`** – plan jako jeden ciągły odcinek:
+   - `obliczKontrolePlanu` – kontrola całego dnia od startu
+   - `metryOdMasyPlanu` – „Gdzie powinniśmy dojechać”
+   - `obliczTabeleAutPlanuCiagla` – przenoszenie reszty tonażu między działkami
+   - `obliczPodsumowaniePlanuDnia` – karta podsumowania w zakładce Plan
+
+2. **Kontrola** – bez selektora działek; pola: tony → szare „Gdzie dojechać” → metry od startu
+
+3. **Plan** – karta „Podsumowanie całego dnia” + tabela aut z zakresem aut per działka
+
+4. **LIVE** – usunięte zakładki działek; tylko całość odcinka; po usunięciu aut czyszczone sesje
+
+**Weryfikacja**: `npm run verify` → **32/32 testów** ✅
+
+---
