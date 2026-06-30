@@ -15,6 +15,10 @@ interface LiveStore {
   zaladowane: boolean;
   zaladujWpisy: () => Promise<void>;
   dodajWpisAuta: (wpis: Omit<WpisLive, 'id' | 'createdAt'>) => Promise<void>;
+  dodajAutoZRozbiciem: (
+    wspolne: Omit<WpisLive, 'id' | 'createdAt' | 'dzialkaId' | 'tonazPrzywieziony' | 'przejechaneMetry'>,
+    segmenty: { dzialkaId: string; tonaz: number; metry: number }[],
+  ) => Promise<void>;
   edytujWpisAuta: (id: string, dane: Partial<Omit<WpisLive, 'id' | 'createdAt'>>) => Promise<void>;
   usunWpisAuta: (id: string) => Promise<void>;
   wpisyDlaPlanu: (planId: string) => WpisLive[];
@@ -68,6 +72,22 @@ export const useLiveStore = create<LiveStore>((set, get) => ({
       createdAt: teraz,
     };
     const zaktualizowane = [...get().wpisy, nowy];
+    set({ wpisy: zaktualizowane });
+    await zapiszDoStorage(zaktualizowane);
+  },
+
+  dodajAutoZRozbiciem: async (wspolne, segmenty) => {
+    if (segmenty.length === 0) return;
+    const teraz = new Date().toISOString();
+    const nowe: WpisLive[] = segmenty.map((seg) => ({
+      ...wspolne,
+      dzialkaId: seg.dzialkaId,
+      tonazPrzywieziony: seg.tonaz,
+      przejechaneMetry: seg.metry,
+      id: generujId(),
+      createdAt: teraz,
+    }));
+    const zaktualizowane = [...get().wpisy, ...nowe];
     set({ wpisy: zaktualizowane });
     await zapiszDoStorage(zaktualizowane);
   },

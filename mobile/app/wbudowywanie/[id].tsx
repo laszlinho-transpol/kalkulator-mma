@@ -2,7 +2,7 @@
 // EKRAN: WBUDOWYWANIE – Live Tracker (Plan / Kontrola / Live)
 // ============================================================
 
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   TextInput, useColorScheme, Alert, KeyboardAvoidingView,
@@ -30,6 +30,12 @@ import {
   obliczPowierzchnioweOdStartu, formatLiczby, generujDomyslneRzuty,
 } from '../../src/utils/calculations';
 import { formatujDatePl, aktualnaGodzina } from '../../src/utils/dates';
+import {
+  znajdzAktywnaDzialke,
+  rozdzielMetryNaDzialki,
+  obliczBilansLivePlanu,
+  dzialkiDoAutoZamkniecia,
+} from '../../src/utils/liveProgress';
 import type { DzialkaRobocza, WpisLive } from '../../src/types';
 
 type ZakladkaTyp = 'plan' | 'kontrola' | 'live' | 'pzt';
@@ -59,14 +65,13 @@ export default function WbudowywanieDetailScreen() {
   const mieszanki = useMieszankiStore((s) => s.mieszanki);
   const budowy = useBudowyStore((s) => s.budowy);
   const {
-    wpisyDlaDzialki, wpisyDlaPlanu, dodajWpisAuta, edytujWpisAuta, usunWpisAuta,
+    wpisyDlaDzialki, wpisyDlaPlanu, sesje, dodajAutoZRozbiciem, edytujWpisAuta, usunWpisAuta,
     czyDzialkaZakonczona, oznaczOstatnieAuto, wznowDzialke,
   } = useLiveStore();
 
   const [aktywnaZakladka, setZakladka] = useState<ZakladkaTyp>('plan');
   const [wybranaIdx, setWybranaIdx] = useState(0);
   const [widokLiveZbiorczy, setWidokLiveZbiorczy] = useState(true);
-  const [dzialkaWpisuIdx, setDzialkaWpisuIdx] = useState(0);
 
   // Kontrola
   const [wbudowaneTonyStr, setWbudowaneTony] = useState('');
@@ -106,11 +111,16 @@ export default function WbudowywanieDetailScreen() {
 
   const wpisyBiezacej = wybraDzialka ? wpisyDlaDzialki(plan.id, wybraDzialka.id) : [];
   const wpisyCalegoPlanu = wpisyDlaPlanu(plan.id);
-  const dzialkaDoWpisu = plan.dzialki[dzialkaWpisuIdx] ?? plan.dzialki[0];
-  const mieszankaWpisu = dzialkaDoWpisu ? getMieszanka(dzialkaDoWpisu.mieszankaId) : undefined;
-  const wpisyDzialkiWpisu = dzialkaDoWpisu ? wpisyDlaDzialki(plan.id, dzialkaDoWpisu.id) : [];
+  const aktywnaDzialka = znajdzAktywnaDzialke(plan, wpisyCalegoPlanu, sesje);
+  const dzialkaDoWpisu = aktywnaDzialka?.dzialka ?? plan.dzialki[plan.dzialki.length - 1];
+  const aktywnaIdx = aktywnaDzialka?.idx ?? -1;
   const dzialkaZakonczonaWpisu = dzialkaDoWpisu ? czyDzialkaZakonczona(plan.id, dzialkaDoWpisu.id) : false;
   const nastepnyNumerAuta = wpisyCalegoPlanu.length + 1;
+  const bilansPlanu = obliczBilansLivePlanu(
+    plan,
+    wpisyCalegoPlanu,
+    (mId) => mieszanki.find((m) => m.id === mId)?.ciezarObjetosciowy,
+  );
   const sumaMetrLive = wpisyBiezacej.reduce((s, w) => s + w.przejechaneMetry, 0);
   const grubosc = wybraDzialka ? gruboscWbudowywania(wybraDzialka) : 0;
 
@@ -170,23 +180,23 @@ export default function WbudowywanieDetailScreen() {
   );
 
   const ostatnieAuto = () => {
-    if (!dzialkaDoWpisu) return;
-    if (dzialkaZakonczonaWpisu) {
+    const dz = aktywnaDzialka?.dzialka ?? wybraDzialka;
+    if (!dz) return;
+    if (czyDzialkaZakonczona(plan.id, dz.id)) {
       Alert.alert('Wznów działkę', 'Czy chcesz wznowić rozpisywanie aut na tej działce?', [
         { text: 'Anuluj', style: 'cancel' },
-        { text: 'Wznów', onPress: () => wznowDzialke(plan.id, dzialkaDoWpisu.id) },
+        { text: 'Wznów', onPress: () => wznowDzialke(plan.id, dz.id) },
       ]);
       return;
     }
-    Alert.alert('Ostatnie auto', `Kończysz działkę „${dzialkaDoWpisu.nazwa}”. Kolejne auto będzie na następnej działce.`, [
+    Alert.alert('Ostatnie auto', `Kończysz działkę „${dz.nazwa}”. Kolejne auto będzie na następnej działce.`, [
       { text: 'Anuluj', style: 'cancel' },
       {
         text: 'Zakończ działkę',
         onPress: async () => {
-          await oznaczOstatnieAuto(plan.id, dzialkaDoWpisu.id);
-          const next = dzialkaWpisuIdx + 1;
+          await oznaczOstatnieAuto(plan.id, dz.id);
+          const next = (aktywnaDzialka?.idx ?? wybranaIdx) + 1;
           if (next < plan.dzialki.length) {
-            setDzialkaWpisuIdx(next);
             setWybranaIdx(next);
             setWidokLiveZbiorczy(true);
             Alert.alert(
@@ -213,20 +223,37 @@ export default function WbudowywanieDetailScreen() {
       });
       setEdytowanyWpisId(null);
     } else {
-      if (!dzialkaDoWpisu) return;
-      if (dzialkaZakonczonaWpisu) {
-        Alert.alert('Działka zakończona', 'Wznów działkę lub przejdź do kolejnej, aby dodać auto.');
+      if (!aktywnaDzialka) {
+        Alert.alert('Plan ukończony', 'Wszystkie działki są zakończone. Możesz zarchiwizować plan.');
         return;
       }
-      await dodajWpisAuta({
-        planId: plan.id,
-        dzialkaId: dzialkaDoWpisu.id,
-        numerAuta: nastepnyNumerAuta,
-        tonazPrzywieziony: ton,
-        przejechaneMetry: met,
-        komentarz: nowyKomentarz.trim() || undefined,
-        godzinaWybudowania: nowyGodzina,
-      });
+      const segmenty = rozdzielMetryNaDzialki(plan, wpisyCalegoPlanu, sesje, met, ton);
+      if (segmenty.length === 0) {
+        Alert.alert('Brak miejsca', 'Nie można rozdzielić metrów – sprawdź postęp na działkach.');
+        return;
+      }
+      const doZamkniecia = dzialkiDoAutoZamkniecia(plan, wpisyCalegoPlanu, sesje, segmenty);
+      await dodajAutoZRozbiciem(
+        {
+          planId: plan.id,
+          numerAuta: nastepnyNumerAuta,
+          komentarz: nowyKomentarz.trim() || undefined,
+          godzinaWybudowania: nowyGodzina,
+        },
+        segmenty.map((s) => ({ dzialkaId: s.dzialkaId, tonaz: s.tonaz, metry: s.metry })),
+      );
+      for (const dzId of doZamkniecia) {
+        await oznaczOstatnieAuto(plan.id, dzId);
+      }
+      if (segmenty.length > 1 || doZamkniecia.length > 0) {
+        const nazwy = segmenty.map((s) => plan.dzialki[s.dzialkaIdx]?.nazwa).filter(Boolean).join(' → ');
+        const msg = segmenty.length > 1
+          ? `Auto #${nastepnyNumerAuta} rozłożone na: ${nazwy}`
+          : doZamkniecia.length > 0
+            ? `Działka „${plan.dzialki.find((d) => d.id === doZamkniecia[0])?.nazwa}” ukończona – kolejne auto na następnej.`
+            : '';
+        if (msg) Alert.alert('Postęp LIVE', msg);
+      }
     }
     setNowyTonaz(''); setNowyMetry(''); setNowyKomentarz(''); setNowyGodzina(aktualnaGodzina());
   };
@@ -272,7 +299,7 @@ export default function WbudowywanieDetailScreen() {
           <TouchableOpacity
             key={dz.id}
             style={[styles.selectorBtn, { borderColor: aktywna ? theme.colors.primary : theme.colors.border, backgroundColor: aktywna ? `${theme.colors.primary}15` : theme.colors.inputBackground }]}
-            onPress={() => { setWidokLiveZbiorczy(false); setWybranaIdx(idx); setDzialkaWpisuIdx(idx); }}
+            onPress={() => { setWidokLiveZbiorczy(false); setWybranaIdx(idx); }}
           >
             <Text style={{ color: aktywna ? theme.colors.primary : theme.colors.textSecondary, fontWeight: '600', fontSize: 13 }}>
               {dz.nazwa} ({n})
@@ -404,9 +431,9 @@ export default function WbudowywanieDetailScreen() {
 
               return (
                 <View key={dz.id} style={{ gap: 12 }}>
-                  <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: dzialkaWpisuIdx === dzIdx ? theme.colors.success : theme.colors.border, borderWidth: dzialkaWpisuIdx === dzIdx ? 2 : 1 }]}>
+                  <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: aktywnaIdx === dzIdx ? theme.colors.success : theme.colors.border, borderWidth: aktywnaIdx === dzIdx ? 2 : 1 }]}>
                     <Text style={[styles.kartaTytul, { color: theme.colors.primary }]}>
-                      {dz.nazwa}{zakonczona ? '  ✓ zakończona' : dzialkaWpisuIdx === dzIdx ? '  ● aktywna' : ''}
+                      {dz.nazwa}{zakonczona ? '  ✓ zakończona' : aktywnaIdx === dzIdx ? '  ● aktywna' : ''}
                     </Text>
                     <View style={styles.szkicRow}>
                       <View style={[styles.szkicLewy, { maxHeight: VIEWPORT_SZKICU_LIVE, borderColor: theme.colors.border, backgroundColor: theme.colors.background }]}>
@@ -458,7 +485,7 @@ export default function WbudowywanieDetailScreen() {
                                   </Text>
                                   <Text style={[styles.tabelaKom, { width: KOLUMNY[4].width, color: theme.colors.text }]}>{formatLiczby(doKoncaM)}</Text>
                                   <Text style={[styles.tabelaKom, { width: KOLUMNY[5].width, color: theme.colors.text }]}>{wpis.godzinaWybudowania}</Text>
-                                  <TouchableOpacity onPress={() => { setDzialkaWpisuIdx(dzIdx); rozpocznijEdycjeWpisu(wpis); }} style={{ width: 32, alignItems: 'center' }}>
+                                  <TouchableOpacity onPress={() => rozpocznijEdycjeWpisu(wpis)} style={{ width: 32, alignItems: 'center' }}>
                                     <Text style={{ color: theme.colors.info, fontSize: 15 }}>✎</Text>
                                   </TouchableOpacity>
                                   <TouchableOpacity onPress={() => Alert.alert('Usuń', `Auto #${wpis.numerAuta}?`, [
@@ -488,6 +515,28 @@ export default function WbudowywanieDetailScreen() {
 
             return (
               <>
+                {widokLiveZbiorczy && (
+                  <View style={[styles.karta, { backgroundColor: `${theme.colors.success}10`, borderColor: theme.colors.success }]}>
+                    <Text style={[styles.kartaTytul, { color: theme.colors.success }]}>Bilans całego planu</Text>
+                    <IR label="Aut (łącznie)" v={String(bilansPlanu.liczbaAut)} theme={theme} bold />
+                    <IR label="Wbudowano" v={`${formatLiczby(bilansPlanu.lacznyTonaz, 2)} Mg`} theme={theme} bold />
+                    <IR label="Przejechano" v={`${formatLiczby(bilansPlanu.laczneMetry)} m`} theme={theme} />
+                    <IR label="Zakryta powierzchnia" v={`${formatLiczby(bilansPlanu.zakrytaPowierzchnia)} m²`} theme={theme} />
+                    {bilansPlanu.sredniaGrubosc > 0 && (
+                      <IR label="Śr. grubość" v={`${formatLiczby(bilansPlanu.sredniaGrubosc, 2)} cm`} theme={theme} />
+                    )}
+                    <View style={[styles.sep, { backgroundColor: theme.colors.border }]} />
+                    <IR label="Pozostało pow." v={`${formatLiczby(bilansPlanu.pozostalaPowierzchnia)} m²`} theme={theme} />
+                    <IR label="Do wbudowania (plan)" v={`${formatLiczby(bilansPlanu.pozostalaMasaWgPlanu, 2)} Mg`} theme={theme} />
+                    <IR label="Do wbudowania (śr. grub.)" v={`${formatLiczby(bilansPlanu.pozostalaMasaWgSredniej, 2)} Mg`} theme={theme} />
+                    {aktywnaDzialka && (
+                      <Text style={[styles.opisMaly, { color: theme.colors.success, marginTop: 8, fontWeight: '600' }]}>
+                        ● Aktywna działka: {aktywnaDzialka.dzialka.nazwa}
+                      </Text>
+                    )}
+                  </View>
+                )}
+
                 {indeksyDzialek.map(renderBlokDzialki)}
 
                 <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: edytowanyWpisId ? theme.colors.warning : theme.colors.border }]}>
@@ -497,8 +546,12 @@ export default function WbudowywanieDetailScreen() {
                       : `Auto #${nastepnyNumerAuta}`}
                   </Text>
                   <Text style={[styles.opisMaly, { color: theme.colors.textSecondary, marginBottom: 8 }]}>
-                    Wprowadzasz na: {dzialkaDoWpisu?.nazwa ?? '–'}
-                    {dzialkaZakonczonaWpisu ? ' (zakończona – wznów lub przejdź dalej)' : ''}
+                    {edytowanyWpisId
+                      ? 'Edycja istniejącego wpisu – metry nie są automatycznie rozdzielane.'
+                      : aktywnaDzialka
+                        ? `Program sam liczy pozycję od „${aktywnaDzialka.dzialka.nazwa}” – metry mogą przejść na kolejne działki.`
+                        : 'Wszystkie działki zakończone.'}
+                    {dzialkaZakonczonaWpisu && !edytowanyWpisId ? ' (aktywna działka zakończona – wznów lub dodaj metry na kolejnej)' : ''}
                   </Text>
                   <NumInput label="Tonaż [Mg]" value={nowyTonaz} onChange={setNowyTonaz} theme={theme} placeholder={String(plan.tonazAuta)} />
                   <NumInput label="Przejechane metry [m]" value={nowyMetry} onChange={setNowyMetry} theme={theme} />
