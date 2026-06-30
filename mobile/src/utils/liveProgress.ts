@@ -106,6 +106,10 @@ export function znajdzAktywnaDzialke(
   wpisyPlanu: WpisLive[],
   sesje: SesjaDzialkiLive[],
 ): { idx: number; dzialka: DzialkaRobocza } | null {
+  // Pusta lista wpisów = czysta karta od pierwszej działki (ignoruj stare sesje)
+  if (wpisyPlanu.length === 0) {
+    return plan.dzialki.length > 0 ? { idx: 0, dzialka: plan.dzialki[0] } : null;
+  }
   for (let i = 0; i < plan.dzialki.length; i++) {
     const dz = plan.dzialki[i];
     if (!czyDzialkaZakonczonaProg(plan.id, dz.id, wpisyPlanu, sesje, dz)) {

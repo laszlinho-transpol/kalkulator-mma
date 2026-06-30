@@ -26,6 +26,7 @@ interface LiveStore {
   wpisyDlaPlanu: (planId: string) => WpisLive[];
   wpisyDlaDzialki: (planId: string, dzialkaId: string) => WpisLive[];
   wyczyścWpisyPlanu: (planId: string) => Promise<void>;
+  wyczyscSesjePlanu: (planId: string) => Promise<void>;
   importujWpisyPlanu: (planId: string, wpisy: Omit<WpisLive, 'id' | 'createdAt' | 'planId'>[]) => Promise<void>;
   czyDzialkaZakonczona: (planId: string, dzialkaId: string) => boolean;
   oznaczOstatnieAuto: (planId: string, dzialkaId: string) => Promise<void>;
@@ -115,6 +116,9 @@ export const useLiveStore = create<LiveStore>((set, get) => ({
     const zaktualizowane = przenumerujAutaPlanu(poUsunieciu, planId);
     set({ wpisy: zaktualizowane });
     await zapiszDoStorage(zaktualizowane);
+    if (!zaktualizowane.some((w) => w.planId === planId)) {
+      await get().wyczyscSesjePlanu(planId);
+    }
   },
 
   wpisyDlaPlanu: (planId) => get().wpisy.filter((w) => w.planId === planId),
@@ -126,6 +130,13 @@ export const useLiveStore = create<LiveStore>((set, get) => ({
     const zaktualizowane = get().wpisy.filter((w) => w.planId !== planId);
     set({ wpisy: zaktualizowane });
     await zapiszDoStorage(zaktualizowane);
+    await get().wyczyscSesjePlanu(planId);
+  },
+
+  wyczyscSesjePlanu: async (planId) => {
+    const zaktualizowane = get().sesje.filter((s) => s.planId !== planId);
+    set({ sesje: zaktualizowane });
+    await zapiszSesje(zaktualizowane);
   },
 
   importujWpisyPlanu: async (planId, wpisyNowe) => {

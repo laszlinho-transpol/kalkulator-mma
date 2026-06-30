@@ -81,6 +81,12 @@ describe('liveProgress', () => {
     assert.equal(aktywna?.dzialka.id, 'dz1');
   });
 
+  it('znajdzAktywnaDzialke – puste wpisy ignoruje zakończone sesje', () => {
+    const sesjeZamkniete: SesjaDzialkiLive[] = [{ planId: 'p1', dzialkaId: 'dz1', zakonczona: true }];
+    const aktywna = znajdzAktywnaDzialke(plan, [], sesjeZamkniete);
+    assert.equal(aktywna?.dzialka.id, 'dz1');
+  });
+
   it('rozdzielMetryNaDzialki – mieści się w jednej działce', () => {
     const seg = rozdzielMetryNaDzialki(plan, [], sesje, 40, 25);
     assert.equal(seg.length, 1);

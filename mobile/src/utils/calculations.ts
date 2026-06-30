@@ -17,6 +17,7 @@ import type {
   WynikiFigury,
 } from '../types';
 import { DOMYSLNY_TONAZ_AUTA } from '../constants';
+import { obliczTabeleAutPlanuCiagla } from './planCiagly';
 
 // --- Obliczanie powierzchni pojedynczej figury ---
 
@@ -218,47 +219,14 @@ export interface TabeleAutPlanu {
   lacznaIloscAut: number;
 }
 
-/** Tabele aut: całość planu + osobno każda działka (ciągła numeracja aut) */
+/** Tabele aut: całość planu + osobno każda działka (ciągła numeracja, przenoszenie reszty tonażu) */
 export function obliczTabeleAutPlanu(
   dzialki: DzialkaRobocza[],
   rzutyPlanu: Rzut[],
   tonazAuta: number,
   ciezarPoMieszance: (mieszankaId: string) => number | undefined,
 ): TabeleAutPlanu {
-  const calosc: WpisTabeliAut[] = [];
-  const poDzialkach: TabelaAutDzialki[] = [];
-  let offset = 0;
-  let masaG = 0;
-  let metryG = 0;
-
-  for (const dz of dzialki) {
-    const ciezar = ciezarPoMieszance(dz.mieszankaId);
-    if (!ciezar || dz.figury.length === 0) continue;
-
-    const wyniki = obliczWynikiDzialki(dz, ciezar, tonazAuta);
-    const n = wyniki.iloscSamochodow;
-    if (n <= 0) continue;
-
-    const rzutyDz = wycinekRzutow(rzutyPlanu, offset, n);
-    const wierszeDz = obliczTabeleAutDlaDzialki(dz, ciezar, rzutyDz, tonazAuta, offset);
-
-    for (const w of wierszeDz) {
-      masaG = round3(masaG + w.masa);
-      metryG = round2(metryG + w.metry);
-      calosc.push({ ...w, masaNarastajaco: masaG, metryNarastajaco: metryG });
-    }
-
-    poDzialkach.push({
-      dzialkaId: dz.id,
-      nazwa: dz.nazwa,
-      wiersze: wierszeDz,
-      numerAutaOd: offset + 1,
-      numerAutaDo: offset + wierszeDz.length,
-    });
-    offset += wierszeDz.length;
-  }
-
-  return { calosc, dzialki: poDzialkach, lacznaIloscAut: offset };
+  return obliczTabeleAutPlanuCiagla(dzialki, rzutyPlanu, tonazAuta, ciezarPoMieszance);
 }
 
 /**

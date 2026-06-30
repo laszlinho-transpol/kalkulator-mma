@@ -7,6 +7,7 @@ import * as Sharing from 'expo-sharing';
 import type { Plan, WpisLive } from '../types';
 import { formatujDatePl } from './dates';
 import { formatLiczby, obliczTabeleAutPlanu } from './calculations';
+import { obliczPodsumowaniePlanuDnia, budujSegmentyPlanu } from './planCiagly';
 import { HTML_LIVE_SCRIPT } from './htmlLiveScript';
 
 export interface OpcjeEksportuHTML {
@@ -32,6 +33,11 @@ function budujDaneEksportu(
     godzinaWybudowania: w.godzinaWybudowania,
   }));
 
+  const ciezarPoMieszance = (mId: string) => mieszankiMap[mId]?.ciezarObjetosciowy;
+  const tabeleAut = obliczTabeleAutPlanu(plan.dzialki, plan.rzuty ?? [], plan.tonazAuta, ciezarPoMieszance);
+  const podsumowanieDnia = obliczPodsumowaniePlanuDnia(plan, ciezarPoMieszance, tabeleAut);
+  const segmentyPlanu = budujSegmentyPlanu(plan.dzialki, ciezarPoMieszance);
+
   return {
     wersja: '3.0',
     plan,
@@ -40,6 +46,8 @@ function budujDaneEksportu(
     sesjeLive: [] as { planId: string; dzialkaId: string; zakonczona: boolean }[],
     autorRaportu: opcje?.autor ?? '',
     wygenerowano: new Date().toISOString(),
+    podsumowanieDnia,
+    segmentyPlanu,
   };
 }
 
@@ -101,6 +109,9 @@ export async function generujInteraktywnyHTML(
   .zakres-aut { font-size: 12px; color: var(--muted); margin-top: 8px; }
   .pusty { color: var(--muted); text-align: center; padding: 20px; }
   #live-opis { color: var(--muted); font-size: 13px; margin-bottom: 8px; }
+  .pole-szare { background: #252535; border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; font-size: 16px; color: var(--muted); margin-top: 4px; }
+  .karta-podsumowanie { border-color: var(--primary) !important; background: rgba(232,160,32,0.08) !important; }
+  .karta-podsumowanie h2 { color: var(--primary) !important; }
   .fab { position: fixed; bottom: 16px; left: 16px; right: 16px; max-width: 568px; margin: 0 auto; z-index: 100; }
   .modal-tlo { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:200; align-items:flex-end; justify-content:center; }
   .modal-tlo.open { display:flex; }
@@ -120,6 +131,14 @@ export async function generujInteraktywnyHTML(
 </div>
 
 <div id="tab-plan" class="tab-content active">
+<div class="card karta-podsumowanie">
+  <h2>Podsumowanie całego dnia</h2>
+  <div class="row"><span class="label">Działki robocze</span><span class="val">${dane.podsumowanieDnia.liczbaDzialek}</span></div>
+  <div class="row"><span class="label">Łączna masa do wbudowania</span><span class="val bold-primary">${formatLiczby(dane.podsumowanieDnia.lacznaMasa, 3)} Mg</span></div>
+  <div class="row"><span class="label">Łączna powierzchnia</span><span class="val">${formatLiczby(dane.podsumowanieDnia.lacznaPowierzchnia)} m²</span></div>
+  <div class="row"><span class="label">Łącznie metrów</span><span class="val">${formatLiczby(dane.podsumowanieDnia.laczneMetry)} m</span></div>
+  <div class="row"><span class="label">Samochodów (plan)</span><span class="val">${dane.podsumowanieDnia.lacznaIloscAut}</span></div>
+</div>
 ${plan.dzialki.map((dz) => {
   const mie = dane.mieszanki[dz.mieszankaId];
   if (!mie) return '';
@@ -145,13 +164,15 @@ ${plan.dzialki.map((dz) => {
 </div>
 
 <div id="tab-kontrola" class="tab-content">
-${plan.dzialki.map((dz, dIdx) => `
   <div class="card">
-    <h2>${dz.nazwa} – Szybka kontrola</h2>
-    <label>Wbudowane tony [Mg]<input type="number" id="tony_${dIdx}" step="0.01" oninput="obliczKontrolę(${dIdx})" /></label>
-    <label style="margin-top:10px;display:block">Przejechane metry [m]<input type="number" id="metry_${dIdx}" step="0.1" oninput="obliczKontrolę(${dIdx})" /></label>
-    <div id="wynik_${dIdx}" style="margin-top:12px"></div>
-  </div>`).join('')}
+    <h2>Kontrola całego dnia</h2>
+    <p style="color:var(--muted);font-size:13px;margin-bottom:12px">Wpisz łączne tony i metry od startu pierwszej działki – program pokaże pozycję na całym odcinku.</p>
+    <label>Wbudowane tony [Mg]<input type="number" id="tony_plan" step="0.01" oninput="obliczKontrolePlanu()" /></label>
+    <label style="margin-top:10px;display:block">Gdzie powinniśmy dojechać</label>
+    <div class="pole-szare" id="metry_planowane">— wpisz tony powyżej —</div>
+    <label style="margin-top:10px;display:block">Przejechane metry [m] od startu<input type="number" id="metry_plan" step="0.1" oninput="obliczKontrolePlanu()" /></label>
+    <div id="wynik_plan" style="margin-top:12px"></div>
+  </div>
 </div>
 
 <div id="tab-tabela" class="tab-content">
@@ -224,31 +245,138 @@ function switchTab(name) {
   if (name === 'live') renderLive();
 }
 
-function obliczKontrolę(dzIdx) {
-  const dz = PLAN.dzialki[dzIdx];
-  const mie = MIESZANKI[dz.mieszankaId];
-  if (!mie) return;
-  const tony = parseFloat(document.getElementById('tony_'+dzIdx).value) || 0;
-  const metry = parseFloat(document.getElementById('metry_'+dzIdx).value) || 0;
-  if (tony <= 0 || metry <= 0) { document.getElementById('wynik_'+dzIdx).innerHTML=''; return; }
-  let pow = 0, cumM = 0;
-  for (const f of dz.figury) {
-    let len = f.dlugosc || f.L || ((f.dlugoscZewnetrzna+f.dlugoscWewnetrzna)/2) || 0;
-    let fpow = 0;
-    if (f.typ==='prostokat') fpow = f.szerokosc*f.dlugosc;
-    else if (f.typ==='trapez') fpow = ((f.szerokosc1+f.szerokosc2)/2)*f.dlugosc;
-    else if (f.typ==='trojkat') fpow = (f.szerokosc*f.dlugosc)/2;
-    else if (f.typ==='pierscien') { len=(f.dlugoscZewnetrzna+f.dlugoscWewnetrzna)/2; fpow=f.szerokosc*len; }
-    else if (f.typ==='wjazd') { len=f.L; fpow=f.L*f.s+(f.R1**2+f.R2**2)*0.2146; }
-    if (cumM + len <= metry) { pow += fpow; cumM += len; }
-    else { const frac = len>0?(metry-cumM)/len:0; pow += fpow*frac; break; }
+function obliczKontrolePlanu() {
+  const tony = parseFloat(document.getElementById('tony_plan').value) || 0;
+  const metry = parseFloat(document.getElementById('metry_plan').value) || 0;
+  const seg = MMA.segmentyPlanu || [];
+  const elPlan = document.getElementById('metry_planowane');
+  const elWynik = document.getElementById('wynik_plan');
+  if (tony <= 0) {
+    elPlan.textContent = '— wpisz tony powyżej —';
+    elWynik.innerHTML = '';
+    return;
   }
-  pow = Math.round(pow*100)/100;
-  const grubosc_uz = pow>0 ? Math.round((tony/(mie.ciezarObjetosciowy*pow))*10000)/100 : 0;
-  const masa_plan = Math.round(pow*(dz.grubosc/100)*mie.ciezarObjetosciowy*1000)/1000;
-  const bilans = Math.round((tony-masa_plan)*1000)/1000;
+  const metryWgTon = metryOdMasyPlanu(seg, tony);
+  elPlan.textContent = metryWgTon.toFixed(2) + ' m od startu';
+  if (metry <= 0) { elWynik.innerHTML = ''; return; }
+
+  const lacznaDl = round2(seg.reduce((s, x) => s + x.dl, 0));
+  let lacznaPowPlan = 0, masaPlanWgGr = 0, grWaga = 0;
+  for (const dz of PLAN.dzialki) {
+    const mie = MIESZANKI[dz.mieszankaId]; if (!mie) continue;
+    let powPlan = 0;
+    for (const f of dz.figury) {
+      if (f.typ === 'prostokat') powPlan += f.szerokosc * f.dlugosc;
+      else if (f.typ === 'trapez') powPlan += ((f.szerokosc1 + f.szerokosc2) / 2) * f.dlugosc;
+      else if (f.typ === 'trojkat') powPlan += (f.szerokosc * f.dlugosc) / 2;
+      else if (f.typ === 'pierscien') powPlan += f.szerokosc * ((f.dlugoscZewnetrzna + f.dlugoscWewnetrzna) / 2);
+      else if (f.typ === 'wjazd') powPlan += f.L * f.s + (f.R1 ** 2 + f.R2 ** 2) * 0.2146;
+    }
+    const gr = dz.gruboscWbudowywania || dz.grubosc;
+    lacznaPowPlan += round2(powPlan);
+    masaPlanWgGr += powPlan * (gr / 100) * mie.ciezarObjetosciowy;
+    grWaga += powPlan * gr;
+  }
+  lacznaPowPlan = round2(lacznaPowPlan);
+  const sredniaGruboscPlanu = lacznaPowPlan > 0 ? round2(grWaga / lacznaPowPlan) : 0;
+
+  const zakrytaPow = powierzchniaOdMetrowPlanu(seg, metry);
+  const lok = lokalizacjaNaPlanie(seg, metry);
+
+  let denGr = 0, numGr = 0, cum = 0;
+  for (const s of seg) {
+    const doM = Math.min(s.dl, Math.max(0, metry - cum));
+    if (doM > 0) {
+      const pow = doM * (s.masaNaM / (s.ciezar * (s.grubosc / 100)));
+      numGr += pow * s.grubosc * s.ciezar;
+      denGr += pow * s.ciezar;
+    }
+    cum += s.dl;
+    if (cum >= metry) break;
+  }
+  const uzyskanaGrubosc = zakrytaPow > 0 && denGr > 0 ? round2((tony / denGr) * 100) : 0;
+
+  let sredniCiezar = 0, wPow = 0; cum = 0;
+  for (const s of seg) {
+    const doM = Math.min(s.dl, Math.max(0, metry - cum));
+    if (doM > 0) {
+      const pow = doM * (s.masaNaM / (s.ciezar * (s.grubosc / 100)));
+      sredniCiezar += s.ciezar * pow;
+      wPow += pow;
+    }
+    cum += s.dl;
+  }
+  const rho = wPow > 0 ? sredniCiezar / wPow : (seg[0]?.ciezar ?? 2.4);
+  const masaWgPlanuNaZakrytej = round3(zakrytaPow * (sredniaGruboscPlanu / 100) * rho);
+  const bilans = round3(tony - masaWgPlanuNaZakrytej);
+  const pozostaloMetrow = round2(Math.max(0, lacznaDl - metry));
+  const pozostaloPowierzchni = round2(Math.max(0, lacznaPowPlan - zakrytaPow));
+  const srGr = uzyskanaGrubosc > 0 ? uzyskanaGrubosc : sredniaGruboscPlanu;
+  const pozostaloMasyWgZalozen = round3(pozostaloPowierzchni * (sredniaGruboscPlanu / 100) * rho);
+  const pozostaloMasyWgSredniej = round3(pozostaloPowierzchni * (srGr / 100) * rho);
   const czyOszcz = bilans < 0;
-  document.getElementById('wynik_'+dzIdx).innerHTML = '<div class="row"><span class="label">Uzyskana grubość</span><span class="val">' + grubosc_uz.toFixed(2) + ' cm</span></div><div class="' + (czyOszcz?'wynik-green':'wynik-red') + '">Bilans: ' + (bilans>0?'+':'') + bilans.toFixed(2) + ' Mg</div>';
+
+  let html = '';
+  if (lok) {
+    html += '<div class="row"><span class="label">Pozycja na planie</span><span class="val">' + lok.dzialkaNazwa + ', ' + lok.metryWDzialce.toFixed(2) + ' m w działce</span></div>';
+  }
+  html += '<div class="row"><span class="label">Metry od startu (fakt)</span><span class="val">' + (lok ? lok.metryGlobalne.toFixed(2) : metry.toFixed(2)) + ' m</span></div>';
+  html += '<div class="row"><span class="label">Metry od startu (wg ton)</span><span class="val">' + metryWgTon.toFixed(2) + ' m</span></div>';
+  html += '<div class="row"><span class="label">Zakryta powierzchnia</span><span class="val">' + zakrytaPow.toFixed(2) + ' m²</span></div>';
+  html += '<div class="row"><span class="label">Uzyskana grubość</span><span class="val">' + uzyskanaGrubosc.toFixed(2) + ' cm</span></div>';
+  html += '<div class="' + (czyOszcz ? 'wynik-green' : 'wynik-red') + '" style="margin-top:8px">Bilans masy: ' + (bilans > 0 ? '+' : '') + bilans.toFixed(2) + ' Mg</div>';
+  html += '<div class="row" style="margin-top:12px"><span class="label">Do końca metrów (plan)</span><span class="val">' + pozostaloMetrow.toFixed(2) + ' m</span></div>';
+  html += '<div class="row"><span class="label">Do wbudowania pow.</span><span class="val">' + pozostaloPowierzchni.toFixed(2) + ' m²</span></div>';
+  html += '<div class="row"><span class="label">Do wbudowania wg planu (' + sredniaGruboscPlanu.toFixed(2) + ' cm)</span><span class="val">' + pozostaloMasyWgZalozen.toFixed(2) + ' Mg</span></div>';
+  html += '<div class="row"><span class="label">Do wbudowania wg śr. (' + uzyskanaGrubosc.toFixed(2) + ' cm)</span><span class="val">' + pozostaloMasyWgSredniej.toFixed(2) + ' Mg</span></div>';
+  elWynik.innerHTML = html;
+}
+
+function metryOdMasyPlanu(segmenty, masaMg) {
+  if (masaMg <= 0) return 0;
+  const seg = segmenty.map(s => ({ ...s }));
+  let masaPozost = masaMg, metry = 0, i = 0;
+  while (masaPozost > 0.0001 && i < seg.length) {
+    const s = seg[i];
+    if (s.masaNaM <= 0 || s.pozostalo <= 0) { i++; continue; }
+    const maxM = s.pozostalo * s.masaNaM;
+    const zuzyj = Math.min(masaPozost, maxM);
+    const m = s.masaNaM > 0 ? zuzyj / s.masaNaM : 0;
+    metry = round2(metry + m);
+    s.pozostalo = round2(s.pozostalo - m);
+    masaPozost = round3(masaPozost - zuzyj);
+    if (s.pozostalo <= 0.001) i++;
+  }
+  return metry;
+}
+
+function powierzchniaOdMetrowPlanu(segmenty, metryGlobalne) {
+  let pow = 0, metryCum = 0;
+  for (const s of segmenty) {
+    if (metryCum + s.dl <= metryGlobalne) {
+      pow += s.dl * (s.masaNaM / (s.ciezar * (s.grubosc / 100)));
+      metryCum += s.dl;
+    } else {
+      const ulamek = s.dl > 0 ? (metryGlobalne - metryCum) / s.dl : 0;
+      pow += s.dl * ulamek * (s.masaNaM / (s.ciezar * (s.grubosc / 100)));
+      break;
+    }
+  }
+  return round2(Math.max(0, pow));
+}
+
+function lokalizacjaNaPlanie(segmenty, metryGlobalne) {
+  if (!segmenty.length || metryGlobalne < 0) return null;
+  let cum = 0;
+  for (const s of segmenty) {
+    if (cum + s.dl >= metryGlobalne - 0.001) {
+      return { dzialkaNazwa: s.nazwa, metryWDzialce: round2(metryGlobalne - cum), metryGlobalne: round2(metryGlobalne) };
+    }
+    cum += s.dl;
+  }
+  const ostatni = segmenty[segmenty.length - 1];
+  const laczna = round2(segmenty.reduce((a, x) => a + x.dl, 0));
+  return { dzialkaNazwa: ostatni.nazwa, metryWDzialce: ostatni.dl, metryGlobalne: laczna };
 }
 
 function otworzModalPodpisu() {
