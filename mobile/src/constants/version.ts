@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.5.2';
+export const WERSJA_APLIKACJI = '1.5.3';
 
 export interface WpisChangelog {
   wersja: string;
@@ -12,6 +12,19 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.5.3',
+    data: '2026-06-26',
+    tytul: 'Edycja figur, tabela aut całość, LIVE zbiorczy',
+    zmiany: [
+      'Planowanie: edycja i usuwanie figur (ikona ✎ w liście figur)',
+      'Tabela aut: zakładka Całość + działki z ciągłą numeracją aut (bez pustych wierszy)',
+      'LIVE: widok zbiorczy wszystkich działek (scroll w dół)',
+      'LIVE: ciągła numeracja aut między działkami (np. auto 22 na 2. działce)',
+      'LIVE: po „Ostatnie auto” automatyczne przejście do kolejnej działki',
+      'Szkic LIVE: przejechane odcinki zamalowane na czarno',
+    ],
+  },
   {
     wersja: '1.5.2',
     data: '2026-06-26',

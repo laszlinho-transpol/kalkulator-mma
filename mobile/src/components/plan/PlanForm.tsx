@@ -141,6 +141,7 @@ export function PlanForm({ tytul, initialPlan, onZapisz }: PlanFormProps) {
   // Modals
   const [mieszankaPickerIdx, setMieszankaPickerIdx] = useState<number | null>(null);
   const [shapeModalIdx, setShapeModalIdx] = useState<number | null>(null);
+  const [edytowanaFiguraId, setEdytowanaFiguraId] = useState<string | null>(null);
 
   const tonazAuta = parseFloat(tonazAutaStr.replace(',', '.')) || 25.5;
   const minimumDataWbudowywania = useMemo(() => {
@@ -195,6 +196,24 @@ export function PlanForm({ tytul, initialPlan, onZapisz }: PlanFormProps) {
       kopia[dzIdx] = { ...kopia[dzIdx], figury: kopia[dzIdx].figury.filter((f) => f.id !== figId) };
       return kopia;
     });
+  };
+
+  const edytujFigure = (dzIdx: number, figId: string) => {
+    setEdytowanaFiguraId(figId);
+    setShapeModalIdx(dzIdx);
+  };
+
+  const zapiszFigure = (dzIdx: number, figura: Figura) => {
+    setDzialki((prev) => {
+      const kopia = [...prev];
+      kopia[dzIdx] = {
+        ...kopia[dzIdx],
+        figury: kopia[dzIdx].figury.map((f) => (f.id === figura.id ? figura : f)),
+      };
+      return kopia;
+    });
+    setEdytowanaFiguraId(null);
+    setShapeModalIdx(null);
   };
 
   // ---- Obliczenia sumaryczne ----
@@ -299,7 +318,8 @@ export function PlanForm({ tytul, initialPlan, onZapisz }: PlanFormProps) {
               pobierzMieszanke={pobierzMieszanke}
               updateDzialka={updateDzialka}
               onMieszankaPicker={() => setMieszankaPickerIdx(dzIdx)}
-              onAddShape={() => setShapeModalIdx(dzIdx)}
+              onAddShape={() => { setEdytowanaFiguraId(null); setShapeModalIdx(dzIdx); }}
+              onEditShape={(figId) => edytujFigure(dzIdx, figId)}
               onRemoveShape={(figId) => usunFigure(dzIdx, figId)}
             />
           ))}
@@ -364,15 +384,20 @@ export function PlanForm({ tytul, initialPlan, onZapisz }: PlanFormProps) {
       />
       {shapeModalIdx !== null && (() => {
         const dz = dzialki[shapeModalIdx];
+        const figuraEd = edytowanaFiguraId ? dz.figury.find((f) => f.id === edytowanaFiguraId) : undefined;
         const temp = formDoDzialki(dz);
-        const nextPik = nastepnyPikietaz(temp);
+        const nextPik = figuraEd
+          ? (obliczPikietazFigur(temp).find((_, i) => dz.figury[i]?.id === figuraEd.id)?.poczatek ?? nastepnyPikietaz(temp))
+          : nastepnyPikietaz(temp);
         return (
           <ShapeModal
             visible
-            numeracja={dz.figury.length + 1}
+            numeracja={figuraEd?.numeracja ?? dz.figury.length + 1}
             kilometrazPoczatkowy={nextPik}
+            figuraEdytowana={figuraEd}
             onDodaj={(figura) => dodajFigure(shapeModalIdx!, figura)}
-            onClose={() => setShapeModalIdx(null)}
+            onZapisz={(figura) => zapiszFigure(shapeModalIdx!, figura)}
+            onClose={() => { setShapeModalIdx(null); setEdytowanaFiguraId(null); }}
           />
         );
       })()}
@@ -391,10 +416,11 @@ interface KartaDzialkiProps {
   updateDzialka: <K extends keyof DzialkaForm>(idx: number, key: K, val: DzialkaForm[K]) => void;
   onMieszankaPicker: () => void;
   onAddShape: () => void;
+  onEditShape: (figId: string) => void;
   onRemoveShape: (figId: string) => void;
 }
 
-function KartaDzialki({ dz, dzIdx, theme, tonazAuta, pobierzMieszanke, updateDzialka, onMieszankaPicker, onAddShape, onRemoveShape }: KartaDzialkiProps) {
+function KartaDzialki({ dz, dzIdx, theme, tonazAuta, pobierzMieszanke, updateDzialka, onMieszankaPicker, onAddShape, onEditShape, onRemoveShape }: KartaDzialkiProps) {
   const mieszanka = pobierzMieszanke(dz.mieszankaId);
   const grubosc = parseFloat(dz.gruboscWbudowywaniaStr.replace(',', '.')) || 0;
   const km = parseInt(dz.kmStr || '0', 10) || 0;
@@ -532,9 +558,14 @@ function KartaDzialki({ dz, dzIdx, theme, tonazAuta, pobierzMieszanke, updateDzi
                 </Text>
               </View>
             </View>
-            <TouchableOpacity onPress={() => onRemoveShape(figura.id)} style={styles.btnUsun}>
-              <Text style={[styles.btnUsunTekst, { color: theme.colors.danger }]}>✕</Text>
-            </TouchableOpacity>
+            <View style={styles.figuraAkcje}>
+              <TouchableOpacity onPress={() => onEditShape(figura.id)} style={styles.btnAkcjaFig} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Text style={[styles.btnEdytujTekst, { color: theme.colors.info }]}>✎</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => onRemoveShape(figura.id)} style={styles.btnAkcjaFig} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Text style={[styles.btnUsunTekst, { color: theme.colors.danger }]}>✕</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         );
       })}
@@ -600,6 +631,9 @@ const styles = StyleSheet.create({
   figuraNumer: { fontSize: 14, fontWeight: '800', width: 24 },
   figuraNazwa: { fontSize: 14, fontWeight: '600' },
   figuraInfo: { fontSize: 12, marginTop: 2 },
+  figuraAkcje: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  btnAkcjaFig: { padding: 6 },
+  btnEdytujTekst: { fontSize: 17, fontWeight: '700' },
   btnUsun: { padding: 6 },
   btnUsunTekst: { fontSize: 18, fontWeight: '700' },
   btnDodajFigure: { borderWidth: 1.5, borderRadius: 10, borderStyle: 'dashed', paddingVertical: 12, alignItems: 'center', marginTop: 4 },

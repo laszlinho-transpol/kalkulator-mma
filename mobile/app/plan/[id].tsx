@@ -2,7 +2,7 @@
 // EKRAN: SZCZEGÓŁY PLANU – podsumowanie, tabela aut, szkic, udostępnianie
 // ============================================================
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   useColorScheme, Alert, Modal, Pressable, TextInput,
@@ -22,7 +22,8 @@ import { DzialkaSketch } from '../../src/components/sketch/DzialkaSketch';
 import { tekstPrzycisk, tekstWramce } from '../../src/constants/layout';
 import { TabelaAut } from '../../src/components/plan/TabelaAut';
 import {
-  obliczWynikiDzialki, formatLiczby,
+  obliczWynikiDzialki, formatLiczby, obliczTabeleAutPlanu, generujDomyslneRzuty,
+  obliczLacznaDlugosc,
 } from '../../src/utils/calculations';
 import { gruboscWbudowywania, gruboscProjektowa, formatujTolerancje } from '../../src/utils/grubosc';
 import { formatujDatePl } from '../../src/utils/dates';
@@ -44,6 +45,8 @@ export default function PlanDetailScreen() {
 
   const [aktywnaZakladka, setZakladka] = useState<ZakladkaTyp>('plan');
   const [wybranaIdx, setWybranaIdx] = useState(0);
+  /** -1 = całość planu, 0+ = działka robocza */
+  const [idxTabeliAut, setIdxTabeliAut] = useState(-1);
   const [udostepnijModal, setUdostepnijModal] = useState(false);
   const [autorModal, setAutorModal] = useState(false);
   const [autorNazwa, setAutorNazwa] = useState('');
@@ -62,6 +65,23 @@ export default function PlanDetailScreen() {
   }
 
   const getMieszanka = (id: string) => mieszanki.find((m) => m.id === id);
+
+  const tabeleAut = useMemo(() => {
+    if (!plan) return null;
+    let sumaAut = 0;
+    for (const dz of plan.dzialki) {
+      const m = getMieszanka(dz.mieszankaId);
+      if (!m) continue;
+      sumaAut += obliczWynikiDzialki(dz, m.ciezarObjetosciowy, plan.tonazAuta).iloscSamochodow;
+    }
+    const rzuty = plan.rzuty.length > 0 ? plan.rzuty : generujDomyslneRzuty(sumaAut);
+    return obliczTabeleAutPlanu(
+      plan.dzialki,
+      rzuty,
+      plan.tonazAuta,
+      (mid) => getMieszanka(mid)?.ciezarObjetosciowy,
+    );
+  }, [plan, mieszanki]);
 
   const udostepnijJSON = async () => {
     try { await eksportujJSON(plan, mieszanki, wpisyLive); } catch { /* cancelled */ }
@@ -181,29 +201,60 @@ export default function PlanDetailScreen() {
         )}
 
         {/* ---- ZAKŁADKA: TABELA AUT ---- */}
-        {aktywnaZakladka === 'tabela' && (
+        {aktywnaZakladka === 'tabela' && tabeleAut && (
           <>
-            {/* Selektor działki */}
-            {plan.dzialki.length > 1 && (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.selectorScroll}>
-                {plan.dzialki.map((dz, idx) => (
-                  <TouchableOpacity
-                    key={dz.id}
-                    style={[styles.selectorBtn, { borderColor: wybranaIdx === idx ? theme.colors.primary : theme.colors.border, backgroundColor: wybranaIdx === idx ? `${theme.colors.primary}15` : theme.colors.card }]}
-                    onPress={() => setWybranaIdx(idx)}
-                  >
-                    <Text style={{ color: wybranaIdx === idx ? theme.colors.primary : theme.colors.textSecondary, fontWeight: '600', fontSize: 13 }}>
-                      {dz.nazwa}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            )}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.selectorScroll}>
+              <TouchableOpacity
+                style={[styles.selectorBtn, { borderColor: idxTabeliAut === -1 ? theme.colors.primary : theme.colors.border, backgroundColor: idxTabeliAut === -1 ? `${theme.colors.primary}15` : theme.colors.card }]}
+                onPress={() => setIdxTabeliAut(-1)}
+              >
+                <Text style={{ color: idxTabeliAut === -1 ? theme.colors.primary : theme.colors.textSecondary, fontWeight: '600', fontSize: 13 }}>
+                  Całość ({tabeleAut.lacznaIloscAut})
+                </Text>
+              </TouchableOpacity>
+              {tabeleAut.dzialki.map((td, idx) => (
+                <TouchableOpacity
+                  key={td.dzialkaId}
+                  style={[styles.selectorBtn, { borderColor: idxTabeliAut === idx ? theme.colors.primary : theme.colors.border, backgroundColor: idxTabeliAut === idx ? `${theme.colors.primary}15` : theme.colors.card }]}
+                  onPress={() => setIdxTabeliAut(idx)}
+                >
+                  <Text style={{ color: idxTabeliAut === idx ? theme.colors.primary : theme.colors.textSecondary, fontWeight: '600', fontSize: 13 }} numberOfLines={1}>
+                    {td.nazwa} ({td.wiersze.length})
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
 
-            {(() => {
-              const dz = plan.dzialki[wybranaIdx];
-              const m = getMieszanka(dz.mieszankaId);
-              if (!m) return <Text style={{ color: theme.colors.danger, padding: 16 }}>Brak mieszanki dla tej działki.</Text>;
+            {idxTabeliAut === -1 ? (() => {
+              const pierwsza = plan.dzialki[0];
+              const m0 = pierwsza ? getMieszanka(pierwsza.mieszankaId) : undefined;
+              if (!pierwsza || !m0) return null;
+              const sumaMasy = tabeleAut.calosc.reduce((s, w) => s + w.masa, 0);
+              const sumaMetrow = tabeleAut.calosc.reduce((s, w) => s + w.metry, 0);
+              const rzutyStr = plan.rzuty.map((r) => r.iloscSamochodow).join('+') || String(tabeleAut.lacznaIloscAut);
+              return (
+                <TabelaAut
+                  dzialka={pierwsza}
+                  tonazAuta={plan.tonazAuta}
+                  rzuty={plan.rzuty}
+                  ciezarObjetosciowy={m0.ciezarObjetosciowy}
+                  theme={theme}
+                  wiersze={tabeleAut.calosc}
+                  naglowek={{
+                    doWbudowania: `${formatLiczby(sumaMasy, 2)} Mg`,
+                    iloscAut: String(tabeleAut.lacznaIloscAut),
+                    rzuty: rzutyStr,
+                    lacznieMetrow: `${formatLiczby(sumaMetrow)} m`,
+                    podtytul: 'CAŁOŚĆ – wszystkie działki robocze',
+                  }}
+                />
+              );
+            })() : (() => {
+              const td = tabeleAut.dzialki[idxTabeliAut];
+              if (!td) return null;
+              const dz = plan.dzialki.find((d) => d.id === td.dzialkaId);
+              const m = dz ? getMieszanka(dz.mieszankaId) : undefined;
+              if (!dz || !m) return null;
               return (
                 <TabelaAut
                   dzialka={dz}
@@ -211,6 +262,16 @@ export default function PlanDetailScreen() {
                   rzuty={plan.rzuty}
                   ciezarObjetosciowy={m.ciezarObjetosciowy}
                   theme={theme}
+                  wiersze={td.wiersze}
+                  naglowek={{
+                    doWbudowania: `${formatLiczby(td.wiersze.reduce((s, w) => s + w.masa, 0), 2)} Mg`,
+                    iloscAut: String(td.wiersze.length),
+                    rzuty: td.wiersze.length > 0
+                      ? [...new Set(td.wiersze.map((w) => w.numerRzutu))].map((nr) => td.wiersze.filter((w) => w.numerRzutu === nr).length).join('+')
+                      : '0',
+                    lacznieMetrow: `${formatLiczby(obliczLacznaDlugosc(dz))} m`,
+                    podtytul: `Auta ${td.numerAutaOd}–${td.numerAutaDo}`,
+                  }}
                 />
               );
             })()}

@@ -8,10 +8,17 @@ import {
   obliczWynikiDzialki, obliczTabeleAut, obliczLacznaDlugosc,
   formatLiczby, generujDomyslneRzuty,
 } from '../../utils/calculations';
-import { formatujPikietaz } from '../../utils/chainage';
-import { obliczPikietazFigur } from '../../utils/chainage';
-import type { DzialkaRobocza, Rzut } from '../../types';
+import { formatujPikietaz, obliczPikietazFigur } from '../../utils/chainage';
+import type { DzialkaRobocza, Rzut, WpisTabeliAut } from '../../types';
 import type { AppTheme } from '../../constants/theme';
+
+export interface NaglowekTabeliAut {
+  doWbudowania: string;
+  iloscAut: string;
+  rzuty: string;
+  lacznieMetrow: string;
+  podtytul?: string;
+}
 
 interface TabelaAutProps {
   dzialka: DzialkaRobocza;
@@ -20,24 +27,36 @@ interface TabelaAutProps {
   ciezarObjetosciowy: number;
   theme: AppTheme;
   pokazKilometraz?: boolean;
+  /** Gotowe wiersze (np. z obliczTabeleAutPlanu) – bez pustych rzędów */
+  wiersze?: WpisTabeliAut[];
+  naglowek?: NaglowekTabeliAut;
 }
 
 export function TabelaAut({
   dzialka, tonazAuta, rzuty, ciezarObjetosciowy, theme, pokazKilometraz = true,
+  wiersze: wierszeProp, naglowek: naglowekProp,
 }: TabelaAutProps) {
   const wyniki = obliczWynikiDzialki(dzialka, ciezarObjetosciowy, tonazAuta);
   const lacznasDlugosc = obliczLacznaDlugosc(dzialka);
   const rzutyDoUzycia = rzuty.length > 0 ? rzuty : generujDomyslneRzuty(wyniki.iloscSamochodow);
-  const tabela = obliczTabeleAut(
+  const tabela = wierszeProp ?? obliczTabeleAut(
     wyniki.lacznaIloscMasy,
     lacznasDlugosc,
     rzutyDoUzycia,
     tonazAuta,
     dzialka,
     ciezarObjetosciowy,
-  );
+  ).filter((w) => w.masa > 0);
+
   const pikietaze = obliczPikietazFigur(dzialka);
   const kmStart = pikietaze.length > 0 ? pikietaze[0].poczatek : 0;
+
+  const naglowek = naglowekProp ?? {
+    doWbudowania: `${formatLiczby(wyniki.lacznaIloscMasy, 2)} Mg`,
+    iloscAut: String(tabela.length || wyniki.iloscSamochodow),
+    rzuty: rzutyDoUzycia.map((r) => r.iloscSamochodow).join('+'),
+    lacznieMetrow: `${formatLiczby(lacznasDlugosc)} m`,
+  };
 
   const kolumny = pokazKilometraz
     ? ['L.p.', 'Mg', '∑ Mg', 'm', '∑ m', 'km']
@@ -47,45 +66,56 @@ export function TabelaAut({
 
   return (
     <View>
+      {naglowek.podtytul ? (
+        <Text style={[styles.podtytul, { color: theme.colors.primary }]}>{naglowek.podtytul}</Text>
+      ) : null}
       <View style={[styles.naglowek, { backgroundColor: `${theme.colors.primary}15` }]}>
-        <SummaryRow label="Do wbudowania" wartosc={`${formatLiczby(wyniki.lacznaIloscMasy, 2)} Mg`} theme={theme} bold />
-        <SummaryRow label="Ilość samochodów" wartosc={`${wyniki.iloscSamochodow}`} theme={theme} bold />
-        <SummaryRow label="Rzuty" wartosc={rzutyDoUzycia.map((r) => r.iloscSamochodow).join('+')} theme={theme} />
-        <SummaryRow label="Łącznie metrów" wartosc={`${formatLiczby(lacznasDlugosc)} m`} theme={theme} />
+        <SummaryRow label="Do wbudowania" wartosc={naglowek.doWbudowania} theme={theme} bold />
+        <SummaryRow label="Ilość samochodów" wartosc={naglowek.iloscAut} theme={theme} bold />
+        <SummaryRow label="Rzuty" wartosc={naglowek.rzuty} theme={theme} />
+        <SummaryRow label="Łącznie metrów" wartosc={naglowek.lacznieMetrow} theme={theme} />
       </View>
 
-      <View style={[styles.rzad, styles.rzadNagl, { backgroundColor: theme.colors.card }]}>
-        {kolumny.map((h) => (
-          <Text key={h} style={[styles.komNagl, { color: theme.colors.textSecondary, flex: h === 'km' ? 1.4 : 1 }]}>{h}</Text>
-        ))}
-      </View>
+      {tabela.length === 0 ? (
+        <Text style={{ color: theme.colors.textSecondary, padding: 12, textAlign: 'center' }}>
+          Brak aut do wyświetlenia dla tej działki.
+        </Text>
+      ) : (
+        <>
+          <View style={[styles.rzad, styles.rzadNagl, { backgroundColor: theme.colors.card }]}>
+            {kolumny.map((h) => (
+              <Text key={h} style={[styles.komNagl, { color: theme.colors.textSecondary, flex: h === 'km' ? 1.4 : 1 }]}>{h}</Text>
+            ))}
+          </View>
 
-      {tabela.map((wiersz) => {
-        const nowyRzut = wiersz.numerRzutu !== ostatniRzut;
-        ostatniRzut = wiersz.numerRzutu;
-        const kmKoniec = kmStart + wiersz.metryNarastajaco;
-        return (
-          <React.Fragment key={wiersz.numerAuta}>
-            {nowyRzut && (
-              <View style={[styles.rzutSep, { backgroundColor: theme.colors.primary }]}>
-                <Text style={styles.rzutLabel}>RZUT {wiersz.numerRzutu}</Text>
-              </View>
-            )}
-            <View style={[styles.rzad, { backgroundColor: theme.colors.card, borderBottomColor: theme.colors.border }]}>
-              <Text style={[styles.kom, { color: theme.colors.textSecondary }]}>{wiersz.numerAuta}</Text>
-              <Text style={[styles.kom, { color: theme.colors.text }]}>{formatLiczby(wiersz.masa)}</Text>
-              <Text style={[styles.kom, { color: theme.colors.text, fontWeight: '600' }]}>{formatLiczby(wiersz.masaNarastajaco, 2)}</Text>
-              <Text style={[styles.kom, { color: theme.colors.text }]}>{formatLiczby(wiersz.metry)}</Text>
-              <Text style={[styles.kom, { color: theme.colors.text, fontWeight: '600' }]}>{formatLiczby(wiersz.metryNarastajaco)}</Text>
-              {pokazKilometraz && (
-                <Text style={[styles.kom, { color: theme.colors.info, flex: 1.4, fontSize: 11 }]}>
-                  {formatujPikietaz(kmKoniec)}
-                </Text>
-              )}
-            </View>
-          </React.Fragment>
-        );
-      })}
+          {tabela.map((wiersz) => {
+            const nowyRzut = wiersz.numerRzutu !== ostatniRzut;
+            ostatniRzut = wiersz.numerRzutu;
+            const kmKoniec = kmStart + wiersz.metryNarastajaco;
+            return (
+              <React.Fragment key={`${wiersz.numerAuta}-${wiersz.numerRzutu}`}>
+                {nowyRzut && (
+                  <View style={[styles.rzutSep, { backgroundColor: theme.colors.primary }]}>
+                    <Text style={styles.rzutLabel}>RZUT {wiersz.numerRzutu}</Text>
+                  </View>
+                )}
+                <View style={[styles.rzad, { backgroundColor: theme.colors.card, borderBottomColor: theme.colors.border }]}>
+                  <Text style={[styles.kom, { color: theme.colors.textSecondary }]}>{wiersz.numerAuta}</Text>
+                  <Text style={[styles.kom, { color: theme.colors.text }]}>{formatLiczby(wiersz.masa)}</Text>
+                  <Text style={[styles.kom, { color: theme.colors.text, fontWeight: '600' }]}>{formatLiczby(wiersz.masaNarastajaco, 2)}</Text>
+                  <Text style={[styles.kom, { color: theme.colors.text }]}>{formatLiczby(wiersz.metry)}</Text>
+                  <Text style={[styles.kom, { color: theme.colors.text, fontWeight: '600' }]}>{formatLiczby(wiersz.metryNarastajaco)}</Text>
+                  {pokazKilometraz && (
+                    <Text style={[styles.kom, { color: theme.colors.info, flex: 1.4, fontSize: 11 }]}>
+                      {formatujPikietaz(kmKoniec)}
+                    </Text>
+                  )}
+                </View>
+              </React.Fragment>
+            );
+          })}
+        </>
+      )}
     </View>
   );
 }
@@ -100,6 +130,7 @@ function SummaryRow({ label, wartosc, theme, bold }: { label: string; wartosc: s
 }
 
 const styles = StyleSheet.create({
+  podtytul: { fontSize: 13, fontWeight: '700', marginBottom: 8 },
   naglowek: { borderRadius: 10, padding: 12, marginBottom: 8, gap: 2 },
   infoWiersz: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3 },
   rzad: { flexDirection: 'row', paddingVertical: 9, paddingHorizontal: 6, borderBottomWidth: 1 },
