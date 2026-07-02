@@ -24,8 +24,8 @@ if errorlevel 1 exit /b 1
 
 cd android
 echo.
-echo Budowanie APK debug (przy cache 5-15 min, pierwszy raz dluzej)...
-call gradlew.bat assembleDebug
+echo Budowanie APK release (JS wbudowany w APK - dziala bez PC)...
+call gradlew.bat assembleRelease
 if errorlevel 1 (
   echo.
   echo BUILD FAILED - zobacz BUILD_WINDOWS.md
@@ -34,5 +34,5 @@ if errorlevel 1 (
 
 echo.
 echo === SUKCES ===
-echo APK: %cd%\app\build\outputs\apk\debug\app-debug.apk
+echo APK: %cd%\app\build\outputs\apk\release\app-release.apk
 endlocal

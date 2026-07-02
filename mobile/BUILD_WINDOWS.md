@@ -10,12 +10,26 @@ C:\kalkulator-mma\mobile
 
 ## Co zrobić po pierwszym sukcesie (APK na telefon)
 
-1. Skopiuj plik na telefon:
+> **Ważne:** `assembleDebug` tworzy wersję **deweloperską** — po instalacji szuka Metro na PC (`Unable to load script`).  
+> Do telefonu bez komputera używaj **`assembleRelease`** — JS jest wbudowany w APK.
+
+1. Zbuduj wersję release:
+   ```powershell
+   cd C:\kalkulator-mma\mobile\android
+   .\gradlew.bat assembleRelease
    ```
-   C:\kalkulator-mma\mobile\android\app\build\outputs\apk\debug\app-debug.apk
+   Lub: `.\build-android-local.cmd` (już buduje release).
+
+2. Skopiuj plik na telefon:
    ```
-2. Na telefonie otwórz APK i zainstaluj.
-3. Jeśli masz wersję ze sklepu — **odinstaluj ją** przed instalacją debug APK (inny podpis).
+   C:\kalkulator-mma\mobile\android\app\build\outputs\apk\release\app-release.apk
+   ```
+3. Na telefonie otwórz APK i zainstaluj.
+4. Jeśli masz wersję ze sklepu — **odinstaluj ją** przed instalacją (inny podpis).
+
+### Tylko do testów z PC pod ręką (opcjonalnie)
+
+`assembleDebug` + na PC `npx expo start` + telefon w tej samej sieci Wi‑Fi.
 
 ---
 
@@ -83,12 +97,12 @@ cd C:\kalkulator-mma\mobile
 git pull
 npm install
 cd android
-.\gradlew.bat assembleDebug
+.\gradlew.bat assembleRelease
 ```
 
 **Nie uruchamiaj** `prebuild --clean` ani `Remove-Item android` — Gradle cache przyspiesza build.
 
-APK: `android\app\build\outputs\apk\debug\app-debug.apk`
+APK: `android\app\build\outputs\apk\release\app-release.apk`
 
 ### Skrót jednym plikiem
 
@@ -117,10 +131,17 @@ npm install
 npm run prebuild:android
 npm run setup:android
 cd android
-.\gradlew.bat assembleDebug
+.\gradlew.bat assembleRelease
 ```
 
 ---
+
+## Dlaczego „Unable to load script”?
+
+| Build | Plik | Działa bez PC? |
+|-------|------|----------------|
+| `assembleDebug` | `app-debug.apk` | **Nie** — potrzebuje `expo start` na komputerze |
+| `assembleRelease` | `app-release.apk` | **Tak** — JS wbudowany w APK |
 
 ## Publikacja w Play Store (AAB, nie APK debug)
 
@@ -167,7 +188,7 @@ Przed wgraniem zwiększ w `app.json`:
 | Etap | Pierwszy raz | Kolejne (cache) |
 |------|--------------|-----------------|
 | `npm install` + prebuild | 5–10 min | — |
-| `gradlew assembleDebug` | 30–60 min (sieć) | **5–15 min** |
+| `gradlew assembleRelease` | 30–60 min (sieć) | **5–15 min** |
 | Tylko zmiana kodu + gradlew | — | **3–10 min** |
 
 ---
@@ -175,7 +196,7 @@ Przed wgraniem zwiększ w `app.json`:
 ## Szybka ściąga
 
 ```
-Pierwszy raz:  npm install → npm run prebuild:android → npm run setup:android → gradlew assembleDebug
-Kolejne:       git pull → npm install → cd android → gradlew assembleDebug
-APK:           android\app\build\outputs\apk\debug\app-debug.apk
+Pierwszy raz:  npm install → npm run prebuild:android → npm run setup:android → gradlew assembleRelease
+Kolejne:       git pull → npm install → cd android → gradlew assembleRelease
+APK:           android\app\build\outputs\apk\release\app-release.apk
 ```
