@@ -33,6 +33,22 @@ Zmieniasz kod → zapisujesz plik → w Expo Go **potrząśnij telefonem → Rel
 | Czas na jedną poprawkę | ~10–30 sekund |
 |------------------------|---------------|
 
+### Jeśli błąd `@expo/ngrok` / „Install and try again”
+
+Zainstaluj pakiet **lokalnie** w projekcie (nie globalnie):
+
+```powershell
+cd C:\kalkulator-mma\mobile
+npm install
+npx expo start --tunnel
+```
+
+Jeśli tunnel nadal nie działa — użyj **LAN** (telefon i PC w tej samej Wi‑Fi):
+
+```powershell
+npx expo start --lan
+```
+
 ### Jeśli „Project is incompatible with Expo Go”
 - Play Store → **Expo Go → Aktualizuj**.
 - Zamknij Expo Go całkowicie i uruchom ponownie.
