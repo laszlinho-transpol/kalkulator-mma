@@ -40,7 +40,10 @@
     "test": "tsx --test src/**/*.test.ts",
     "verify": "node scripts/verify-release.mjs",
     "fix:gradle": "node scripts/fix-gradle-foojay.mjs",
+    "setup:android": "node scripts/setup-android-local.mjs",
+    "postinstall": "node scripts/fix-gradle-foojay.mjs",
     "prebuild:android": "node scripts/fix-gradle-foojay.mjs && npx expo prebuild --platform android",
+    "build:android:local": "node scripts/fix-gradle-foojay.mjs && node scripts/setup-android-local.mjs && cd android && gradlew.bat assembleDebug",
     "build:android": "npx eas-cli@latest build --platform android --profile production",
     "release:play": "npx eas-cli@latest build --platform android --profile production --auto-submit --non-interactive"
   },

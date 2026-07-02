@@ -2,6 +2,8 @@
 
 Instrukcja dla **testów wewnętrznych** (Internal testing). To najszybsza ścieżka: bez publicznej widoczności, instalacja z linku w Play Store.
 
+> **Build lokalny na Windows (bez EAS, szybsze kolejne aktualizacje):** patrz [`BUILD_WINDOWS.md`](BUILD_WINDOWS.md)
+
 ---
 
 ## Szybka ściąga – automatyczna aktualizacja (Windows)
