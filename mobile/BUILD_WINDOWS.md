@@ -1,6 +1,9 @@
 # Build Android na Windows (lokalnie, bez EAS)
 
-Instrukcja po udanym pierwszym buildzie. Projekt **musi** leżeć w ścieżce **bez polskich znaków i spacji**, np.:
+> **Codzienne testy poprawek:** nie używaj tego pliku — patrz [`TESTOWANIE.md`](TESTOWANIE.md)  
+> (`npx expo start --tunnel` + Expo Go = sekundy zamiast godzin)
+
+Instrukcja **tylko** dla finalnego APK / gdy nie ma EAS. Projekt **musi** leżeć w ścieżce **bez polskich znaków i spacji**, np.:
 
 ```
 C:\kalkulator-mma\mobile
