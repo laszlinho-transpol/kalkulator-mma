@@ -728,3 +728,18 @@ Użytkownik wpisuje **auto + metry**, a program:
 **Weryfikacja**: `npm run verify` → **34/34 testów** ✅
 
 ---
+
+## ETAP 19 – LIVE metry z auta / od startu, sumy Mg (1.5.9)
+**Data:** 2026-07-06
+**Status:** ✅ UKOŃCZONY
+**Branch:** `cursor/kalkulator-mma-live-progress-0a0b`
+**Wersja aplikacji:** 1.5.9 (versionCode 16)
+
+### Co zostało zrobione
+
+1. Formularz auta – przełącznik **metry z auta** / **od startu planu** z auto-przeliczaniem drugiego pola
+2. „Gdzie dojechać” – **od startu / z auta**
+3. Bilans – **do wbudowania (plan/śr.)** z sumą łączną w nawiasie
+4. HTML v3.1 – zsynchronizowany formularz i bilans
+
+---

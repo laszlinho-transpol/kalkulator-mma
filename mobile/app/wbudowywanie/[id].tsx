@@ -30,6 +30,7 @@ import { gruboscWbudowywania, gruboscProjektowa, formatujTolerancje, kolorUzyska
 import {
   obliczWynikiDzialki, obliczLacznaDlugosc, obliczKontrolę,
   obliczPowierzchnioweOdStartu, formatLiczby, obliczTabeleAutPlanu,
+  round2,
 } from '../../src/utils/calculations';
 import {
   obliczKontrolePlanu,
@@ -92,6 +93,7 @@ export default function WbudowywanieDetailScreen() {
   // Nowy wpis Live
   const [nowyTonaz, setNowyTonaz] = useState('');
   const [nowyMetry, setNowyMetry] = useState('');
+  const [trybMetrowLive, setTrybMetrowLive] = useState<'zAuta' | 'odStartu'>('zAuta');
   const [nowyKomentarz, setNowyKomentarz] = useState('');
   const [nowyGodzina, setNowyGodzina] = useState(aktualnaGodzina());
   const [edytowanyWpisId, setEdytowanyWpisId] = useState<string | null>(null);
@@ -147,6 +149,38 @@ export default function WbudowywanieDetailScreen() {
   const metryPlanowaneLive = !edytowanyWpisId && !isNaN(tonNowyLive) && tonNowyLive > 0
     ? metryOdMasyPlanu(segmentyPlanu, bilansPlanu.lacznyTonaz + tonNowyLive)
     : null;
+  const metryZDojazduZAuta = metryPlanowaneLive != null
+    ? round2(Math.max(0, metryPlanowaneLive - bilansPlanu.laczneMetry))
+    : null;
+  const lacznaMasaPlanWysw = round2(bilansPlanu.lacznyTonaz + bilansPlanu.pozostalaMasaWgPlanu);
+  const lacznaMasaSrWysw = round2(bilansPlanu.lacznyTonaz + bilansPlanu.pozostalaMasaWgSredniej);
+
+  const wartoscMetrowNum = parseFloat(nowyMetry.replace(',', '.'));
+  const metryOdStartuObliczone = !isNaN(wartoscMetrowNum) && trybMetrowLive === 'zAuta'
+    ? round2(bilansPlanu.laczneMetry + wartoscMetrowNum)
+    : (!isNaN(wartoscMetrowNum) ? wartoscMetrowNum : null);
+  const metryZAutaObliczone = !isNaN(wartoscMetrowNum) && trybMetrowLive === 'odStartu'
+    ? round2(wartoscMetrowNum - bilansPlanu.laczneMetry)
+    : (!isNaN(wartoscMetrowNum) ? wartoscMetrowNum : null);
+
+  const przelaczTrybMetrow = (nowy: 'zAuta' | 'odStartu') => {
+    if (nowy === trybMetrowLive || edytowanyWpisId) return;
+    if (!isNaN(wartoscMetrowNum) && wartoscMetrowNum > 0) {
+      if (nowy === 'odStartu') {
+        setNowyMetry(String(round2(bilansPlanu.laczneMetry + wartoscMetrowNum)));
+      } else {
+        setNowyMetry(String(round2(Math.max(0, wartoscMetrowNum - bilansPlanu.laczneMetry))));
+      }
+    }
+    setTrybMetrowLive(nowy);
+  };
+
+  const rozwiazMetryWpisu = (): number | null => {
+    const val = parseFloat(nowyMetry.replace(',', '.'));
+    if (isNaN(val)) return null;
+    if (edytowanyWpisId || trybMetrowLive === 'zAuta') return val;
+    return round2(val - bilansPlanu.laczneMetry);
+  };
 
   // Kontrola całego dnia
   const tonyK = parseFloat(wbudowaneTonyStr.replace(',', '.'));
@@ -235,9 +269,14 @@ export default function WbudowywanieDetailScreen() {
 
   const dodajWpisLive = async () => {
     const ton = parseFloat(nowyTonaz.replace(',', '.'));
-    const met = parseFloat(nowyMetry.replace(',', '.'));
+    const met = rozwiazMetryWpisu();
     if (isNaN(ton) || ton <= 0) { Alert.alert('Błąd', 'Podaj prawidłowy tonaż.'); return; }
-    if (isNaN(met) || met <= 0) { Alert.alert('Błąd', 'Podaj prawidłowe metry.'); return; }
+    if (met === null || met <= 0) {
+      Alert.alert('Błąd', trybMetrowLive === 'odStartu' && !edytowanyWpisId
+        ? 'Odległość od startu musi być większa niż dotychczas przejechane metry.'
+        : 'Podaj prawidłowe metry.');
+      return;
+    }
     if (edytowanyWpisId) {
       await edytujWpisAuta(edytowanyWpisId, {
         tonazPrzywieziony: ton,
@@ -280,10 +319,12 @@ export default function WbudowywanieDetailScreen() {
       }
     }
     setNowyTonaz(''); setNowyMetry(''); setNowyKomentarz(''); setNowyGodzina(aktualnaGodzina());
+    setTrybMetrowLive('zAuta');
   };
 
   const rozpocznijEdycjeWpisu = (wpis: WpisLive) => {
     setEdytowanyWpisId(wpis.id);
+    setTrybMetrowLive('zAuta');
     setNowyTonaz(String(wpis.tonazPrzywieziony));
     setNowyMetry(String(wpis.przejechaneMetry));
     setNowyKomentarz(wpis.komentarz ?? '');
@@ -292,6 +333,7 @@ export default function WbudowywanieDetailScreen() {
 
   const anulujEdycjeWpisu = () => {
     setEdytowanyWpisId(null);
+    setTrybMetrowLive('zAuta');
     setNowyTonaz(''); setNowyMetry(''); setNowyKomentarz(''); setNowyGodzina(aktualnaGodzina());
   };
 
@@ -469,8 +511,8 @@ export default function WbudowywanieDetailScreen() {
                     <View style={[styles.sep, { backgroundColor: theme.colors.border }]} />
                     <IR label="Pozostało pow." v={`${formatLiczby(bilansPlanu.pozostalaPowierzchnia)} m²`} theme={theme} />
                     <IR label="Do końca metrów" v={`${formatLiczby(bilansPlanu.pozostaloMetrow)} m`} theme={theme} />
-                    <IR label="Do wbudowania (plan)" v={`${formatLiczby(bilansPlanu.pozostalaMasaWgPlanu, 2)} Mg`} theme={theme} />
-                    <IR label="Do wbudowania (śr. grub.)" v={`${formatLiczby(bilansPlanu.pozostalaMasaWgSredniej, 2)} Mg`} theme={theme} />
+                    <IR label="Do wbudowania (plan)" v={`${formatLiczby(bilansPlanu.pozostalaMasaWgPlanu, 2)} Mg (${formatLiczby(lacznaMasaPlanWysw, 2)} Mg)`} theme={theme} />
+                    <IR label="Do wbudowania (śr. grub.)" v={`${formatLiczby(bilansPlanu.pozostalaMasaWgSredniej, 2)} Mg (${formatLiczby(lacznaMasaSrWysw, 2)} Mg)`} theme={theme} />
                     {aktywnaDzialka && (
                       <Text style={[styles.opisMaly, { color: theme.colors.success, marginTop: 8, fontWeight: '600' }]}>
                         ● Aktywna działka: {aktywnaDzialka.dzialka.nazwa}
@@ -581,14 +623,51 @@ export default function WbudowywanieDetailScreen() {
                       <Text style={{ color: theme.colors.textSecondary, fontSize: 13, fontWeight: '600', marginBottom: 5 }}>Gdzie powinniśmy dojechać</Text>
                       <View style={[styles.poleSzare, { backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.border }]}>
                         <Text style={{ color: theme.colors.textSecondary, fontSize: 16 }}>
-                          {metryPlanowaneLive != null
-                            ? `${formatLiczby(metryPlanowaneLive)} m od startu planu`
+                          {metryPlanowaneLive != null && metryZDojazduZAuta != null
+                            ? `${formatLiczby(metryPlanowaneLive)} m od startu / ${formatLiczby(metryZDojazduZAuta)} m z auta`
                             : '— wpisz tonaż powyżej —'}
                         </Text>
                       </View>
                     </View>
                   )}
-                  <NumInput label="Przejechane metry [m]" value={nowyMetry} onChange={setNowyMetry} theme={theme} />
+                  {!edytowanyWpisId && (
+                    <View style={[styles.miniTabs, { borderColor: theme.colors.border, marginBottom: 8 }]}>
+                      {([
+                        { id: 'zAuta' as const, label: 'Metry z auta' },
+                        { id: 'odStartu' as const, label: 'Od startu planu' },
+                      ]).map((t) => (
+                        <TouchableOpacity
+                          key={t.id}
+                          style={[styles.miniTab, trybMetrowLive === t.id && { backgroundColor: `${theme.colors.primary}20`, borderColor: theme.colors.primary }]}
+                          onPress={() => przelaczTrybMetrow(t.id)}
+                        >
+                          <Text style={[styles.miniTabTekst, { color: trybMetrowLive === t.id ? theme.colors.primary : theme.colors.textSecondary }]}>
+                            {t.label}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+                  <NumInput
+                    label={edytowanyWpisId || trybMetrowLive === 'zAuta' ? 'Przejechane metry z auta [m]' : 'Odległość od startu [m]'}
+                    value={nowyMetry}
+                    onChange={setNowyMetry}
+                    theme={theme}
+                  />
+                  {!edytowanyWpisId && (
+                    <View style={{ marginBottom: 10 }}>
+                      <Text style={{ color: theme.colors.textSecondary, fontSize: 13, fontWeight: '600', marginBottom: 5 }}>
+                        {trybMetrowLive === 'zAuta' ? 'Odległość od startu (auto)' : 'Metry z auta (auto)'}
+                      </Text>
+                      <View style={[styles.poleSzare, { backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.border }]}>
+                        <Text style={{ color: theme.colors.textSecondary, fontSize: 16 }}>
+                          {trybMetrowLive === 'zAuta'
+                            ? (metryOdStartuObliczone != null && !isNaN(wartoscMetrowNum) ? `${formatLiczby(metryOdStartuObliczone)} m` : '—')
+                            : (metryZAutaObliczone != null && !isNaN(wartoscMetrowNum) ? `${formatLiczby(metryZAutaObliczone)} m` : '—')}
+                        </Text>
+                      </View>
+                    </View>
+                  )}
                   <View style={styles.godzinWrap}>
                     <Text style={[styles.godzLabel, { color: theme.colors.textSecondary }]}>Godz. wybudowania</Text>
                     <TextInput style={[styles.godzInput, { backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.border, color: theme.colors.text }]} value={nowyGodzina} onChangeText={setNowyGodzina} maxLength={5} placeholder="HH:MM" placeholderTextColor={theme.colors.textSecondary} keyboardType="numbers-and-punctuation" />

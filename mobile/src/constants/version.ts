@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.5.8';
+export const WERSJA_APLIKACJI = '1.5.9';
 
 export interface WpisChangelog {
   wersja: string;
@@ -12,6 +12,17 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.5.9',
+    data: '2026-07-06',
+    tytul: 'LIVE – metry z auta / od startu, sumy Mg w bilansie',
+    zmiany: [
+      'LIVE: wybór wpisu metrów z auta lub odległości od startu (drugie pole liczy się auto)',
+      'LIVE: „Gdzie dojechać” – od startu i z auta (np. 310 m / 32,5 m)',
+      'LIVE: bilans – do wbudowania z sumą łączną w nawiasie (wbudowano + pozostało)',
+      'Eksport HTML: te same poprawki w formularzu LIVE i bilansie',
+    ],
+  },
   {
     wersja: '1.5.8',
     data: '2026-07-06',

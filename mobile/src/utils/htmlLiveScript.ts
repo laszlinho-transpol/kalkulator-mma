@@ -213,11 +213,53 @@ function aktualizujMetryPlanowaneLive(){
   if(ton<=0){el.textContent='— wpisz tonaż powyżej —';return;}
   const seg=(MMA.segmentyPlanu||[]).map(s=>({...s}));
   const m=metryOdMasyPlanu(seg,bil.lacznyTonaz+ton);
-  el.textContent=m.toFixed(2)+' m od startu planu';
+  const zAuta=round2(Math.max(0,m-bil.laczneMetry));
+  el.textContent=m.toFixed(2)+' m od startu / '+zAuta.toFixed(2)+' m z auta';
+}
+function aktualizujMetryAuto(){
+  const el=document.getElementById('live-metry-auto');
+  const lbl=document.getElementById('live-metry-auto-label');
+  const inp=document.getElementById('live-met-label');
+  if(!el||!lbl||!inp)return;
+  if(EDYCJA_ID){el.textContent='—';lbl.style.display='none';return;}
+  lbl.style.display='block';
+  const bil=bilansPlanu(WPISY);
+  const val=parseFloat(document.getElementById('live-met').value);
+  if(isNaN(val)){el.textContent='—';return;}
+  if(TRYB_METROW==='zAuta'){
+    inp.textContent='Przejechane metry z auta [m]';
+    lbl.textContent='Odległość od startu (auto)';
+    el.textContent=round2(bil.laczneMetry+val).toFixed(2)+' m';
+  }else{
+    inp.textContent='Odległość od startu [m]';
+    lbl.textContent='Metry z auta (auto)';
+    el.textContent=round2(val-bil.laczneMetry).toFixed(2)+' m';
+  }
+}
+function przelaczTrybMetrowLive(nowy){
+  if(EDYCJA_ID||nowy===TRYB_METROW)return;
+  const bil=bilansPlanu(WPISY);
+  const val=parseFloat(document.getElementById('live-met').value);
+  if(!isNaN(val)&&val>0){
+    if(nowy==='odStartu')document.getElementById('live-met').value=round2(bil.laczneMetry+val);
+    else document.getElementById('live-met').value=round2(Math.max(0,val-bil.laczneMetry));
+  }
+  TRYB_METROW=nowy;
+  document.getElementById('tab-met-zauta').classList.toggle('active',nowy==='zAuta');
+  document.getElementById('tab-met-odstartu').classList.toggle('active',nowy==='odStartu');
+  aktualizujMetryAuto();
+}
+function rozwiazMetryWpisu(){
+  const val=parseFloat(document.getElementById('live-met').value);
+  if(isNaN(val))return null;
+  if(EDYCJA_ID||TRYB_METROW==='zAuta')return val;
+  const bil=bilansPlanu(WPISY);
+  return round2(val-bil.laczneMetry);
 }
 let WPISY=MMA.wpisyLive||[];
 let SESJE=MMA.sesjeLive||[];
 let EDYCJA_ID=null;
+let TRYB_METROW='zAuta';
 const KLUCZ_LS='mma_live_'+PLAN.id;
 const KLUCZ_SES='mma_sesje_'+PLAN.id;
 function zaladujPamiec(){
@@ -281,8 +323,8 @@ function renderLive(){
   if(bil.srGr>0)bilansHtml+='<div class="row"><span class="label">Śr. grubość</span><span class="val">'+bil.srGr.toFixed(2)+' cm</span></div>';
   bilansHtml+='<div class="row"><span class="label">Pozostało pow.</span><span class="val">'+bil.pozPow.toFixed(2)+' m²</span></div>';
   bilansHtml+='<div class="row"><span class="label">Do końca metrów</span><span class="val">'+bil.pozostaloMetrow.toFixed(2)+' m</span></div>';
-  bilansHtml+='<div class="row"><span class="label">Do wbudowania (plan)</span><span class="val">'+bil.pozMasa.toFixed(2)+' Mg</span></div>';
-  bilansHtml+='<div class="row"><span class="label">Do wbudowania (śr. grub.)</span><span class="val">'+bil.pozMasaSrednia.toFixed(2)+' Mg</span></div>';
+  bilansHtml+='<div class="row"><span class="label">Do wbudowania (plan)</span><span class="val">'+bil.pozMasa.toFixed(2)+' Mg ('+round2(bil.lacznyTonaz+bil.pozMasa).toFixed(2)+' Mg)</span></div>';
+  bilansHtml+='<div class="row"><span class="label">Do wbudowania (śr. grub.)</span><span class="val">'+bil.pozMasaSrednia.toFixed(2)+' Mg ('+round2(bil.lacznyTonaz+bil.pozMasaSrednia).toFixed(2)+' Mg)</span></div>';
   if(ak)bilansHtml+='<p class="aktywna-dz">● Aktywna działka: '+ak.dzialka.nazwa+'</p>';
   bilansHtml+='</div>';
   document.getElementById('live-bilans').innerHTML=bilansHtml;
@@ -322,7 +364,10 @@ function renderLive(){
   document.getElementById('live-opis').textContent=EDYCJA_ID?'Edycja segmentu – metry nie są automatycznie rozdzielane.':(ak?'Program sam liczy pozycję od „'+ak.dzialka.nazwa+'” – metry mogą przejść na kolejne działki.':'Wszystkie działki zakończone.');
   document.getElementById('btn-anuluj-edycje').style.display=EDYCJA_ID?'block':'none';
   document.getElementById('live-gdzie-label').style.display=EDYCJA_ID?'none':'block';
+  document.getElementById('live-tryb-metrow').style.display=EDYCJA_ID?'none':'flex';
+  document.getElementById('live-metry-auto-wrap').style.display=EDYCJA_ID?'none':'block';
   aktualizujMetryPlanowaneLive();
+  aktualizujMetryAuto();
 }
 
 function wyczyscFormLive(){
@@ -330,15 +375,19 @@ function wyczyscFormLive(){
   document.getElementById('live-met').value='';
   document.getElementById('live-godz').value='';
   document.getElementById('live-kom').value='';
+  TRYB_METROW='zAuta';
+  document.getElementById('tab-met-zauta')?.classList.add('active');
+  document.getElementById('tab-met-odstartu')?.classList.remove('active');
   aktualizujMetryPlanowaneLive();
+  aktualizujMetryAuto();
 }
 
 function dodajWpisLive(){
   const ton=parseFloat(document.getElementById('live-ton').value);
-  const met=parseFloat(document.getElementById('live-met').value);
+  const met=rozwiazMetryWpisu();
   const godz=document.getElementById('live-godz').value||new Date().toTimeString().slice(0,5);
   const kom=document.getElementById('live-kom').value;
-  if(!ton||!met){alert('Podaj tonaż i metry.');return;}
+  if(!ton||!met||met<=0){alert(TRYB_METROW==='odStartu'&&!EDYCJA_ID?'Odległość od startu musi być większa niż dotychczas przejechane metry.':'Podaj tonaż i metry.');return;}
   if(EDYCJA_ID){
     const w=WPISY.find(x=>x._lid===EDYCJA_ID);
     if(w){w.tonazPrzywieziony=ton;w.przejechaneMetry=met;w.godzinaWybudowania=godz;w.komentarz=kom||undefined;}
@@ -368,6 +417,7 @@ function dodajWpisLive(){
 function edytujWpis(lid){
   const w=WPISY.find(x=>x._lid===lid); if(!w)return;
   EDYCJA_ID=lid;
+  TRYB_METROW='zAuta';
   document.getElementById('live-ton').value=w.tonazPrzywieziony;
   document.getElementById('live-met').value=w.przejechaneMetry;
   document.getElementById('live-godz').value=w.godzinaWybudowania;

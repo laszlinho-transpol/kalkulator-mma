@@ -224,7 +224,15 @@ ${(() => {
       <span style="color:var(--muted);font-size:13px;font-weight:600">Gdzie powinniśmy dojechać</span>
       <div class="pole-szare" id="live-metry-planowane">— wpisz tonaż powyżej —</div>
     </div>
-    <label style="margin-top:8px;display:block">Przejechane metry [m]<input type="number" id="live-met" step="0.1" /></label>
+    <div class="live-tabs" id="live-tryb-metrow" style="margin-top:10px">
+      <button type="button" class="live-tab active" id="tab-met-zauta" onclick="przelaczTrybMetrowLive('zAuta')">Metry z auta</button>
+      <button type="button" class="live-tab" id="tab-met-odstartu" onclick="przelaczTrybMetrowLive('odStartu')">Od startu planu</button>
+    </div>
+    <label style="margin-top:8px;display:block"><span id="live-met-label">Przejechane metry z auta [m]</span><input type="number" id="live-met" step="0.1" oninput="aktualizujMetryAuto()" /></label>
+    <div id="live-metry-auto-wrap" style="margin-top:8px">
+      <span id="live-metry-auto-label" style="color:var(--muted);font-size:13px;font-weight:600">Odległość od startu (auto)</span>
+      <div class="pole-szare" id="live-metry-auto">—</div>
+    </div>
     <label style="margin-top:8px;display:block">Godzina<input type="text" id="live-godz" placeholder="HH:MM" maxlength="5" /></label>
     <label style="margin-top:8px;display:block">Komentarz<input type="text" id="live-kom" /></label>
     <button class="btn btn-success" onclick="dodajWpisLive()">+ Dodaj auto</button>
