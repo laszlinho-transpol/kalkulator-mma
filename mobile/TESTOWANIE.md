@@ -60,9 +60,36 @@ npx expo start --lan
 
 Gdy chcesz **paczkę na telefon bez włączonego komputera** (np. na budowie), ale **nie chcesz** lokalnego `gradlew`:
 
+### Aktualizacja kodu **bez Git** (ZIP z GitHub)
+
+Jeśli `git` nie działa (`git is not recognized`) — **nie używaj `git pull`**. Zamiast tego:
+
+1. Pobierz ZIP z gałęzi z poprawkami (link bezpośredni):
+   - **LIVE v1.5.8:** https://github.com/laszlinho-transpol/kalkulator-mma/archive/refs/heads/cursor/kalkulator-mma-live-progress-0a0b.zip
+   - Po merge do main: https://github.com/laszlinho-transpol/kalkulator-mma/archive/refs/heads/main.zip
+
+2. Rozpakuj ZIP. Skopiuj **zawartość** folderu `kalkulator-mma-…\mobile\` do swojego katalogu roboczego, np. `C:\kalkulator-mma\mobile\` (nadpisz pliki).
+
+3. W PowerShell:
+
+```powershell
+cd C:\kalkulator-mma\mobile
+npm install
+$env:EAS_NO_VCS = "1"
+npx eas-cli@latest login
+npx eas-cli@latest build --platform android --profile preview --non-interactive
+```
+
+Albo dwuklik: **`build-apk-eas.cmd`** (robi kroki buildu; przed pierwszym razem w tej sesji: `login`).
+
+> **`EAS_NO_VCS=1`** — obowiązkowe przy projekcie z ZIP (bez Git). Bez tego EAS może wymagać Gita.
+
+### Build (gdy masz już aktualny folder `mobile`)
+
 ```powershell
 cd C:\kalkulator-mma\mobile
 $env:EAS_NO_VCS = "1"
+npx eas-cli@latest login
 npx eas-cli@latest build --platform android --profile preview --non-interactive
 ```
 
