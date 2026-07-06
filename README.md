@@ -2,7 +2,7 @@
 
 Aplikacja mobilna (React Native + Expo) do planowania i śledzenia wbudowywania mieszanek mineralno-asfaltowych.
 
-**Aktualna wersja: 1.5.6** (Android `versionCode` 14)
+**Aktualna wersja: 1.5.9** (Android `versionCode` 16)
 
 ## Szybki start
 
@@ -12,6 +12,14 @@ npm install
 npm run verify    # test przed buildem
 npx expo start    # test na telefonie (Expo Go)
 ```
+
+## Aktualizacja wersji (bez Git)
+
+1. Pobierz ZIP: https://github.com/laszlinho-transpol/kalkulator-mma/archive/refs/heads/cursor/kalkulator-mma-live-progress-0a0b.zip  
+2. Skopiuj zawartość `…\mobile\` → `C:\kalkulator-mma\mobile\`  
+3. `cd mobile` → `npm install` → `$env:EAS_NO_VCS = "1"` → `npx eas-cli@latest build --platform android --profile preview`
+
+Szczegóły: `mobile/TESTOWANIE.md` (Metoda 2).
 
 ## Aktualizacja w Google Play (Windows)
 

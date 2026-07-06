@@ -2,7 +2,7 @@
 // PLAN CIĄGŁY – wszystkie działki jako jeden odcinek dnia
 // ============================================================
 
-import type { Plan, DzialkaRobocza, WynikiKontroli, WpisTabeliAut, Rzut } from '../types';
+import type { Plan, DzialkaRobocza, WynikiKontroli, WpisTabeliAut, Rzut, Figura, WpisLive } from '../types';
 import type { TabeleAutPlanu, TabelaAutDzialki } from './calculations';
 import {
   dlugoscFigury,
@@ -379,5 +379,160 @@ export function obliczTabeleAutPlanuCiagla(
     calosc,
     dzialki: poDzialkach,
     lacznaIloscAut: unikalneAuta,
+  };
+}
+
+export interface FiguraWCiaguPlanu {
+  figura: Figura;
+  dzialkaId: string;
+  dzialkaNazwa: string;
+  metryGlobalneStart: number;
+  grubosc: number;
+  ciezar: number;
+}
+
+export interface MarkerPlanuCiaglego {
+  wpis: WpisLive;
+  metryKumulatywne: number;
+  metryWDzialce: number;
+  idxGlobalny: number;
+}
+
+export interface PodsumowanieOdcinkaPlanu {
+  numerAutaDo: number;
+  tonDo: number;
+  metryDo: number;
+  powDo: number;
+  sredniaGrubosc: number;
+  bilansMasy: number;
+  pozostaloMetrow: number;
+}
+
+/** Wpisy w kolejności układania (auto #, działka, czas) */
+export function sortujWpisyPlanu(plan: Plan, wpisy: WpisLive[]): WpisLive[] {
+  return [...wpisy].sort((a, b) => {
+    if (a.numerAuta !== b.numerAuta) return a.numerAuta - b.numerAuta;
+    const idxA = plan.dzialki.findIndex((d) => d.id === a.dzialkaId);
+    const idxB = plan.dzialki.findIndex((d) => d.id === b.dzialkaId);
+    if (idxA !== idxB) return idxA - idxB;
+    return a.createdAt.localeCompare(b.createdAt);
+  });
+}
+
+/** Wszystkie figury planu w jednym ciągu z offsetami metrów globalnych */
+export function budujFiguryPlanu(
+  plan: Plan,
+  ciezarPoMieszance: (mieszankaId: string) => number | undefined,
+): FiguraWCiaguPlanu[] {
+  const out: FiguraWCiaguPlanu[] = [];
+  let offset = 0;
+  for (const dz of plan.dzialki) {
+    const ciezar = ciezarPoMieszance(dz.mieszankaId);
+    if (!ciezar) continue;
+    const gr = gruboscWbudowywania(dz);
+    for (const f of dz.figury) {
+      out.push({
+        figura: f,
+        dzialkaId: dz.id,
+        dzialkaNazwa: dz.nazwa,
+        metryGlobalneStart: round2(offset),
+        grubosc: gr,
+        ciezar,
+      });
+      offset = round2(offset + dlugoscFigury(f));
+    }
+  }
+  return out;
+}
+
+export function obliczLacznaDlugoscPlanu(plan: Plan): number {
+  return round2(plan.dzialki.reduce((s, dz) => s + obliczLacznaDlugosc(dz), 0));
+}
+
+/** Markery aut z metrami od startu całego planu */
+export function obliczMarkeryPlanuCiaglego(
+  plan: Plan,
+  wpisy: WpisLive[],
+): MarkerPlanuCiaglego[] {
+  const offsets = new Map<string, number>();
+  let off = 0;
+  for (const dz of plan.dzialki) {
+    offsets.set(dz.id, off);
+    off += obliczLacznaDlugosc(dz);
+  }
+
+  const markery: MarkerPlanuCiaglego[] = [];
+  let idx = 0;
+  for (const dz of plan.dzialki) {
+    const dzWpisy = wpisy
+      .filter((w) => w.dzialkaId === dz.id)
+      .sort((a, b) => a.numerAuta - b.numerAuta || a.createdAt.localeCompare(b.createdAt));
+    let cumDz = 0;
+    const base = offsets.get(dz.id) ?? 0;
+    for (const w of dzWpisy) {
+      cumDz = round2(cumDz + w.przejechaneMetry);
+      markery.push({
+        wpis: w,
+        metryKumulatywne: round2(base + cumDz),
+        metryWDzialce: cumDz,
+        idxGlobalny: idx++,
+      });
+    }
+  }
+  return markery;
+}
+
+/** Podsumowanie od startu planu do auta #N (cały dzień) */
+export function obliczPodsumowanieOdcinkaPlanu(
+  plan: Plan,
+  wpisy: WpisLive[],
+  numerAutaDo: number,
+  ciezarPoMieszance: (mieszankaId: string) => number | undefined,
+): PodsumowanieOdcinkaPlanu {
+  const segmenty = budujSegmentyPlanu(plan.dzialki, ciezarPoMieszance);
+  const lacznaDl = obliczLacznaDlugoscPlanu(plan);
+  const wpisyDo = sortujWpisyPlanu(plan, wpisy).filter((w) => w.numerAuta <= numerAutaDo);
+  const tonDo = round2(wpisyDo.reduce((s, w) => s + w.tonazPrzywieziony, 0));
+
+  const markery = obliczMarkeryPlanuCiaglego(plan, wpisy);
+  const ostatni = [...markery].reverse().find((m) => m.wpis.numerAuta <= numerAutaDo);
+  const metryDo = ostatni?.metryKumulatywne ?? 0;
+  const powDo = powierzchniaOdMetrowPlanu(segmenty, metryDo);
+
+  let denGr = 0;
+  let numGr = 0;
+  let cum = 0;
+  for (const s of segmenty) {
+    const doM = Math.min(s.dl, Math.max(0, metryDo - cum));
+    if (doM > 0) {
+      const pow = doM * (s.masaNaM / (s.ciezar * (s.grubosc / 100)));
+      numGr += pow * s.grubosc * s.ciezar;
+      denGr += pow * s.ciezar;
+    }
+    cum += s.dl;
+    if (cum >= metryDo) break;
+  }
+  const sredniaGrubosc = powDo > 0 && denGr > 0 ? round2((tonDo / denGr) * 100) : 0;
+
+  let masaPlan = 0;
+  cum = 0;
+  for (const s of segmenty) {
+    const doM = Math.min(s.dl, Math.max(0, metryDo - cum));
+    if (doM > 0) {
+      const pow = doM * (s.masaNaM / (s.ciezar * (s.grubosc / 100)));
+      masaPlan += pow * (s.grubosc / 100) * s.ciezar;
+    }
+    cum += s.dl;
+  }
+  const bilansMasy = round3(tonDo - masaPlan);
+
+  return {
+    numerAutaDo,
+    tonDo,
+    metryDo,
+    powDo,
+    sredniaGrubosc,
+    bilansMasy,
+    pozostaloMetrow: round2(Math.max(0, lacznaDl - metryDo)),
   };
 }
