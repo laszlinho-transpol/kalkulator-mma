@@ -710,3 +710,21 @@ Użytkownik wpisuje **auto + metry**, a program:
 **Weryfikacja**: `npm run verify` → **32/32 testów** ✅
 
 ---
+
+## ETAP 18 – LIVE scalony szkic, HTML v3.1, Wyczyść LIVE (1.5.8)
+**Data:** 2026-07-06
+**Status:** ✅ UKOŃCZONY
+**Branch:** `cursor/kalkulator-mma-live-progress-0a0b`
+**Wersja aplikacji:** 1.5.8 (versionCode 15)
+
+### Co zostało zrobione
+
+1. **`PlanCalySketch`** – jeden ciągły, przewijalny szkic planu dnia (skala live)
+2. **Modal auta** – odcinek 1→N na całym planie (`obliczPodsumowanieOdcinkaPlanu`)
+3. **Bilans LIVE** – „Do końca metrów” + pole „Gdzie powinniśmy dojechać” przy dodawaniu auta
+4. **Wyczyść LIVE** – przycisk w Zakończeniu dniówki (`wyczyścWpisyPlanu` + reset sesji)
+5. **Eksport HTML v3.1** – zsynchronizowany LIVE z aplikacją (szkic, tabela całości, modal, Wyczyść)
+
+**Weryfikacja**: `npm run verify` → **34/34 testów** ✅
+
+---

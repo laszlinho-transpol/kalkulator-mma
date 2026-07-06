@@ -79,7 +79,7 @@ export default function WbudowywanieDetailScreen() {
   const budowy = useBudowyStore((s) => s.budowy);
   const {
     sesje, dodajAutoZRozbiciem, edytujWpisAuta, usunWpisAuta,
-    czyDzialkaZakonczona, oznaczOstatnieAuto, wznowDzialke,
+    czyDzialkaZakonczona, oznaczOstatnieAuto, wznowDzialke, wyczyścWpisyPlanu,
   } = useLiveStore();
   const wpisyCalegoPlanu = useWpisyDlaPlanu(id);
 
@@ -293,6 +293,28 @@ export default function WbudowywanieDetailScreen() {
   const anulujEdycjeWpisu = () => {
     setEdytowanyWpisId(null);
     setNowyTonaz(''); setNowyMetry(''); setNowyKomentarz(''); setNowyGodzina(aktualnaGodzina());
+  };
+
+  const wyczyscLive = () => {
+    if (wpisyCalegoPlanu.length === 0) {
+      Alert.alert('Brak wpisów', 'Nie ma żadnych aut LIVE do usunięcia.');
+      return;
+    }
+    Alert.alert(
+      'Wyczyść LIVE',
+      'Usunąć wszystkie wprowadzone auta w tym planie i zacząć od nowa?',
+      [
+        { text: 'Anuluj', style: 'cancel' },
+        {
+          text: 'Wyczyść',
+          style: 'destructive',
+          onPress: async () => {
+            await wyczyścWpisyPlanu(plan.id);
+            anulujEdycjeWpisu();
+          },
+        },
+      ],
+    );
   };
 
   // Selektor działki – usunięty (kontrola i LIVE = cały odcinek dnia)
@@ -599,6 +621,12 @@ export default function WbudowywanieDetailScreen() {
                   <Text style={[styles.opisMaly, { color: theme.colors.textSecondary, marginBottom: 12 }]}>
                     Po zakończeniu plan trafi do archiwum. Wygenerujemy raport PDF z podsumowaniem Live do wysłania mailem.
                   </Text>
+                  <TouchableOpacity
+                    style={[styles.btnOstatnieAuto, { backgroundColor: `${theme.colors.textSecondary}15`, borderColor: theme.colors.border, marginBottom: 10 }]}
+                    onPress={wyczyscLive}
+                  >
+                    <Text style={{ color: theme.colors.text, fontWeight: '700', fontSize: 14 }}>🗑 Wyczyść LIVE</Text>
+                  </TouchableOpacity>
                   <TouchableOpacity style={[styles.btnDodajAuto, { backgroundColor: theme.colors.danger }]} onPress={zakonczIArchiwizuj} disabled={generujeRaport}>
                     <Text style={styles.btnDodajAutoTekst}>{generujeRaport ? 'Generuję raport…' : 'Zakończ i archiwizuj'}</Text>
                   </TouchableOpacity>

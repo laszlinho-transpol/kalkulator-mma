@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.5.6';
+export const WERSJA_APLIKACJI = '1.5.8';
 
 export interface WpisChangelog {
   wersja: string;
@@ -12,6 +12,29 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.5.8',
+    data: '2026-07-06',
+    tytul: 'LIVE – scalony szkic, HTML zsynchronizowany, Wyczyść LIVE',
+    zmiany: [
+      'LIVE: jeden przewijalny szkic całego planu dnia (skala live, auta czytelne)',
+      'LIVE: modal odcinka 1→N liczy na całym planie, nie per działka',
+      'LIVE: „Do końca metrów” w bilansie i niebieskim podsumowaniu',
+      'LIVE: „Gdzie powinniśmy dojechać” przy dodawaniu auta (jak Kontrola)',
+      'LIVE: przycisk „Wyczyść LIVE” – usuwa wszystkie auta i resetuje sesje',
+      'Eksport HTML v3.1: ten sam LIVE co aplikacja (szkic, tabela, modal, Wyczyść)',
+    ],
+  },
+  {
+    wersja: '1.5.7',
+    data: '2026-07-06',
+    tytul: 'LIVE – scalony szkic i podsumowanie całego dnia',
+    zmiany: [
+      'LIVE: PlanCalySketch – ciągły odcinek wszystkich działek',
+      'LIVE: podsumowanie odcinka od auta #1 na całym planie',
+      'LIVE: metry do końca planu w bilansie i formularzu auta',
+    ],
+  },
   {
     wersja: '1.5.6',
     data: '2026-06-30',

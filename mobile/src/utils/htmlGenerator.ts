@@ -39,7 +39,7 @@ function budujDaneEksportu(
   const segmentyPlanu = budujSegmentyPlanu(plan.dzialki, ciezarPoMieszance);
 
   return {
-    wersja: '3.0',
+    wersja: '3.1',
     plan,
     mieszanki: mieszankiMap,
     wpisyLive: wpisy,
@@ -116,6 +116,18 @@ export async function generujInteraktywnyHTML(
   .modal-tlo { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:200; align-items:flex-end; justify-content:center; }
   .modal-tlo.open { display:flex; }
   .modal-karta { background:var(--card); border-radius:20px 20px 0 0; padding:24px; width:100%; max-width:600px; border:1px solid var(--border); }
+  .live-podsum { border: 1px solid #3b82f6; background: rgba(59,130,246,0.1); border-radius: 10px; padding: 12px; margin-top: 12px; }
+  .szkic-wrap { max-height: 42vh; min-height: 200px; overflow-y: auto; border: 1px solid var(--border); border-radius: 10px; background: #0a0a12; padding: 8px 4px; }
+  .szkic-tresc { position: relative; margin-left: 28px; margin-right: 48px; }
+  .szkic-fig { position: absolute; left: 0; right: 0; display: flex; align-items: stretch; }
+  .szkic-pasek { flex: 1; background: rgba(232,160,32,0.08); border: 1.5px solid #E8A020; border-radius: 4px; position: relative; overflow: hidden; min-width: 40px; }
+  .szkic-pass { position: absolute; bottom: 0; left: 0; right: 0; background: #000; }
+  .szkic-nr { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); font-weight: 800; font-size: 11px; z-index: 1; }
+  .szkic-m { position: absolute; right: -44px; top: 2px; font-size: 9px; color: var(--muted); }
+  .szkic-dz-label { position: absolute; left: -4px; right: 0; font-size: 9px; font-weight: 700; color: var(--primary); border-top: 1px dashed var(--primary); padding-top: 2px; }
+  .szkic-truck { position: absolute; left: -26px; background: #E8A020; color: #1a1a1a; border: none; border-radius: 4px; padding: 2px 5px; font-size: 10px; font-weight: 800; cursor: pointer; z-index: 3; }
+  .szkic-paver { position: absolute; left: -4px; right: -4px; height: 2px; background: #E8A020; z-index: 2; }
+  .btn-secondary { background: #555; }
 </style>
 </head>
 <body>
@@ -200,19 +212,36 @@ ${(() => {
 </div>
 
 <div id="tab-live" class="tab-content">
-  <p style="color:var(--muted);font-size:13px;margin-bottom:12px">Tryb LIVE jak w aplikacji – metry rozdzielają się automatycznie między działki. Dane zapisują się w przeglądarce (localStorage).</p>
-  <div id="live-selektor"></div>
+  <p style="color:var(--muted);font-size:13px;margin-bottom:12px">Tryb LIVE jak w aplikacji – jeden szkic planu dnia, metry rozdzielają się między działki. Dane w localStorage.</p>
   <div id="live-bilans"></div>
+  <div id="live-szkic"></div>
   <div id="live-lista"></div>
   <div class="card" id="live-form">
     <h2 id="live-form-tytul">Nowe auto</h2>
     <p id="live-opis"></p>
-    <label>Tonaż [Mg]<input type="number" id="live-ton" step="0.01" /></label>
-    <label style="margin-top:8px;display:block">Metry [m]<input type="number" id="live-met" step="0.1" /></label>
+    <label>Tonaż [Mg]<input type="number" id="live-ton" step="0.01" oninput="aktualizujMetryPlanowaneLive()" /></label>
+    <div id="live-gdzie-label" style="margin-top:10px">
+      <span style="color:var(--muted);font-size:13px;font-weight:600">Gdzie powinniśmy dojechać</span>
+      <div class="pole-szare" id="live-metry-planowane">— wpisz tonaż powyżej —</div>
+    </div>
+    <label style="margin-top:8px;display:block">Przejechane metry [m]<input type="number" id="live-met" step="0.1" /></label>
     <label style="margin-top:8px;display:block">Godzina<input type="text" id="live-godz" placeholder="HH:MM" maxlength="5" /></label>
     <label style="margin-top:8px;display:block">Komentarz<input type="text" id="live-kom" /></label>
     <button class="btn btn-success" onclick="dodajWpisLive()">+ Dodaj auto</button>
     <button class="btn" style="background:#555;margin-top:6px;display:none" id="btn-anuluj-edycje" onclick="anulujEdycjeLive()">Anuluj edycję</button>
+  </div>
+  <div class="card" style="border-color:var(--red);background:rgba(239,68,68,0.06)">
+    <h2 style="color:var(--red)">Zakończenie dniówki</h2>
+    <p style="color:var(--muted);font-size:13px;margin-bottom:12px">Wyczyść wszystkie wpisy LIVE i zacznij od nowa, lub podpisz raport poniżej.</p>
+    <button class="btn btn-secondary" onclick="wyczyscLivePlanu()">🗑 Wyczyść LIVE</button>
+  </div>
+</div>
+
+<div class="modal-tlo" id="modal-auto" onclick="if(event.target===this)zamknijModalAuta()">
+  <div class="modal-karta">
+    <h2 id="modal-auto-tytul" style="margin-bottom:12px">Auto</h2>
+    <div id="modal-auto-tresc"></div>
+    <button class="btn btn-secondary" style="margin-top:16px" onclick="zamknijModalAuta()">Zamknij</button>
   </div>
 </div>
 
@@ -405,7 +434,7 @@ function zapiszPodpisanyRaport() {
 }
 </script>
 <p style="color:#4b5563;font-size:11px;text-align:center;margin-top:20px">
-  Wygenerowano: ${new Date().toLocaleString('pl-PL')} | Kalkulator MMA v3.0
+  Wygenerowano: ${new Date().toLocaleString('pl-PL')} | Kalkulator MMA HTML v3.1
 </p>
 </body>
 </html>`;
