@@ -11,6 +11,7 @@ import {
   round3,
 } from './calculations';
 import { gruboscWbudowywania } from './grubosc';
+import { obliczLacznaDlugoscPlanu } from './planCiagly';
 
 export interface SegmentLive {
   dzialkaId: string;
@@ -26,6 +27,8 @@ export interface BilansLivePlanu {
   zakrytaPowierzchnia: number;
   lacznaPowierzchniaPlanu: number;
   pozostalaPowierzchnia: number;
+  lacznaDlugoscPlanu: number;
+  pozostaloMetrow: number;
   sredniaGrubosc: number;
   pozostalaMasaWgPlanu: number;
   pozostalaMasaWgSredniej: number;
@@ -237,6 +240,9 @@ export function obliczBilansLivePlanu(
     ? round3(pozostalaPow * (sredniaGrubosc / 100) * rhoSr)
     : pozostalaMasaWgPlanu;
 
+  const lacznaDlugoscPlanu = obliczLacznaDlugoscPlanu(plan);
+  const pozostaloMetrow = round2(Math.max(0, lacznaDlugoscPlanu - laczneMetry));
+
   return {
     liczbaAut: liczUnikalnychAut(wpisyPlanu),
     lacznyTonaz,
@@ -244,6 +250,8 @@ export function obliczBilansLivePlanu(
     zakrytaPowierzchnia: zakrytaPow,
     lacznaPowierzchniaPlanu: lacznaPowPlan,
     pozostalaPowierzchnia: pozostalaPow,
+    lacznaDlugoscPlanu,
+    pozostaloMetrow,
     sredniaGrubosc,
     pozostalaMasaWgPlanu,
     pozostalaMasaWgSredniej: pozostalaMasaSrednia,

@@ -19,6 +19,7 @@ import { useLiveStore } from '../../src/stores/liveStore';
 import { useBudowyStore } from '../../src/stores/budowyStore';
 import { lightTheme, darkTheme, type AppTheme } from '../../src/constants/theme';
 import { DzialkaSketch, type WpisLiveMarker } from '../../src/components/sketch/DzialkaSketch';
+import { PlanCalySketch } from '../../src/components/sketch/PlanCalySketch';
 import { AppHeader } from '../../src/components/common/AppHeader';
 import { AnimatedTabBar } from '../../src/components/common/AnimatedTabBar';
 import { SafeModal } from '../../src/components/common/SafeModal';
@@ -35,6 +36,10 @@ import {
   obliczPodsumowaniePlanuDnia,
   budujSegmentyPlanu,
   metryOdMasyPlanu,
+  budujFiguryPlanu,
+  obliczMarkeryPlanuCiaglego,
+  obliczPodsumowanieOdcinkaPlanu,
+  sortujWpisyPlanu,
 } from '../../src/utils/planCiagly';
 import { formatujDatePl, aktualnaGodzina } from '../../src/utils/dates';
 import {
@@ -43,8 +48,6 @@ import {
   obliczBilansLivePlanu,
   dzialkiDoAutoZamkniecia,
   nastepnyNumerAuta,
-  liczUnikalnychAut,
-  zakresAutNaDzialce,
 } from '../../src/utils/liveProgress';
 import type { DzialkaRobocza, WpisLive } from '../../src/types';
 
@@ -94,7 +97,7 @@ export default function WbudowywanieDetailScreen() {
   const [edytowanyWpisId, setEdytowanyWpisId] = useState<string | null>(null);
 
   // Modal auta
-  const [autaModal, setAutaModal] = useState<{ wpis: WpisLive; idxWpisu: number } | null>(null);
+  const [autaModal, setAutaModal] = useState<{ wpis: WpisLive } | null>(null);
   const [autaModalZakladka, setAutaModalZakladka] = useState<'szczegoły' | 'odcinek'>('szczegoły');
   const [viewerPzt, setViewerPzt] = useState(false);
   const [generujeRaport, setGenerujeRaport] = useState(false);
@@ -127,7 +130,6 @@ export default function WbudowywanieDetailScreen() {
   const podsumowanieDnia = obliczPodsumowaniePlanuDnia(plan, ciezarPoMieszance, tabeleAutPlanu);
   const aktywnaDzialka = znajdzAktywnaDzialke(plan, wpisyCalegoPlanu, sesje);
   const dzialkaDoWpisu = aktywnaDzialka?.dzialka ?? plan.dzialki[plan.dzialki.length - 1];
-  const aktywnaIdx = aktywnaDzialka?.idx ?? -1;
   const dzialkaZakonczonaWpisu = dzialkaDoWpisu ? czyDzialkaZakonczona(plan.id, dzialkaDoWpisu.id) : false;
   const kolejnyNumerAuta = nastepnyNumerAuta(wpisyCalegoPlanu);
   const bilansPlanu = obliczBilansLivePlanu(
@@ -135,26 +137,36 @@ export default function WbudowywanieDetailScreen() {
     wpisyCalegoPlanu,
     ciezarPoMieszance,
   );
+  const segmentyPlanu = budujSegmentyPlanu(plan.dzialki, ciezarPoMieszance);
+  const figuryPlanu = budujFiguryPlanu(plan, ciezarPoMieszance);
+  const markeryPlanu = obliczMarkeryPlanuCiaglego(plan, wpisyCalegoPlanu);
+  const wpisyLivePosortowane = sortujWpisyPlanu(plan, wpisyCalegoPlanu);
+  const mapaMetrowWpisu = new Map(markeryPlanu.map((m) => [m.wpis.id, m.metryKumulatywne]));
+
+  const tonNowyLive = parseFloat(nowyTonaz.replace(',', '.'));
+  const metryPlanowaneLive = !edytowanyWpisId && !isNaN(tonNowyLive) && tonNowyLive > 0
+    ? metryOdMasyPlanu(segmentyPlanu, bilansPlanu.lacznyTonaz + tonNowyLive)
+    : null;
 
   // Kontrola całego dnia
   const tonyK = parseFloat(wbudowaneTonyStr.replace(',', '.'));
   const metryK = parseFloat(przejechaneMetryStr.replace(',', '.'));
   const metryPlanowane = !isNaN(tonyK) && tonyK > 0
-    ? metryOdMasyPlanu(budujSegmentyPlanu(plan.dzialki, ciezarPoMieszance), tonyK)
+    ? metryOdMasyPlanu(segmentyPlanu, tonyK)
     : null;
   const wynikiKontroli = !isNaN(tonyK) && !isNaN(metryK) && tonyK > 0 && metryK > 0
     ? obliczKontrolePlanu(plan, tonyK, metryK, ciezarPoMieszance)
     : null;
 
-  // Obliczenia do tabeli Live (grubość + do końca m dla każdego wiersza)
-  const obliczWierszLiveDzialki = (dz: DzialkaRobocza, mie: { ciezarObjetosciowy: number }, wpisy: WpisLive[], idxW: number) => {
-    const metryDotad = wpisy.slice(0, idxW + 1).reduce((s, w) => s + w.przejechaneMetry, 0);
-    const wpis = wpisy[idxW];
+  const obliczWierszLive = (wpis: WpisLive) => {
+    const dz = plan.dzialki.find((d) => d.id === wpis.dzialkaId);
+    const mie = dz ? getMieszanka(dz.mieszankaId) : undefined;
+    const metryKum = mapaMetrowWpisu.get(wpis.id) ?? 0;
+    if (!dz || !mie) return { grubosc: 0, doKoncaM: 0, grPlan: 0 };
     const powJednego = obliczPowierzchnioweOdStartu(dz, wpis.przejechaneMetry);
     const gr = powJednego > 0 ? (wpis.tonazPrzywieziony / (mie.ciezarObjetosciowy * powJednego)) * 100 : 0;
-    const lacznasDl = obliczLacznaDlugosc(dz);
-    const doK = Math.max(0, lacznasDl - metryDotad);
-    return { grubosc: gr, doKoncaM: doK };
+    const doK = Math.max(0, bilansPlanu.lacznaDlugoscPlanu - metryKum);
+    return { grubosc: gr, doKoncaM: doK, grPlan: gruboscWbudowywania(dz) };
   };
 
   const zakonczIArchiwizuj = () => Alert.alert(
@@ -365,7 +377,7 @@ export default function WbudowywanieDetailScreen() {
                     ciezarObjetosciowy={mie.ciezarObjetosciowy}
                     wykonaneMetry={wBiez.reduce((s, w) => s + w.przejechaneMetry, 0)}
                     markery={cumMDz}
-                    onTruckPress={(wpis, idxW) => { setAutaModal({ wpis, idxWpisu: idxW }); setAutaModalZakladka('szczegoły'); }}
+                    onTruckPress={(wpis) => { setAutaModal({ wpis }); setAutaModalZakladka('szczegoły'); }}
                   />
                 </View>
               </View>
@@ -421,117 +433,7 @@ export default function WbudowywanieDetailScreen() {
           )}
 
           {/* ======== LIVE ======== */}
-          {aktywnaZakladka === 'live' && (() => {
-            const indeksyDzialek = plan.dzialki.map((_, i) => i);
-
-            const renderBlokDzialki = (dzIdx: number) => {
-              const dz = plan.dzialki[dzIdx];
-              const mie = getMieszanka(dz.mieszankaId);
-              if (!mie) return null;
-              const wpisyDz = wpisyCalegoPlanu.filter((w) => w.dzialkaId === dz.id);
-              const zakresAut = zakresAutNaDzialce(wpisyDz);
-              const sumaTonDz = wpisyDz.reduce((s, w) => s + w.tonazPrzywieziony, 0);
-              const sumaMetrDz = wpisyDz.reduce((s, w) => s + w.przejechaneMetry, 0);
-              const grDz = gruboscWbudowywania(dz);
-              const zakonczona = czyDzialkaZakonczona(plan.id, dz.id);
-              const markeryDz: WpisLiveMarker[] = [];
-              let cum = 0;
-              for (const w of wpisyDz) { cum += w.przejechaneMetry; markeryDz.push({ wpis: w, metryKumulatywne: cum }); }
-              const wynikiDz = obliczWynikiDzialki(dz, mie.ciezarObjetosciowy, plan.tonazAuta);
-              const pozPow = Math.max(0, wynikiDz.lacznaPowierzchnia - obliczPowierzchnioweOdStartu(dz, sumaMetrDz));
-              const srGrDz = sumaMetrDz > 0 && obliczPowierzchnioweOdStartu(dz, sumaMetrDz) > 0
-                ? (sumaTonDz / (mie.ciezarObjetosciowy * obliczPowierzchnioweOdStartu(dz, sumaMetrDz))) * 100
-                : 0;
-
-              return (
-                <View key={dz.id} style={{ gap: 12 }}>
-                  <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: aktywnaIdx === dzIdx ? theme.colors.success : theme.colors.border, borderWidth: aktywnaIdx === dzIdx ? 2 : 1 }]}>
-                    <Text style={[styles.kartaTytul, { color: theme.colors.primary }]}>
-                      {dz.nazwa}{zakonczona ? '  ✓ zakończona' : aktywnaIdx === dzIdx ? '  ● aktywna' : ''}
-                    </Text>
-                    <View style={styles.szkicRow}>
-                      <View style={[styles.szkicLewy, { maxHeight: VIEWPORT_SZKICU_LIVE, borderColor: theme.colors.border, backgroundColor: theme.colors.background }]}>
-                        <ScrollView nestedScrollEnabled showsVerticalScrollIndicator bounces={false} contentContainerStyle={{ paddingVertical: 4 }}>
-                          <DzialkaSketch
-                            dzialka={dz}
-                            ciezarObjetosciowy={mie.ciezarObjetosciowy}
-                            wykonaneMetry={sumaMetrDz}
-                            markery={markeryDz}
-                            trybSzkicu="live"
-                            scrollowalny={false}
-                            idPrefix={`${dz.id}-`}
-                            onTruckPress={(wpis, idxW) => { setAutaModal({ wpis, idxWpisu: idxW }); setAutaModalZakladka('szczegoły'); }}
-                          />
-                        </ScrollView>
-                      </View>
-                      <View style={[styles.szkicPanel, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}>
-                        <PanelStat label="Aut" wartosc={zakresAut ? `${zakresAut.od}${zakresAut.od !== zakresAut.do ? `–${zakresAut.do}` : ''}` : '0'} theme={theme} kolor={theme.colors.primary} />
-                        <PanelStat label="Mg" wartosc={formatLiczby(sumaTonDz, 2)} theme={theme} kolor={theme.colors.text} />
-                        <PanelStat label="m" wartosc={formatLiczby(sumaMetrDz)} theme={theme} kolor={theme.colors.text} />
-                        {srGrDz > 0 && <PanelStat label="Śr.gr." wartosc={`${formatLiczby(srGrDz, 2)} cm`} theme={theme} kolor={Math.abs(srGrDz - grDz) > 0.3 ? theme.colors.danger : theme.colors.success} />}
-                      </View>
-                    </View>
-                  </View>
-
-                  {wpisyDz.length > 0 && (
-                    <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-                      <Text style={[styles.kartaTytul, { color: theme.colors.text }]}>
-                        Tabela aut – {dz.nazwa}
-                        {zakresAut ? `  (#${zakresAut.od}${zakresAut.od !== zakresAut.do ? `–${zakresAut.do}` : ''})` : ''}
-                      </Text>
-                      <ScrollView horizontal showsHorizontalScrollIndicator>
-                        <View>
-                          <View style={[styles.tabelaNagl, { backgroundColor: `${theme.colors.primary}15` }]}>
-                            {KOLUMNY.map((k) => (
-                              <Text key={k.id} style={[styles.tabelaNaglTekst, { width: k.width, color: theme.colors.textSecondary }]}>{k.label}</Text>
-                            ))}
-                            <Text style={[styles.tabelaNaglTekst, { width: 32, color: theme.colors.textSecondary }]} />
-                            <Text style={[styles.tabelaNaglTekst, { width: 32, color: theme.colors.textSecondary }]} />
-                          </View>
-                          {wpisyDz.map((wpis, idxW) => {
-                            const { grubosc: grW, doKoncaM } = obliczWierszLiveDzialki(dz, mie, wpisyDz, idxW);
-                            const przepal = grW > grDz + 0.2;
-                            const niedomiar = grW < grDz - 0.2;
-                            return (
-                              <View key={wpis.id}>
-                                <View style={[styles.tabelaRzad, { borderBottomColor: theme.colors.border }]}>
-                                  <Text style={[styles.tabelaKom, { width: KOLUMNY[0].width, color: theme.colors.textSecondary }]}>{wpis.numerAuta}</Text>
-                                  <Text style={[styles.tabelaKom, { width: KOLUMNY[1].width, color: theme.colors.text }]}>{formatLiczby(wpis.tonazPrzywieziony)}</Text>
-                                  <Text style={[styles.tabelaKom, { width: KOLUMNY[2].width, color: theme.colors.text }]}>{formatLiczby(wpis.przejechaneMetry)}</Text>
-                                  <Text style={[styles.tabelaKom, { width: KOLUMNY[3].width, color: przepal ? theme.colors.danger : niedomiar ? theme.colors.warning : theme.colors.success }]}>
-                                    {grW > 0 ? `${formatLiczby(grW)} ${przepal ? '▲' : niedomiar ? '▼' : ''}` : '–'}
-                                  </Text>
-                                  <Text style={[styles.tabelaKom, { width: KOLUMNY[4].width, color: theme.colors.text }]}>{formatLiczby(doKoncaM)}</Text>
-                                  <Text style={[styles.tabelaKom, { width: KOLUMNY[5].width, color: theme.colors.text }]}>{wpis.godzinaWybudowania}</Text>
-                                  <TouchableOpacity onPress={() => rozpocznijEdycjeWpisu(wpis)} style={{ width: 32, alignItems: 'center' }}>
-                                    <Text style={{ color: theme.colors.info, fontSize: 15 }}>✎</Text>
-                                  </TouchableOpacity>
-                                  <TouchableOpacity onPress={() => Alert.alert('Usuń auto', `Usunąć auto #${wpis.numerAuta} (wszystkie segmenty na planie)?`, [
-                                    { text: 'Anuluj', style: 'cancel' },
-                                    { text: 'Usuń', style: 'destructive', onPress: () => usunWpisAuta(wpis.id) },
-                                  ])} style={{ width: 32, alignItems: 'center' }}>
-                                    <Text style={{ color: theme.colors.danger, fontSize: 16 }}>✕</Text>
-                                  </TouchableOpacity>
-                                </View>
-                                {wpis.komentarz ? (
-                                  <Text style={[styles.komentarzTekst, { color: theme.colors.textSecondary, borderBottomColor: theme.colors.border }]}>💬 {wpis.komentarz}</Text>
-                                ) : null}
-                              </View>
-                            );
-                          })}
-                        </View>
-                      </ScrollView>
-                      <View style={[styles.livePodsumWrap, { backgroundColor: `${theme.colors.info}10`, borderColor: theme.colors.info }]}>
-                        <IR label="Pozostało pow." v={`${formatLiczby(pozPow)} m²`} theme={theme} />
-                        <IR label={`Do wbudowania wg planu (${grDz} cm)`} v={`${formatLiczby(pozPow * (grDz / 100) * mie.ciezarObjetosciowy, 2)} Mg`} theme={theme} />
-                      </View>
-                    </View>
-                  )}
-                </View>
-              );
-            };
-
-            return (
+          {aktywnaZakladka === 'live' && (
               <>
                 <View style={[styles.karta, { backgroundColor: `${theme.colors.success}10`, borderColor: theme.colors.success }]}>
                     <Text style={[styles.kartaTytul, { color: theme.colors.success }]}>Bilans całego planu</Text>
@@ -544,6 +446,7 @@ export default function WbudowywanieDetailScreen() {
                     )}
                     <View style={[styles.sep, { backgroundColor: theme.colors.border }]} />
                     <IR label="Pozostało pow." v={`${formatLiczby(bilansPlanu.pozostalaPowierzchnia)} m²`} theme={theme} />
+                    <IR label="Do końca metrów" v={`${formatLiczby(bilansPlanu.pozostaloMetrow)} m`} theme={theme} />
                     <IR label="Do wbudowania (plan)" v={`${formatLiczby(bilansPlanu.pozostalaMasaWgPlanu, 2)} Mg`} theme={theme} />
                     <IR label="Do wbudowania (śr. grub.)" v={`${formatLiczby(bilansPlanu.pozostalaMasaWgSredniej, 2)} Mg`} theme={theme} />
                     {aktywnaDzialka && (
@@ -553,7 +456,88 @@ export default function WbudowywanieDetailScreen() {
                     )}
                   </View>
 
-                {indeksyDzialek.map(renderBlokDzialki)}
+                <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+                  <Text style={[styles.kartaTytul, { color: theme.colors.primary }]}>Szkic planu dnia</Text>
+                  <Text style={[styles.opisMaly, { color: theme.colors.textSecondary, marginBottom: 8 }]}>
+                    Jeden ciągły odcinek – przewiń w pionie, aby przejrzeć cały plan.
+                  </Text>
+                  <View style={styles.szkicRow}>
+                    <View style={[styles.szkicLewy, { maxHeight: VIEWPORT_SZKICU_LIVE, borderColor: theme.colors.border, backgroundColor: theme.colors.background }]}>
+                      <ScrollView nestedScrollEnabled showsVerticalScrollIndicator bounces={false} contentContainerStyle={{ paddingVertical: 4 }}>
+                        <PlanCalySketch
+                          figuryPlanu={figuryPlanu}
+                          wykonaneMetryGlobalne={bilansPlanu.laczneMetry}
+                          markery={markeryPlanu}
+                          onTruckPress={(wpis) => { setAutaModal({ wpis }); setAutaModalZakladka('szczegoły'); }}
+                        />
+                      </ScrollView>
+                    </View>
+                    <View style={[styles.szkicPanel, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}>
+                      <PanelStat label="Aut" wartosc={String(bilansPlanu.liczbaAut)} theme={theme} kolor={theme.colors.primary} />
+                      <PanelStat label="Mg" wartosc={formatLiczby(bilansPlanu.lacznyTonaz, 2)} theme={theme} kolor={theme.colors.text} />
+                      <PanelStat label="m" wartosc={formatLiczby(bilansPlanu.laczneMetry)} theme={theme} kolor={theme.colors.text} />
+                      {bilansPlanu.sredniaGrubosc > 0 && (
+                        <PanelStat label="Śr.gr." wartosc={`${formatLiczby(bilansPlanu.sredniaGrubosc, 2)} cm`} theme={theme} kolor={theme.colors.success} />
+                      )}
+                    </View>
+                  </View>
+                </View>
+
+                {wpisyLivePosortowane.length > 0 && (
+                  <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+                    <Text style={[styles.kartaTytul, { color: theme.colors.text }]}>Tabela aut – cały plan</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator>
+                      <View>
+                        <View style={[styles.tabelaNagl, { backgroundColor: `${theme.colors.primary}15` }]}>
+                          {KOLUMNY.map((k) => (
+                            <Text key={k.id} style={[styles.tabelaNaglTekst, { width: k.width, color: theme.colors.textSecondary }]}>{k.label}</Text>
+                          ))}
+                          <Text style={[styles.tabelaNaglTekst, { width: 72, color: theme.colors.textSecondary }]}>Działka</Text>
+                          <Text style={[styles.tabelaNaglTekst, { width: 32, color: theme.colors.textSecondary }]} />
+                          <Text style={[styles.tabelaNaglTekst, { width: 32, color: theme.colors.textSecondary }]} />
+                        </View>
+                        {wpisyLivePosortowane.map((wpis) => {
+                          const dz = plan.dzialki.find((d) => d.id === wpis.dzialkaId);
+                          const { grubosc: grW, doKoncaM, grPlan } = obliczWierszLive(wpis);
+                          const przepal = grW > grPlan + 0.2;
+                          const niedomiar = grW < grPlan - 0.2;
+                          return (
+                            <View key={wpis.id}>
+                              <View style={[styles.tabelaRzad, { borderBottomColor: theme.colors.border }]}>
+                                <Text style={[styles.tabelaKom, { width: KOLUMNY[0].width, color: theme.colors.textSecondary }]}>{wpis.numerAuta}</Text>
+                                <Text style={[styles.tabelaKom, { width: KOLUMNY[1].width, color: theme.colors.text }]}>{formatLiczby(wpis.tonazPrzywieziony)}</Text>
+                                <Text style={[styles.tabelaKom, { width: KOLUMNY[2].width, color: theme.colors.text }]}>{formatLiczby(wpis.przejechaneMetry)}</Text>
+                                <Text style={[styles.tabelaKom, { width: KOLUMNY[3].width, color: przepal ? theme.colors.danger : niedomiar ? theme.colors.warning : theme.colors.success }]}>
+                                  {grW > 0 ? `${formatLiczby(grW)} ${przepal ? '▲' : niedomiar ? '▼' : ''}` : '–'}
+                                </Text>
+                                <Text style={[styles.tabelaKom, { width: KOLUMNY[4].width, color: theme.colors.text }]}>{formatLiczby(doKoncaM)}</Text>
+                                <Text style={[styles.tabelaKom, { width: KOLUMNY[5].width, color: theme.colors.text }]}>{wpis.godzinaWybudowania}</Text>
+                                <Text style={[styles.tabelaKom, { width: 72, color: theme.colors.textSecondary, fontSize: 10 }]} numberOfLines={1}>{dz?.nazwa ?? '—'}</Text>
+                                <TouchableOpacity onPress={() => rozpocznijEdycjeWpisu(wpis)} style={{ width: 32, alignItems: 'center' }}>
+                                  <Text style={{ color: theme.colors.info, fontSize: 15 }}>✎</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity onPress={() => Alert.alert('Usuń auto', `Usunąć auto #${wpis.numerAuta} (wszystkie segmenty na planie)?`, [
+                                  { text: 'Anuluj', style: 'cancel' },
+                                  { text: 'Usuń', style: 'destructive', onPress: () => usunWpisAuta(wpis.id) },
+                                ])} style={{ width: 32, alignItems: 'center' }}>
+                                  <Text style={{ color: theme.colors.danger, fontSize: 16 }}>✕</Text>
+                                </TouchableOpacity>
+                              </View>
+                              {wpis.komentarz ? (
+                                <Text style={[styles.komentarzTekst, { color: theme.colors.textSecondary, borderBottomColor: theme.colors.border }]}>💬 {wpis.komentarz}</Text>
+                              ) : null}
+                            </View>
+                          );
+                        })}
+                      </View>
+                    </ScrollView>
+                    <View style={[styles.livePodsumWrap, { backgroundColor: `${theme.colors.info}10`, borderColor: theme.colors.info }]}>
+                      <IR label="Pozostało pow." v={`${formatLiczby(bilansPlanu.pozostalaPowierzchnia)} m²`} theme={theme} />
+                      <IR label="Do końca metrów" v={`${formatLiczby(bilansPlanu.pozostaloMetrow)} m`} theme={theme} />
+                      <IR label="Do wbudowania (plan)" v={`${formatLiczby(bilansPlanu.pozostalaMasaWgPlanu, 2)} Mg`} theme={theme} />
+                    </View>
+                  </View>
+                )}
 
                 <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: edytowanyWpisId ? theme.colors.warning : theme.colors.border }]}>
                   <Text style={[styles.kartaTytul, { color: theme.colors.text }]}>
@@ -570,6 +554,18 @@ export default function WbudowywanieDetailScreen() {
                     {dzialkaZakonczonaWpisu && !edytowanyWpisId ? ' (aktywna działka zakończona – wznów lub dodaj metry na kolejnej)' : ''}
                   </Text>
                   <NumInput label="Tonaż [Mg]" value={nowyTonaz} onChange={setNowyTonaz} theme={theme} placeholder={String(plan.tonazAuta)} />
+                  {!edytowanyWpisId && (
+                    <View style={{ marginBottom: 10 }}>
+                      <Text style={{ color: theme.colors.textSecondary, fontSize: 13, fontWeight: '600', marginBottom: 5 }}>Gdzie powinniśmy dojechać</Text>
+                      <View style={[styles.poleSzare, { backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.border }]}>
+                        <Text style={{ color: theme.colors.textSecondary, fontSize: 16 }}>
+                          {metryPlanowaneLive != null
+                            ? `${formatLiczby(metryPlanowaneLive)} m od startu planu`
+                            : '— wpisz tonaż powyżej —'}
+                        </Text>
+                      </View>
+                    </View>
+                  )}
                   <NumInput label="Przejechane metry [m]" value={nowyMetry} onChange={setNowyMetry} theme={theme} />
                   <View style={styles.godzinWrap}>
                     <Text style={[styles.godzLabel, { color: theme.colors.textSecondary }]}>Godz. wybudowania</Text>
@@ -608,8 +604,7 @@ export default function WbudowywanieDetailScreen() {
                   </TouchableOpacity>
                 </View>
               </>
-            );
-          })()}
+          )}
 
           {/* ======== PZT ======== */}
           {aktywnaZakladka === 'pzt' && (
@@ -642,18 +637,17 @@ export default function WbudowywanieDetailScreen() {
 
       {/* ======= MODAL AUTA – 2 zakładki ======= */}
       {autaModal && (() => {
-        const { wpis, idxWpisu } = autaModal;
+        const { wpis } = autaModal;
         const dzModal = plan.dzialki.find((d) => d.id === wpis.dzialkaId);
         const mieModal = dzModal ? getMieszanka(dzModal.mieszankaId) : undefined;
         if (!dzModal || !mieModal) return null;
-        const wpisyDzModal = wpisyCalegoPlanu.filter((w) => w.dzialkaId === dzModal.id);
         const grModal = gruboscWbudowywania(dzModal);
-        const wpisyDo = wpisyDzModal.slice(0, idxWpisu + 1);
-        const metryDo = wpisyDo.reduce((s, w) => s + w.przejechaneMetry, 0);
-        const tonDo = wpisyDo.reduce((s, w) => s + w.tonazPrzywieziony, 0);
-        const powDo = obliczPowierzchnioweOdStartu(dzModal, metryDo);
-        const grDo = powDo > 0 ? (tonDo / (mieModal.ciezarObjetosciowy * powDo)) * 100 : 0;
-        const bilansDo = tonDo - powDo * (grModal / 100) * mieModal.ciezarObjetosciowy;
+        const odcinekPlanu = obliczPodsumowanieOdcinkaPlanu(
+          plan,
+          wpisyCalegoPlanu,
+          wpis.numerAuta,
+          ciezarPoMieszance,
+        );
         const powAuta = obliczPowierzchnioweOdStartu(dzModal, wpis.przejechaneMetry);
         const grAuta = powAuta > 0 ? (wpis.tonazPrzywieziony / (mieModal.ciezarObjetosciowy * powAuta)) * 100 : 0;
         const bilansAuta = wpis.tonazPrzywieziony - powAuta * (grModal / 100) * mieModal.ciezarObjetosciowy;
@@ -667,7 +661,9 @@ export default function WbudowywanieDetailScreen() {
             lewy={{ tekst: 'Zamknij', onPress: () => setAutaModal(null), kolor: theme.colors.primary }}
           >
             <ScrollView style={{ paddingHorizontal: 16 }} showsVerticalScrollIndicator={false}>
-              <Text style={[styles.opisMaly, { color: theme.colors.textSecondary, marginBottom: 8 }]}>Godz. {wpis.godzinaWybudowania}</Text>
+              <Text style={[styles.opisMaly, { color: theme.colors.textSecondary, marginBottom: 8 }]}>
+                Godz. {wpis.godzinaWybudowania}{dzModal ? ` · ${dzModal.nazwa}` : ''}
+              </Text>
               <View style={[styles.miniTabs, { borderColor: theme.colors.border }]}>
                 {(['szczegoły', 'odcinek'] as const).map((z) => (
                   <TouchableOpacity key={z} style={[styles.miniTab, autaModalZakladka === z && { backgroundColor: `${theme.colors.primary}20`, borderColor: theme.colors.primary }]} onPress={() => setAutaModalZakladka(z)}>
@@ -698,21 +694,25 @@ export default function WbudowywanieDetailScreen() {
               )}
               {autaModalZakladka === 'odcinek' && (
                 <>
-                  <Text style={[styles.opisMaly, { color: theme.colors.textSecondary, marginBottom: 8 }]}>Podsumowanie od auta #1 do #{wpis.numerAuta}</Text>
-                  <ModalRow label="Łączny tonaż" v={`${formatLiczby(tonDo, 2)} Mg`} theme={theme} />
-                  <ModalRow label="Łącznie metrów" v={`${formatLiczby(metryDo)} m`} theme={theme} />
-                  <ModalRow label="Zakryta powierzchnia" v={`${formatLiczby(powDo)} m²`} theme={theme} />
+                  <Text style={[styles.opisMaly, { color: theme.colors.textSecondary, marginBottom: 8 }]}>
+                    Podsumowanie całego planu dnia od auta #1 do #{wpis.numerAuta}
+                  </Text>
+                  <ModalRow label="Łączny tonaż" v={`${formatLiczby(odcinekPlanu.tonDo, 2)} Mg`} theme={theme} />
+                  <ModalRow label="Łącznie metrów (od startu)" v={`${formatLiczby(odcinekPlanu.metryDo)} m`} theme={theme} />
+                  <ModalRow label="Zakryta powierzchnia" v={`${formatLiczby(odcinekPlanu.powDo)} m²`} theme={theme} />
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 5 }}>
                     <Text style={{ color: theme.colors.textSecondary, fontSize: 14 }}>Śr. grubość (1→{wpis.numerAuta})</Text>
-                    <Text style={{ color: Math.abs(grDo - grModal) > 0.3 ? theme.colors.danger : theme.colors.success, fontSize: 14, fontWeight: '700' }}>
-                      {formatLiczby(grDo)} cm {grDo > grModal ? '▲' : grDo < grModal ? '▼' : ''}
+                    <Text style={{ color: theme.colors.text, fontSize: 14, fontWeight: '700' }}>
+                      {formatLiczby(odcinekPlanu.sredniaGrubosc)} cm
                     </Text>
                   </View>
-                  <View style={[styles.bilansBoks, { backgroundColor: bilansDo > 0 ? `${theme.colors.danger}20` : `${theme.colors.success}20` }]}>
-                    <Text style={{ color: bilansDo > 0 ? theme.colors.danger : theme.colors.success, fontWeight: '700', fontSize: 14 }}>
-                      Bilans łączny: {bilansDo > 0 ? '+' : ''}{formatLiczby(bilansDo, 2)} Mg {bilansDo > 0 ? '(przepał)' : '(oszczędność)'}
+                  <View style={[styles.bilansBoks, { backgroundColor: odcinekPlanu.bilansMasy > 0 ? `${theme.colors.danger}20` : `${theme.colors.success}20` }]}>
+                    <Text style={{ color: odcinekPlanu.bilansMasy > 0 ? theme.colors.danger : theme.colors.success, fontWeight: '700', fontSize: 14 }}>
+                      Bilans łączny: {odcinekPlanu.bilansMasy > 0 ? '+' : ''}{formatLiczby(odcinekPlanu.bilansMasy, 2)} Mg {odcinekPlanu.bilansMasy > 0 ? '(przepał)' : '(oszczędność)'}
                     </Text>
                   </View>
+                  <View style={[styles.sep, { backgroundColor: theme.colors.border, marginVertical: 10 }]} />
+                  <ModalRow label="Do końca metrów (plan)" v={`${formatLiczby(odcinekPlanu.pozostaloMetrow)} m`} theme={theme} />
                 </>
               )}
             </ScrollView>

@@ -124,6 +124,8 @@ describe('liveProgress', () => {
     assert.equal(bilans.laczneMetry, 75);
     assert.ok(bilans.zakrytaPowierzchnia > 0);
     assert.ok(bilans.pozostalaPowierzchnia > 0);
+    assert.equal(bilans.lacznaDlugoscPlanu, 150);
+    assert.equal(bilans.pozostaloMetrow, 75);
   });
 
   it('sumaMetrowDzialki', () => {
