@@ -209,3 +209,76 @@ export interface WynikiKontroli {
   pozostaloMasyWgZalozen: number;
   pozostaloMasyWgSredniej: number;
 }
+
+// --- Obmiar PZT (wielokąt z PDF-XChange / XFDF) ---
+
+/** Punkt w układzie PDF (przed skalowaniem) lub w metrach */
+export interface Punkt2D {
+  x: number;
+  y: number;
+}
+
+export type RolaWezlaObmiaru = 'start' | 'koniec' | 'lewa' | 'prawa' | 'zwykly';
+
+export interface WezelObmiaru extends Punkt2D {
+  /** Indeks w oryginalnej liście wierzchołków */
+  idx: number;
+  rola: RolaWezlaObmiaru;
+}
+
+/**
+ * Skala rysunku PZT.
+ * Przy 1:500 → 1 cm na papierze = 5 m w terenie.
+ * Współrzędne XFDF są w punktach PDF (72 pt = 1 cal).
+ */
+export interface SkalaPzt {
+  /** Mianownik skali, np. 500 dla 1:500 */
+  mianownik: number;
+  /** Metry rzeczywiste na 1 cm papieru (przy 1:500 = 5) */
+  metryNaCm: number;
+}
+
+export const DOMYSLNA_SKALA_PZT: SkalaPzt = {
+  mianownik: 500,
+  metryNaCm: 5,
+};
+
+/** Pojedynczy obszar obmiaru (jeden <polygon> z XFDF) */
+export interface ObszarObmiaru {
+  id: string;
+  nazwa: string;
+  /** Kolejność układania w dniu (1 = pierwszy) */
+  kolejnosc: number;
+  /** Wierzchołki w jednostkach PDF (surowe z XFDF) */
+  wierzcholkiPdf: Punkt2D[];
+  /** Wierzchołki w metrach terenowych (po skali) */
+  wierzcholkiM: Punkt2D[];
+  powierzchniaM2: number;
+  obwodM: number;
+  /** Nazwa pliku źródłowego XFDF / PDF */
+  zrodloNazwa: string;
+  /** Ścieżka / href z XFDF jeśli dostępna */
+  zrodloPdfHref?: string;
+  /** Kolor z XFDF (hex) */
+  kolorWypelnienia?: string;
+  /** Oznaczenia ról węzłów (opcjonalne – Etap B) */
+  wezlyRole?: WezelObmiaru[];
+  kilometrazStartKm?: number;
+  kilometrazStartM?: number;
+  kilometrazKoniecKm?: number;
+  kilometrazKoniecM?: number;
+  createdAt: string;
+}
+
+/** Sesja obmiaru na dzień – wiele obszarów z jednego lub wielu PDF */
+export interface SesjaObmiaruDnia {
+  id: string;
+  nazwa: string;
+  data: string; // ISO date
+  planId?: string;
+  budowaId?: string;
+  skala: SkalaPzt;
+  obszary: ObszarObmiaru[];
+  createdAt: string;
+  updatedAt: string;
+}

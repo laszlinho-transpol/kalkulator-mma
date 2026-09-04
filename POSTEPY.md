@@ -743,3 +743,24 @@ Użytkownik wpisuje **auto + metry**, a program:
 4. HTML v3.1 – zsynchronizowany formularz i bilans
 
 ---
+
+## ETAP 20 – Obmiar PZT: XFDF, kolejność, wiele PDF (1.6.0)
+**Data:** 2026-09-04
+**Status:** ✅ UKOŃCZONY (fundament)
+**Branch:** `cursor/kalkulator-mma-obmiar-xfdf-0a0b`
+**Wersja aplikacji:** 1.6.0 (versionCode 17)
+
+### Co zostało zrobione
+
+1. **Import XFDF** z PDF-XChange – automatyczne wyciąganie `<vertices>` (bez Excela)
+2. **Skala 1:500** (1 cm = 5 m) → powierzchnia i obwód w m²
+3. **Sesja dnia** z kolejnością obszarów (↑↓) – jak działki w LIVE
+4. **Wiele PDF** – kolejne importy XFDF do tej samej sesji (obszary z różnych plików)
+5. **Podgląd SVG** kształtu obszaru
+6. Wejście: ekran główny → Niezbędnik → **Obmiar PZT**
+
+### Następne (Etap B)
+- Oznaczenie START/KONIEC/LEWA/PRAWA + kilometraż
+- LIVE na wielokącie (tony, metry, rozkładarka, zamalowanie)
+
+---

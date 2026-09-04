@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.5.9';
+export const WERSJA_APLIKACJI = '1.6.0';
 
 export interface WpisChangelog {
   wersja: string;
@@ -12,6 +12,19 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.6.0',
+    data: '2026-09-04',
+    tytul: 'Obmiar PZT – import XFDF, kolejność obszarów, wiele PDF',
+    zmiany: [
+      'Nowy moduł Obmiar PZT (Niezbędnik): import wielokątów z XFDF PDF-XChange',
+      'Automatyczne wyciąganie węzłów – bez Excela i „Tekst jako kolumny”',
+      'Skala 1:500 (1 cm = 5 m) + przliczanie powierzchni w m²',
+      'Kolejność układania obszarów (↑↓) – jak działki w LIVE',
+      'Obszary z różnych PDF w jednej sesji dnia (kolejne importy XFDF)',
+      'Podgląd SVG kształtu obszaru z węzłami',
+    ],
+  },
   {
     wersja: '1.5.9',
     data: '2026-07-06',
