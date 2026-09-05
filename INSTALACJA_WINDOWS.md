@@ -89,7 +89,7 @@ npx eas-cli@latest build --platform android --profile production --non-interacti
 | `could not determine executable to run` | Użyj `npm run build:android` lub `npx eas-cli@latest build ...` |
 | `Not logged in` | `npx eas-cli@latest login` w tej samej sesji PowerShell |
 | `Cannot find path mobile` | Sprawdź ścieżkę: `dir` i dopasuj `cd` |
-| `git command not found` / `Repair your Git` | `$env:EAS_NO_VCS="1"` przed buildem |
+| `git command not found` / `git is not recognized` | **Nie instaluj Gita na siłę** — pobierz ZIP z GitHub i skopiuj folder `mobile` (patrz `TESTOWANIE.md` → Metoda 2). Przed buildem: `$env:EAS_NO_VCS="1"` |
 | `not digitally signed` / `UnauthorizedAccess` przy `.ps1` | Użyj **`publish-play-store.cmd`** albo: `Set-ExecutionPolicy -Scope Process Bypass` |
 | `eas is not recognized` | Zamiast `eas` wpisz `npx eas-cli@latest` |
 

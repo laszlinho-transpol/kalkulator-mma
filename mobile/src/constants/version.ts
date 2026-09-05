@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.5.6';
+export const WERSJA_APLIKACJI = '1.7.1';
 
 export interface WpisChangelog {
   wersja: string;
@@ -12,6 +12,77 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.7.1',
+    data: '2026-09-05',
+    tytul: 'Obmiar – odsadzki, pikiety co 100 m, maszyny LIVE',
+    zmiany: [
+      'Odsadzka krawędzi: przesunięcie o cm na zewnątrz/do wewnątrz z automatycznym Δ m² (np. 100 m × 10 cm ≈ +10 m²)',
+      'Automatyczne pełne kilometraże na obszarze co 100 m (np. start 1+830 → 1+900, 2+000…)',
+      'LIVE: grafiki rozkładarki i samochodu na podglądzie, obrót zgodny z kierunkiem jazdy',
+    ],
+  },
+  {
+    wersja: '1.7.0',
+    data: '2026-09-05',
+    tytul: 'Obmiar PZT – UX, skala, LIVE na wielokącie',
+    zmiany: [
+      'Nagłówek Obmiaru: tytuł w jednej linii z „Wstecz”, bez zbędnego podtytułu',
+      'Usunięta niebieska ramka z wyjaśnieniem',
+      'Przycisk „Nowy” na liście sesji',
+      'Podgląd obszaru: zoom, przesuwanie, obrót; pełne zacieniowanie; centrowanie przy wyborze',
+      'Ustaw skalę – presety i własny mianownik, przelicza m²',
+      'Sesja dnia sumuje powierzchnię ze wszystkich XFDF',
+      'Etap B: role START/KONIEC/LEWA/PRAWA, kilometraż, LIVE (metry/tony, zamalowanie)',
+    ],
+  },
+  {
+    wersja: '1.6.0',
+    data: '2026-09-04',
+    tytul: 'Obmiar PZT – import XFDF, kolejność obszarów, wiele PDF',
+    zmiany: [
+      'Nowy moduł Obmiar PZT (Niezbędnik): import wielokątów z XFDF PDF-XChange',
+      'Automatyczne wyciąganie węzłów – bez Excela i „Tekst jako kolumny”',
+      'Skala 1:500 (1 cm = 5 m) + przliczanie powierzchni w m²',
+      'Kolejność układania obszarów (↑↓) – jak działki w LIVE',
+      'Obszary z różnych PDF w jednej sesji dnia (kolejne importy XFDF)',
+      'Podgląd SVG kształtu obszaru z węzłami',
+    ],
+  },
+  {
+    wersja: '1.5.9',
+    data: '2026-07-06',
+    tytul: 'LIVE – metry z auta / od startu, sumy Mg w bilansie',
+    zmiany: [
+      'LIVE: wybór wpisu metrów z auta lub odległości od startu (drugie pole liczy się auto)',
+      'LIVE: „Gdzie dojechać” – od startu i z auta (np. 310 m / 32,5 m)',
+      'LIVE: bilans – do wbudowania z sumą łączną w nawiasie (wbudowano + pozostało)',
+      'Eksport HTML: te same poprawki w formularzu LIVE i bilansie',
+    ],
+  },
+  {
+    wersja: '1.5.8',
+    data: '2026-07-06',
+    tytul: 'LIVE – scalony szkic, HTML zsynchronizowany, Wyczyść LIVE',
+    zmiany: [
+      'LIVE: jeden przewijalny szkic całego planu dnia (skala live, auta czytelne)',
+      'LIVE: modal odcinka 1→N liczy na całym planie, nie per działka',
+      'LIVE: „Do końca metrów” w bilansie i niebieskim podsumowaniu',
+      'LIVE: „Gdzie powinniśmy dojechać” przy dodawaniu auta (jak Kontrola)',
+      'LIVE: przycisk „Wyczyść LIVE” – usuwa wszystkie auta i resetuje sesje',
+      'Eksport HTML v3.1: ten sam LIVE co aplikacja (szkic, tabela, modal, Wyczyść)',
+    ],
+  },
+  {
+    wersja: '1.5.7',
+    data: '2026-07-06',
+    tytul: 'LIVE – scalony szkic i podsumowanie całego dnia',
+    zmiany: [
+      'LIVE: PlanCalySketch – ciągły odcinek wszystkich działek',
+      'LIVE: podsumowanie odcinka od auta #1 na całym planie',
+      'LIVE: metry do końca planu w bilansie i formularzu auta',
+    ],
+  },
   {
     wersja: '1.5.6',
     data: '2026-06-30',

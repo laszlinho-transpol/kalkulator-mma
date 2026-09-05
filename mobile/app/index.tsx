@@ -36,9 +36,10 @@ const KAFELKI: Kafelek[] = [
 ];
 
 const NIEZBEDNIK: Kafelek[] = [
-  { id: 'masa', tytul: 'Masa i sprzęt', podtytul: 'Szybkie sprawdzenie', ikona: '🧮', sciezka: '/niezbednik/masa', kolor: '#E8A020', delay: 0 },
-  { id: 'geodezja', tytul: 'Geodezja i pomiary', podtytul: 'Pomiary niwelatorem', ikona: '📐', sciezka: '/niezbednik/geodezja', kolor: '#2E86AB', delay: 80 },
-  { id: 'notatnik', tytul: 'Notatnik', podtytul: 'Brudnopis drogowca', ikona: '📝', sciezka: '/niezbednik/notatnik', kolor: '#8B5CF6', delay: 160 },
+  { id: 'obmiar', tytul: 'Obmiar PZT', podtytul: 'Obszary · skala · LIVE', ikona: '🗺️', sciezka: '/obmiar', kolor: '#0D9488', delay: 0 },
+  { id: 'masa', tytul: 'Masa i sprzęt', podtytul: 'Szybkie sprawdzenie', ikona: '🧮', sciezka: '/niezbednik/masa', kolor: '#E8A020', delay: 80 },
+  { id: 'geodezja', tytul: 'Geodezja i pomiary', podtytul: 'Pomiary niwelatorem', ikona: '📐', sciezka: '/niezbednik/geodezja', kolor: '#2E86AB', delay: 160 },
+  { id: 'notatnik', tytul: 'Notatnik', podtytul: 'Brudnopis drogowca', ikona: '📝', sciezka: '/niezbednik/notatnik', kolor: '#8B5CF6', delay: 240 },
 ];
 
 export default function HomeScreen() {
