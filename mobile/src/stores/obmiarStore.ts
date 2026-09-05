@@ -7,6 +7,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { ObszarObmiaru, RolaWezlaObmiaru, SesjaObmiaruDnia, SkalaPzt } from '../types';
 import { DOMYSLNA_SKALA_PZT } from '../types';
 import { zastosujRoleWezla } from '../utils/obmiarLive';
+import { odsadzKrawedz } from '../utils/obmiarOffset';
+import { metryNaPunktPdf, powierzchniaWielokata, obwodWielokata } from '../utils/obmiarGeometry';
+import { round2 } from '../utils/calculations';
 import { nadajKolejnosc, obszaryZPolygony, przeliczObszarySkalą, type WynikParsowaniaXfdf } from '../utils/xfdfParser';
 
 const KLUCZ = '@mma:obmiar_sesje';
@@ -34,6 +37,12 @@ interface ObmiarStore {
     obszarId: string,
     dane: { przejechaneMetry?: number; sumaTon?: number },
   ) => Promise<void>;
+  zastosujOdsadzke: (
+    sesjaId: string,
+    obszarId: string,
+    idxKrawedzi: number,
+    dystansM: number,
+  ) => Promise<{ deltaPowierzchniaM2: number; powierzchniaM2: number; dlugoscKrawedziM: number } | null>;
   sesjaPoId: (id: string) => SesjaObmiaruDnia | undefined;
 }
 
@@ -219,6 +228,51 @@ export const useObmiarStore = create<ObmiarStore>((set, get) => ({
     });
     set({ sesje: zaktualizowane });
     await zapisz(zaktualizowane);
+  },
+
+  
+  zastosujOdsadzke: async (sesjaId, obszarId, idxKrawedzi, dystansM) => {
+    const sesja = get().sesje.find((s) => s.id === sesjaId);
+    if (!sesja) return null;
+    const obszar = sesja.obszary.find((o) => o.id === obszarId);
+    if (!obszar) return null;
+
+    const wynik = odsadzKrawedz(obszar.wierzcholkiM, idxKrawedzi, dystansM);
+    const k = metryNaPunktPdf(sesja.skala);
+    const wierzcholkiM = wynik.wierzcholki;
+    const wierzcholkiPdf = wierzcholkiM.map((p) => ({ x: p.x / k, y: p.y / k }));
+    // zaktualizuj pozycje węzłów ról
+    const wezlyRole = (obszar.wezlyRole ?? []).map((w) => {
+      const i = Math.max(0, Math.min(wierzcholkiM.length - 1, w.idx));
+      return { ...w, x: wierzcholkiM[i].x, y: wierzcholkiM[i].y };
+    });
+
+    const zaktualizowane = get().sesje.map((s) => {
+      if (s.id !== sesjaId) return s;
+      return {
+        ...s,
+        obszary: s.obszary.map((o) =>
+          o.id !== obszarId
+            ? o
+            : {
+                ...o,
+                wierzcholkiM,
+                wierzcholkiPdf,
+                powierzchniaM2: wynik.powierzchniaM2,
+                obwodM: wynik.obwodM,
+                wezlyRole,
+              },
+        ),
+        updatedAt: new Date().toISOString(),
+      };
+    });
+    set({ sesje: zaktualizowane });
+    await zapisz(zaktualizowane);
+    return {
+      deltaPowierzchniaM2: wynik.deltaPowierzchniaM2,
+      powierzchniaM2: wynik.powierzchniaM2,
+      dlugoscKrawedziM: wynik.dlugoscKrawedziM,
+    };
   },
 
   sesjaPoId: (id) => get().sesje.find((s) => s.id === id),

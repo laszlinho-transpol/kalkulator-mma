@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.7.0';
+export const WERSJA_APLIKACJI = '1.7.1';
 
 export interface WpisChangelog {
   wersja: string;
@@ -12,6 +12,16 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.7.1',
+    data: '2026-09-05',
+    tytul: 'Obmiar – odsadzki, pikiety co 100 m, maszyny LIVE',
+    zmiany: [
+      'Odsadzka krawędzi: przesunięcie o cm na zewnątrz/do wewnątrz z automatycznym Δ m² (np. 100 m × 10 cm ≈ +10 m²)',
+      'Automatyczne pełne kilometraże na obszarze co 100 m (np. start 1+830 → 1+900, 2+000…)',
+      'LIVE: grafiki rozkładarki i samochodu na podglądzie, obrót zgodny z kierunkiem jazdy',
+    ],
+  },
   {
     wersja: '1.7.0',
     data: '2026-09-05',

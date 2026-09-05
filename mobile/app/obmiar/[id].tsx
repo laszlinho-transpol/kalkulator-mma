@@ -18,6 +18,7 @@ import { useRouteId } from '../../src/hooks/useRouteId';
 import { wybierzIParsujXfdf } from '../../src/utils/xfdfImport';
 import { formatLiczby } from '../../src/utils/calculations';
 import { bilansLiveObszaru } from '../../src/utils/obmiarLive';
+import { listaKrawedzi, odsadzKrawedz } from '../../src/utils/obmiarOffset';
 import {
   PRESETY_SKALI_PZT,
   skalaZMianownika,
@@ -39,7 +40,7 @@ export default function ObmiarDetailScreen() {
   const id = useRouteId() ?? '';
   const {
     sesjaPoId, dodajObszaryZXfdf, przesunObszar, usunObszar, zmienSkale,
-    ustawRoleWezla, ustawKilometraz, ustawLiveObszaru,
+    ustawRoleWezla, ustawKilometraz, ustawLiveObszaru, zastosujOdsadzke,
   } = useObmiarStore();
   const sesja = id ? sesjaPoId(id) : undefined;
 
@@ -53,6 +54,9 @@ export default function ObmiarDetailScreen() {
   const [mStart, setMStart] = useState('');
   const [kmKoniec, setKmKoniec] = useState('');
   const [mKoniec, setMKoniec] = useState('');
+  const [idxKrawedzi, setIdxKrawedzi] = useState(0);
+  const [odsadzkaCm, setOdsadzkaCm] = useState('10');
+  const [odsadzkaZewnatrz, setOdsadzkaZewnatrz] = useState(true);
 
   const sumaPow = useMemo(
     () => sesja?.obszary.reduce((a, o) => a + o.powierzchniaM2, 0) ?? 0,
@@ -83,6 +87,14 @@ export default function ObmiarDetailScreen() {
     () => (obszarPodgladu ? bilansLiveObszaru(obszarPodgladu) : null),
     [obszarPodgladu],
   );
+
+  const prognozaOdsadzki = useMemo(() => {
+    if (!obszarPodgladu) return null;
+    const cm = parseFloat(odsadzkaCm.replace(',', '.'));
+    if (!Number.isFinite(cm) || cm === 0) return null;
+    const dystansM = (Math.abs(cm) / 100) * (odsadzkaZewnatrz ? 1 : -1);
+    return odsadzKrawedz(obszarPodgladu.wierzcholkiM, idxKrawedzi, dystansM);
+  }, [obszarPodgladu, odsadzkaCm, odsadzkaZewnatrz, idxKrawedzi]);
 
   if (!sesja) {
     return (
@@ -184,6 +196,8 @@ export default function ObmiarDetailScreen() {
               etykieta={`${formatLiczby(obszarPodgladu.powierzchniaM2)} m²`}
               resetKlucz={obszarPodgladu.id}
               onPressWezel={(idx) => setWybranyWezel(idx)}
+              obszar={obszarPodgladu}
+              pokazMaszyny
             />
             {wybranyWezel != null && (
               <View style={{ marginTop: 10 }}>
@@ -252,6 +266,99 @@ export default function ObmiarDetailScreen() {
               onPress={zapiszKm}
             >
               <Text style={{ color: theme.colors.text, fontWeight: '600' }}>Zapisz kilometraż</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        
+        {obszarPodgladu && (
+          <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+            <Text style={[styles.kartaTytul, { color: theme.colors.text }]}>Odsadzka krawędzi</Text>
+            <Text style={{ color: theme.colors.textSecondary, fontSize: 12, marginBottom: 8 }}>
+              Przesuń wybraną krawędź o zadaną odległość (np. 10 cm na 100 m ≈ +10 m² na zewnątrz).
+            </Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
+              {listaKrawedzi(obszarPodgladu.wierzcholkiM).map((k) => (
+                <TouchableOpacity
+                  key={k.idx}
+                  onPress={() => setIdxKrawedzi(k.idx)}
+                  style={{
+                    paddingHorizontal: 10,
+                    paddingVertical: 8,
+                    borderRadius: 8,
+                    borderWidth: 1,
+                    marginRight: 6,
+                    borderColor: idxKrawedzi === k.idx ? theme.colors.primary : theme.colors.border,
+                    backgroundColor: idxKrawedzi === k.idx ? `${theme.colors.primary}20` : theme.colors.inputBackground,
+                  }}
+                >
+                  <Text style={{ color: theme.colors.text, fontSize: 12, fontWeight: '600' }}>{k.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <View style={{ flexDirection: 'row', gap: 10, alignItems: 'flex-end' }}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: theme.colors.textSecondary, fontSize: 11, marginBottom: 4 }}>Odległość [cm]</Text>
+                <TextInput
+                  value={odsadzkaCm}
+                  onChangeText={setOdsadzkaCm}
+                  keyboardType="decimal-pad"
+                  style={{
+                    borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10,
+                    borderColor: theme.colors.border, color: theme.colors.text,
+                    backgroundColor: theme.colors.inputBackground, fontSize: 16,
+                  }}
+                />
+              </View>
+              <TouchableOpacity
+                onPress={() => setOdsadzkaZewnatrz(true)}
+                style={{
+                  paddingHorizontal: 12, paddingVertical: 10, borderRadius: 8, borderWidth: 1,
+                  borderColor: odsadzkaZewnatrz ? theme.colors.success : theme.colors.border,
+                  backgroundColor: odsadzkaZewnatrz ? `${theme.colors.success}20` : theme.colors.inputBackground,
+                }}
+              >
+                <Text style={{ color: theme.colors.text, fontWeight: '700', fontSize: 12 }}>Na zewnątrz</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => setOdsadzkaZewnatrz(false)}
+                style={{
+                  paddingHorizontal: 12, paddingVertical: 10, borderRadius: 8, borderWidth: 1,
+                  borderColor: !odsadzkaZewnatrz ? theme.colors.danger : theme.colors.border,
+                  backgroundColor: !odsadzkaZewnatrz ? `${theme.colors.danger}20` : theme.colors.inputBackground,
+                }}
+              >
+                <Text style={{ color: theme.colors.text, fontWeight: '700', fontSize: 12 }}>Do wewnątrz</Text>
+              </TouchableOpacity>
+            </View>
+            {prognozaOdsadzki ? (
+              <Text style={{ color: theme.colors.textSecondary, fontSize: 12, marginTop: 8 }}>
+                Prognoza Δ: {prognozaOdsadzki.deltaPowierzchniaM2 >= 0 ? '+' : ''}
+                {prognozaOdsadzki.deltaPowierzchniaM2} m² (krawędź {prognozaOdsadzki.dlugoscKrawedziM} m)
+              </Text>
+            ) : null}
+            <TouchableOpacity
+              style={{
+                marginTop: 10, borderWidth: 1, borderRadius: 10, paddingVertical: 10, alignItems: 'center',
+                borderColor: theme.colors.primary,
+              }}
+              onPress={async () => {
+                const cm = parseFloat(odsadzkaCm.replace(',', '.'));
+                if (!Number.isFinite(cm) || cm === 0) {
+                  Alert.alert('Odsadzka', 'Podaj odległość w cm (np. 10).');
+                  return;
+                }
+                const dystansM = (Math.abs(cm) / 100) * (odsadzkaZewnatrz ? 1 : -1);
+                const wynik = await zastosujOdsadzke(sesja.id, obszarPodgladu.id, idxKrawedzi, dystansM);
+                if (wynik) {
+                  Alert.alert(
+                    'Odsadzka zastosowana',
+                    `Krawędź ${wynik.dlugoscKrawedziM} m · Δ powierzchnia ${wynik.deltaPowierzchniaM2 >= 0 ? '+' : ''}${wynik.deltaPowierzchniaM2} m²\nNowa powierzchnia: ${wynik.powierzchniaM2} m²`,
+                  );
+                }
+              }}
+            >
+              <Text style={{ color: theme.colors.primary, fontWeight: '700' }}>Zastosuj odsadzkę</Text>
             </TouchableOpacity>
           </View>
         )}

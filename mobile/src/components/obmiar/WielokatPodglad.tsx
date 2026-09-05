@@ -7,13 +7,21 @@ import {
   RotationGestureHandler,
   State,
 } from 'react-native-gesture-handler';
-import Svg, { Circle, ClipPath, Defs, G, Polygon, Rect, Text as SvgText } from 'react-native-svg';
-import type { Punkt2D, WezelObmiaru } from '../../types';
+import Svg, { Circle, ClipPath, Defs, G, Image as SvgImage, Line, Polygon, Rect, Text as SvgText } from 'react-native-svg';
+import type { ObszarObmiaru, Punkt2D, WezelObmiaru } from '../../types';
 import { bboxWielokata } from '../../utils/obmiarGeometry';
+import { punktNaSciezceUkladania, znacznikiKilometrazuNaObszarze } from '../../utils/obmiarKilometraz';
 
 const PRIMARY = '#E8A020';
 const FILL_PLAN = 'rgba(232, 160, 32, 0.28)';
 const FILL_LIVE = 'rgba(34, 197, 94, 0.55)';
+
+/** Top-view: przód = LEWA strona PNG → +180° względem heading (0 = +X) */
+const ROZKLADARKA_OFFSET_DEG = 180;
+/** Profil: przód = PRAWA strona PNG → 0° */
+const AUTO_OFFSET_DEG = 0;
+const IMG_ROZKLADARKA = require('../../../assets/maszyny/rozkladarka.png');
+const IMG_SAMOCHOD = require('../../../assets/maszyny/samochod.png');
 
 interface Props {
   wierzcholki: Punkt2D[];
@@ -24,6 +32,9 @@ interface Props {
   etykieta?: string;
   resetKlucz?: string;
   onPressWezel?: (idx: number) => void;
+  /** Pełny obszar – auto pikiety co 100 m + pozycje maszyn */
+  obszar?: ObszarObmiaru;
+  pokazMaszyny?: boolean;
 }
 
 function hexDoRgba(hex: string | undefined, alpha: number, fallback: string): string {
@@ -51,6 +62,8 @@ export function WielokatPodglad({
   etykieta,
   resetKlucz,
   onPressWezel,
+  obszar,
+  pokazMaszyny = true,
 }: Props) {
   const [rozmiar, setRozmiar] = useState({ w: 320, h: wysokosc });
 
@@ -123,6 +136,46 @@ export function WielokatPodglad({
       { x: sSvg.x + ux * reach - px * halfW, y: sSvg.y + uy * reach - py * halfW },
       { x: sSvg.x + ux * reach + px * halfW, y: sSvg.y + uy * reach + py * halfW },
     ];
+
+    const kmSvg: { etykieta: string; x: number; y: number }[] = [];
+    const maszyny: { rodzaj: 'rozkladarka' | 'auto'; x: number; y: number; rotDeg: number }[] = [];
+    if (obszar) {
+      for (const z of znacznikiKilometrazuNaObszarze(obszar)) {
+        if (!z.pozycja.ok) continue;
+        const s = toSvg(z.pozycja.punkt);
+        kmSvg.push({ etykieta: z.etykieta, x: s.x, y: s.y });
+      }
+      if (pokazMaszyny) {
+        const metry = Math.max(0, obszar.przejechaneMetry ?? 0);
+        // Rozkładarka = aktualne miejsce pracy
+        const posRoz = punktNaSciezceUkladania(obszar, metry);
+        // Samochód = koniec rozładunku (zasobnik z przodu) ~4 m przed rozkładarką
+        const posAuto = punktNaSciezceUkladania(obszar, metry + 4);
+        if (posRoz.ok) {
+          const headingSvg = Math.atan2(-Math.sin(posRoz.headingRad), Math.cos(posRoz.headingRad));
+          const headingDeg = (headingSvg * 180) / Math.PI;
+          const s = toSvg(posRoz.punkt);
+          maszyny.push({
+            rodzaj: 'rozkladarka',
+            x: s.x,
+            y: s.y,
+            rotDeg: headingDeg + ROZKLADARKA_OFFSET_DEG,
+          });
+        }
+        if (posAuto.ok) {
+          const headingSvg = Math.atan2(-Math.sin(posAuto.headingRad), Math.cos(posAuto.headingRad));
+          const headingDeg = (headingSvg * 180) / Math.PI;
+          const s = toSvg(posAuto.punkt);
+          maszyny.push({
+            rodzaj: 'auto',
+            x: s.x,
+            y: s.y,
+            rotDeg: headingDeg + AUTO_OFFSET_DEG,
+          });
+        }
+      }
+    }
+
     return {
       punkty,
       punktyStr: punkty.map((p) => `${p.x},${p.y}`).join(' '),
@@ -133,8 +186,10 @@ export function WielokatPodglad({
           const i = Math.max(0, Math.min(wierzcholki.length - 1, w.idx));
           return { ...w, ...toSvg(wierzcholki[i]) };
         }),
+      kmSvg,
+      maszyny,
     };
-  }, [wierzcholki, wezly, rozmiar.w, rozmiar.h, postepLive]);
+  }, [wierzcholki, wezly, rozmiar.w, rozmiar.h, postepLive, obszar, pokazMaszyny]);
 
   const onPinch = (e: any) => {
     skala.setValue(Math.max(0.35, Math.min(12, bazaSkali.current * e.nativeEvent.scale)));
@@ -272,6 +327,33 @@ export function WielokatPodglad({
                           </SvgText>
                         </G>
                       ))}
+                      
+                      {mapa.kmSvg.map((z) => (
+                        <G key={`km-${z.etykieta}`}>
+                          <Line x1={z.x} y1={z.y - 9} x2={z.x} y2={z.y + 9} stroke="#0F766E" strokeWidth={1.5} />
+                          <SvgText x={z.x + 5} y={z.y - 11} fill="#0F766E" fontSize={10} fontWeight="700">
+                            {z.etykieta}
+                          </SvgText>
+                        </G>
+                      ))}
+                      {mapa.maszyny.map((m, i) => {
+                        const isRoz = m.rodzaj === 'rozkladarka';
+                        const w = isRoz ? 56 : 48;
+                        const h = isRoz ? 48 : 28;
+                        return (
+                          <SvgImage
+                            key={`m-${m.rodzaj}-${i}`}
+                            href={isRoz ? IMG_ROZKLADARKA : IMG_SAMOCHOD}
+                            x={m.x - w / 2}
+                            y={m.y - h / 2}
+                            width={w}
+                            height={h}
+                            opacity={0.95}
+                            transform={`rotate(${m.rotDeg}, ${m.x}, ${m.y})`}
+                          />
+                        );
+                      })}
+
                       <Rect x={-1} y={-1} width={1} height={1} fill="transparent" />
                     </G>
                   </Svg>
