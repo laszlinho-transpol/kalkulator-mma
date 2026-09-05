@@ -1,24 +1,36 @@
 // ============================================================
-// OBMIAR PZT – szczegóły sesji: import XFDF, kolejność, podgląd
+// OBMIAR PZT – szczegoly: XFDF, skala, podglad, Etap B LIVE
 // ============================================================
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  useColorScheme, Alert, Dimensions,
+  useColorScheme, Alert, TextInput,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppHeader } from '../../src/components/common/AppHeader';
+import { SafeModal } from '../../src/components/common/SafeModal';
 import { WielokatPodglad } from '../../src/components/obmiar/WielokatPodglad';
 import { lightTheme, darkTheme, type AppTheme } from '../../src/constants/theme';
 import { useObmiarStore } from '../../src/stores/obmiarStore';
 import { useRouteId } from '../../src/hooks/useRouteId';
 import { wybierzIParsujXfdf } from '../../src/utils/xfdfImport';
 import { formatLiczby } from '../../src/utils/calculations';
-import { DOMYSLNA_SKALA_PZT } from '../../src/types';
+import { bilansLiveObszaru } from '../../src/utils/obmiarLive';
+import {
+  PRESETY_SKALI_PZT,
+  skalaZMianownika,
+  type RolaWezlaObmiaru,
+} from '../../src/types';
 
-const SCREEN_W = Dimensions.get('window').width;
+const ROLE_OPCJE: { rola: RolaWezlaObmiaru; label: string }[] = [
+  { rola: 'start', label: 'START' },
+  { rola: 'koniec', label: 'KONIEC' },
+  { rola: 'lewa', label: 'LEWA' },
+  { rola: 'prawa', label: 'PRAWA' },
+  { rola: 'zwykly', label: 'Wyczysc' },
+];
 
 export default function ObmiarDetailScreen() {
   const colorScheme = useColorScheme();
@@ -27,9 +39,20 @@ export default function ObmiarDetailScreen() {
   const id = useRouteId() ?? '';
   const {
     sesjaPoId, dodajObszaryZXfdf, przesunObszar, usunObszar, zmienSkale,
+    ustawRoleWezla, ustawKilometraz, ustawLiveObszaru,
   } = useObmiarStore();
   const sesja = id ? sesjaPoId(id) : undefined;
+
   const [podgladId, setPodgladId] = useState<string | null>(null);
+  const [modalSkala, setModalSkala] = useState(false);
+  const [mianownikTekst, setMianownikTekst] = useState('500');
+  const [wybranyWezel, setWybranyWezel] = useState<number | null>(null);
+  const [metryTekst, setMetryTekst] = useState('');
+  const [tonyTekst, setTonyTekst] = useState('');
+  const [kmStart, setKmStart] = useState('');
+  const [mStart, setMStart] = useState('');
+  const [kmKoniec, setKmKoniec] = useState('');
+  const [mKoniec, setMKoniec] = useState('');
 
   const sumaPow = useMemo(
     () => sesja?.obszary.reduce((a, o) => a + o.powierzchniaM2, 0) ?? 0,
@@ -39,7 +62,27 @@ export default function ObmiarDetailScreen() {
     () => [...new Set(sesja?.obszary.map((o) => o.zrodloNazwa) ?? [])],
     [sesja],
   );
-  const obszarPodgladu = sesja?.obszary.find((o) => o.id === podgladId) ?? sesja?.obszary[0];
+
+  const obszarPodgladu = useMemo(() => {
+    if (!sesja) return undefined;
+    return sesja.obszary.find((o) => o.id === podgladId) ?? sesja.obszary[0];
+  }, [sesja, podgladId]);
+
+  useEffect(() => {
+    if (!obszarPodgladu) return;
+    setMetryTekst(obszarPodgladu.przejechaneMetry != null ? String(obszarPodgladu.przejechaneMetry) : '');
+    setTonyTekst(obszarPodgladu.sumaTon != null ? String(obszarPodgladu.sumaTon) : '');
+    setKmStart(obszarPodgladu.kilometrazStartKm != null ? String(obszarPodgladu.kilometrazStartKm) : '');
+    setMStart(obszarPodgladu.kilometrazStartM != null ? String(obszarPodgladu.kilometrazStartM) : '');
+    setKmKoniec(obszarPodgladu.kilometrazKoniecKm != null ? String(obszarPodgladu.kilometrazKoniecKm) : '');
+    setMKoniec(obszarPodgladu.kilometrazKoniecM != null ? String(obszarPodgladu.kilometrazKoniecM) : '');
+    setWybranyWezel(null);
+  }, [obszarPodgladu?.id]);
+
+  const bilans = useMemo(
+    () => (obszarPodgladu ? bilansLiveObszaru(obszarPodgladu) : null),
+    [obszarPodgladu],
+  );
 
   if (!sesja) {
     return (
@@ -57,57 +100,159 @@ export default function ObmiarDetailScreen() {
       return;
     }
     await dodajObszaryZXfdf(sesja.id, wynik.wynik);
+    const odswiezona = useObmiarStore.getState().sesjaPoId(sesja.id);
+    const ostatni = odswiezona?.obszary[odswiezona.obszary.length - 1];
+    if (ostatni) setPodgladId(ostatni.id);
+    const suma = odswiezona?.obszary.reduce((a, o) => a + o.powierzchniaM2, 0) ?? 0;
     Alert.alert(
       'Zaimportowano',
-      `Dodano ${wynik.wynik.polygony.length} obszar(ów) z pliku „${wynik.wynik.zrodloNazwa}”.\nUstaw kolejność strzałkami ↑↓.`,
+      `Dodano ${wynik.wynik.polygony.length} obszar(ów).\nŁącznie w sesji: ${formatLiczby(suma)} m²`,
     );
   };
 
-  const ustawSkale500 = () => {
-    Alert.alert('Skala 1:500', 'Ustawić skalę 1 cm = 5 m (jak PZT Różniaty)?', [
-      { text: 'Anuluj', style: 'cancel' },
-      { text: 'Ustaw', onPress: () => zmienSkale(sesja.id, DOMYSLNA_SKALA_PZT) },
-    ]);
+  const otworzSkale = () => {
+    setMianownikTekst(String(sesja.skala.mianownik));
+    setModalSkala(true);
+  };
+
+  const zastosujSkale = async (mianownik: number) => {
+    await zmienSkale(sesja.id, skalaZMianownika(mianownik));
+    setModalSkala(false);
+  };
+
+  const zapiszLive = async () => {
+    if (!obszarPodgladu) return;
+    const metry = parseFloat(metryTekst.replace(',', '.'));
+    const tony = parseFloat(tonyTekst.replace(',', '.'));
+    await ustawLiveObszaru(sesja.id, obszarPodgladu.id, {
+      przejechaneMetry: Number.isFinite(metry) ? metry : 0,
+      sumaTon: Number.isFinite(tony) ? tony : 0,
+    });
+  };
+
+  const zapiszKm = async () => {
+    if (!obszarPodgladu) return;
+    const parseOpt = (t: string) => {
+      const v = parseFloat(t.replace(',', '.'));
+      return Number.isFinite(v) ? v : undefined;
+    };
+    await ustawKilometraz(sesja.id, obszarPodgladu.id, {
+      kilometrazStartKm: parseOpt(kmStart),
+      kilometrazStartM: parseOpt(mStart),
+      kilometrazKoniecKm: parseOpt(kmKoniec),
+      kilometrazKoniecM: parseOpt(mKoniec),
+    });
   };
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <AppHeader
         tytul={sesja.nazwa}
-        podtytul={`${sesja.obszary.length} obszarów · ${formatLiczby(sumaPow)} m²`}
         lewy={{ tekst: '‹ Wstecz', onPress: () => router.back() }}
-        prawy={{ tekst: '+ XFDF', onPress: importuj, kolor: '#fff', tlo: theme.colors.success }}
+        prawy={{ tekst: '+ XFDF', onPress: importuj, kolor: theme.colors.success }}
       />
 
-      <ScrollView contentContainerStyle={[styles.zawartosc, { paddingBottom: insets.bottom + 24 }]}>
-        <View style={[styles.karta, { backgroundColor: `${theme.colors.primary}10`, borderColor: theme.colors.primary }]}>
-          <Text style={[styles.kartaTytul, { color: theme.colors.primary }]}>Sesja dnia</Text>
+      <ScrollView
+        contentContainerStyle={[styles.zawartosc, { paddingBottom: insets.bottom + 24 }]}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+          <Text style={[styles.kartaTytul, { color: theme.colors.text }]}>Sesja dnia</Text>
           <Row label="Data" v={sesja.data} theme={theme} />
           <Row label="Skala" v={`1:${sesja.skala.mianownik} (${sesja.skala.metryNaCm} m / cm)`} theme={theme} />
           <Row label="Łączna powierzchnia" v={`${formatLiczby(sumaPow)} m²`} theme={theme} bold />
+          <Row label="Obszary" v={String(sesja.obszary.length)} theme={theme} />
           {zrodla.length > 0 && (
-            <Row label="Źródła PDF / XFDF" v={zrodla.join(' · ')} theme={theme} />
+            <Row label="Źródła XFDF" v={zrodla.join(' · ')} theme={theme} />
           )}
-          <TouchableOpacity style={[styles.btnSek, { borderColor: theme.colors.border }]} onPress={ustawSkale500}>
-            <Text style={{ color: theme.colors.text, fontWeight: '600' }}>Ustaw skalę 1:500</Text>
+          <TouchableOpacity style={[styles.btnSek, { borderColor: theme.colors.primary }]} onPress={otworzSkale}>
+            <Text style={{ color: theme.colors.primary, fontWeight: '700' }}>Ustaw skalę</Text>
           </TouchableOpacity>
-        </View>
-
-        <View style={[styles.info, { backgroundColor: `${theme.colors.info}10`, borderColor: theme.colors.info }]}>
-          <Text style={{ color: theme.colors.text, fontSize: 13, lineHeight: 18 }}>
-            Obszary z <Text style={{ fontWeight: '700' }}>różnych PDF</Text> dodajesz kolejnymi importami XFDF.
-            Kolejność 1 → 2 → 3 to kolejność układania (jak działki w LIVE).
-          </Text>
         </View>
 
         {obszarPodgladu && (
           <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-            <Text style={[styles.kartaTytul, { color: theme.colors.text }]}>Podgląd obszaru</Text>
+            <Text style={[styles.kartaTytul, { color: theme.colors.text }]}>
+              Podgląd · {obszarPodgladu.kolejnosc}. {obszarPodgladu.nazwa}
+            </Text>
             <WielokatPodglad
-              obszar={obszarPodgladu}
-              szerokosc={SCREEN_W - 56}
-              wysokosc={240}
+              wierzcholki={obszarPodgladu.wierzcholkiM}
+              wezly={obszarPodgladu.wezlyRole}
+              kolorWypelnienia={obszarPodgladu.kolorWypelnienia}
+              postepLive={bilans?.postep ?? 0}
+              wysokosc={300}
+              etykieta={`${formatLiczby(obszarPodgladu.powierzchniaM2)} m²`}
+              resetKlucz={obszarPodgladu.id}
+              onPressWezel={(idx) => setWybranyWezel(idx)}
             />
+            {wybranyWezel != null && (
+              <View style={{ marginTop: 10 }}>
+                <Text style={{ color: theme.colors.textSecondary, fontSize: 12, marginBottom: 6 }}>
+                  Węzeł {wybranyWezel + 1} – ustaw rolę:
+                </Text>
+                <View style={styles.roleRzad}>
+                  {ROLE_OPCJE.map((r) => (
+                    <TouchableOpacity
+                      key={r.rola}
+                      style={[styles.roleBtn, { borderColor: theme.colors.border, backgroundColor: `${theme.colors.primary}15` }]}
+                      onPress={async () => {
+                        await ustawRoleWezla(sesja.id, obszarPodgladu.id, wybranyWezel, r.rola);
+                        setWybranyWezel(null);
+                      }}
+                    >
+                      <Text style={{ color: theme.colors.text, fontWeight: '700', fontSize: 11 }}>{r.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            )}
+          </View>
+        )}
+
+        {obszarPodgladu && bilans && (
+          <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+            <Text style={[styles.kartaTytul, { color: theme.colors.text }]}>LIVE na obszarze</Text>
+            <Text style={{ color: theme.colors.textSecondary, fontSize: 12, marginBottom: 8 }}>
+              Oznacz START/KONIEC na podglądzie (dotknij węzeł), potem wpisz metry i tony.
+            </Text>
+            <View style={styles.polaRzad}>
+              <Pole label="Metry [m]" value={metryTekst} onChange={setMetryTekst} theme={theme} />
+              <Pole label="Tony [Mg]" value={tonyTekst} onChange={setTonyTekst} theme={theme} />
+            </View>
+            <TouchableOpacity
+              style={[styles.btnSek, { borderColor: theme.colors.success, marginTop: 8 }]}
+              onPress={zapiszLive}
+            >
+              <Text style={{ color: theme.colors.success, fontWeight: '700' }}>Zapisz LIVE</Text>
+            </TouchableOpacity>
+            <View style={{ marginTop: 10, gap: 2 }}>
+              <Row label="Długość układania" v={`${formatLiczby(bilans.dlugoscM)} m`} theme={theme} />
+              <Row label="Postęp" v={`${formatLiczby(bilans.postep * 100)} %`} theme={theme} bold />
+              <Row label="Zakryte" v={`${formatLiczby(bilans.zakrytaPowierzchniaM2)} m²`} theme={theme} />
+              <Row label="Pozostało" v={`${formatLiczby(bilans.pozostaloMetrow)} m · ${formatLiczby(bilans.pozostaloM2)} m²`} theme={theme} />
+              {bilans.sredniaGruboscCm != null && (
+                <Row label="Śr. grubość" v={`${formatLiczby(bilans.sredniaGruboscCm)} cm`} theme={theme} />
+              )}
+              {bilans.pozostaloMgPrzyGrubosci != null && (
+                <Row label="Pozostało Mg" v={`${formatLiczby(bilans.pozostaloMgPrzyGrubosci)} Mg`} theme={theme} />
+              )}
+            </View>
+
+            <Text style={[styles.kartaTytul, { color: theme.colors.text, marginTop: 14 }]}>Kilometraż</Text>
+            <View style={styles.polaRzad}>
+              <Pole label="Start km" value={kmStart} onChange={setKmStart} theme={theme} />
+              <Pole label="Start m" value={mStart} onChange={setMStart} theme={theme} />
+            </View>
+            <View style={[styles.polaRzad, { marginTop: 8 }]}>
+              <Pole label="Koniec km" value={kmKoniec} onChange={setKmKoniec} theme={theme} />
+              <Pole label="Koniec m" value={mKoniec} onChange={setMKoniec} theme={theme} />
+            </View>
+            <TouchableOpacity
+              style={[styles.btnSek, { borderColor: theme.colors.border, marginTop: 8 }]}
+              onPress={zapiszKm}
+            >
+              <Text style={{ color: theme.colors.text, fontWeight: '600' }}>Zapisz kilometraż</Text>
+            </TouchableOpacity>
           </View>
         )}
 
@@ -118,7 +263,7 @@ export default function ObmiarDetailScreen() {
         {sesja.obszary.length === 0 ? (
           <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
             <Text style={{ color: theme.colors.textSecondary, textAlign: 'center' }}>
-              Brak obszarów. Naciśnij „+ XFDF” i wybierz plik eksportu komentarzy z PDF-XChange.
+              Brak obszarów. Naciśnij „+ XFDF” i wybierz eksport komentarzy z PDF-XChange.
             </Text>
           </View>
         ) : (
@@ -142,7 +287,7 @@ export default function ObmiarDetailScreen() {
                   {formatLiczby(o.powierzchniaM2)} m² · obwód {formatLiczby(o.obwodM)} m · {o.wierzcholkiPdf.length} węzłów
                 </Text>
                 <Text style={{ color: theme.colors.textSecondary, fontSize: 11, marginTop: 2 }} numberOfLines={1}>
-                  📄 {o.zrodloNazwa}
+                  {o.zrodloNazwa}
                 </Text>
               </TouchableOpacity>
               <View style={styles.rzadAkcji}>
@@ -176,9 +321,69 @@ export default function ObmiarDetailScreen() {
           style={[styles.btnImport, { backgroundColor: theme.colors.success }]}
           onPress={importuj}
         >
-          <Text style={styles.btnImportTekst}>+ Importuj kolejny XFDF (inny PDF)</Text>
+          <Text style={styles.btnImportTekst}>+ Importuj kolejny XFDF</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      <SafeModal
+        visible={modalSkala}
+        tytul="Skala rysunku"
+        theme={theme}
+        onClose={() => setModalSkala(false)}
+        lewy={{ tekst: 'Anuluj', onPress: () => setModalSkala(false), kolor: theme.colors.textSecondary }}
+        prawy={{
+          tekst: 'Zastosuj',
+          onPress: () => {
+            const m = parseInt(mianownikTekst.replace(',', '.'), 10);
+            if (!Number.isFinite(m) || m < 1) {
+              Alert.alert('Skala', 'Podaj poprawny mianownik (np. 500).');
+              return;
+            }
+            zastosujSkale(m);
+          },
+          kolor: theme.colors.primary,
+        }}
+      >
+        <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
+          <Text style={{ color: theme.colors.textSecondary, fontSize: 13, lineHeight: 18 }}>
+            Przy skali 1:500 → 1 cm na papierze = 5 m w terenie. Zmiana przelicza powierzchnię wszystkich obszarów.
+          </Text>
+          <Text style={{ color: theme.colors.text, fontWeight: '700', marginTop: 4 }}>Presety</Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+            {PRESETY_SKALI_PZT.map((p) => (
+              <TouchableOpacity
+                key={p.mianownik}
+                style={[
+                  styles.presetBtn,
+                  {
+                    borderColor: sesja.skala.mianownik === p.mianownik ? theme.colors.primary : theme.colors.border,
+                    backgroundColor: sesja.skala.mianownik === p.mianownik ? `${theme.colors.primary}20` : theme.colors.inputBackground,
+                  },
+                ]}
+                onPress={() => {
+                  setMianownikTekst(String(p.mianownik));
+                  zastosujSkale(p.mianownik);
+                }}
+              >
+                <Text style={{ color: theme.colors.text, fontWeight: '700' }}>1:{p.mianownik}</Text>
+                <Text style={{ color: theme.colors.textSecondary, fontSize: 11 }}>{p.metryNaCm} m / cm</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <Text style={{ color: theme.colors.text, fontWeight: '700', marginTop: 8 }}>Własny mianownik</Text>
+          <TextInput
+            value={mianownikTekst}
+            onChangeText={setMianownikTekst}
+            keyboardType="numeric"
+            placeholder="np. 500"
+            placeholderTextColor={theme.colors.textSecondary}
+            style={[styles.input, { borderColor: theme.colors.border, color: theme.colors.text, backgroundColor: theme.colors.inputBackground }]}
+          />
+          <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>
+            1 cm = {(parseFloat(mianownikTekst.replace(',', '.')) / 100 || 0).toFixed(2)} m
+          </Text>
+        </ScrollView>
+      </SafeModal>
     </View>
   );
 }
@@ -196,15 +401,39 @@ function Row({
   );
 }
 
+function Pole({
+  label, value, onChange, theme,
+}: {
+  label: string; value: string; onChange: (t: string) => void; theme: AppTheme;
+}) {
+  return (
+    <View style={{ flex: 1 }}>
+      <Text style={{ color: theme.colors.textSecondary, fontSize: 11, marginBottom: 4 }}>{label}</Text>
+      <TextInput
+        value={value}
+        onChangeText={onChange}
+        keyboardType="decimal-pad"
+        placeholder="0"
+        placeholderTextColor={theme.colors.textSecondary}
+        style={[styles.input, { borderColor: theme.colors.border, color: theme.colors.text, backgroundColor: theme.colors.inputBackground }]}
+      />
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   container: { flex: 1 },
   zawartosc: { padding: 14, gap: 12 },
   karta: { borderRadius: 14, padding: 14, borderWidth: 1 },
   kartaTytul: { fontSize: 13, fontWeight: '800', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.4 },
-  info: { borderWidth: 1, borderRadius: 12, padding: 12 },
   rzadAkcji: { flexDirection: 'row', gap: 8, marginTop: 10 },
   btnMini: { width: 40, height: 36, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   btnSek: { marginTop: 10, borderWidth: 1, borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
   btnImport: { paddingVertical: 14, borderRadius: 12, alignItems: 'center', marginTop: 4 },
   btnImportTekst: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  roleRzad: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  roleBtn: { paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8, borderWidth: 1 },
+  polaRzad: { flexDirection: 'row', gap: 10 },
+  input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16 },
+  presetBtn: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, minWidth: 96 },
 });

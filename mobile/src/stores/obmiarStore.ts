@@ -4,8 +4,9 @@
 
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { ObszarObmiaru, SesjaObmiaruDnia, SkalaPzt } from '../types';
+import type { ObszarObmiaru, RolaWezlaObmiaru, SesjaObmiaruDnia, SkalaPzt } from '../types';
 import { DOMYSLNA_SKALA_PZT } from '../types';
+import { zastosujRoleWezla } from '../utils/obmiarLive';
 import { nadajKolejnosc, obszaryZPolygony, przeliczObszarySkalą, type WynikParsowaniaXfdf } from '../utils/xfdfParser';
 
 const KLUCZ = '@mma:obmiar_sesje';
@@ -22,6 +23,17 @@ interface ObmiarStore {
   usunObszar: (sesjaId: string, obszarId: string) => Promise<void>;
   zmienSkale: (sesjaId: string, skala: SkalaPzt) => Promise<void>;
   zmienNazweObszaru: (sesjaId: string, obszarId: string, nazwa: string) => Promise<void>;
+  ustawRoleWezla: (sesjaId: string, obszarId: string, idx: number, rola: RolaWezlaObmiaru) => Promise<void>;
+  ustawKilometraz: (
+    sesjaId: string,
+    obszarId: string,
+    dane: Partial<Pick<ObszarObmiaru, 'kilometrazStartKm' | 'kilometrazStartM' | 'kilometrazKoniecKm' | 'kilometrazKoniecM'>>,
+  ) => Promise<void>;
+  ustawLiveObszaru: (
+    sesjaId: string,
+    obszarId: string,
+    dane: { przejechaneMetry?: number; sumaTon?: number },
+  ) => Promise<void>;
   sesjaPoId: (id: string) => SesjaObmiaruDnia | undefined;
 }
 
@@ -151,6 +163,57 @@ export const useObmiarStore = create<ObmiarStore>((set, get) => ({
       return {
         ...s,
         obszary: s.obszary.map((o) => (o.id === obszarId ? { ...o, nazwa } : o)),
+        updatedAt: new Date().toISOString(),
+      };
+    });
+    set({ sesje: zaktualizowane });
+    await zapisz(zaktualizowane);
+  },
+
+  ustawRoleWezla: async (sesjaId, obszarId, idx, rola) => {
+    const zaktualizowane = get().sesje.map((s) => {
+      if (s.id !== sesjaId) return s;
+      return {
+        ...s,
+        obszary: s.obszary.map((o) => {
+          if (o.id !== obszarId) return o;
+          return { ...o, wezlyRole: zastosujRoleWezla(o.wierzcholkiM, o.wezlyRole, idx, rola) };
+        }),
+        updatedAt: new Date().toISOString(),
+      };
+    });
+    set({ sesje: zaktualizowane });
+    await zapisz(zaktualizowane);
+  },
+
+  ustawKilometraz: async (sesjaId, obszarId, dane) => {
+    const zaktualizowane = get().sesje.map((s) => {
+      if (s.id !== sesjaId) return s;
+      return {
+        ...s,
+        obszary: s.obszary.map((o) => (o.id === obszarId ? { ...o, ...dane } : o)),
+        updatedAt: new Date().toISOString(),
+      };
+    });
+    set({ sesje: zaktualizowane });
+    await zapisz(zaktualizowane);
+  },
+
+  ustawLiveObszaru: async (sesjaId, obszarId, dane) => {
+    const zaktualizowane = get().sesje.map((s) => {
+      if (s.id !== sesjaId) return s;
+      return {
+        ...s,
+        obszary: s.obszary.map((o) => {
+          if (o.id !== obszarId) return o;
+          return {
+            ...o,
+            przejechaneMetry: dane.przejechaneMetry !== undefined
+              ? Math.max(0, dane.przejechaneMetry)
+              : o.przejechaneMetry,
+            sumaTon: dane.sumaTon !== undefined ? Math.max(0, dane.sumaTon) : o.sumaTon,
+          };
+        }),
         updatedAt: new Date().toISOString(),
       };
     });

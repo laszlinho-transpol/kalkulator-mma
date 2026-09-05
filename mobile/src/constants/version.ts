@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.6.0';
+export const WERSJA_APLIKACJI = '1.7.0';
 
 export interface WpisChangelog {
   wersja: string;
@@ -12,6 +12,20 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.7.0',
+    data: '2026-09-05',
+    tytul: 'Obmiar PZT – UX, skala, LIVE na wielokącie',
+    zmiany: [
+      'Nagłówek Obmiaru: tytuł w jednej linii z „Wstecz”, bez zbędnego podtytułu',
+      'Usunięta niebieska ramka z wyjaśnieniem',
+      'Przycisk „Nowy” na liście sesji',
+      'Podgląd obszaru: zoom, przesuwanie, obrót; pełne zacieniowanie; centrowanie przy wyborze',
+      'Ustaw skalę – presety i własny mianownik, przelicza m²',
+      'Sesja dnia sumuje powierzchnię ze wszystkich XFDF',
+      'Etap B: role START/KONIEC/LEWA/PRAWA, kilometraż, LIVE (metry/tony, zamalowanie)',
+    ],
+  },
   {
     wersja: '1.6.0',
     data: '2026-09-04',

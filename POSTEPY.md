@@ -764,3 +764,24 @@ Użytkownik wpisuje **auto + metry**, a program:
 - LIVE na wielokącie (tony, metry, rozkładarka, zamalowanie)
 
 ---
+
+## ETAP 21 – Obmiar PZT: UX + LIVE na wielokącie (1.7.0)
+**Data:** 2026-09-05
+**Status:** ✅ UKOŃCZONY
+**Branch:** `cursor/kalkulator-mma-obmiar-xfdf-0a0b`
+**Wersja aplikacji:** 1.7.0 (versionCode 18)
+
+### UX (poprawki po teście APK)
+1. Tytuł wyrównany z „Wstecz” – usunięty zbędny podtytuł w nagłówku
+2. Usunięta niebieska ramka z wyjaśnieniem
+3. Przycisk **Nowy** na liście sesji
+4. Podgląd: pinch zoom, pan, obrót; pełne zacieniowanie pola; centrowanie po wyborze obszaru
+5. **Ustaw skalę** – presety + własny mianownik, przelicza m²
+6. Sesja dnia sumuje powierzchnię ze wszystkich XFDF
+
+### Etap B
+1. Role węzłów: START / KONIEC / LEWA / PRAWA (dotknięcie węzła na podglądzie)
+2. Kilometraż start/koniec
+3. LIVE: metry + tony → postęp %, zakryte m², pozostało m/m²/Mg, zielone zamalowanie od START
+
+---

@@ -38,25 +38,14 @@ export default function ObmiarIndexScreen() {
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <AppHeader
         tytul="Obmiar PZT"
-        podtytul="XFDF · kolejność obszarów · wiele PDF"
         lewy={{ tekst: '‹ Wstecz', onPress: () => router.back() }}
-        prawy={{ tekst: '+ Nowa', onPress: () => setModalNowa(true), kolor: '#fff', tlo: theme.colors.primary }}
+        prawy={{ tekst: 'Nowy', onPress: () => setModalNowa(true), kolor: theme.colors.primary }}
       />
       <ScrollView contentContainerStyle={[styles.zawartosc, { paddingBottom: insets.bottom + 20 }]}>
-        <View style={[styles.info, { backgroundColor: `${theme.colors.info}12`, borderColor: theme.colors.info }]}>
-          <Text style={[styles.infoTekst, { color: theme.colors.text }]}>
-            Eksportuj komentarze z PDF-XChange jako <Text style={{ fontWeight: '700' }}>.xfdf</Text>,
-            zaimportuj tutaj i ustaw kolejność układania (1., 2., …) – także z różnych PDF tego samego dnia.
-          </Text>
-          <Text style={[styles.infoTekst, { color: theme.colors.textSecondary, marginTop: 6 }]}>
-            Skala domyślna: 1:500 (1 cm = 5 m). LIVE na wielokącie – w kolejnym etapie.
-          </Text>
-        </View>
-
         {sesje.length === 0 ? (
           <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
             <Text style={{ color: theme.colors.textSecondary, textAlign: 'center' }}>
-              Brak sesji obmiaru. Utwórz nową i zaimportuj XFDF.
+              Brak sesji obmiaru. Naciśnij „Nowy” i zaimportuj XFDF.
             </Text>
           </View>
         ) : (
@@ -121,8 +110,6 @@ export default function ObmiarIndexScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   zawartosc: { padding: 14, gap: 12 },
-  info: { borderWidth: 1, borderRadius: 12, padding: 12 },
-  infoTekst: { fontSize: 13, lineHeight: 18 },
   karta: { borderRadius: 14, padding: 14, borderWidth: 1 },
   tytul: { fontSize: 15, fontWeight: '800', marginBottom: 4 },
 });

@@ -243,6 +243,19 @@ export const DOMYSLNA_SKALA_PZT: SkalaPzt = {
   metryNaCm: 5,
 };
 
+/** Predefiniowane skale planów drogowych */
+export const PRESETY_SKALI_PZT: SkalaPzt[] = [
+  { mianownik: 250, metryNaCm: 2.5 },
+  { mianownik: 500, metryNaCm: 5 },
+  { mianownik: 1000, metryNaCm: 10 },
+  { mianownik: 2000, metryNaCm: 20 },
+];
+
+export function skalaZMianownika(mianownik: number): SkalaPzt {
+  const m = Math.max(1, mianownik);
+  return { mianownik: m, metryNaCm: m / 100 };
+}
+
 /** Pojedynczy obszar obmiaru (jeden <polygon> z XFDF) */
 export interface ObszarObmiaru {
   id: string;
@@ -261,12 +274,16 @@ export interface ObszarObmiaru {
   zrodloPdfHref?: string;
   /** Kolor z XFDF (hex) */
   kolorWypelnienia?: string;
-  /** Oznaczenia ról węzłów (opcjonalne – Etap B) */
+  /** Oznaczenia ról węzłów */
   wezlyRole?: WezelObmiaru[];
   kilometrazStartKm?: number;
   kilometrazStartM?: number;
   kilometrazKoniecKm?: number;
   kilometrazKoniecM?: number;
+  /** LIVE: przejechane metry od startu na tym obszarze */
+  przejechaneMetry?: number;
+  /** LIVE: suma ton z aut na tym obszarze */
+  sumaTon?: number;
   createdAt: string;
 }
 
