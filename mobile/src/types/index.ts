@@ -218,12 +218,59 @@ export interface Punkt2D {
   y: number;
 }
 
-export type RolaWezlaObmiaru = 'start' | 'koniec' | 'lewa' | 'prawa' | 'zwykly';
+export type RolaWezlaObmiaru =
+  | 'start'
+  | 'koniec'
+  | 'lewa'
+  | 'prawa'
+  | 'zwykly'
+  | 'startLewy'
+  | 'startPrawy'
+  | 'koniecLewy'
+  | 'koniecPrawy';
+
+export type TrybWyboruWezla =
+  | 'startLewy'
+  | 'startPrawy'
+  | 'koniecLewy'
+  | 'koniecPrawy'
+  | 'odsadzkaP'
+  | 'odsadzkaK'
+  | 'pomiarP1'
+  | 'pomiarP2';
 
 export interface WezelObmiaru extends Punkt2D {
   /** Indeks w oryginalnej liście wierzchołków */
   idx: number;
   rola: RolaWezlaObmiaru;
+}
+
+/** Podstawa figury: L–P + kilometraż (np. 1+500) */
+export interface BazaObmiaru {
+  idxLewy?: number;
+  idxPrawy?: number;
+  kilometrazKm?: number;
+  kilometrazM?: number;
+}
+
+export interface OdsadzkaObmiaru {
+  id: string;
+  nr: number;
+  idxP?: number;
+  idxK?: number;
+  /** + na zewnątrz, − do wewnątrz [m] */
+  dystansM?: number;
+  zastosowana: boolean;
+  /** Poprzedni obrys (szary, nieaktywny) po zastosowaniu */
+  wierzcholkiPrzed?: Punkt2D[];
+}
+
+export interface WpisWzObmiaru {
+  id: string;
+  numer: number;
+  tony: number;
+  przejechaneMetry: number;
+  createdAt: string;
 }
 
 /**
@@ -284,6 +331,15 @@ export interface ObszarObmiaru {
   przejechaneMetry?: number;
   /** LIVE: suma ton z aut na tym obszarze */
   sumaTon?: number;
+  /** Nowa konfiguracja: podstawa start / koniec (L, P, kilometraż) */
+  bazaStart?: BazaObmiaru;
+  bazaKoniec?: BazaObmiaru;
+  odsadzki?: OdsadzkaObmiaru[];
+  wpisyWz?: WpisWzObmiaru[];
+  /** Grubość układania [cm] – jak w Zaplanuj masę */
+  gruboscCm?: number;
+  mieszankaId?: string;
+  konfiguracjaZablokowana?: boolean;
   createdAt: string;
 }
 

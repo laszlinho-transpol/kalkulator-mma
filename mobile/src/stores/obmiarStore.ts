@@ -4,12 +4,15 @@
 
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { ObszarObmiaru, RolaWezlaObmiaru, SesjaObmiaruDnia, SkalaPzt } from '../types';
+import type {
+  BazaObmiaru, ObszarObmiaru, OdsadzkaObmiaru, RolaWezlaObmiaru,
+  SesjaObmiaruDnia, SkalaPzt, WpisWzObmiaru,
+} from '../types';
 import { DOMYSLNA_SKALA_PZT } from '../types';
 import { zastosujRoleWezla } from '../utils/obmiarLive';
-import { odsadzKrawedz } from '../utils/obmiarOffset';
-import { metryNaPunktPdf, powierzchniaWielokata, obwodWielokata } from '../utils/obmiarGeometry';
-import { round2 } from '../utils/calculations';
+import { nowaOdsadzka } from '../utils/obmiarFigura';
+import { odsadzKrawedz, odsadzLancuch } from '../utils/obmiarOffset';
+import { metryNaPunktPdf } from '../utils/obmiarGeometry';
 import { nadajKolejnosc, obszaryZPolygony, przeliczObszarySkalą, type WynikParsowaniaXfdf } from '../utils/xfdfParser';
 
 const KLUCZ = '@mma:obmiar_sesje';
@@ -43,6 +46,37 @@ interface ObmiarStore {
     idxKrawedzi: number,
     dystansM: number,
   ) => Promise<{ deltaPowierzchniaM2: number; powierzchniaM2: number; dlugoscKrawedziM: number } | null>;
+  ustawBazeObszaru: (
+    sesjaId: string,
+    obszarId: string,
+    ktora: 'start' | 'koniec',
+    dane: Partial<BazaObmiaru>,
+  ) => Promise<void>;
+  ustawOdsadzke: (
+    sesjaId: string,
+    obszarId: string,
+    odsadzkaId: string,
+    dane: Partial<OdsadzkaObmiaru>,
+  ) => Promise<void>;
+  dodajOdsadzke: (sesjaId: string, obszarId: string) => Promise<string | null>;
+  zastosujOdsadzkeLancucha: (
+    sesjaId: string,
+    obszarId: string,
+    odsadzkaId: string,
+    dystansM: number,
+  ) => Promise<{ deltaPowierzchniaM2: number; powierzchniaM2: number; dlugoscKrawedziM: number } | null>;
+  ustawKonfiguracjeZablokowana: (sesjaId: string, obszarId: string, zablokowana: boolean) => Promise<void>;
+  ustawParametryUkladania: (
+    sesjaId: string,
+    obszarId: string,
+    dane: { gruboscCm?: number; mieszankaId?: string },
+  ) => Promise<void>;
+  dodajWpisWz: (
+    sesjaId: string,
+    obszarId: string,
+    dane: { tony: number; przejechaneMetry: number },
+  ) => Promise<WpisWzObmiaru | null>;
+  usunWpisWz: (sesjaId: string, obszarId: string, wpisId: string) => Promise<void>;
   sesjaPoId: (id: string) => SesjaObmiaruDnia | undefined;
 }
 
@@ -273,6 +307,212 @@ export const useObmiarStore = create<ObmiarStore>((set, get) => ({
       powierzchniaM2: wynik.powierzchniaM2,
       dlugoscKrawedziM: wynik.dlugoscKrawedziM,
     };
+  },
+
+  ustawBazeObszaru: async (sesjaId, obszarId, ktora, dane) => {
+    const klucz = ktora === 'start' ? 'bazaStart' : 'bazaKoniec';
+    const zaktualizowane = get().sesje.map((s) => {
+      if (s.id !== sesjaId) return s;
+      return {
+        ...s,
+        obszary: s.obszary.map((o) => {
+          if (o.id !== obszarId) return o;
+          const baza = { ...(o[klucz] ?? {}), ...dane };
+          const extra: Partial<ObszarObmiaru> = {};
+          if (ktora === 'start' && dane.kilometrazKm != null) {
+            extra.kilometrazStartKm = dane.kilometrazKm;
+            extra.kilometrazStartM = dane.kilometrazM ?? o.kilometrazStartM;
+          }
+          if (ktora === 'koniec' && dane.kilometrazKm != null) {
+            extra.kilometrazKoniecKm = dane.kilometrazKm;
+            extra.kilometrazKoniecM = dane.kilometrazM ?? o.kilometrazKoniecM;
+          }
+          return { ...o, [klucz]: baza, ...extra };
+        }),
+        updatedAt: new Date().toISOString(),
+      };
+    });
+    set({ sesje: zaktualizowane });
+    await zapisz(zaktualizowane);
+  },
+
+  ustawOdsadzke: async (sesjaId, obszarId, odsadzkaId, dane) => {
+    const zaktualizowane = get().sesje.map((s) => {
+      if (s.id !== sesjaId) return s;
+      return {
+        ...s,
+        obszary: s.obszary.map((o) => {
+          if (o.id !== obszarId) return o;
+          const lista = o.odsadzki?.length ? o.odsadzki : [nowaOdsadzka(1)];
+          return {
+            ...o,
+            odsadzki: lista.map((x) => (x.id === odsadzkaId ? { ...x, ...dane } : x)),
+          };
+        }),
+        updatedAt: new Date().toISOString(),
+      };
+    });
+    set({ sesje: zaktualizowane });
+    await zapisz(zaktualizowane);
+  },
+
+  dodajOdsadzke: async (sesjaId, obszarId) => {
+    const sesja = get().sesje.find((s) => s.id === sesjaId);
+    const obszar = sesja?.obszary.find((o) => o.id === obszarId);
+    if (!obszar) return null;
+    const nr = (obszar.odsadzki?.reduce((m, x) => Math.max(m, x.nr), 0) ?? 0) + 1;
+    const nowa = nowaOdsadzka(nr);
+    const zaktualizowane = get().sesje.map((s) => {
+      if (s.id !== sesjaId) return s;
+      return {
+        ...s,
+        obszary: s.obszary.map((o) =>
+          o.id !== obszarId ? o : { ...o, odsadzki: [...(o.odsadzki ?? []), nowa] },
+        ),
+        updatedAt: new Date().toISOString(),
+      };
+    });
+    set({ sesje: zaktualizowane });
+    await zapisz(zaktualizowane);
+    return nowa.id;
+  },
+
+  zastosujOdsadzkeLancucha: async (sesjaId, obszarId, odsadzkaId, dystansM) => {
+    const sesja = get().sesje.find((s) => s.id === sesjaId);
+    if (!sesja) return null;
+    const obszar = sesja.obszary.find((o) => o.id === obszarId);
+    if (!obszar) return null;
+    const ods = (obszar.odsadzki ?? []).find((x) => x.id === odsadzkaId);
+    if (!ods || ods.idxP == null || ods.idxK == null) return null;
+
+    const przed = obszar.wierzcholkiM.map((p) => ({ ...p }));
+    const wynik = odsadzLancuch(obszar.wierzcholkiM, ods.idxP, ods.idxK, dystansM);
+    const k = metryNaPunktPdf(sesja.skala);
+    const wierzcholkiM = wynik.wierzcholki;
+    const wierzcholkiPdf = wierzcholkiM.map((p) => ({ x: p.x / k, y: p.y / k }));
+    const wezlyRole = (obszar.wezlyRole ?? []).map((w) => {
+      const i = Math.max(0, Math.min(wierzcholkiM.length - 1, w.idx));
+      return { ...w, x: wierzcholkiM[i].x, y: wierzcholkiM[i].y };
+    });
+
+    const zaktualizowane = get().sesje.map((s) => {
+      if (s.id !== sesjaId) return s;
+      return {
+        ...s,
+        obszary: s.obszary.map((o) =>
+          o.id !== obszarId
+            ? o
+            : {
+                ...o,
+                wierzcholkiM,
+                wierzcholkiPdf,
+                powierzchniaM2: wynik.powierzchniaM2,
+                obwodM: wynik.obwodM,
+                wezlyRole,
+                odsadzki: (o.odsadzki ?? []).map((x) =>
+                  x.id === odsadzkaId
+                    ? { ...x, dystansM, zastosowana: true, wierzcholkiPrzed: przed }
+                    : x,
+                ),
+              },
+        ),
+        updatedAt: new Date().toISOString(),
+      };
+    });
+    set({ sesje: zaktualizowane });
+    await zapisz(zaktualizowane);
+    return {
+      deltaPowierzchniaM2: wynik.deltaPowierzchniaM2,
+      powierzchniaM2: wynik.powierzchniaM2,
+      dlugoscKrawedziM: wynik.dlugoscKrawedziM,
+    };
+  },
+
+  ustawKonfiguracjeZablokowana: async (sesjaId, obszarId, zablokowana) => {
+    const zaktualizowane = get().sesje.map((s) => {
+      if (s.id !== sesjaId) return s;
+      return {
+        ...s,
+        obszary: s.obszary.map((o) =>
+          o.id !== obszarId ? o : { ...o, konfiguracjaZablokowana: zablokowana },
+        ),
+        updatedAt: new Date().toISOString(),
+      };
+    });
+    set({ sesje: zaktualizowane });
+    await zapisz(zaktualizowane);
+  },
+
+  ustawParametryUkladania: async (sesjaId, obszarId, dane) => {
+    const zaktualizowane = get().sesje.map((s) => {
+      if (s.id !== sesjaId) return s;
+      return {
+        ...s,
+        obszary: s.obszary.map((o) => (o.id !== obszarId ? o : { ...o, ...dane })),
+        updatedAt: new Date().toISOString(),
+      };
+    });
+    set({ sesje: zaktualizowane });
+    await zapisz(zaktualizowane);
+  },
+
+  dodajWpisWz: async (sesjaId, obszarId, dane) => {
+    const sesja = get().sesje.find((s) => s.id === sesjaId);
+    const obszar = sesja?.obszary.find((o) => o.id === obszarId);
+    if (!obszar) return null;
+    const numer = (obszar.wpisyWz?.reduce((m, w) => Math.max(m, w.numer), 0) ?? 0) + 1;
+    const wpis: WpisWzObmiaru = {
+      id: generujId(),
+      numer,
+      tony: Math.max(0, dane.tony),
+      przejechaneMetry: Math.max(0, dane.przejechaneMetry),
+      createdAt: new Date().toISOString(),
+    };
+    const wpisy = [...(obszar.wpisyWz ?? []), wpis];
+    const sumaTon = wpisy.reduce((a, w) => a + w.tony, 0);
+    const zaktualizowane = get().sesje.map((s) => {
+      if (s.id !== sesjaId) return s;
+      return {
+        ...s,
+        obszary: s.obszary.map((o) =>
+          o.id !== obszarId
+            ? o
+            : {
+                ...o,
+                wpisyWz: wpisy,
+                sumaTon,
+                przejechaneMetry: wpis.przejechaneMetry,
+              },
+        ),
+        updatedAt: new Date().toISOString(),
+      };
+    });
+    set({ sesje: zaktualizowane });
+    await zapisz(zaktualizowane);
+    return wpis;
+  },
+
+  usunWpisWz: async (sesjaId, obszarId, wpisId) => {
+    const zaktualizowane = get().sesje.map((s) => {
+      if (s.id !== sesjaId) return s;
+      return {
+        ...s,
+        obszary: s.obszary.map((o) => {
+          if (o.id !== obszarId) return o;
+          const wpisy = (o.wpisyWz ?? []).filter((w) => w.id !== wpisId);
+          const ost = wpisy[wpisy.length - 1];
+          return {
+            ...o,
+            wpisyWz: wpisy,
+            sumaTon: wpisy.reduce((a, w) => a + w.tony, 0),
+            przejechaneMetry: ost?.przejechaneMetry ?? 0,
+          };
+        }),
+        updatedAt: new Date().toISOString(),
+      };
+    });
+    set({ sesje: zaktualizowane });
+    await zapisz(zaktualizowane);
   },
 
   sesjaPoId: (id) => get().sesje.find((s) => s.id === id),

@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.7.1';
+export const WERSJA_APLIKACJI = '1.8.0';
 
 export interface WpisChangelog {
   wersja: string;
@@ -12,6 +12,17 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.0',
+    data: '2026-09-06',
+    tytul: 'Obmiar – podgląd jak Maps, konfiguracja L/P, WZ',
+    zmiany: [
+      'Podgląd obszaru jak Google Maps: pinch w punkcie między palcami, obrót, bezwładność — tylko w białej ramce',
+      'Konfiguracja: start/koniec L i P + kilometraż podstaw, odsadzki O1/O2, pomiar odległości, blokada edycji',
+      'Układanie z WZ: recepta i grubość jak w Zaplanuj masę; auta z numerem na rysunku, klik = bilans',
+      'Maszyny (widok z góry) tylko podczas układania, przód zgodnie z kierunkiem jazdy, nie zasłaniają węzłów',
+    ],
+  },
   {
     wersja: '1.7.1',
     data: '2026-09-05',

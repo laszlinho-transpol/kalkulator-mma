@@ -93,6 +93,7 @@ export function obszaryZPolygony(
       zrodloNazwa: wynik.zrodloNazwa,
       zrodloPdfHref: wynik.zrodloPdfHref,
       kolorWypelnienia: p.kolorWypelnienia,
+      odsadzki: [{ id: generujId(), nr: 1, zastosowana: false }],
       createdAt: teraz,
     };
   });

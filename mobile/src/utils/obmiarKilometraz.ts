@@ -3,6 +3,7 @@
 // ============================================================
 
 import type { ObszarObmiaru, Punkt2D } from '../types';
+import { srodekNaPostepie } from './obmiarFigura';
 import { dlugoscUkladaniaObszaru } from './obmiarLive';
 import { round2 } from './calculations';
 
@@ -77,6 +78,10 @@ function idxStartKoniec(obszar: ObszarObmiaru): { start: number; koniec: number;
 }
 
 export function punktNaSciezceUkladania(obszar: ObszarObmiaru, metryOdStartu: number): PunktNaSciezce {
+  const dl = dlugoscUkladaniaObszaru(obszar);
+  const poBokach = srodekNaPostepie(obszar, dl > 0 ? metryOdStartu / dl : 0);
+  if (poBokach.ok) return poBokach;
+
   const pts = obszar.wierzcholkiM;
   if (pts.length < 2) return { punkt: { x: 0, y: 0 }, headingRad: 0, ok: false };
   const { start, koniec, kierunek } = idxStartKoniec(obszar);
@@ -112,9 +117,11 @@ export function punktNaSciezceUkladania(obszar: ObszarObmiaru, metryOdStartu: nu
 export function znacznikiKilometrazuNaObszarze(obszar: ObszarObmiaru): Array<
   ZnacznikKilometrazu & { pozycja: PunktNaSciezce }
 > {
-  if (obszar.kilometrazStartKm == null || obszar.kilometrazStartM == null) return [];
+  const km = obszar.bazaStart?.kilometrazKm ?? obszar.kilometrazStartKm;
+  const m = obszar.bazaStart?.kilometrazM ?? obszar.kilometrazStartM;
+  if (km == null || m == null) return [];
   const dl = dlugoscUkladaniaObszaru(obszar);
-  return pelneKilometrazeCo100m(obszar.kilometrazStartKm, obszar.kilometrazStartM, dl).map((z) => ({
+  return pelneKilometrazeCo100m(km, m, dl).map((z) => ({
     ...z,
     pozycja: punktNaSciezceUkladania(obszar, z.odStartuM),
   }));

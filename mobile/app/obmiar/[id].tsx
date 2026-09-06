@@ -1,5 +1,5 @@
 // ============================================================
-// OBMIAR PZT – szczegoly: XFDF, skala, podglad, Etap B LIVE
+// OBMIAR PZT – podgląd (Maps) + konfiguracja L/P + układanie WZ
 // ============================================================
 
 import React, { useEffect, useMemo, useState } from 'react';
@@ -11,27 +11,22 @@ import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppHeader } from '../../src/components/common/AppHeader';
 import { SafeModal } from '../../src/components/common/SafeModal';
+import { MieszankaPicker } from '../../src/components/common/MieszankaPicker';
 import { WielokatPodglad } from '../../src/components/obmiar/WielokatPodglad';
+import { ObmiarKonfiguracja } from '../../src/components/obmiar/ObmiarKonfiguracja';
 import { lightTheme, darkTheme, type AppTheme } from '../../src/constants/theme';
 import { useObmiarStore } from '../../src/stores/obmiarStore';
+import { useMieszankiStore } from '../../src/stores/mieszankiStore';
 import { useRouteId } from '../../src/hooks/useRouteId';
 import { wybierzIParsujXfdf } from '../../src/utils/xfdfImport';
 import { formatLiczby } from '../../src/utils/calculations';
-import { bilansLiveObszaru } from '../../src/utils/obmiarLive';
-import { listaKrawedzi, odsadzKrawedz } from '../../src/utils/obmiarOffset';
+import { bilansLiveObszaru, infoAutaWz } from '../../src/utils/obmiarLive';
+import { odlegloscMiedzyWezlami } from '../../src/utils/obmiarFigura';
 import {
   PRESETY_SKALI_PZT,
   skalaZMianownika,
-  type RolaWezlaObmiaru,
+  type TrybWyboruWezla,
 } from '../../src/types';
-
-const ROLE_OPCJE: { rola: RolaWezlaObmiaru; label: string }[] = [
-  { rola: 'start', label: 'START' },
-  { rola: 'koniec', label: 'KONIEC' },
-  { rola: 'lewa', label: 'LEWA' },
-  { rola: 'prawa', label: 'PRAWA' },
-  { rola: 'zwykly', label: 'Wyczysc' },
-];
 
 export default function ObmiarDetailScreen() {
   const colorScheme = useColorScheme();
@@ -40,23 +35,27 @@ export default function ObmiarDetailScreen() {
   const id = useRouteId() ?? '';
   const {
     sesjaPoId, dodajObszaryZXfdf, przesunObszar, usunObszar, zmienSkale,
-    ustawRoleWezla, ustawKilometraz, ustawLiveObszaru, zastosujOdsadzke,
+    ustawBazeObszaru, ustawOdsadzke, dodajOdsadzke, zastosujOdsadzkeLancucha,
+    ustawKonfiguracjeZablokowana, ustawParametryUkladania, dodajWpisWz,
+    usunWpisWz,
   } = useObmiarStore();
+  const mieszanki = useMieszankiStore((s) => s.mieszanki);
+  const pobierzMieszanke = useMieszankiStore((s) => s.pobierzMieszanke);
   const sesja = id ? sesjaPoId(id) : undefined;
 
   const [podgladId, setPodgladId] = useState<string | null>(null);
   const [modalSkala, setModalSkala] = useState(false);
   const [mianownikTekst, setMianownikTekst] = useState('500');
-  const [wybranyWezel, setWybranyWezel] = useState<number | null>(null);
+  const [trybWyboru, setTrybWyboru] = useState<TrybWyboruWezla | null>(null);
+  const [aktywnaOdsadzkaId, setAktywnaOdsadzkaId] = useState<string | null>(null);
+  const [mapaAktywna, setMapaAktywna] = useState(false);
   const [metryTekst, setMetryTekst] = useState('');
   const [tonyTekst, setTonyTekst] = useState('');
-  const [kmStart, setKmStart] = useState('');
-  const [mStart, setMStart] = useState('');
-  const [kmKoniec, setKmKoniec] = useState('');
-  const [mKoniec, setMKoniec] = useState('');
-  const [idxKrawedzi, setIdxKrawedzi] = useState(0);
-  const [odsadzkaCm, setOdsadzkaCm] = useState('10');
-  const [odsadzkaZewnatrz, setOdsadzkaZewnatrz] = useState(true);
+  const [gruboscTekst, setGruboscTekst] = useState('');
+  const [pickerMieszanka, setPickerMieszanka] = useState(false);
+  const [autoInfoId, setAutoInfoId] = useState<string | null>(null);
+  const [pomiarP1, setPomiarP1] = useState<number | undefined>();
+  const [pomiarP2, setPomiarP2] = useState<number | undefined>();
 
   const sumaPow = useMemo(
     () => sesja?.obszary.reduce((a, o) => a + o.powierzchniaM2, 0) ?? 0,
@@ -74,27 +73,52 @@ export default function ObmiarDetailScreen() {
 
   useEffect(() => {
     if (!obszarPodgladu) return;
-    setMetryTekst(obszarPodgladu.przejechaneMetry != null ? String(obszarPodgladu.przejechaneMetry) : '');
-    setTonyTekst(obszarPodgladu.sumaTon != null ? String(obszarPodgladu.sumaTon) : '');
-    setKmStart(obszarPodgladu.kilometrazStartKm != null ? String(obszarPodgladu.kilometrazStartKm) : '');
-    setMStart(obszarPodgladu.kilometrazStartM != null ? String(obszarPodgladu.kilometrazStartM) : '');
-    setKmKoniec(obszarPodgladu.kilometrazKoniecKm != null ? String(obszarPodgladu.kilometrazKoniecKm) : '');
-    setMKoniec(obszarPodgladu.kilometrazKoniecM != null ? String(obszarPodgladu.kilometrazKoniecM) : '');
-    setWybranyWezel(null);
+    setGruboscTekst(obszarPodgladu.gruboscCm != null ? String(obszarPodgladu.gruboscCm) : '');
+    setTrybWyboru(null);
+    setPomiarP1(undefined);
+    setPomiarP2(undefined);
+    setAktywnaOdsadzkaId(obszarPodgladu.odsadzki?.[0]?.id ?? null);
+    if (!obszarPodgladu.odsadzki?.length && sesja) {
+      dodajOdsadzke(sesja.id, obszarPodgladu.id).then((nid) => {
+        if (nid) setAktywnaOdsadzkaId(nid);
+      });
+    }
   }, [obszarPodgladu?.id]);
 
+  const mieszanka = obszarPodgladu?.mieszankaId
+    ? pobierzMieszanke(obszarPodgladu.mieszankaId) ?? mieszanki.find((m) => m.id === obszarPodgladu.mieszankaId)
+    : undefined;
+  const rho = mieszanka?.ciezarObjetosciowy ?? 2.4;
+
   const bilans = useMemo(
-    () => (obszarPodgladu ? bilansLiveObszaru(obszarPodgladu) : null),
-    [obszarPodgladu],
+    () => (obszarPodgladu ? bilansLiveObszaru(obszarPodgladu, rho) : null),
+    [obszarPodgladu, rho],
   );
 
-  const prognozaOdsadzki = useMemo(() => {
-    if (!obszarPodgladu) return null;
-    const cm = parseFloat(odsadzkaCm.replace(',', '.'));
-    if (!Number.isFinite(cm) || cm === 0) return null;
-    const dystansM = (Math.abs(cm) / 100) * (odsadzkaZewnatrz ? 1 : -1);
-    return odsadzKrawedz(obszarPodgladu.wierzcholkiM, idxKrawedzi, dystansM);
-  }, [obszarPodgladu, odsadzkaCm, odsadzkaZewnatrz, idxKrawedzi]);
+  const pomiar = useMemo(() => {
+    if (pomiarP1 == null || pomiarP2 == null || !obszarPodgladu) {
+      return { p1: pomiarP1, p2: pomiarP2 };
+    }
+    const d = odlegloscMiedzyWezlami(obszarPodgladu.wierzcholkiM, pomiarP1, pomiarP2);
+    return { p1: pomiarP1, p2: pomiarP2, wzdluzM: d.wzdluzM, prostoM: d.prostoM };
+  }, [pomiarP1, pomiarP2, obszarPodgladu]);
+
+  const idxPodswietlone = useMemo(() => {
+    const out: number[] = [];
+    if (pomiarP1 != null) out.push(pomiarP1);
+    if (pomiarP2 != null) out.push(pomiarP2);
+    const o = (obszarPodgladu?.odsadzki ?? []).find((x) => x.id === aktywnaOdsadzkaId);
+    if (o?.idxP != null) out.push(o.idxP);
+    if (o?.idxK != null) out.push(o.idxK);
+    return out;
+  }, [pomiarP1, pomiarP2, obszarPodgladu, aktywnaOdsadzkaId]);
+
+  const autoInfo = useMemo(() => {
+    if (!obszarPodgladu || !autoInfoId) return null;
+    const wpis = obszarPodgladu.wpisyWz?.find((w) => w.id === autoInfoId);
+    if (!wpis) return null;
+    return infoAutaWz(obszarPodgladu, wpis, rho);
+  }, [obszarPodgladu, autoInfoId, rho]);
 
   if (!sesja) {
     return (
@@ -122,38 +146,41 @@ export default function ObmiarDetailScreen() {
     );
   };
 
-  const otworzSkale = () => {
-    setMianownikTekst(String(sesja.skala.mianownik));
-    setModalSkala(true);
+  const onWezel = async (idx: number) => {
+    if (!obszarPodgladu || !trybWyboru) return;
+    const zablokowana = !!obszarPodgladu.konfiguracjaZablokowana;
+    if (zablokowana && trybWyboru !== 'pomiarP1' && trybWyboru !== 'pomiarP2') return;
+
+    if (trybWyboru === 'startLewy') await ustawBazeObszaru(sesja.id, obszarPodgladu.id, 'start', { idxLewy: idx });
+    if (trybWyboru === 'startPrawy') await ustawBazeObszaru(sesja.id, obszarPodgladu.id, 'start', { idxPrawy: idx });
+    if (trybWyboru === 'koniecLewy') await ustawBazeObszaru(sesja.id, obszarPodgladu.id, 'koniec', { idxLewy: idx });
+    if (trybWyboru === 'koniecPrawy') await ustawBazeObszaru(sesja.id, obszarPodgladu.id, 'koniec', { idxPrawy: idx });
+    if (trybWyboru === 'odsadzkaP' || trybWyboru === 'odsadzkaK') {
+      let oid = aktywnaOdsadzkaId;
+      if (!oid) {
+        oid = obszarPodgladu.odsadzki?.[0]?.id ?? await dodajOdsadzke(sesja.id, obszarPodgladu.id);
+        if (oid) setAktywnaOdsadzkaId(oid);
+      }
+      if (oid) {
+        await ustawOdsadzke(sesja.id, obszarPodgladu.id, oid, trybWyboru === 'odsadzkaP' ? { idxP: idx } : { idxK: idx });
+      }
+    }
+    if (trybWyboru === 'pomiarP1') setPomiarP1(idx);
+    if (trybWyboru === 'pomiarP2') setPomiarP2(idx);
+    setTrybWyboru(null);
   };
 
-  const zastosujSkale = async (mianownik: number) => {
-    await zmienSkale(sesja.id, skalaZMianownika(mianownik));
-    setModalSkala(false);
-  };
-
-  const zapiszLive = async () => {
+  const zapiszWz = async () => {
     if (!obszarPodgladu) return;
     const metry = parseFloat(metryTekst.replace(',', '.'));
     const tony = parseFloat(tonyTekst.replace(',', '.'));
-    await ustawLiveObszaru(sesja.id, obszarPodgladu.id, {
-      przejechaneMetry: Number.isFinite(metry) ? metry : 0,
-      sumaTon: Number.isFinite(tony) ? tony : 0,
-    });
-  };
-
-  const zapiszKm = async () => {
-    if (!obszarPodgladu) return;
-    const parseOpt = (t: string) => {
-      const v = parseFloat(t.replace(',', '.'));
-      return Number.isFinite(v) ? v : undefined;
-    };
-    await ustawKilometraz(sesja.id, obszarPodgladu.id, {
-      kilometrazStartKm: parseOpt(kmStart),
-      kilometrazStartM: parseOpt(mStart),
-      kilometrazKoniecKm: parseOpt(kmKoniec),
-      kilometrazKoniecM: parseOpt(mKoniec),
-    });
+    if (!Number.isFinite(metry) || !Number.isFinite(tony)) {
+      Alert.alert('WZ', 'Podaj tony i przejechane metry z WZ.');
+      return;
+    }
+    await dodajWpisWz(sesja.id, obszarPodgladu.id, { tony, przejechaneMetry: metry });
+    setMetryTekst('');
+    setTonyTekst('');
   };
 
   return (
@@ -167,6 +194,7 @@ export default function ObmiarDetailScreen() {
       <ScrollView
         contentContainerStyle={[styles.zawartosc, { paddingBottom: insets.bottom + 24 }]}
         keyboardShouldPersistTaps="handled"
+        scrollEnabled={!mapaAktywna}
       >
         <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
           <Text style={[styles.kartaTytul, { color: theme.colors.text }]}>Sesja dnia</Text>
@@ -177,7 +205,13 @@ export default function ObmiarDetailScreen() {
           {zrodla.length > 0 && (
             <Row label="Źródła XFDF" v={zrodla.join(' · ')} theme={theme} />
           )}
-          <TouchableOpacity style={[styles.btnSek, { borderColor: theme.colors.primary }]} onPress={otworzSkale}>
+          <TouchableOpacity
+            style={[styles.btnSek, { borderColor: theme.colors.primary }]}
+            onPress={() => {
+              setMianownikTekst(String(sesja.skala.mianownik));
+              setModalSkala(true);
+            }}
+          >
             <Text style={{ color: theme.colors.primary, fontWeight: '700' }}>Ustaw skalę</Text>
           </TouchableOpacity>
         </View>
@@ -192,174 +226,120 @@ export default function ObmiarDetailScreen() {
               wezly={obszarPodgladu.wezlyRole}
               kolorWypelnienia={obszarPodgladu.kolorWypelnienia}
               postepLive={bilans?.postep ?? 0}
-              wysokosc={300}
+              wysokosc={320}
               etykieta={`${formatLiczby(obszarPodgladu.powierzchniaM2)} m²`}
               resetKlucz={obszarPodgladu.id}
-              onPressWezel={(idx) => setWybranyWezel(idx)}
+              onPressWezel={onWezel}
               obszar={obszarPodgladu}
               pokazMaszyny
+              trybWyboru={trybWyboru}
+              idxPodswietlone={idxPodswietlone}
+              onPressAuto={(wpisId) => setAutoInfoId(wpisId)}
+              onDotykZmiana={setMapaAktywna}
             />
-            {wybranyWezel != null && (
-              <View style={{ marginTop: 10 }}>
-                <Text style={{ color: theme.colors.textSecondary, fontSize: 12, marginBottom: 6 }}>
-                  Węzeł {wybranyWezel + 1} – ustaw rolę:
-                </Text>
-                <View style={styles.roleRzad}>
-                  {ROLE_OPCJE.map((r) => (
-                    <TouchableOpacity
-                      key={r.rola}
-                      style={[styles.roleBtn, { borderColor: theme.colors.border, backgroundColor: `${theme.colors.primary}15` }]}
-                      onPress={async () => {
-                        await ustawRoleWezla(sesja.id, obszarPodgladu.id, wybranyWezel, r.rola);
-                        setWybranyWezel(null);
-                      }}
-                    >
-                      <Text style={{ color: theme.colors.text, fontWeight: '700', fontSize: 11 }}>{r.label}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-            )}
           </View>
         )}
 
-        {obszarPodgladu && bilans && (
-          <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-            <Text style={[styles.kartaTytul, { color: theme.colors.text }]}>LIVE na obszarze</Text>
-            <Text style={{ color: theme.colors.textSecondary, fontSize: 12, marginBottom: 8 }}>
-              Oznacz START/KONIEC na podglądzie (dotknij węzeł), potem wpisz metry i tony.
-            </Text>
-            <View style={styles.polaRzad}>
-              <Pole label="Metry [m]" value={metryTekst} onChange={setMetryTekst} theme={theme} />
-              <Pole label="Tony [Mg]" value={tonyTekst} onChange={setTonyTekst} theme={theme} />
-            </View>
-            <TouchableOpacity
-              style={[styles.btnSek, { borderColor: theme.colors.success, marginTop: 8 }]}
-              onPress={zapiszLive}
-            >
-              <Text style={{ color: theme.colors.success, fontWeight: '700' }}>Zapisz LIVE</Text>
-            </TouchableOpacity>
-            <View style={{ marginTop: 10, gap: 2 }}>
-              <Row label="Długość układania" v={`${formatLiczby(bilans.dlugoscM)} m`} theme={theme} />
-              <Row label="Postęp" v={`${formatLiczby(bilans.postep * 100)} %`} theme={theme} bold />
-              <Row label="Zakryte" v={`${formatLiczby(bilans.zakrytaPowierzchniaM2)} m²`} theme={theme} />
-              <Row label="Pozostało" v={`${formatLiczby(bilans.pozostaloMetrow)} m · ${formatLiczby(bilans.pozostaloM2)} m²`} theme={theme} />
-              {bilans.sredniaGruboscCm != null && (
-                <Row label="Śr. grubość" v={`${formatLiczby(bilans.sredniaGruboscCm)} cm`} theme={theme} />
-              )}
-              {bilans.pozostaloMgPrzyGrubosci != null && (
-                <Row label="Pozostało Mg" v={`${formatLiczby(bilans.pozostaloMgPrzyGrubosci)} Mg`} theme={theme} />
-              )}
-            </View>
-
-            <Text style={[styles.kartaTytul, { color: theme.colors.text, marginTop: 14 }]}>Kilometraż</Text>
-            <View style={styles.polaRzad}>
-              <Pole label="Start km" value={kmStart} onChange={setKmStart} theme={theme} />
-              <Pole label="Start m" value={mStart} onChange={setMStart} theme={theme} />
-            </View>
-            <View style={[styles.polaRzad, { marginTop: 8 }]}>
-              <Pole label="Koniec km" value={kmKoniec} onChange={setKmKoniec} theme={theme} />
-              <Pole label="Koniec m" value={mKoniec} onChange={setMKoniec} theme={theme} />
-            </View>
-            <TouchableOpacity
-              style={[styles.btnSek, { borderColor: theme.colors.border, marginTop: 8 }]}
-              onPress={zapiszKm}
-            >
-              <Text style={{ color: theme.colors.text, fontWeight: '600' }}>Zapisz kilometraż</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        
         {obszarPodgladu && (
           <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-            <Text style={[styles.kartaTytul, { color: theme.colors.text }]}>Odsadzka krawędzi</Text>
-            <Text style={{ color: theme.colors.textSecondary, fontSize: 12, marginBottom: 8 }}>
-              Przesuń wybraną krawędź o zadaną odległość (np. 10 cm na 100 m ≈ +10 m² na zewnątrz).
-            </Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
-              {listaKrawedzi(obszarPodgladu.wierzcholkiM).map((k) => (
-                <TouchableOpacity
-                  key={k.idx}
-                  onPress={() => setIdxKrawedzi(k.idx)}
-                  style={{
-                    paddingHorizontal: 10,
-                    paddingVertical: 8,
-                    borderRadius: 8,
-                    borderWidth: 1,
-                    marginRight: 6,
-                    borderColor: idxKrawedzi === k.idx ? theme.colors.primary : theme.colors.border,
-                    backgroundColor: idxKrawedzi === k.idx ? `${theme.colors.primary}20` : theme.colors.inputBackground,
-                  }}
-                >
-                  <Text style={{ color: theme.colors.text, fontSize: 12, fontWeight: '600' }}>{k.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-            <View style={{ flexDirection: 'row', gap: 10, alignItems: 'flex-end' }}>
-              <View style={{ flex: 1 }}>
-                <Text style={{ color: theme.colors.textSecondary, fontSize: 11, marginBottom: 4 }}>Odległość [cm]</Text>
-                <TextInput
-                  value={odsadzkaCm}
-                  onChangeText={setOdsadzkaCm}
-                  keyboardType="decimal-pad"
-                  style={{
-                    borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10,
-                    borderColor: theme.colors.border, color: theme.colors.text,
-                    backgroundColor: theme.colors.inputBackground, fontSize: 16,
-                  }}
-                />
-              </View>
-              <TouchableOpacity
-                onPress={() => setOdsadzkaZewnatrz(true)}
-                style={{
-                  paddingHorizontal: 12, paddingVertical: 10, borderRadius: 8, borderWidth: 1,
-                  borderColor: odsadzkaZewnatrz ? theme.colors.success : theme.colors.border,
-                  backgroundColor: odsadzkaZewnatrz ? `${theme.colors.success}20` : theme.colors.inputBackground,
-                }}
-              >
-                <Text style={{ color: theme.colors.text, fontWeight: '700', fontSize: 12 }}>Na zewnątrz</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => setOdsadzkaZewnatrz(false)}
-                style={{
-                  paddingHorizontal: 12, paddingVertical: 10, borderRadius: 8, borderWidth: 1,
-                  borderColor: !odsadzkaZewnatrz ? theme.colors.danger : theme.colors.border,
-                  backgroundColor: !odsadzkaZewnatrz ? `${theme.colors.danger}20` : theme.colors.inputBackground,
-                }}
-              >
-                <Text style={{ color: theme.colors.text, fontWeight: '700', fontSize: 12 }}>Do wewnątrz</Text>
-              </TouchableOpacity>
-            </View>
-            {prognozaOdsadzki ? (
-              <Text style={{ color: theme.colors.textSecondary, fontSize: 12, marginTop: 8 }}>
-                Prognoza Δ: {prognozaOdsadzki.deltaPowierzchniaM2 >= 0 ? '+' : ''}
-                {prognozaOdsadzki.deltaPowierzchniaM2} m² (krawędź {prognozaOdsadzki.dlugoscKrawedziM} m)
-              </Text>
-            ) : null}
-            <TouchableOpacity
-              style={{
-                marginTop: 10, borderWidth: 1, borderRadius: 10, paddingVertical: 10, alignItems: 'center',
-                borderColor: theme.colors.primary,
+            <ObmiarKonfiguracja
+              obszar={obszarPodgladu}
+              theme={theme}
+              trybWyboru={trybWyboru}
+              onTryb={(t, oid) => {
+                setTrybWyboru(t);
+                if (oid) setAktywnaOdsadzkaId(oid);
               }}
-              onPress={async () => {
-                const cm = parseFloat(odsadzkaCm.replace(',', '.'));
-                if (!Number.isFinite(cm) || cm === 0) {
-                  Alert.alert('Odsadzka', 'Podaj odległość w cm (np. 10).');
-                  return;
-                }
-                const dystansM = (Math.abs(cm) / 100) * (odsadzkaZewnatrz ? 1 : -1);
-                const wynik = await zastosujOdsadzke(sesja.id, obszarPodgladu.id, idxKrawedzi, dystansM);
-                if (wynik) {
+              zablokowana={!!obszarPodgladu.konfiguracjaZablokowana}
+              onBlokada={(v) => ustawKonfiguracjeZablokowana(sesja.id, obszarPodgladu.id, v)}
+              onBaza={(ktora, dane) => ustawBazeObszaru(sesja.id, obszarPodgladu.id, ktora, dane)}
+              onDodajOdsadzke={async () => {
+                const nid = await dodajOdsadzke(sesja.id, obszarPodgladu.id);
+                if (nid) setAktywnaOdsadzkaId(nid);
+              }}
+              onZastosujOdsadzke={async (odsadzkaId, dystansM) => {
+                const w = await zastosujOdsadzkeLancucha(sesja.id, obszarPodgladu.id, odsadzkaId, dystansM);
+                if (w) {
                   Alert.alert(
-                    'Odsadzka zastosowana',
-                    `Krawędź ${wynik.dlugoscKrawedziM} m · Δ powierzchnia ${wynik.deltaPowierzchniaM2 >= 0 ? '+' : ''}${wynik.deltaPowierzchniaM2} m²\nNowa powierzchnia: ${wynik.powierzchniaM2} m²`,
+                    'Odsadzka',
+                    `Δ powierzchnia ${w.deltaPowierzchniaM2 >= 0 ? '+' : ''}${w.deltaPowierzchniaM2} m²\nNowa: ${w.powierzchniaM2} m²`,
                   );
                 }
               }}
+              pomiar={pomiar}
+            />
+          </View>
+        )}
+
+        {obszarPodgladu && (
+          <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+            <Text style={[styles.kartaTytul, { color: theme.colors.text }]}>Układanie / WZ</Text>
+            <Text style={{ color: theme.colors.textSecondary, fontSize: 12, marginBottom: 8 }}>
+              Jak w Zaplanuj masę: recepta (ρ) i grubość. Auta z WZ pojawiają się na rysunku.
+            </Text>
+            <TouchableOpacity
+              style={[styles.btnSek, { borderColor: theme.colors.border, marginTop: 0 }]}
+              onPress={() => setPickerMieszanka(true)}
             >
-              <Text style={{ color: theme.colors.primary, fontWeight: '700' }}>Zastosuj odsadzkę</Text>
+              <Text style={{ color: theme.colors.text, fontWeight: '700' }}>
+                {mieszanka
+                  ? `${mieszanka.rodzaj}${mieszanka.nrRecepty ? ` · ${mieszanka.nrRecepty}` : ''} · ρ ${mieszanka.ciezarObjetosciowy.toFixed(3)}`
+                  : 'Wybierz receptę / mieszankę'}
+              </Text>
             </TouchableOpacity>
+            <View style={[styles.polaRzad, { marginTop: 10 }]}>
+              <Pole
+                label="Grubość [cm]"
+                value={gruboscTekst}
+                onChange={setGruboscTekst}
+                theme={theme}
+                onBlur={() => {
+                  const g = parseFloat(gruboscTekst.replace(',', '.'));
+                  ustawParametryUkladania(sesja.id, obszarPodgladu.id, {
+                    gruboscCm: Number.isFinite(g) ? g : undefined,
+                  });
+                }}
+              />
+            </View>
+            <View style={[styles.polaRzad, { marginTop: 8 }]}>
+              <Pole label="Tony z WZ [Mg]" value={tonyTekst} onChange={setTonyTekst} theme={theme} />
+              <Pole label="Metry z WZ [m]" value={metryTekst} onChange={setMetryTekst} theme={theme} />
+            </View>
+            <TouchableOpacity
+              style={[styles.btnSek, { borderColor: theme.colors.success, marginTop: 8 }]}
+              onPress={zapiszWz}
+            >
+              <Text style={{ color: theme.colors.success, fontWeight: '700' }}>Dodaj auto z WZ</Text>
+            </TouchableOpacity>
+            {bilans && (
+              <View style={{ marginTop: 10, gap: 2 }}>
+                <Row label="Długość układania" v={`${formatLiczby(bilans.dlugoscM)} m`} theme={theme} />
+                <Row label="Postęp" v={`${formatLiczby(bilans.postep * 100)} %`} theme={theme} bold />
+                <Row label="Zakryte" v={`${formatLiczby(bilans.zakrytaPowierzchniaM2)} m²`} theme={theme} />
+                <Row label="Pozostało" v={`${formatLiczby(bilans.pozostaloMetrow)} m · ${formatLiczby(bilans.pozostaloM2)} m²`} theme={theme} />
+                {bilans.sredniaGruboscCm != null && (
+                  <Row label="Śr. grubość" v={`${formatLiczby(bilans.sredniaGruboscCm)} cm`} theme={theme} />
+                )}
+                {bilans.pozostaloMgPrzyGrubosci != null && (
+                  <Row label="Pozostało Mg" v={`${formatLiczby(bilans.pozostaloMgPrzyGrubosci)} Mg`} theme={theme} />
+                )}
+              </View>
+            )}
+            {(obszarPodgladu.wpisyWz ?? []).map((w) => (
+              <TouchableOpacity
+                key={w.id}
+                onPress={() => setAutoInfoId(w.id)}
+                onLongPress={() => Alert.alert('Usuń auto', `Usunąć auto #${w.numer}?`, [
+                  { text: 'Anuluj', style: 'cancel' },
+                  { text: 'Usuń', style: 'destructive', onPress: () => usunWpisWz(sesja.id, obszarPodgladu.id, w.id) },
+                ])}
+                style={{ marginTop: 8, paddingVertical: 6 }}
+              >
+                <Text style={{ color: theme.colors.primary, fontWeight: '700' }}>
+                  Auto #{w.numer} · {formatLiczby(w.tony)} Mg · {formatLiczby(w.przejechaneMetry)} m
+                </Text>
+              </TouchableOpacity>
+            ))}
           </View>
         )}
 
@@ -446,7 +426,8 @@ export default function ObmiarDetailScreen() {
               Alert.alert('Skala', 'Podaj poprawny mianownik (np. 500).');
               return;
             }
-            zastosujSkale(m);
+            zmienSkale(sesja.id, skalaZMianownika(m));
+            setModalSkala(false);
           },
           kolor: theme.colors.primary,
         }}
@@ -455,7 +436,6 @@ export default function ObmiarDetailScreen() {
           <Text style={{ color: theme.colors.textSecondary, fontSize: 13, lineHeight: 18 }}>
             Przy skali 1:500 → 1 cm na papierze = 5 m w terenie. Zmiana przelicza powierzchnię wszystkich obszarów.
           </Text>
-          <Text style={{ color: theme.colors.text, fontWeight: '700', marginTop: 4 }}>Presety</Text>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
             {PRESETY_SKALI_PZT.map((p) => (
               <TouchableOpacity
@@ -469,7 +449,8 @@ export default function ObmiarDetailScreen() {
                 ]}
                 onPress={() => {
                   setMianownikTekst(String(p.mianownik));
-                  zastosujSkale(p.mianownik);
+                  zmienSkale(sesja.id, skalaZMianownika(p.mianownik));
+                  setModalSkala(false);
                 }}
               >
                 <Text style={{ color: theme.colors.text, fontWeight: '700' }}>1:{p.mianownik}</Text>
@@ -477,7 +458,6 @@ export default function ObmiarDetailScreen() {
               </TouchableOpacity>
             ))}
           </View>
-          <Text style={{ color: theme.colors.text, fontWeight: '700', marginTop: 8 }}>Własny mianownik</Text>
           <TextInput
             value={mianownikTekst}
             onChangeText={setMianownikTekst}
@@ -486,10 +466,36 @@ export default function ObmiarDetailScreen() {
             placeholderTextColor={theme.colors.textSecondary}
             style={[styles.input, { borderColor: theme.colors.border, color: theme.colors.text, backgroundColor: theme.colors.inputBackground }]}
           />
-          <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>
-            1 cm = {(parseFloat(mianownikTekst.replace(',', '.')) / 100 || 0).toFixed(2)} m
-          </Text>
         </ScrollView>
+      </SafeModal>
+
+      <MieszankaPicker
+        visible={pickerMieszanka}
+        selectedId={obszarPodgladu?.mieszankaId ?? ''}
+        theme={theme}
+        onSelect={(m) => {
+          if (obszarPodgladu) ustawParametryUkladania(sesja.id, obszarPodgladu.id, { mieszankaId: m.id });
+        }}
+        onClose={() => setPickerMieszanka(false)}
+      />
+
+      <SafeModal
+        visible={!!autoInfo}
+        tytul={autoInfo ? `Auto #${autoInfo.numer}` : 'Auto'}
+        theme={theme}
+        onClose={() => setAutoInfoId(null)}
+        lewy={{ tekst: 'Zamknij', onPress: () => setAutoInfoId(null), kolor: theme.colors.textSecondary }}
+      >
+        {autoInfo && (
+          <View style={{ padding: 16, gap: 6 }}>
+            <Row label="Odległość (to auto)" v={`${formatLiczby(autoInfo.metryTegoAuta)} m`} theme={theme} />
+            <Row label="Od startu" v={`${formatLiczby(autoInfo.przejechaneMetry)} m`} theme={theme} />
+            <Row label="Powierzchnia" v={`${formatLiczby(autoInfo.powierzchniaM2)} m²`} theme={theme} />
+            <Row label="Grubość" v={autoInfo.gruboscCm != null ? `${formatLiczby(autoInfo.gruboscCm)} cm` : '—'} theme={theme} />
+            <Row label="Tony" v={`${formatLiczby(autoInfo.tony)} Mg`} theme={theme} />
+            <Row label="Pozostało do końca" v={autoInfo.pozostaloMg != null ? `${formatLiczby(autoInfo.pozostaloMg)} Mg` : '—'} theme={theme} bold />
+          </View>
+        )}
       </SafeModal>
     </View>
   );
@@ -509,9 +515,9 @@ function Row({
 }
 
 function Pole({
-  label, value, onChange, theme,
+  label, value, onChange, theme, onBlur,
 }: {
-  label: string; value: string; onChange: (t: string) => void; theme: AppTheme;
+  label: string; value: string; onChange: (t: string) => void; theme: AppTheme; onBlur?: () => void;
 }) {
   return (
     <View style={{ flex: 1 }}>
@@ -519,6 +525,7 @@ function Pole({
       <TextInput
         value={value}
         onChangeText={onChange}
+        onBlur={onBlur}
         keyboardType="decimal-pad"
         placeholder="0"
         placeholderTextColor={theme.colors.textSecondary}
@@ -538,8 +545,6 @@ const styles = StyleSheet.create({
   btnSek: { marginTop: 10, borderWidth: 1, borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
   btnImport: { paddingVertical: 14, borderRadius: 12, alignItems: 'center', marginTop: 4 },
   btnImportTekst: { color: '#fff', fontWeight: '700', fontSize: 15 },
-  roleRzad: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  roleBtn: { paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8, borderWidth: 1 },
   polaRzad: { flexDirection: 'row', gap: 10 },
   input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16 },
   presetBtn: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, minWidth: 96 },

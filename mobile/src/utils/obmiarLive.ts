@@ -2,7 +2,8 @@
 // LIVE na wielokącie obmiaru – długość ścieżki, postęp, bilans
 // ============================================================
 
-import type { ObszarObmiaru, Punkt2D, RolaWezlaObmiaru, WezelObmiaru } from '../types';
+import type { ObszarObmiaru, Punkt2D, RolaWezlaObmiaru, WezelObmiaru, WpisWzObmiaru } from '../types';
+import { bokiFigury } from './obmiarFigura';
 import { round2 } from './calculations';
 
 function dystans(a: Punkt2D, b: Punkt2D): number {
@@ -39,6 +40,8 @@ export function dlugoscMiedzyWierzcholkami(wierzcholki: Punkt2D[], a: number, b:
  * START→KONIEC wzdłuż obwodu, inaczej pół obwodu.
  */
 export function dlugoscUkladaniaObszaru(obszar: ObszarObmiaru): number {
+  const boki = bokiFigury(obszar);
+  if (boki && boki.dlugoscUkladania > 0.5) return boki.dlugoscUkladania;
   const wezly = obszar.wezlyRole ?? [];
   const start = wezly.find((w) => w.rola === 'start');
   const koniec = wezly.find((w) => w.rola === 'koniec');
@@ -61,14 +64,23 @@ export interface BilansLiveObmiaru {
   pozostaloMgPrzyGrubosci: number | null;
 }
 
-/** Gęstość orientacyjna MMA ~2.4 Mg/m³ */
+export function gestoscObszaru(gestoscMgM3?: number): number {
+  return gestoscMgM3 && gestoscMgM3 > 0 ? gestoscMgM3 : 2.4;
+}
+
+/** Gęstość z recepty (Zaplanuj masę) albo orientacyjna MMA ~2.4 Mg/m³ */
 export function bilansLiveObszaru(
   obszar: ObszarObmiaru,
   gestoscMgM3 = 2.4,
 ): BilansLiveObmiaru {
+  const rho = gestoscObszaru(gestoscMgM3);
   const dlugoscM = dlugoscUkladaniaObszaru(obszar);
-  const przejechaneMetry = Math.max(0, obszar.przejechaneMetry ?? 0);
-  const sumaTon = Math.max(0, obszar.sumaTon ?? 0);
+  const ostatnieWz = obszar.wpisyWz?.[obszar.wpisyWz.length - 1];
+  const przejechaneMetry = Math.max(0, ostatnieWz?.przejechaneMetry ?? obszar.przejechaneMetry ?? 0);
+  const sumaTon = Math.max(
+    0,
+    obszar.wpisyWz?.reduce((a, w) => a + w.tony, 0) ?? obszar.sumaTon ?? 0,
+  );
   const postep = Math.max(0, Math.min(1, przejechaneMetry / Math.max(dlugoscM, 0.01)));
   const zakrytaPowierzchniaM2 = round2(obszar.powierzchniaM2 * postep);
   const pozostaloMetrow = round2(Math.max(0, dlugoscM - przejechaneMetry));
@@ -77,8 +89,13 @@ export function bilansLiveObszaru(
   let sredniaGruboscCm: number | null = null;
   let pozostaloMgPrzyGrubosci: number | null = null;
   if (zakrytaPowierzchniaM2 > 0.5 && sumaTon > 0) {
-    sredniaGruboscCm = round2((sumaTon / (zakrytaPowierzchniaM2 * gestoscMgM3)) * 100);
-    pozostaloMgPrzyGrubosci = round2(pozostaloM2 * (sredniaGruboscCm / 100) * gestoscMgM3);
+    sredniaGruboscCm = round2((sumaTon / (zakrytaPowierzchniaM2 * rho)) * 100);
+  }
+  const gruboscDoMasy = obszar.gruboscCm && obszar.gruboscCm > 0
+    ? obszar.gruboscCm
+    : sredniaGruboscCm;
+  if (gruboscDoMasy != null) {
+    pozostaloMgPrzyGrubosci = round2(pozostaloM2 * (gruboscDoMasy / 100) * rho);
   }
 
   return {
@@ -110,4 +127,43 @@ export function zastosujRoleWezla(
     lista.push({ x: p.x, y: p.y, idx: i, rola });
   }
   return lista;
+}
+
+export interface InfoAutaWz {
+  numer: number;
+  tony: number;
+  przejechaneMetry: number;
+  metryTegoAuta: number;
+  powierzchniaM2: number;
+  gruboscCm: number | null;
+  pozostaloMg: number | null;
+}
+
+/** Bilans pojedynczego auta z WZ – jak w LIVE / Zaplanuj masę. */
+export function infoAutaWz(
+  obszar: ObszarObmiaru,
+  wpis: WpisWzObmiaru,
+  gestoscMgM3 = 2.4,
+): InfoAutaWz {
+  const rho = gestoscObszaru(gestoscMgM3);
+  const posortowane = [...(obszar.wpisyWz ?? [])].sort((a, b) => a.numer - b.numer);
+  const prev = posortowane.filter((w) => w.numer < wpis.numer).pop();
+  const metryPoprzednie = prev?.przejechaneMetry ?? 0;
+  const metryTegoAuta = round2(Math.max(0, wpis.przejechaneMetry - metryPoprzednie));
+  const dl = Math.max(dlugoscUkladaniaObszaru(obszar), 0.01);
+  const powierzchniaM2 = round2(obszar.powierzchniaM2 * (metryTegoAuta / dl));
+  let gruboscCm: number | null = null;
+  if (powierzchniaM2 > 0.01 && wpis.tony > 0) {
+    gruboscCm = round2((wpis.tony / (powierzchniaM2 * rho)) * 100);
+  }
+  const bilans = bilansLiveObszaru(obszar, rho);
+  return {
+    numer: wpis.numer,
+    tony: wpis.tony,
+    przejechaneMetry: wpis.przejechaneMetry,
+    metryTegoAuta,
+    powierzchniaM2,
+    gruboscCm,
+    pozostaloMg: bilans.pozostaloMgPrzyGrubosci,
+  };
 }
