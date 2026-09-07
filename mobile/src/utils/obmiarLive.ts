@@ -167,3 +167,22 @@ export function infoAutaWz(
     pozostaloMg: bilans.pozostaloMgPrzyGrubosci,
   };
 }
+
+/** Metry z tonażu przy zadanej grubości i ρ – jak Zaplanuj masę. */
+export function metryZTonnObszaru(
+  obszar: ObszarObmiaru,
+  tony: number,
+  gestoscMgM3 = 2.4,
+): { metryAuta: number; metryOdStartu: number } | null {
+  const rho = gestoscObszaru(gestoscMgM3);
+  const gruboscCm = obszar.gruboscCm;
+  if (!gruboscCm || gruboscCm <= 0 || tony <= 0) return null;
+  const dl = Math.max(dlugoscUkladaniaObszaru(obszar), 0.01);
+  const szer = obszar.powierzchniaM2 / dl;
+  const masaNaM = szer * (gruboscCm / 100) * rho;
+  if (masaNaM <= 1e-9) return null;
+  const metryAuta = round2(tony / masaNaM);
+  const ost = obszar.wpisyWz?.[obszar.wpisyWz.length - 1];
+  const metryOdStartu = round2((ost?.przejechaneMetry ?? 0) + metryAuta);
+  return { metryAuta, metryOdStartu };
+}

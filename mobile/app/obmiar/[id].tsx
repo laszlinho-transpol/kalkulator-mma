@@ -20,8 +20,8 @@ import { useMieszankiStore } from '../../src/stores/mieszankiStore';
 import { useRouteId } from '../../src/hooks/useRouteId';
 import { wybierzIParsujXfdf } from '../../src/utils/xfdfImport';
 import { formatLiczby } from '../../src/utils/calculations';
-import { bilansLiveObszaru, infoAutaWz } from '../../src/utils/obmiarLive';
-import { odlegloscMiedzyWezlami } from '../../src/utils/obmiarFigura';
+import { bilansLiveObszaru, infoAutaWz, metryZTonnObszaru } from '../../src/utils/obmiarLive';
+import { formatujKilometraz, odlegloscMiedzyWezlami, zAbsKilometraza } from '../../src/utils/obmiarFigura';
 import {
   PRESETY_SKALI_PZT,
   skalaZMianownika,
@@ -37,7 +37,7 @@ export default function ObmiarDetailScreen() {
     sesjaPoId, dodajObszaryZXfdf, przesunObszar, usunObszar, zmienSkale,
     ustawBazeObszaru, ustawOdsadzke, dodajOdsadzke, zastosujOdsadzkeLancucha,
     ustawKonfiguracjeZablokowana, ustawParametryUkladania, dodajWpisWz,
-    usunWpisWz,
+    usunWpisWz, ustawKierunekUkladania, ustawKontynuacje,
   } = useObmiarStore();
   const mieszanki = useMieszankiStore((s) => s.mieszanki);
   const pobierzMieszanke = useMieszankiStore((s) => s.pobierzMieszanke);
@@ -120,6 +120,18 @@ export default function ObmiarDetailScreen() {
     return infoAutaWz(obszarPodgladu, wpis, rho);
   }, [obszarPodgladu, autoInfoId, rho]);
 
+  const sugestiaWz = useMemo(() => {
+    if (!obszarPodgladu) return null;
+    const tony = parseFloat(tonyTekst.replace(',', '.'));
+    if (!Number.isFinite(tony) || tony <= 0) return null;
+    const tmp = { ...obszarPodgladu, gruboscCm: parseFloat(gruboscTekst.replace(',', '.')) || obszarPodgladu.gruboscCm };
+    return metryZTonnObszaru(tmp, tony, rho);
+  }, [obszarPodgladu, tonyTekst, gruboscTekst, rho]);
+
+  useEffect(() => {
+    if (sugestiaWz) setMetryTekst(String(sugestiaWz.metryOdStartu));
+  }, [sugestiaWz?.metryOdStartu]);
+
   if (!sesja) {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -147,6 +159,7 @@ export default function ObmiarDetailScreen() {
   };
 
   const onWezel = async (idx: number) => {
+    setMapaAktywna(false);
     if (!obszarPodgladu || !trybWyboru) return;
     const zablokowana = !!obszarPodgladu.konfiguracjaZablokowana;
     if (zablokowana && trybWyboru !== 'pomiarP1' && trybWyboru !== 'pomiarP2') return;
@@ -172,10 +185,15 @@ export default function ObmiarDetailScreen() {
 
   const zapiszWz = async () => {
     if (!obszarPodgladu) return;
-    const metry = parseFloat(metryTekst.replace(',', '.'));
     const tony = parseFloat(tonyTekst.replace(',', '.'));
-    if (!Number.isFinite(metry) || !Number.isFinite(tony)) {
-      Alert.alert('WZ', 'Podaj tony i przejechane metry z WZ.');
+    let metry = parseFloat(metryTekst.replace(',', '.'));
+    if (!Number.isFinite(tony)) {
+      Alert.alert('WZ', 'Podaj tonaż z WZ.');
+      return;
+    }
+    if (!Number.isFinite(metry) && sugestiaWz) metry = sugestiaWz.metryOdStartu;
+    if (!Number.isFinite(metry)) {
+      Alert.alert('WZ', 'Podaj tony i przejechane metry (lub grubość, żeby wyliczyć metry).');
       return;
     }
     await dodajWpisWz(sesja.id, obszarPodgladu.id, { tony, przejechaneMetry: metry });
@@ -247,12 +265,14 @@ export default function ObmiarDetailScreen() {
               theme={theme}
               trybWyboru={trybWyboru}
               onTryb={(t, oid) => {
+                setMapaAktywna(false);
                 setTrybWyboru(t);
                 if (oid) setAktywnaOdsadzkaId(oid);
               }}
               zablokowana={!!obszarPodgladu.konfiguracjaZablokowana}
               onBlokada={(v) => ustawKonfiguracjeZablokowana(sesja.id, obszarPodgladu.id, v)}
               onBaza={(ktora, dane) => ustawBazeObszaru(sesja.id, obszarPodgladu.id, ktora, dane)}
+              onKierunek={(k) => ustawKierunekUkladania(sesja.id, obszarPodgladu.id, k)}
               onDodajOdsadzke={async () => {
                 const nid = await dodajOdsadzke(sesja.id, obszarPodgladu.id);
                 if (nid) setAktywnaOdsadzkaId(nid);
@@ -305,6 +325,20 @@ export default function ObmiarDetailScreen() {
               <Pole label="Tony z WZ [Mg]" value={tonyTekst} onChange={setTonyTekst} theme={theme} />
               <Pole label="Metry z WZ [m]" value={metryTekst} onChange={setMetryTekst} theme={theme} />
             </View>
+            {sugestiaWz && (
+              <Text style={{ color: theme.colors.textSecondary, fontSize: 12, marginTop: 8 }}>
+                Sugerowane: {formatLiczby(sugestiaWz.metryAuta)} m z tego auta · {formatLiczby(sugestiaWz.metryOdStartu)} m od startu obszaru
+                {(() => {
+                  const startAbs = (obszarPodgladu.bazaStart?.kilometrazKm ?? 0) * 1000
+                    + (obszarPodgladu.bazaStart?.kilometrazM ?? 0);
+                  const abs = obszarPodgladu.kierunekUkladania === 'malejacy'
+                    ? startAbs - sugestiaWz.metryOdStartu
+                    : startAbs + sugestiaWz.metryOdStartu;
+                  const k = zAbsKilometraza(abs);
+                  return ` · ${formatujKilometraz(k.km, k.m)}`;
+                })()}
+              </Text>
+            )}
             <TouchableOpacity
               style={[styles.btnSek, { borderColor: theme.colors.success, marginTop: 8 }]}
               onPress={zapiszWz}
@@ -376,7 +410,32 @@ export default function ObmiarDetailScreen() {
                 <Text style={{ color: theme.colors.textSecondary, fontSize: 11, marginTop: 2 }} numberOfLines={1}>
                   {o.zrodloNazwa}
                 </Text>
+                {o.bazaStart?.kilometrazKm != null || o.kilometrazStartKm != null ? (
+                  <Text style={{ color: theme.colors.textSecondary, fontSize: 11, marginTop: 2 }}>
+                    {formatujKilometraz(o.bazaStart?.kilometrazKm ?? o.kilometrazStartKm, o.bazaStart?.kilometrazM ?? o.kilometrazStartM)}
+                    {' → '}
+                    {formatujKilometraz(o.bazaKoniec?.kilometrazKm ?? o.kilometrazKoniecKm, o.bazaKoniec?.kilometrazM ?? o.kilometrazKoniecM)}
+                  </Text>
+                ) : null}
               </TouchableOpacity>
+              {o.kolejnosc > 1 && (
+                <TouchableOpacity
+                  onPress={() => ustawKontynuacje(sesja.id, o.id, !o.kontynuacjaPoprzedniego)}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 }}
+                >
+                  <View style={{
+                    width: 22, height: 22, borderRadius: 4, borderWidth: 2,
+                    borderColor: o.kontynuacjaPoprzedniego ? theme.colors.success : theme.colors.border,
+                    backgroundColor: o.kontynuacjaPoprzedniego ? theme.colors.success : 'transparent',
+                    alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    {o.kontynuacjaPoprzedniego ? <Text style={{ color: '#fff', fontWeight: '800', fontSize: 13 }}>✓</Text> : null}
+                  </View>
+                  <Text style={{ color: theme.colors.text, fontSize: 13, flex: 1 }}>
+                    Kontynuacja poprzedniego (start = koniec poprzedniego obszaru)
+                  </Text>
+                </TouchableOpacity>
+              )}
               <View style={styles.rzadAkcji}>
                 <TouchableOpacity
                   style={[styles.btnMini, { backgroundColor: `${theme.colors.primary}20` }]}

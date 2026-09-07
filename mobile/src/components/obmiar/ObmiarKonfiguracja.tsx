@@ -1,12 +1,13 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import type { AppTheme } from '../../constants/theme';
 import type { ObszarObmiaru, OdsadzkaObmiaru, TrybWyboruWezla } from '../../types';
 import {
   bazaKompletna, formatujKilometraz, kierunekKilometrazu,
-  odleglosciWezlowOdStartu, parsujKilometraz,
 } from '../../utils/obmiarFigura';
+import { dlugoscUkladaniaObszaru } from '../../utils/obmiarLive';
 import { formatLiczby } from '../../utils/calculations';
+import { PoleKilometraz, parsujPolaKilometraza, polaZKilometraza } from '../common/PoleKilometraz';
 
 interface Props {
   obszar: ObszarObmiaru;
@@ -16,6 +17,7 @@ interface Props {
   zablokowana: boolean;
   onBlokada: (v: boolean) => void;
   onBaza: (ktora: 'start' | 'koniec', dane: { kilometrazKm?: number; kilometrazM?: number }) => void;
+  onKierunek: (k: 'rosnacy' | 'malejacy') => void;
   onDodajOdsadzke: () => void;
   onZastosujOdsadzke: (odsadzkaId: string, dystansM: number) => void;
   pomiar: { p1?: number; p2?: number; wzdluzM?: number; prostoM?: number };
@@ -54,7 +56,7 @@ function Chip({
 }
 
 function SekcjaBazy({
-  tytul, ktora, obszar, theme, zablokowana, trybWyboru, onTryb, onBaza,
+  tytul, ktora, obszar, theme, zablokowana, trybWyboru, onTryb, onBaza, autoKoniec,
 }: {
   tytul: string;
   ktora: 'start' | 'koniec';
@@ -64,19 +66,24 @@ function SekcjaBazy({
   trybWyboru: TrybWyboruWezla | null;
   onTryb: (t: TrybWyboruWezla | null, odsadzkaId?: string) => void;
   onBaza: (ktora: 'start' | 'koniec', dane: { kilometrazKm?: number; kilometrazM?: number }) => void;
+  autoKoniec?: boolean;
 }) {
   const baza = ktora === 'start' ? obszar.bazaStart : obszar.bazaKoniec;
   const lTryb = ktora === 'start' ? 'startLewy' : 'koniecLewy';
   const pTryb = ktora === 'start' ? 'startPrawy' : 'koniecPrawy';
-  const [kmTekst, setKmTekst] = useState(formatujKilometraz(baza?.kilometrazKm, baza?.kilometrazM));
+  const pola0 = polaZKilometraza(baza?.kilometrazKm, baza?.kilometrazM);
+  const [km, setKm] = useState(pola0.km);
+  const [m, setM] = useState(pola0.m);
   const komplet = bazaKompletna(baza);
 
+  useEffect(() => {
+    const p = polaZKilometraza(baza?.kilometrazKm, baza?.kilometrazM);
+    setKm(p.km);
+    setM(p.m);
+  }, [baza?.kilometrazKm, baza?.kilometrazM]);
+
   const zapiszKm = () => {
-    const p = parsujKilometraz(kmTekst);
-    if (!p) {
-      Alert.alert('Kilometraż', 'Podaj np. 1+500');
-      return;
-    }
+    const p = parsujPolaKilometraza(km, m);
     onBaza(ktora, { kilometrazKm: p.km, kilometrazM: p.m });
   };
 
@@ -102,42 +109,30 @@ function SekcjaBazy({
           ustawiony={baza?.idxPrawy != null}
           onPress={() => onTryb(trybWyboru === pTryb ? null : pTryb)}
         />
-        {komplet && (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1, minWidth: 140 }}>
-            <TextInput
-              value={kmTekst}
-              onChangeText={setKmTekst}
-              editable={!zablokowana}
-              placeholder="1+500"
-              placeholderTextColor={theme.colors.textSecondary}
-              style={{
-                flex: 1,
-                borderWidth: 1,
-                borderRadius: 8,
-                paddingHorizontal: 10,
-                paddingVertical: 8,
-                borderColor: theme.colors.border,
-                color: theme.colors.text,
-                backgroundColor: theme.colors.inputBackground,
-                fontSize: 15,
-                fontWeight: '700',
-              }}
-            />
-            <TouchableOpacity
-              disabled={zablokowana}
-              onPress={zapiszKm}
-              style={{ paddingHorizontal: 10, paddingVertical: 8 }}
-            >
-              <Text style={{ color: theme.colors.primary, fontWeight: '800' }}>OK</Text>
-            </TouchableOpacity>
-          </View>
-        )}
       </View>
       {komplet && (
-        <Text style={{ color: theme.colors.textSecondary, fontSize: 11 }}>
-          Podstawa {ktora === 'start' ? 'pierwsza' : 'druga'}: linia L–P
-          {baza?.kilometrazKm != null ? ` · ${formatujKilometraz(baza.kilometrazKm, baza.kilometrazM)}` : ''}
-        </Text>
+        <View style={{ gap: 6 }}>
+          <Text style={{ color: theme.colors.textSecondary, fontSize: 11 }}>
+            {ktora === 'start' ? 'Kilometraż startu' : 'Kilometraż końca'}
+            {autoKoniec ? ' (z osi figury)' : ''}
+          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <PoleKilometraz
+              theme={theme}
+              km={km}
+              m={m}
+              onKm={setKm}
+              onM={setM}
+              editable={!zablokowana && !autoKoniec}
+              compact
+            />
+            {!autoKoniec && (
+              <TouchableOpacity disabled={zablokowana} onPress={zapiszKm}>
+                <Text style={{ color: theme.colors.primary, fontWeight: '800' }}>OK</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
       )}
     </View>
   );
@@ -156,6 +151,7 @@ function KartaOdsadzki({
   const [dyst, setDyst] = useState(o.dystansM != null ? String(Math.abs(o.dystansM)) : '0.10');
   const [zewn, setZewn] = useState(o.dystansM == null || o.dystansM >= 0);
   const gotowe = o.idxP != null && o.idxK != null;
+  const tenSam = gotowe && o.idxP === o.idxK;
 
   return (
     <View style={{ gap: 8, paddingTop: 6 }}>
@@ -178,6 +174,11 @@ function KartaOdsadzki({
           onPress={() => onTryb(trybWyboru === 'odsadzkaK' ? null : 'odsadzkaK', o.id)}
         />
       </View>
+      {tenSam && (
+        <Text style={{ color: theme.colors.textSecondary, fontSize: 11 }}>
+          Ten sam węzeł – odsunięcie krawędzi wychodzącej z początku odcinka.
+        </Text>
+      )}
       {gotowe && !o.zastosowana && (
         <View style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-end' }}>
           <View style={{ flex: 1 }}>
@@ -222,19 +223,14 @@ function KartaOdsadzki({
 
 export function ObmiarKonfiguracja({
   obszar, theme, trybWyboru, onTryb, zablokowana, onBlokada,
-  onBaza, onDodajOdsadzke, onZastosujOdsadzke, pomiar,
+  onBaza, onKierunek, onDodajOdsadzke, onZastosujOdsadzke, pomiar,
 }: Props) {
   const kierunek = kierunekKilometrazu(obszar);
-  const odl = useMemo(
-    () => (bazaKompletna(obszar.bazaStart) && bazaKompletna(obszar.bazaKoniec)
-      ? odleglosciWezlowOdStartu(obszar)
-      : []),
-    [obszar],
-  );
+  const dl = useMemo(() => dlugoscUkladaniaObszaru(obszar), [obszar]);
+  const startKoniecGotowe = bazaKompletna(obszar.bazaStart) && bazaKompletna(obszar.bazaKoniec);
   const [aktywnaOdsadzkaId, setAktywnaOdsadzkaId] = useState<string | null>(
     obszar.odsadzki?.[0]?.id ?? null,
   );
-
   const odsadzki = obszar.odsadzki?.length ? obszar.odsadzki : [];
 
   return (
@@ -255,7 +251,7 @@ export function ObmiarKonfiguracja({
         ktora="start"
         obszar={obszar}
         theme={theme}
-        zablokowana={zablokowana}
+        zablokowana={zablokowana || !!obszar.kontynuacjaPoprzedniego}
         trybWyboru={trybWyboru}
         onTryb={onTryb}
         onBaza={onBaza}
@@ -269,19 +265,42 @@ export function ObmiarKonfiguracja({
         trybWyboru={trybWyboru}
         onTryb={onTryb}
         onBaza={onBaza}
+        autoKoniec={startKoniecGotowe && kierunek !== 'nieznany'}
       />
 
-      {kierunek !== 'nieznany' && (
-        <Text style={{ color: theme.colors.success, fontWeight: '700', fontSize: 12 }}>
-          Układanie w kilometraż {kierunek === 'rosnacy' ? 'rosnący' : 'malejący'}
-        </Text>
-      )}
-
-      {odl.some((x) => x.odStartuM > 0) && (
-        <Text style={{ color: theme.colors.textSecondary, fontSize: 11 }}>
-          Odległości węzłów od startu:{' '}
-          {odl.filter((x) => x.odStartuM > 0).slice(0, 8).map((x) => `W${x.idx + 1}=${formatLiczby(x.odStartuM)} m`).join(' · ')}
-        </Text>
+      {startKoniecGotowe && (
+        <View style={{ gap: 8 }}>
+          <Text style={{ color: theme.colors.textSecondary, fontSize: 12, fontWeight: '700' }}>
+            Kierunek układania
+          </Text>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            {(['rosnacy', 'malejacy'] as const).map((k) => (
+              <TouchableOpacity
+                key={k}
+                disabled={zablokowana}
+                onPress={() => onKierunek(k)}
+                style={{
+                  flex: 1, borderWidth: 1, borderRadius: 10, paddingVertical: 10, alignItems: 'center',
+                  borderColor: kierunek === k ? theme.colors.primary : theme.colors.border,
+                  backgroundColor: kierunek === k ? `${theme.colors.primary}22` : theme.colors.inputBackground,
+                }}
+              >
+                <Text style={{ color: theme.colors.text, fontWeight: '700', fontSize: 13 }}>
+                  {k === 'rosnacy' ? '↑ Rosnący' : '↓ Malejący'}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>
+            Oś figury: {formatLiczby(dl)} m
+            {obszar.bazaStart?.kilometrazKm != null || obszar.bazaStart?.kilometrazM != null
+              ? ` · ${formatujKilometraz(obszar.bazaStart?.kilometrazKm, obszar.bazaStart?.kilometrazM)} → ${formatujKilometraz(obszar.bazaKoniec?.kilometrazKm, obszar.bazaKoniec?.kilometrazM)}`
+              : ''}
+          </Text>
+          <Text style={{ color: theme.colors.textSecondary, fontSize: 11 }}>
+            Niebieska linia = start, czerwona = koniec. Odległość od startu wzdłuż osi.
+          </Text>
+        </View>
       )}
 
       <View style={{ height: 1, backgroundColor: theme.colors.border }} />

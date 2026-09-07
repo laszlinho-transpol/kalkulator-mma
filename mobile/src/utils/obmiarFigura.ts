@@ -226,12 +226,85 @@ export function odleglosciWezlowOdStartu(obszar: ObszarObmiaru): OdlegloscWezla[
 }
 
 export function kierunekKilometrazu(obszar: ObszarObmiaru): 'rosnacy' | 'malejacy' | 'nieznany' {
+  if (obszar.kierunekUkladania === 'rosnacy' || obszar.kierunekUkladania === 'malejacy') {
+    return obszar.kierunekUkladania;
+  }
   const a = absKilometraz(obszar.bazaStart?.kilometrazKm, obszar.bazaStart?.kilometrazM);
   const b = absKilometraz(obszar.bazaKoniec?.kilometrazKm, obszar.bazaKoniec?.kilometrazM);
   if (a == null || b == null) return 'nieznany';
   if (b > a) return 'rosnacy';
   if (b < a) return 'malejacy';
   return 'nieznany';
+}
+
+export function zAbsKilometraza(abs: number): { km: number; m: number } {
+  const v = Math.max(0, Math.round(abs));
+  return { km: Math.floor(v / 1000), m: v % 1000 };
+}
+
+/** Koniec = start ± długość osi, wg kierunku. */
+export function kilometrazKoncaZOsi(
+  startKm: number,
+  startM: number,
+  dlugoscM: number,
+  kierunek: 'rosnacy' | 'malejacy',
+): { km: number; m: number } {
+  const start = Math.max(0, startKm) * 1000 + Math.max(0, startM);
+  const delta = Math.max(0, dlugoscM);
+  const koniec = kierunek === 'rosnacy' ? start + delta : start - delta;
+  return zAbsKilometraza(koniec);
+}
+
+export function zastosujKilometrazKonca(obszar: ObszarObmiaru, dlugoscM: number): ObszarObmiaru {
+  const kierunek = kierunekKilometrazu(obszar);
+  const startKm = obszar.bazaStart?.kilometrazKm ?? obszar.kilometrazStartKm;
+  const startM = obszar.bazaStart?.kilometrazM ?? obszar.kilometrazStartM;
+  if (kierunek === 'nieznany') return obszar;
+  if (startKm == null && startM == null) return obszar;
+  const k = kilometrazKoncaZOsi(startKm ?? 0, startM ?? 0, dlugoscM, kierunek);
+  return {
+    ...obszar,
+    bazaStart: { ...(obszar.bazaStart ?? {}), kilometrazKm: startKm ?? 0, kilometrazM: startM ?? 0 },
+    bazaKoniec: { ...(obszar.bazaKoniec ?? {}), kilometrazKm: k.km, kilometrazM: k.m },
+    kilometrazStartKm: startKm ?? 0,
+    kilometrazStartM: startM ?? 0,
+    kilometrazKoniecKm: k.km,
+    kilometrazKoniecM: k.m,
+  };
+}
+
+export interface PunktOsi {
+  t: number;
+  punkt: Punkt2D;
+  headingRad: number;
+  odStartuM: number;
+  etykietaKm: string;
+}
+
+export function osFigury(obszar: ObszarObmiaru, krokM = 25): PunktOsi[] {
+  const boki = bokiFigury(obszar);
+  if (!boki) return [];
+  const dl = Math.max(boki.dlugoscUkladania, 0.01);
+  const kierunek = kierunekKilometrazu(obszar);
+  const startAbs = absKilometraz(obszar.bazaStart?.kilometrazKm, obszar.bazaStart?.kilometrazM) ?? 0;
+  const out: PunktOsi[] = [];
+  const n = Math.max(2, Math.ceil(dl / krokM) + 1);
+  for (let i = 0; i < n; i++) {
+    const t = i / (n - 1);
+    const s = srodekNaPostepie(obszar, t);
+    if (!s.ok) continue;
+    const od = t * dl;
+    const abs = kierunek === 'malejacy' ? startAbs - od : startAbs + od;
+    const km = zAbsKilometraza(abs);
+    out.push({
+      t,
+      punkt: s.punkt,
+      headingRad: s.headingRad,
+      odStartuM: round2(od),
+      etykietaKm: formatujKilometraz(km.km, km.m),
+    });
+  }
+  return out;
 }
 
 export function wezlyZKonfiguracji(obszar: ObszarObmiaru): WezelObmiaru[] {

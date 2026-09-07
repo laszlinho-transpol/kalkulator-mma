@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.0';
+export const WERSJA_APLIKACJI = '1.8.1';
 
 export interface WpisChangelog {
   wersja: string;
@@ -12,6 +12,18 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.1',
+    data: '2026-09-07',
+    tytul: 'Obmiar – stabilny podgląd, kilometraż, WZ',
+    zmiany: [
+      'Bez bezwładności na podglądzie – obrys nie znika, scroll się nie blokuje; przycisk celownika przywraca widok',
+      'Kilometraż wszędzie jako dwa pola [km] + [m] (puste km = 0, np. 450 → 0+450)',
+      'Kierunek rosnący/malejący i automatyczny kilometraż końca z osi figury',
+      'WZ: z tonażu i grubości liczone metry; kontynuacja obszaru w kolejności dnia',
+      'Mniejsze węzły, bez etykiet SL/SP – kolor linii start/koniec',
+    ],
+  },
   {
     wersja: '1.8.0',
     data: '2026-09-06',

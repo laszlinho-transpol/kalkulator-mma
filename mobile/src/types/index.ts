@@ -340,6 +340,10 @@ export interface ObszarObmiaru {
   gruboscCm?: number;
   mieszankaId?: string;
   konfiguracjaZablokowana?: boolean;
+  /** Rosnący / malejący – do auto-kilometrażu końca */
+  kierunekUkladania?: 'rosnacy' | 'malejacy';
+  /** Start km = koniec poprzedniego obszaru w kolejności dnia */
+  kontynuacjaPoprzedniego?: boolean;
   createdAt: string;
 }
 

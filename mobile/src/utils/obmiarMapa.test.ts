@@ -2,10 +2,10 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { translacjaPrzyZoomie, translacjaPrzyObrocie } from './obmiarMapa';
 import {
-  bokiFigury, formatujKilometraz, kierunekKilometrazu, lancuchBoku,
+  bokiFigury, formatujKilometraz, kierunekKilometrazu, kilometrazKoncaZOsi, lancuchBoku,
   odlegloscMiedzyWezlami, odleglosciWezlowOdStartu, parsujKilometraz,
 } from './obmiarFigura';
-import { infoAutaWz } from './obmiarLive';
+import { infoAutaWz, metryZTonnObszaru } from './obmiarLive';
 import type { ObszarObmiaru } from '../types';
 
 describe('obmiarMapa', () => {
@@ -88,6 +88,15 @@ describe('obmiarFigura', () => {
     const l = lancuchBoku(4, 0, 3, 1);
     assert.deepEqual(l, [0, 1]);
   });
+
+  it('auto koniec 1+500 rosnaco na 100 m → 1+600', () => {
+    const k = kilometrazKoncaZOsi(1, 500, 100, 'rosnacy');
+    assert.equal(k.km, 1);
+    assert.equal(k.m, 600);
+    const m = kilometrazKoncaZOsi(1, 500, 100, 'malejacy');
+    assert.equal(m.km, 1);
+    assert.equal(m.m, 400);
+  });
 });
 
 describe('infoAutaWz', () => {
@@ -113,5 +122,29 @@ describe('infoAutaWz', () => {
     assert.equal(info.metryTegoAuta, 50);
     assert.ok(Math.abs(info.powierzchniaM2 - 250) < 0.2);
     assert.ok(info.gruboscCm != null && info.gruboscCm > 0);
+  });
+
+  it('metry z tonażu przy 4 cm i ρ 2.4', () => {
+    const obszar: ObszarObmiaru = {
+      id: 'o',
+      nazwa: 'T',
+      kolejnosc: 1,
+      wierzcholkiPdf: [],
+      wierzcholkiM: [
+        { x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 5 }, { x: 0, y: 5 },
+      ],
+      powierzchniaM2: 500,
+      obwodM: 210,
+      zrodloNazwa: 't',
+      bazaStart: { idxLewy: 0, idxPrawy: 3, kilometrazKm: 1, kilometrazM: 500 },
+      bazaKoniec: { idxLewy: 1, idxPrawy: 2, kilometrazKm: 1, kilometrazM: 600 },
+      gruboscCm: 4,
+      createdAt: '',
+    };
+    const s = metryZTonnObszaru(obszar, 4.8, 2.4);
+    assert.ok(s);
+    // masaNaM = 5 * 0.04 * 2.4 = 0.48 Mg/m → 4.8 Mg = 10 m
+    assert.ok(Math.abs(s!.metryAuta - 10) < 0.15);
+    assert.ok(Math.abs(s!.metryOdStartu - 10) < 0.15);
   });
 });

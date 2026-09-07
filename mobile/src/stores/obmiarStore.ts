@@ -9,10 +9,10 @@ import type {
   SesjaObmiaruDnia, SkalaPzt, WpisWzObmiaru,
 } from '../types';
 import { DOMYSLNA_SKALA_PZT } from '../types';
-import { zastosujRoleWezla } from '../utils/obmiarLive';
-import { nowaOdsadzka } from '../utils/obmiarFigura';
+import { nowaOdsadzka, zastosujKilometrazKonca } from '../utils/obmiarFigura';
 import { odsadzKrawedz, odsadzLancuch } from '../utils/obmiarOffset';
 import { metryNaPunktPdf } from '../utils/obmiarGeometry';
+import { dlugoscUkladaniaObszaru, zastosujRoleWezla } from '../utils/obmiarLive';
 import { nadajKolejnosc, obszaryZPolygony, przeliczObszarySkalą, type WynikParsowaniaXfdf } from '../utils/xfdfParser';
 
 const KLUCZ = '@mma:obmiar_sesje';
@@ -77,6 +77,12 @@ interface ObmiarStore {
     dane: { tony: number; przejechaneMetry: number },
   ) => Promise<WpisWzObmiaru | null>;
   usunWpisWz: (sesjaId: string, obszarId: string, wpisId: string) => Promise<void>;
+  ustawKierunekUkladania: (
+    sesjaId: string,
+    obszarId: string,
+    kierunek: 'rosnacy' | 'malejacy',
+  ) => Promise<void>;
+  ustawKontynuacje: (sesjaId: string, obszarId: string, kontynuacja: boolean) => Promise<void>;
   sesjaPoId: (id: string) => SesjaObmiaruDnia | undefined;
 }
 
@@ -85,6 +91,31 @@ const generujId = () => Date.now().toString(36) + Math.random().toString(36).sli
 const zapisz = async (sesje: SesjaObmiaruDnia[]) => {
   await AsyncStorage.setItem(KLUCZ, JSON.stringify(sesje));
 };
+
+function kaskadaKilometrazy(obszary: ObszarObmiaru[]): ObszarObmiaru[] {
+  const sorted = [...obszary].sort((a, b) => a.kolejnosc - b.kolejnosc);
+  const mapa = new Map<string, ObszarObmiaru>();
+  let prev: ObszarObmiaru | undefined;
+  for (const o of sorted) {
+    let n: ObszarObmiaru = { ...o };
+    if (n.kontynuacjaPoprzedniego && prev) {
+      const km = prev.bazaKoniec?.kilometrazKm ?? prev.kilometrazKoniecKm;
+      const m = prev.bazaKoniec?.kilometrazM ?? prev.kilometrazKoniecM;
+      if (km != null || m != null) {
+        n = {
+          ...n,
+          bazaStart: { ...(n.bazaStart ?? {}), kilometrazKm: km ?? 0, kilometrazM: m ?? 0 },
+          kilometrazStartKm: km ?? 0,
+          kilometrazStartM: m ?? 0,
+        };
+      }
+    }
+    n = zastosujKilometrazKonca(n, dlugoscUkladaniaObszaru(n));
+    mapa.set(n.id, n);
+    prev = n;
+  }
+  return obszary.map((o) => mapa.get(o.id) ?? o);
+}
 
 export const useObmiarStore = create<ObmiarStore>((set, get) => ({
   sesje: [],
@@ -168,7 +199,7 @@ export const useObmiarStore = create<ObmiarStore>((set, get) => ({
     const kopia = [...sesja.obszary];
     const [el] = kopia.splice(idx, 1);
     kopia.splice(nowyIdx, 0, el);
-    const obszary = nadajKolejnosc(kopia);
+    const obszary = kaskadaKilometrazy(nadajKolejnosc(kopia));
     const zaktualizowane = get().sesje.map((s) =>
       s.id === sesjaId ? { ...s, obszary, updatedAt: new Date().toISOString() } : s,
     );
@@ -313,22 +344,23 @@ export const useObmiarStore = create<ObmiarStore>((set, get) => ({
     const klucz = ktora === 'start' ? 'bazaStart' : 'bazaKoniec';
     const zaktualizowane = get().sesje.map((s) => {
       if (s.id !== sesjaId) return s;
+      const obszary = s.obszary.map((o) => {
+        if (o.id !== obszarId) return o;
+        const baza = { ...(o[klucz] ?? {}), ...dane };
+        const extra: Partial<ObszarObmiaru> = {};
+        if (ktora === 'start' && dane.kilometrazKm != null) {
+          extra.kilometrazStartKm = dane.kilometrazKm;
+          extra.kilometrazStartM = dane.kilometrazM ?? o.kilometrazStartM;
+        }
+        if (ktora === 'koniec' && dane.kilometrazKm != null) {
+          extra.kilometrazKoniecKm = dane.kilometrazKm;
+          extra.kilometrazKoniecM = dane.kilometrazM ?? o.kilometrazKoniecM;
+        }
+        return { ...o, [klucz]: baza, ...extra };
+      });
       return {
         ...s,
-        obszary: s.obszary.map((o) => {
-          if (o.id !== obszarId) return o;
-          const baza = { ...(o[klucz] ?? {}), ...dane };
-          const extra: Partial<ObszarObmiaru> = {};
-          if (ktora === 'start' && dane.kilometrazKm != null) {
-            extra.kilometrazStartKm = dane.kilometrazKm;
-            extra.kilometrazStartM = dane.kilometrazM ?? o.kilometrazStartM;
-          }
-          if (ktora === 'koniec' && dane.kilometrazKm != null) {
-            extra.kilometrazKoniecKm = dane.kilometrazKm;
-            extra.kilometrazKoniecM = dane.kilometrazM ?? o.kilometrazKoniecM;
-          }
-          return { ...o, [klucz]: baza, ...extra };
-        }),
+        obszary: kaskadaKilometrazy(obszary),
         updatedAt: new Date().toISOString(),
       };
     });
@@ -399,7 +431,7 @@ export const useObmiarStore = create<ObmiarStore>((set, get) => ({
       if (s.id !== sesjaId) return s;
       return {
         ...s,
-        obszary: s.obszary.map((o) =>
+        obszary: kaskadaKilometrazy(s.obszary.map((o) =>
           o.id !== obszarId
             ? o
             : {
@@ -415,7 +447,7 @@ export const useObmiarStore = create<ObmiarStore>((set, get) => ({
                     : x,
                 ),
               },
-        ),
+        )),
         updatedAt: new Date().toISOString(),
       };
     });
@@ -510,6 +542,30 @@ export const useObmiarStore = create<ObmiarStore>((set, get) => ({
         }),
         updatedAt: new Date().toISOString(),
       };
+    });
+    set({ sesje: zaktualizowane });
+    await zapisz(zaktualizowane);
+  },
+
+  ustawKierunekUkladania: async (sesjaId, obszarId, kierunek) => {
+    const zaktualizowane = get().sesje.map((s) => {
+      if (s.id !== sesjaId) return s;
+      const obszary = s.obszary.map((o) =>
+        o.id !== obszarId ? o : { ...o, kierunekUkladania: kierunek },
+      );
+      return { ...s, obszary: kaskadaKilometrazy(obszary), updatedAt: new Date().toISOString() };
+    });
+    set({ sesje: zaktualizowane });
+    await zapisz(zaktualizowane);
+  },
+
+  ustawKontynuacje: async (sesjaId, obszarId, kontynuacja) => {
+    const zaktualizowane = get().sesje.map((s) => {
+      if (s.id !== sesjaId) return s;
+      const obszary = s.obszary.map((o) =>
+        o.id !== obszarId ? o : { ...o, kontynuacjaPoprzedniego: kontynuacja },
+      );
+      return { ...s, obszary: kaskadaKilometrazy(obszary), updatedAt: new Date().toISOString() };
     });
     set({ sesje: zaktualizowane });
     await zapisz(zaktualizowane);

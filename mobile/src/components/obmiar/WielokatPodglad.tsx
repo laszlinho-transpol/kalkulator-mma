@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, LayoutChangeEvent, StyleSheet, Text, View } from 'react-native';
+import { Animated, LayoutChangeEvent, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import {
   GestureHandlerRootView,
   PanGestureHandler,
@@ -12,10 +12,10 @@ import Svg, {
 } from 'react-native-svg';
 import type { ObszarObmiaru, Punkt2D, TrybWyboruWezla, WezelObmiaru } from '../../types';
 import { bboxWielokata } from '../../utils/obmiarGeometry';
-import { lancuchKrotszy, wezlyZKonfiguracji } from '../../utils/obmiarFigura';
+import { lancuchKrotszy, osFigury, wezlyZKonfiguracji } from '../../utils/obmiarFigura';
 import { punktNaSciezceUkladania, znacznikiKilometrazuNaObszarze } from '../../utils/obmiarKilometraz';
 import {
-  ograniczenie, SKALA_MAX, SKALA_MIN, TARCIE_DECAY,
+  ograniczenie, SKALA_MAX, SKALA_MIN,
   translacjaPrzyObrocie, translacjaPrzyZoomie,
 } from '../../utils/obmiarMapa';
 
@@ -55,18 +55,6 @@ function hexDoRgba(hex: string | undefined, alpha: number, fallback: string): st
   if (h.length === 3) h = h.split('').map((c) => c + c).join('');
   const n = parseInt(h, 16);
   return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`;
-}
-
-function literaRoli(rola: WezelObmiaru['rola']): string {
-  if (rola === 'startLewy') return 'SL';
-  if (rola === 'startPrawy') return 'SP';
-  if (rola === 'koniecLewy') return 'KL';
-  if (rola === 'koniecPrawy') return 'KP';
-  if (rola === 'start') return 'S';
-  if (rola === 'koniec') return 'K';
-  if (rola === 'lewa') return 'L';
-  if (rola === 'prawa') return 'P';
-  return '';
 }
 
 function kolorRoli(rola: WezelObmiaru['rola']): string {
@@ -110,12 +98,17 @@ export function WielokatPodglad({
   const panRef = useRef(null);
   const rotRef = useRef(null);
 
-  const zatrzymajBezwladnosc = () => {
-    transX.stopAnimation((v) => { bazaX.current = typeof v === 'number' ? v : bazaX.current; });
-    transY.stopAnimation((v) => { bazaY.current = typeof v === 'number' ? v : bazaY.current; });
+  const PAN_CZYNNIK = 0.55;
+  const TAP_MAX = 10;
+
+  const clampTrans = (x: number, y: number) => {
+    const max = Math.max(rozmiar.w, rozmiar.h) * 0.75;
+    return { x: ograniczenie(x, -max, max), y: ograniczenie(y, -max, max) };
   };
 
-  useEffect(() => {
+  const zwolnijDotyk = () => onDotykZmiana?.(false);
+
+  const resetWidoku = () => {
     bazaSkali.current = 1;
     bazaX.current = 0;
     bazaY.current = 0;
@@ -124,6 +117,12 @@ export function WielokatPodglad({
     transX.setValue(0);
     transY.setValue(0);
     rotacja.setValue(0);
+    zwolnijDotyk();
+  };
+
+  useEffect(() => {
+    resetWidoku();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resetKlucz, skala, transX, transY, rotacja]);
 
   const onLayout = (e: LayoutChangeEvent) => {
@@ -212,6 +211,13 @@ export function WielokatPodglad({
       }
     }
 
+    const osSvg: { x: number; y: number }[] = [];
+    if (obszar) {
+      for (const p of osFigury(obszar, 20)) {
+        osSvg.push(toSvg(p.punkt));
+      }
+    }
+
     const kmSvg: { etykieta: string; x: number; y: number }[] = [];
     if (obszar) {
       for (const z of znacznikiKilometrazuNaObszarze(obszar)) {
@@ -282,6 +288,7 @@ export function WielokatPodglad({
       }),
       linieBazy,
       lancuchyOds,
+      osSvg,
       kmSvg,
       maszyny,
     };
@@ -296,7 +303,7 @@ export function WielokatPodglad({
     const ev = e.nativeEvent;
     const s1 = ograniczenie(pinchStart.current.s * ev.scale, SKALA_MIN, SKALA_MAX);
     const f1 = ognisko(ev);
-    const t = translacjaPrzyZoomie({
+    const t0 = translacjaPrzyZoomie({
       skala0: pinchStart.current.s,
       skala1: s1,
       tx0: pinchStart.current.tx,
@@ -306,15 +313,15 @@ export function WielokatPodglad({
       f1x: f1.x,
       f1y: f1.y,
     });
+    const t = clampTrans(t0.tx, t0.ty);
     skala.setValue(s1);
-    transX.setValue(t.tx);
-    transY.setValue(t.ty);
+    transX.setValue(t.x);
+    transY.setValue(t.y);
   };
   const onPinchState = (e: any) => {
     const st = e.nativeEvent.state;
+    if (st === State.ACTIVE) onDotykZmiana?.(true);
     if (st === State.BEGAN) {
-      zatrzymajBezwladnosc();
-      onDotykZmiana?.(true);
       const f = ognisko(e.nativeEvent);
       pinchStart.current = {
         s: bazaSkali.current,
@@ -331,7 +338,7 @@ export function WielokatPodglad({
         SKALA_MAX,
       );
       const f1 = ognisko(e.nativeEvent);
-      const t = translacjaPrzyZoomie({
+      const t0 = translacjaPrzyZoomie({
         skala0: pinchStart.current.s,
         skala1: bazaSkali.current,
         tx0: pinchStart.current.tx,
@@ -341,32 +348,36 @@ export function WielokatPodglad({
         f1x: f1.x,
         f1y: f1.y,
       });
-      bazaX.current = t.tx;
-      bazaY.current = t.ty;
+      const t = clampTrans(t0.tx, t0.ty);
+      bazaX.current = t.x;
+      bazaY.current = t.y;
       skala.setValue(bazaSkali.current);
-      transX.setValue(t.tx);
-      transY.setValue(t.ty);
+      transX.setValue(t.x);
+      transY.setValue(t.y);
+      zwolnijDotyk();
     }
+    if (st === State.FAILED || st === State.CANCELLED || st === State.END) zwolnijDotyk();
   };
 
   const onRot = (e: any) => {
     const d = e.nativeEvent.rotation;
     const f = ognisko(e.nativeEvent);
-    const t = translacjaPrzyObrocie({
+    const t0 = translacjaPrzyObrocie({
       tx0: rotStart.current.tx,
       ty0: rotStart.current.ty,
       dRot: d,
       fx: f.x,
       fy: f.y,
     });
+    const t = clampTrans(t0.tx, t0.ty);
     rotacja.setValue(rotStart.current.r + d);
-    transX.setValue(t.tx);
-    transY.setValue(t.ty);
+    transX.setValue(t.x);
+    transY.setValue(t.y);
   };
   const onRotState = (e: any) => {
-    if (e.nativeEvent.state === State.BEGAN) {
-      zatrzymajBezwladnosc();
-      onDotykZmiana?.(true);
+    const st = e.nativeEvent.state;
+    if (st === State.ACTIVE) onDotykZmiana?.(true);
+    if (st === State.BEGAN) {
       const f = ognisko(e.nativeEvent);
       rotStart.current = {
         r: bazaRot.current,
@@ -381,43 +392,57 @@ export function WielokatPodglad({
       transX.stopAnimation((v) => { bazaX.current = typeof v === 'number' ? v : bazaX.current; });
       transY.stopAnimation((v) => { bazaY.current = typeof v === 'number' ? v : bazaY.current; });
       rotacja.setValue(bazaRot.current);
+      zwolnijDotyk();
     }
+    if (st === State.FAILED || st === State.CANCELLED || st === State.END) zwolnijDotyk();
   };
 
   const onPan = (e: any) => {
     if (e.nativeEvent.numberOfPointers > 1) return;
-    transX.setValue(bazaX.current + e.nativeEvent.translationX);
-    transY.setValue(bazaY.current + e.nativeEvent.translationY);
+    const t = clampTrans(
+      bazaX.current + e.nativeEvent.translationX * PAN_CZYNNIK,
+      bazaY.current + e.nativeEvent.translationY * PAN_CZYNNIK,
+    );
+    transX.setValue(t.x);
+    transY.setValue(t.y);
   };
   const onPanState = (e: any) => {
     const st = e.nativeEvent.state;
-    if (st === State.BEGAN) {
-      zatrzymajBezwladnosc();
-      onDotykZmiana?.(true);
-    }
-    if (e.nativeEvent.oldState !== State.ACTIVE) return;
-    if (e.nativeEvent.numberOfPointers > 1) {
-      onDotykZmiana?.(false);
+    if (st === State.ACTIVE) onDotykZmiana?.(true);
+    if (e.nativeEvent.oldState !== State.ACTIVE) {
+      if (st === State.FAILED || st === State.CANCELLED || st === State.END) {
+        const dx = e.nativeEvent.translationX ?? 0;
+        const dy = e.nativeEvent.translationY ?? 0;
+        if (onPressWezel && Math.hypot(dx, dy) < TAP_MAX && mapa) {
+          const x = e.nativeEvent.x as number | undefined;
+          const y = e.nativeEvent.y as number | undefined;
+          if (x != null && y != null) {
+            let best = -1;
+            let bestD = 22;
+            mapa.punkty.forEach((p, i) => {
+              const d = Math.hypot(p.x - x, p.y - y);
+              if (d < bestD) { bestD = d; best = i; }
+            });
+            if (best >= 0) onPressWezel(best);
+          }
+        }
+        zwolnijDotyk();
+      }
       return;
     }
-    bazaX.current += e.nativeEvent.translationX;
-    bazaY.current += e.nativeEvent.translationY;
-    transX.setValue(bazaX.current);
-    transY.setValue(bazaY.current);
-    const vx = e.nativeEvent.velocityX ?? 0;
-    const vy = e.nativeEvent.velocityY ?? 0;
-    if (Math.hypot(vx, vy) > 90) {
-      Animated.parallel([
-        Animated.decay(transX, { velocity: vx, deceleration: TARCIE_DECAY, useNativeDriver: true }),
-        Animated.decay(transY, { velocity: vy, deceleration: TARCIE_DECAY, useNativeDriver: true }),
-      ]).start(() => {
-        transX.stopAnimation((v) => { bazaX.current = typeof v === 'number' ? v : bazaX.current; });
-        transY.stopAnimation((v) => { bazaY.current = typeof v === 'number' ? v : bazaY.current; });
-        onDotykZmiana?.(false);
-      });
-    } else {
-      onDotykZmiana?.(false);
+    if (e.nativeEvent.numberOfPointers > 1) {
+      zwolnijDotyk();
+      return;
     }
+    const t = clampTrans(
+      bazaX.current + e.nativeEvent.translationX * PAN_CZYNNIK,
+      bazaY.current + e.nativeEvent.translationY * PAN_CZYNNIK,
+    );
+    bazaX.current = t.x;
+    bazaY.current = t.y;
+    transX.setValue(t.x);
+    transY.setValue(t.y);
+    zwolnijDotyk();
   };
 
   if (!mapa) {
@@ -451,12 +476,16 @@ export function WielokatPodglad({
       ) : (
         <Text style={styl.hint} pointerEvents="none">1 palec: przesuń · 2 palce: zoom i obrót</Text>
       )}
+      <TouchableOpacity style={styl.celownik} onPress={resetWidoku} accessibilityLabel="Przywróć obszar">
+        <Text style={styl.celownikTekst}>⌖</Text>
+      </TouchableOpacity>
 
       <View style={styl.klip} collapsable={false} onLayout={onLayout}>
         <GestureHandlerRootView style={StyleSheet.absoluteFill}>
           <PinchGestureHandler
             ref={pinchRef}
             simultaneousHandlers={[panRef, rotRef]}
+            enabled={!trybWyboru}
             onGestureEvent={onPinch}
             onHandlerStateChange={onPinchState}
           >
@@ -464,6 +493,7 @@ export function WielokatPodglad({
               <RotationGestureHandler
                 ref={rotRef}
                 simultaneousHandlers={[pinchRef, panRef]}
+                enabled={!trybWyboru}
                 onGestureEvent={onRot}
                 onHandlerStateChange={onRotState}
               >
@@ -474,6 +504,9 @@ export function WielokatPodglad({
                     minPointers={1}
                     maxPointers={2}
                     avgTouches
+                    enabled={!trybWyboru}
+                    activeOffsetX={[-14, 14]}
+                    activeOffsetY={[-14, 14]}
                     onGestureEvent={onPan}
                     onHandlerStateChange={onPanState}
                   >
@@ -516,6 +549,15 @@ export function WielokatPodglad({
                               strokeWidth={3}
                             />
                           ))}
+                          {mapa.osSvg.length > 1 && (
+                            <Polyline
+                              points={mapa.osSvg.map((p) => `${p.x},${p.y}`).join(' ')}
+                              fill="none"
+                              stroke="#64748B"
+                              strokeWidth={1.4}
+                              strokeDasharray="4 3"
+                            />
+                          )}
                           {mapa.linieBazy.map((l, i) => (
                             <Line
                               key={`baza-${i}`}
@@ -529,42 +571,25 @@ export function WielokatPodglad({
                           ))}
                           {mapa.punkty.map((p, i) => {
                             const hit = idxPodswietlone.includes(i);
+                            const rola = mapa.wezlySvg.find((w) => w.idx === i);
+                            const fill = hit
+                              ? PRIMARY
+                              : rola
+                                ? kolorRoli(rola.rola)
+                                : '#fff';
                             return (
                               <Circle
                                 key={`v-${i}`}
                                 cx={p.x}
                                 cy={p.y}
-                                r={onPressWezel || trybWyboru ? 11 : 4.5}
-                                fill={hit ? PRIMARY : '#fff'}
-                                stroke={hit ? '#fff' : PRIMARY}
-                                strokeWidth={2}
+                                r={hit || trybWyboru ? 6.5 : 4.5}
+                                fill={fill}
+                                stroke={rola ? '#fff' : PRIMARY}
+                                strokeWidth={1.5}
                                 onPress={onPressWezel ? () => onPressWezel(i) : undefined}
                               />
                             );
                           })}
-                          {mapa.wezlySvg.map((w) => (
-                            <G key={`rola-${w.idx}-${w.rola}`}>
-                              <Circle
-                                cx={w.x}
-                                cy={w.y}
-                                r={12}
-                                fill={kolorRoli(w.rola)}
-                                stroke="#fff"
-                                strokeWidth={2}
-                                onPress={onPressWezel ? () => onPressWezel(w.idx) : undefined}
-                              />
-                              <SvgText
-                                x={w.x}
-                                y={w.y + 3.5}
-                                fill="#fff"
-                                fontSize={8}
-                                fontWeight="700"
-                                textAnchor="middle"
-                              >
-                                {literaRoli(w.rola)}
-                              </SvgText>
-                            </G>
-                          ))}
                           {mapa.kmSvg.map((z) => (
                             <G key={`km-${z.etykieta}`}>
                               <Line x1={z.x} y1={z.y - 9} x2={z.x} y2={z.y + 9} stroke="#0F766E" strokeWidth={1.5} />
@@ -659,7 +684,7 @@ const styl = StyleSheet.create({
   tryb: {
     position: 'absolute',
     top: 8,
-    right: 10,
+    right: 48,
     zIndex: 4,
     fontSize: 11,
     fontWeight: '700',
@@ -669,6 +694,21 @@ const styl = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: 6,
   },
+  celownik: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    zIndex: 6,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  celownikTekst: { fontSize: 18, color: '#374151', fontWeight: '700' },
   hint: {
     position: 'absolute',
     bottom: 8,
