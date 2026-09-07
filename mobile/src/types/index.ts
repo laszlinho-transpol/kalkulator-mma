@@ -362,6 +362,8 @@ export interface SesjaObmiaruDnia {
   budowaId?: string;
   skala: SkalaPzt;
   obszary: ObszarObmiaru[];
+  status?: 'aktywna' | 'archiwalna';
+  zakonczonoAt?: string;
   createdAt: string;
   updatedAt: string;
 }

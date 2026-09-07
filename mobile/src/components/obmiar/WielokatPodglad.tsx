@@ -10,12 +10,13 @@ import {
   State,
 } from 'react-native-gesture-handler';
 import Svg, {
-  Circle, ClipPath, Defs, G, Image as SvgImage, Line, Polygon, Polyline, Rect, Text as SvgText,
+  Circle, G, Line, Polygon, Polyline, Rect, Text as SvgText,
 } from 'react-native-svg';
 import type { ObszarObmiaru, Punkt2D, TrybWyboruWezla, WezelObmiaru } from '../../types';
 import { bboxWielokata } from '../../utils/obmiarGeometry';
-import { lancuchKrotszy, osFigury, wezlyZKonfiguracji } from '../../utils/obmiarFigura';
+import { lancuchKrotszy, osFigury, przekrojPoprzeczny, wezlyZKonfiguracji, wielokatUlozony } from '../../utils/obmiarFigura';
 import { punktNaSciezceUkladania, znacznikiKilometrazuNaObszarze } from '../../utils/obmiarKilometraz';
+import { dlugoscUkladaniaObszaru } from '../../utils/obmiarLive';
 import {
   nastepnyPresetZoom,
   ograniczenie,
@@ -30,26 +31,18 @@ import {
 
 const PRIMARY = '#E8A020';
 const FILL_PLAN = 'rgba(232, 160, 32, 0.28)';
-const FILL_LIVE = 'rgba(34, 197, 94, 0.55)';
+/** Ułożony odcinek – ciemny szary (nie zielony) */
+const FILL_ULOZONE = 'rgba(55, 65, 81, 0.72)';
 const KOLOR_START = '#2563EB';
 const KOLOR_KONIEC = '#DC2626';
 const KOLOR_ODS = '#0F766E';
 const KOLOR_SZARY = '#9CA3AF';
-
-/** Widok z góry: przód = LEWA strona PNG → +180° względem heading (0 = +X) */
-const MASZYNA_OFFSET_DEG = 180;
-const IMG_ROZKLADARKA = require('../../../assets/maszyny/rozkladarka.png');
-const IMG_SAMOCHOD = require('../../../assets/maszyny/samochod.png');
 
 /** Rozmiary w metrach terenu – skalują się razem z drogą (jak w PDF). */
 const WEZEL_R_M = 0.32;
 const OBRYS_M = 0.16;
 const BAZA_M = 0.22;
 const KM_KRESKA_M = 0.9;
-const AUTO_W_M = 2.7;
-const AUTO_H_M = 1.5;
-const ROZ_W_M = 4.6;
-const ROZ_H_M = 2.5;
 
 interface Props {
   wierzcholki: Punkt2D[];
@@ -78,11 +71,58 @@ function hexDoRgba(hex: string | undefined, alpha: number, fallback: string): st
   return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`;
 }
 
+function headingDoSvgDeg(headingRad: number): number {
+  const headingSvg = Math.atan2(-Math.sin(headingRad), Math.cos(headingRad));
+  return (headingSvg * 180) / Math.PI;
+}
+
 function kolorRoli(rola: WezelObmiaru['rola']): string {
   if (rola === 'startLewy' || rola === 'startPrawy' || rola === 'start') return KOLOR_START;
   if (rola === 'koniecLewy' || rola === 'koniecPrawy' || rola === 'koniec') return KOLOR_KONIEC;
   if (rola === 'lewa' || rola === 'prawa') return KOLOR_ODS;
   return PRIMARY;
+}
+
+/** Widok z góry – +X = przód (kierunek układania). Szerokość = odległość L–P. */
+function SvgRozkladarka({ szer, dl }: { szer: number; dl: number }) {
+  const sx = Math.max(szer, 2);
+  const dx = Math.max(dl, 2);
+  const sw = Math.max(sx * 0.035, 0.4);
+  return (
+    <G pointerEvents="none">
+      <Rect x={-dx / 2} y={-sx / 2} width={dx} height={sx} rx={sx * 0.08} fill="#D4A017" stroke="#5C4A0A" strokeWidth={sw} />
+      <Rect x={-dx * 0.38} y={-sx * 0.32} width={dx * 0.55} height={sx * 0.64} rx={sx * 0.06} fill="#B8860B" />
+      <Rect x={-dx / 2 - dx * 0.05} y={-sx * 0.52} width={dx * 0.16} height={sx * 1.04} rx={sx * 0.04} fill="#6B5420" stroke="#3F3110" strokeWidth={sw} />
+      <Rect x={-dx * 0.32} y={-sx / 2} width={dx * 0.68} height={sx * 0.12} fill="#374151" />
+      <Rect x={-dx * 0.32} y={sx / 2 - sx * 0.12} width={dx * 0.68} height={sx * 0.12} fill="#374151" />
+    </G>
+  );
+}
+
+function SvgSamochod({ szer, dl, numer }: { szer: number; dl: number; numer?: number }) {
+  const sx = Math.max(szer, 2);
+  const dx = Math.max(dl, 2);
+  const sw = Math.max(sx * 0.035, 0.4);
+  return (
+    <G pointerEvents="none">
+      <Rect x={-dx / 2} y={-sx / 2} width={dx} height={sx} rx={sx * 0.1} fill="#E8B923" stroke="#5C4A0A" strokeWidth={sw} />
+      <Rect x={-dx / 2 + dx * 0.06} y={-sx * 0.36} width={dx * 0.55} height={sx * 0.72} fill="#C9A227" />
+      <Rect x={dx / 2 - dx * 0.32} y={-sx * 0.42} width={dx * 0.28} height={sx * 0.84} rx={sx * 0.08} fill="#8B6914" />
+      <Rect x={dx / 2 - dx * 0.22} y={-sx * 0.2} width={dx * 0.12} height={sx * 0.26} fill="#93C5FD" />
+      {numer != null ? (
+        <SvgText
+          x={-dx * 0.06}
+          y={sx * 0.14}
+          fill="#111827"
+          fontSize={sx * 0.42}
+          fontWeight="800"
+          textAnchor="middle"
+        >
+          {numer}
+        </SvgText>
+      ) : null}
+    </G>
+  );
 }
 
 export function WielokatPodglad({
@@ -105,6 +145,7 @@ export function WielokatPodglad({
 }: Props) {
   const [rozmiar, setRozmiar] = useState({ w: 320, h: wysokosc });
   const [skalaPct, setSkalaPct] = useState(100);
+  const [xform, setXform] = useState({ s: 1, tx: 0, ty: 0, rot: 0 });
 
   const bazaSkali = useRef(1);
   const bazaX = useRef(0);
@@ -112,11 +153,6 @@ export function WielokatPodglad({
   const bazaRot = useRef(0);
   const pinchStart = useRef({ s: 1, tx: 0, ty: 0, f0x: 0, f0y: 0 });
   const rotStart = useRef({ r: 0, tx: 0, ty: 0, fx: 0, fy: 0 });
-
-  const skala = useRef(new Animated.Value(1)).current;
-  const transX = useRef(new Animated.Value(0)).current;
-  const transY = useRef(new Animated.Value(0)).current;
-  const rotacja = useRef(new Animated.Value(0)).current;
 
   const pinchRef = useRef(null);
   const panRef = useRef(null);
@@ -131,6 +167,11 @@ export function WielokatPodglad({
   };
 
   const zwolnijDotyk = () => onDotykZmiana?.(false);
+
+  const ustawWidok = (s: number, tx: number, ty: number, rot: number) => {
+    setXform({ s, tx, ty, rot });
+    setSkalaPct(Math.round(s * 100));
+  };
 
   const ustawSkaleWokolSrodka = (s1raw: number) => {
     const s0 = bazaSkali.current;
@@ -149,10 +190,7 @@ export function WielokatPodglad({
     bazaSkali.current = s1;
     bazaX.current = t.x;
     bazaY.current = t.y;
-    skala.setValue(s1);
-    transX.setValue(t.x);
-    transY.setValue(t.y);
-    setSkalaPct(Math.round(s1 * 100));
+    ustawWidok(s1, t.x, t.y, bazaRot.current);
   };
 
   const resetWidoku = () => {
@@ -160,18 +198,14 @@ export function WielokatPodglad({
     bazaX.current = 0;
     bazaY.current = 0;
     bazaRot.current = 0;
-    skala.setValue(1);
-    transX.setValue(0);
-    transY.setValue(0);
-    rotacja.setValue(0);
-    setSkalaPct(100);
+    ustawWidok(1, 0, 0, 0);
     zwolnijDotyk();
   };
 
   useEffect(() => {
     resetWidoku();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resetKlucz, skala, transX, transY, rotacja]);
+  }, [resetKlucz]);
 
   const onLayout = (e: LayoutChangeEvent) => {
     const { width, height } = e.nativeEvent.layout;
@@ -198,30 +232,13 @@ export function WielokatPodglad({
       y: rozmiar.h / 2 - (p.y - cy) * skalaFit,
     });
     const punkty = wierzcholki.map(toSvg);
-    const start = wezlyWidok.find((w) => w.rola === 'start' || w.rola === 'startLewy');
-    const koniec = wezlyWidok.find((w) => w.rola === 'koniec' || w.rola === 'koniecLewy');
-    const sIdx = start ? Math.max(0, Math.min(wierzcholki.length - 1, start.idx)) : 0;
-    const kIdx = koniec
-      ? Math.max(0, Math.min(wierzcholki.length - 1, koniec.idx))
-      : Math.min(1, wierzcholki.length - 1);
-    const sSvg = toSvg(wierzcholki[sIdx]);
-    const kSvg = toSvg(wierzcholki[kIdx]);
-    const dx = kSvg.x - sSvg.x;
-    const dy = kSvg.y - sSvg.y;
-    const len = Math.hypot(dx, dy) || 1;
-    const ux = dx / len;
-    const uy = dy / len;
-    const px = -uy;
-    const py = ux;
     const prog = Math.max(0, Math.min(1, postepLive));
-    const reach = len * prog + 40;
-    const halfW = Math.max(rozmiar.w, rozmiar.h);
-    const clipPts = [
-      { x: sSvg.x - ux * 40 + px * halfW, y: sSvg.y - uy * 40 + py * halfW },
-      { x: sSvg.x - ux * 40 - px * halfW, y: sSvg.y - uy * 40 - py * halfW },
-      { x: sSvg.x + ux * reach - px * halfW, y: sSvg.y + uy * reach - py * halfW },
-      { x: sSvg.x + ux * reach + px * halfW, y: sSvg.y + uy * reach + py * halfW },
-    ];
+    const ulozonyStr = obszar
+      ? wielokatUlozony(obszar, prog).map((p) => {
+        const s = toSvg(p);
+        return `${s.x},${s.y}`;
+      }).join(' ')
+      : '';
 
     const linieBazy: { x1: number; y1: number; x2: number; y2: number; kolor: string }[] = [];
     if (obszar?.bazaStart?.idxLewy != null && obszar.bazaStart.idxPrawy != null) {
@@ -280,57 +297,46 @@ export function WielokatPodglad({
       x: number;
       y: number;
       rotDeg: number;
+      szerPx: number;
+      dlPx: number;
       numer?: number;
       wpisId?: string;
     };
     const maszyny: Maszyna[] = [];
-    const moznaMaszyny = !!(pokazMaszyny && obszar && (obszar.wpisyWz?.length ?? 0) > 0 && !trybWyboru);
+    const moznaMaszyny = !!(pokazMaszyny && obszar && (obszar.wpisyWz?.length ?? 0) > 0);
     if (moznaMaszyny && obszar) {
-      const headingDoSvg = (headingRad: number) => {
-        const headingSvg = Math.atan2(-Math.sin(headingRad), Math.cos(headingRad));
-        return (headingSvg * 180) / Math.PI + MASZYNA_OFFSET_DEG;
-      };
-      for (const wpis of obszar.wpisyWz ?? []) {
-        const pos = punktNaSciezceUkladania(obszar, wpis.przejechaneMetry);
-        if (!pos.ok) continue;
+      const dlOs = Math.max(dlugoscUkladaniaObszaru(obszar), 0.01);
+      const poloz = (metry: number, rodzaj: Maszyna['rodzaj'], extra?: Partial<Maszyna>) => {
+        const t = Math.max(0, Math.min(0.999, metry / dlOs));
+        const pr = przekrojPoprzeczny(obszar, t);
+        const pos = pr.ok
+          ? { punkt: pr.srodek, headingRad: pr.headingRad, ok: true as const }
+          : punktNaSciezceUkladania(obszar, metry);
+        if (!pos.ok) return;
         const s = toSvg(pos.punkt);
+        const szerM = pr.ok ? Math.max(pr.szerokoscM, 2.2) : 4;
+        const szerPx = szerM * skalaFit * 0.88;
+        const dlPx = szerPx * (rodzaj === 'rozkladarka' ? 1.25 : 1.7);
         maszyny.push({
-          rodzaj: 'auto',
-          x: s.x,
-          y: s.y,
-          rotDeg: headingDoSvg(pos.headingRad),
-          numer: wpis.numer,
-          wpisId: wpis.id,
+          rodzaj, x: s.x, y: s.y,
+          rotDeg: headingDoSvgDeg(pos.headingRad),
+          szerPx, dlPx, ...extra,
         });
-      }
-      const ost = obszar.wpisyWz![obszar.wpisyWz!.length - 1];
-      const posRoz = punktNaSciezceUkladania(obszar, ost.przejechaneMetry);
-      if (posRoz.ok) {
-        const s = toSvg(posRoz.punkt);
-        maszyny.push({
-          rodzaj: 'rozkladarka',
-          x: s.x,
-          y: s.y,
-          rotDeg: headingDoSvg(posRoz.headingRad),
-        });
-        const posPrzod = punktNaSciezceUkladania(obszar, ost.przejechaneMetry + 6);
-        if (posPrzod.ok) {
-          const p = toSvg(posPrzod.punkt);
-          const lastAuto = maszyny.filter((m) => m.rodzaj === 'auto').pop();
-          if (lastAuto) {
-            lastAuto.x = p.x;
-            lastAuto.y = p.y;
-            lastAuto.rotDeg = headingDoSvg(posPrzod.headingRad);
-          }
-        }
-      }
+      };
+      const lista = obszar.wpisyWz ?? [];
+      lista.forEach((wpis, i) => {
+        const ost = i === lista.length - 1;
+        const metry = ost ? wpis.przejechaneMetry + Math.min(8, dlOs * 0.02) : wpis.przejechaneMetry;
+        poloz(Math.min(metry, dlOs * 0.995), 'auto', { numer: wpis.numer, wpisId: wpis.id });
+      });
+      poloz(lista[lista.length - 1].przejechaneMetry, 'rozkladarka');
     }
 
     return {
       skalaFit,
       punkty,
       punktyStr: punkty.map((p) => `${p.x},${p.y}`).join(' '),
-      clipStr: clipPts.map((p) => `${p.x},${p.y}`).join(' '),
+      ulozonyStr,
       wezlySvg: wezlyWidok.map((w) => {
         const i = Math.max(0, Math.min(wierzcholki.length - 1, w.idx));
         return { ...w, ...toSvg(wierzcholki[i]) };
@@ -341,7 +347,7 @@ export function WielokatPodglad({
       kmSvg,
       maszyny,
     };
-  }, [wierzcholki, wezlyWidok, rozmiar.w, rozmiar.h, postepLive, obszar, pokazMaszyny, trybWyboru]);
+  }, [wierzcholki, wezlyWidok, rozmiar.w, rozmiar.h, postepLive, obszar, pokazMaszyny]);
 
   const ognisko = (e: { focalX?: number; focalY?: number; x?: number; y?: number }) => ({
     x: (e.focalX ?? e.x ?? rozmiar.w / 2) - rozmiar.w / 2,
@@ -363,11 +369,7 @@ export function WielokatPodglad({
       f1y: f1.y,
     });
     const t = clampTrans(t0.tx, t0.ty, s1);
-    skala.setValue(s1);
-    transX.setValue(t.x);
-    transY.setValue(t.y);
-    const pct = Math.round(s1 * 100);
-    if (pct !== skalaPct) setSkalaPct(pct);
+    ustawWidok(s1, t.x, t.y, bazaRot.current);
   };
   const onPinchState = (e: any) => {
     const st = e.nativeEvent.state;
@@ -402,10 +404,7 @@ export function WielokatPodglad({
       const t = clampTrans(t0.tx, t0.ty, bazaSkali.current);
       bazaX.current = t.x;
       bazaY.current = t.y;
-      skala.setValue(bazaSkali.current);
-      transX.setValue(t.x);
-      transY.setValue(t.y);
-      setSkalaPct(Math.round(bazaSkali.current * 100));
+      ustawWidok(bazaSkali.current, t.x, t.y, bazaRot.current);
       zwolnijDotyk();
     }
     if (st === State.FAILED || st === State.CANCELLED || st === State.END) zwolnijDotyk();
@@ -422,9 +421,7 @@ export function WielokatPodglad({
       fy: f.y,
     });
     const t = clampTrans(t0.tx, t0.ty);
-    rotacja.setValue(rotStart.current.r + d);
-    transX.setValue(t.x);
-    transY.setValue(t.y);
+    ustawWidok(bazaSkali.current, t.x, t.y, rotStart.current.r + d);
   };
   const onRotState = (e: any) => {
     const st = e.nativeEvent.state;
@@ -440,10 +437,20 @@ export function WielokatPodglad({
       };
     }
     if (e.nativeEvent.oldState === State.ACTIVE) {
-      bazaRot.current += e.nativeEvent.rotation;
-      transX.stopAnimation((v) => { bazaX.current = typeof v === 'number' ? v : bazaX.current; });
-      transY.stopAnimation((v) => { bazaY.current = typeof v === 'number' ? v : bazaY.current; });
-      rotacja.setValue(bazaRot.current);
+      const d = e.nativeEvent.rotation ?? 0;
+      bazaRot.current = rotStart.current.r + d;
+      const f = ognisko(e.nativeEvent);
+      const t0 = translacjaPrzyObrocie({
+        tx0: rotStart.current.tx,
+        ty0: rotStart.current.ty,
+        dRot: d,
+        fx: f.x,
+        fy: f.y,
+      });
+      const t = clampTrans(t0.tx, t0.ty);
+      bazaX.current = t.x;
+      bazaY.current = t.y;
+      ustawWidok(bazaSkali.current, t.x, t.y, bazaRot.current);
       zwolnijDotyk();
     }
     if (st === State.FAILED || st === State.CANCELLED || st === State.END) zwolnijDotyk();
@@ -477,8 +484,7 @@ export function WielokatPodglad({
       bazaX.current + e.nativeEvent.translationX * PAN_CZYNNIK,
       bazaY.current + e.nativeEvent.translationY * PAN_CZYNNIK,
     );
-    transX.setValue(t.x);
-    transY.setValue(t.y);
+    ustawWidok(bazaSkali.current, t.x, t.y, bazaRot.current);
   };
   const onPanState = (e: any) => {
     const st = e.nativeEvent.state;
@@ -506,8 +512,7 @@ export function WielokatPodglad({
     );
     bazaX.current = t.x;
     bazaY.current = t.y;
-    transX.setValue(t.x);
-    transY.setValue(t.y);
+    ustawWidok(bazaSkali.current, t.x, t.y, bazaRot.current);
     zwolnijDotyk();
   };
 
@@ -520,26 +525,11 @@ export function WielokatPodglad({
   }
 
   const fillPlan = hexDoRgba(kolorWypelnienia, 0.38, FILL_PLAN);
-  const animStyle = {
-    transform: [
-      { translateX: transX },
-      { translateY: transY },
-      {
-        rotate: rotacja.interpolate({
-          inputRange: [-Math.PI * 4, Math.PI * 4],
-          outputRange: ['-720deg', '720deg'],
-        }),
-      },
-      { scale: skala },
-    ],
-  };
-
   const m = (metry: number) => metry * mapa.skalaFit;
-  const inv = 1 / Math.max(skalaPct / 100, 0.08);
   const wezelR = m(WEZEL_R_M);
-  const wezelHit = Math.max(wezelR * 2.2, 16 * inv);
+  const wezelHit = Math.max(wezelR * 2.2, 14 / Math.max(xform.s, 0.15));
   const panOffset = blokadaPodgladu ? 2 : 14;
-  const gestyWlaczane = !trybWyboru;
+  const gXform = `translate(${rozmiar.w / 2 + xform.tx},${rozmiar.h / 2 + xform.ty}) rotate(${(xform.rot * 180) / Math.PI}) scale(${xform.s}) translate(${-rozmiar.w / 2},${-rozmiar.h / 2})`;
 
   return (
     <View>
@@ -578,7 +568,6 @@ export function WielokatPodglad({
             <PinchGestureHandler
               ref={pinchRef}
               simultaneousHandlers={[panRef, rotRef]}
-              enabled={gestyWlaczane}
               onGestureEvent={onPinch}
               onHandlerStateChange={onPinchState}
             >
@@ -586,7 +575,6 @@ export function WielokatPodglad({
                 <RotationGestureHandler
                   ref={rotRef}
                   simultaneousHandlers={[pinchRef, panRef]}
-                  enabled={gestyWlaczane}
                   onGestureEvent={onRot}
                   onHandlerStateChange={onRotState}
                 >
@@ -597,19 +585,13 @@ export function WielokatPodglad({
                       minPointers={1}
                       maxPointers={2}
                       avgTouches
-                      enabled={gestyWlaczane}
                       activeOffsetX={[-panOffset, panOffset]}
                       activeOffsetY={[-panOffset, panOffset]}
                       onGestureEvent={onPan}
                       onHandlerStateChange={onPanState}
                     >
-                      <Animated.View style={[StyleSheet.absoluteFill, animStyle]} collapsable={false}>
+                      <Animated.View style={StyleSheet.absoluteFill} collapsable={false}>
                         <Svg width={rozmiar.w} height={rozmiar.h}>
-                          <Defs>
-                            <ClipPath id="clipObszar">
-                              <Polygon points={mapa.punktyStr} />
-                            </ClipPath>
-                          </Defs>
                           <Rect
                             x={0}
                             y={0}
@@ -617,7 +599,7 @@ export function WielokatPodglad({
                             height={rozmiar.h}
                             fill="#F8FAFC"
                           />
-                          <G>
+                          <G transform={gXform}>
                             {mapa.lancuchyOds.filter((l) => l.przerywana).map((l, i) => (
                               <Polyline
                                 key={`old-${i}`}
@@ -635,11 +617,9 @@ export function WielokatPodglad({
                               stroke={PRIMARY}
                               strokeWidth={m(OBRYS_M)}
                             />
-                            {postepLive > 0.001 && (
-                              <G clipPath="url(#clipObszar)">
-                                <Polygon points={mapa.clipStr} fill={FILL_LIVE} />
-                              </G>
-                            )}
+                            {mapa.ulozonyStr ? (
+                              <Polygon points={mapa.ulozonyStr} fill={FILL_ULOZONE} />
+                            ) : null}
                             {mapa.lancuchyOds.filter((l) => !l.przerywana).map((l, i) => (
                               <Polyline
                                 key={`ods-${i}`}
@@ -709,57 +689,35 @@ export function WielokatPodglad({
                                   strokeWidth={m(0.12)}
                                 />
                                 <SvgText
-                                  x={z.x + 6 * inv}
-                                  y={z.y - 8 * inv}
+                                  x={z.x + 6 / xform.s}
+                                  y={z.y - 8 / xform.s}
                                   fill="#0F766E"
-                                  fontSize={11 * inv}
+                                  fontSize={11 / xform.s}
                                   fontWeight="700"
                                 >
                                   {z.etykieta}
                                 </SvgText>
                               </G>
                             ))}
-                            {mapa.maszyny.map((masz, i) => {
-                              const isRoz = masz.rodzaj === 'rozkladarka';
-                              const w = m(isRoz ? ROZ_W_M : AUTO_W_M);
-                              const h = m(isRoz ? ROZ_H_M : AUTO_H_M);
-                              return (
-                                <G key={`m-${masz.rodzaj}-${i}-${masz.numer ?? 0}`}>
-                                  <SvgImage
-                                    href={isRoz ? IMG_ROZKLADARKA : IMG_SAMOCHOD}
-                                    x={masz.x - w / 2}
-                                    y={masz.y - h / 2}
-                                    width={w}
-                                    height={h}
-                                    opacity={0.96}
-                                    transform={`rotate(${masz.rotDeg}, ${masz.x}, ${masz.y})`}
-                                    pointerEvents="none"
+                            {mapa.maszyny.map((masz, i) => (
+                              <G
+                                key={`m-${masz.rodzaj}-${i}-${masz.numer ?? 0}`}
+                                transform={`translate(${masz.x},${masz.y}) rotate(${masz.rotDeg})`}
+                              >
+                                {masz.rodzaj === 'rozkladarka'
+                                  ? <SvgRozkladarka szer={masz.szerPx} dl={masz.dlPx} />
+                                  : <SvgSamochod szer={masz.szerPx} dl={masz.dlPx} numer={masz.numer} />}
+                                {masz.wpisId && onPressAuto ? (
+                                  <Circle
+                                    cx={0}
+                                    cy={0}
+                                    r={Math.max(masz.szerPx, masz.dlPx) * 0.55}
+                                    fill="transparent"
+                                    onPress={() => onPressAuto(masz.wpisId!)}
                                   />
-                                  {!isRoz && masz.numer != null && (
-                                    <SvgText
-                                      x={masz.x}
-                                      y={masz.y + 4 * inv}
-                                      fill="#111827"
-                                      fontSize={11 * inv}
-                                      fontWeight="800"
-                                      textAnchor="middle"
-                                      pointerEvents="none"
-                                    >
-                                      {masz.numer}
-                                    </SvgText>
-                                  )}
-                                  {!isRoz && masz.wpisId && onPressAuto && (
-                                    <Circle
-                                      cx={masz.x}
-                                      cy={masz.y}
-                                      r={Math.max(w, h) * 0.55}
-                                      fill="transparent"
-                                      onPress={() => onPressAuto(masz.wpisId!)}
-                                    />
-                                  )}
-                                </G>
-                              );
-                            })}
+                                ) : null}
+                              </G>
+                            ))}
                           </G>
                         </Svg>
                       </Animated.View>

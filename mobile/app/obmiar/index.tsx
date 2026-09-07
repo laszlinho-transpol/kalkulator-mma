@@ -42,14 +42,14 @@ export default function ObmiarIndexScreen() {
         prawy={{ tekst: 'Nowy', onPress: () => setModalNowa(true), kolor: theme.colors.primary }}
       />
       <ScrollView contentContainerStyle={[styles.zawartosc, { paddingBottom: insets.bottom + 20 }]}>
-        {sesje.length === 0 ? (
+        {sesje.filter((s) => s.status !== 'archiwalna').length === 0 ? (
           <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
             <Text style={{ color: theme.colors.textSecondary, textAlign: 'center' }}>
               Brak sesji obmiaru. Naciśnij „Nowy” i zaimportuj XFDF.
             </Text>
           </View>
         ) : (
-          sesje.map((s) => {
+          sesje.filter((s) => s.status !== 'archiwalna').map((s) => {
             const sumaPow = s.obszary.reduce((a, o) => a + o.powierzchniaM2, 0);
             const zrodla = [...new Set(s.obszary.map((o) => o.zrodloNazwa))];
             return (

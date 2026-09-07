@@ -7,8 +7,9 @@ import {
 import {
   bokiFigury, formatujKilometraz, idxWezlowOdcinkaKm, kierunekKilometrazu, kilometrazKoncaZOsi, lancuchBoku,
   odlegloscMiedzyWezlami, odleglosciWezlowOdStartu, parsujKilometraz, podlancuch,
+  przekrojPoprzeczny, wielokatUlozony,
 } from './obmiarFigura';
-import { infoAutaWz, metryZTonnObszaru } from './obmiarLive';
+import { infoAutaWz, metryZTonnObszaru, obliczKontroleObszaru, przeliczMetryWz } from './obmiarLive';
 import type { ObszarObmiaru } from '../types';
 
 describe('obmiarMapa', () => {
@@ -183,5 +184,78 @@ describe('infoAutaWz', () => {
     // masaNaM = 5 * 0.04 * 2.4 = 0.48 Mg/m → 4.8 Mg = 10 m
     assert.ok(Math.abs(s!.metryAuta - 10) < 0.15);
     assert.ok(Math.abs(s!.metryOdStartu - 10) < 0.15);
+  });
+});
+
+describe('przekroj i ulozony odcinek', () => {
+  const prostokat: ObszarObmiaru = {
+    id: 'o',
+    nazwa: 'T',
+    kolejnosc: 1,
+    wierzcholkiPdf: [],
+    wierzcholkiM: [
+      { x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 5 }, { x: 0, y: 5 },
+    ],
+    powierzchniaM2: 500,
+    obwodM: 210,
+    zrodloNazwa: 't',
+    bazaStart: { idxLewy: 0, idxPrawy: 3, kilometrazKm: 1, kilometrazM: 500 },
+    bazaKoniec: { idxLewy: 1, idxPrawy: 2, kilometrazKm: 1, kilometrazM: 600 },
+    createdAt: '',
+  };
+
+  it('przekroj w połowie – środek na osi, szerokość = bok L–P', () => {
+    const p = przekrojPoprzeczny(prostokat, 0.5);
+    assert.equal(p.ok, true);
+    assert.ok(Math.abs(p.srodek.x - 50) < 0.2);
+    assert.ok(Math.abs(p.srodek.y - 2.5) < 0.2);
+    assert.ok(Math.abs(p.szerokoscM - 5) < 0.2);
+  });
+
+  it('wielokat ulozony ma punkty L i P od startu', () => {
+    const w = wielokatUlozony(prostokat, 0.4);
+    assert.ok(w.length >= 4);
+    assert.ok(w.some((pt) => Math.abs(pt.x) < 0.2));
+    assert.ok(w.some((pt) => Math.abs(pt.x - 40) < 1));
+  });
+});
+
+describe('przeliczMetryWz i kontrola obszaru', () => {
+  it('z auta 12 m przy ost 50 → od startu 62', () => {
+    const p = przeliczMetryWz(50, 'zAuta', 12);
+    assert.equal(p.zAuta, 12);
+    assert.equal(p.odStartu, 62);
+  });
+
+  it('od startu 80 przy ost 50 → z auta 30', () => {
+    const p = przeliczMetryWz(50, 'odStartu', 80);
+    assert.equal(p.zAuta, 30);
+    assert.equal(p.odStartu, 80);
+  });
+
+  it('kontrola: tony i metry dają bilans i lokalizację', () => {
+    const obszar: ObszarObmiaru = {
+      id: 'o',
+      nazwa: 'Pas',
+      kolejnosc: 1,
+      wierzcholkiPdf: [],
+      wierzcholkiM: [
+        { x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 5 }, { x: 0, y: 5 },
+      ],
+      powierzchniaM2: 500,
+      obwodM: 210,
+      zrodloNazwa: 't',
+      bazaStart: { idxLewy: 0, idxPrawy: 3, kilometrazKm: 1, kilometrazM: 500 },
+      bazaKoniec: { idxLewy: 1, idxPrawy: 2, kilometrazKm: 1, kilometrazM: 600 },
+      gruboscCm: 4,
+      createdAt: '',
+    };
+    const k = obliczKontroleObszaru(obszar, 24, 50, 2.4);
+    assert.ok(k);
+    assert.ok(Math.abs(k!.zakrytaPowierzchnia - 250) < 0.3);
+    assert.ok(k!.lokalizacjaEtykieta.includes('Pas'));
+    assert.ok(k!.pozostaloMetrow > 0);
+    // masa planu na 250 m² × 0.04 × 2.4 = 24 Mg → bilans ~0
+    assert.ok(Math.abs(k!.bilansMasy) < 0.2);
   });
 });

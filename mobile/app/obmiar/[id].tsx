@@ -5,23 +5,29 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  useColorScheme, Alert, TextInput,
+  useColorScheme, Alert, TextInput, ActivityIndicator,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppHeader } from '../../src/components/common/AppHeader';
 import { SafeModal } from '../../src/components/common/SafeModal';
 import { MieszankaPicker } from '../../src/components/common/MieszankaPicker';
+import { BudowaPicker } from '../../src/components/common/BudowaPicker';
+import { AnimatedTabBar } from '../../src/components/common/AnimatedTabBar';
 import { WielokatPodglad } from '../../src/components/obmiar/WielokatPodglad';
 import { ObmiarKonfiguracja } from '../../src/components/obmiar/ObmiarKonfiguracja';
 import { lightTheme, darkTheme, type AppTheme } from '../../src/constants/theme';
 import { useObmiarStore } from '../../src/stores/obmiarStore';
 import { useMieszankiStore } from '../../src/stores/mieszankiStore';
+import { useBudowyStore } from '../../src/stores/budowyStore';
 import { useRouteId } from '../../src/hooks/useRouteId';
 import { wybierzIParsujXfdf } from '../../src/utils/xfdfImport';
 import { formatLiczby } from '../../src/utils/calculations';
-import { bilansLiveObszaru, infoAutaWz, metryZTonnObszaru } from '../../src/utils/obmiarLive';
+import {
+  bilansLiveObszaru, infoAutaWz, metryZTonnObszaru, obliczKontroleObszaru, przeliczMetryWz,
+} from '../../src/utils/obmiarLive';
 import { formatujKilometraz, odlegloscMiedzyWezlami, zAbsKilometraza } from '../../src/utils/obmiarFigura';
+import { generujRaportObmiaruPDF } from '../../src/utils/pdfGenerator';
 import {
   PRESETY_SKALI_PZT,
   skalaZMianownika,
@@ -38,10 +44,11 @@ export default function ObmiarDetailScreen() {
     ustawBazeObszaru, ustawOdsadzke, dodajOdsadzke, zastosujOdsadzkeLancucha,
     ustawKonfiguracjeZablokowana, ustawParametryUkladania, dodajWpisWz,
     usunWpisWz, edytujWpisWz, ustawKierunekUkladania, ustawKontynuacje,
-    usunOdsadzke,
+    usunOdsadzke, ustawBudoweSesji, archiwizujSesje,
   } = useObmiarStore();
   const mieszanki = useMieszankiStore((s) => s.mieszanki);
   const pobierzMieszanke = useMieszankiStore((s) => s.pobierzMieszanke);
+  const { budowy } = useBudowyStore();
   const sesja = id ? sesjaPoId(id) : undefined;
 
   const [podgladId, setPodgladId] = useState<string | null>(null);
@@ -51,14 +58,21 @@ export default function ObmiarDetailScreen() {
   const [aktywnaOdsadzkaId, setAktywnaOdsadzkaId] = useState<string | null>(null);
   const [mapaAktywna, setMapaAktywna] = useState(false);
   const [blokadaPodgladu, setBlokadaPodgladu] = useState(true);
-  const [metryTekst, setMetryTekst] = useState('');
+  const [metryZAutaTekst, setMetryZAutaTekst] = useState('');
+  const [metryOdStartuTekst, setMetryOdStartuTekst] = useState('');
   const [tonyTekst, setTonyTekst] = useState('');
   const [gruboscTekst, setGruboscTekst] = useState('');
   const [pickerMieszanka, setPickerMieszanka] = useState(false);
+  const [pickerBudowa, setPickerBudowa] = useState(false);
+  const [zakladkaUkladania, setZakladkaUkladania] = useState<'wz' | 'kontrola'>('wz');
+  const [wbudowaneTonyStr, setWbudowaneTony] = useState('');
+  const [przejechaneMetryStr, setPrzejechaneMetry] = useState('');
+  const [generujeRaport, setGenerujeRaport] = useState(false);
   const [autoInfoId, setAutoInfoId] = useState<string | null>(null);
   const [edycjaWzId, setEdycjaWzId] = useState<string | null>(null);
   const [edycjaTony, setEdycjaTony] = useState('');
-  const [edycjaMetry, setEdycjaMetry] = useState('');
+  const [edycjaMetryOdStartu, setEdycjaMetryOdStartu] = useState('');
+  const [edycjaMetryZAuta, setEdycjaMetryZAuta] = useState('');
   const [pomiarP1, setPomiarP1] = useState<number | undefined>();
   const [pomiarP2, setPomiarP2] = useState<number | undefined>();
 
@@ -125,6 +139,11 @@ export default function ObmiarDetailScreen() {
     return infoAutaWz(obszarPodgladu, wpis, rho);
   }, [obszarPodgladu, autoInfoId, rho]);
 
+  const ostMetry = useMemo(() => {
+    const lista = obszarPodgladu?.wpisyWz ?? [];
+    return lista[lista.length - 1]?.przejechaneMetry ?? 0;
+  }, [obszarPodgladu?.wpisyWz]);
+
   const sugestiaWz = useMemo(() => {
     if (!obszarPodgladu) return null;
     const tony = parseFloat(tonyTekst.replace(',', '.'));
@@ -134,8 +153,39 @@ export default function ObmiarDetailScreen() {
   }, [obszarPodgladu, tonyTekst, gruboscTekst, rho]);
 
   useEffect(() => {
-    if (sugestiaWz) setMetryTekst(String(sugestiaWz.metryOdStartu));
-  }, [sugestiaWz?.metryOdStartu]);
+    if (!sugestiaWz) return;
+    setMetryZAutaTekst(String(sugestiaWz.metryAuta));
+    setMetryOdStartuTekst(String(sugestiaWz.metryOdStartu));
+  }, [sugestiaWz?.metryAuta, sugestiaWz?.metryOdStartu]);
+
+  const tonyK = parseFloat(wbudowaneTonyStr.replace(',', '.'));
+  const metryK = parseFloat(przejechaneMetryStr.replace(',', '.'));
+  const wynikiKontroli = useMemo(
+    () => (obszarPodgladu && Number.isFinite(tonyK) && Number.isFinite(metryK)
+      ? obliczKontroleObszaru(obszarPodgladu, tonyK, metryK, rho)
+      : null),
+    [obszarPodgladu, tonyK, metryK, rho],
+  );
+  const metryPlanowane = useMemo(() => {
+    if (!obszarPodgladu || !Number.isFinite(tonyK) || tonyK <= 0) return null;
+    const r = obliczKontroleObszaru(obszarPodgladu, tonyK, 0.01, rho);
+    return r?.metryPlanowaneOdTonow ?? null;
+  }, [obszarPodgladu, tonyK, rho]);
+
+  const budowa = sesja?.budowaId ? budowy.find((b) => b.id === sesja.budowaId) : undefined;
+
+  const onZmianaZAuta = (t: string) => {
+    setMetryZAutaTekst(t);
+    const n = parseFloat(t.replace(',', '.'));
+    if (!Number.isFinite(n)) return;
+    setMetryOdStartuTekst(String(przeliczMetryWz(ostMetry, 'zAuta', n).odStartu));
+  };
+  const onZmianaOdStartu = (t: string) => {
+    setMetryOdStartuTekst(t);
+    const n = parseFloat(t.replace(',', '.'));
+    if (!Number.isFinite(n)) return;
+    setMetryZAutaTekst(String(przeliczMetryWz(ostMetry, 'odStartu', n).zAuta));
+  };
 
   if (!sesja) {
     return (
@@ -191,20 +241,58 @@ export default function ObmiarDetailScreen() {
   const zapiszWz = async () => {
     if (!obszarPodgladu) return;
     const tony = parseFloat(tonyTekst.replace(',', '.'));
-    let metry = parseFloat(metryTekst.replace(',', '.'));
+    let metry = parseFloat(metryOdStartuTekst.replace(',', '.'));
     if (!Number.isFinite(tony)) {
       Alert.alert('WZ', 'Podaj tonaż z WZ.');
       return;
     }
     if (!Number.isFinite(metry) && sugestiaWz) metry = sugestiaWz.metryOdStartu;
     if (!Number.isFinite(metry)) {
-      Alert.alert('WZ', 'Podaj tony i przejechane metry (lub grubość, żeby wyliczyć metry).');
+      Alert.alert('WZ', 'Podaj tony i metry (z auta albo od startu).');
       return;
     }
     await dodajWpisWz(sesja.id, obszarPodgladu.id, { tony, przejechaneMetry: metry });
-    setMetryTekst('');
+    setMetryZAutaTekst('');
+    setMetryOdStartuTekst('');
     setTonyTekst('');
   };
+
+  const zakonczIArchiwizuj = () => Alert.alert(
+    'Zakończ i archiwizuj',
+    'Raport WZ trafi do archiwum. Możesz wygenerować PDF do wysłania mailem.',
+    [
+      { text: 'Anuluj', style: 'cancel' },
+      {
+        text: 'Zakończ i wyślij raport',
+        style: 'destructive',
+        onPress: async () => {
+          setGenerujeRaport(true);
+          try {
+            await generujRaportObmiaruPDF({
+              sesja,
+              mieszanki,
+              budowa: budowa ? { kodBudowy: budowa.kodBudowy, nazwaInwestycji: budowa.nazwaInwestycji } : undefined,
+            });
+            await archiwizujSesje(sesja.id);
+            router.replace(`/archiwum/obmiar/${sesja.id}` as any);
+          } catch {
+            Alert.alert('Uwaga', 'Sesja zarchiwizowana, ale nie udało się wygenerować PDF.');
+            await archiwizujSesje(sesja.id);
+            router.replace(`/archiwum/obmiar/${sesja.id}` as any);
+          } finally {
+            setGenerujeRaport(false);
+          }
+        },
+      },
+      {
+        text: 'Tylko archiwizuj',
+        onPress: async () => {
+          await archiwizujSesje(sesja.id);
+          router.replace(`/archiwum/obmiar/${sesja.id}` as any);
+        },
+      },
+    ],
+  );
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -229,6 +317,14 @@ export default function ObmiarDetailScreen() {
           {zrodla.length > 0 && (
             <Row label="Źródła XFDF" v={zrodla.join(' · ')} theme={theme} />
           )}
+          <TouchableOpacity
+            style={[styles.btnSek, { borderColor: theme.colors.border, marginTop: 8 }]}
+            onPress={() => setPickerBudowa(true)}
+          >
+            <Text style={{ color: theme.colors.text, fontWeight: '700' }}>
+              {budowa ? `${budowa.kodBudowy} – ${budowa.nazwaInwestycji}` : 'Przypisz budowę'}
+            </Text>
+          </TouchableOpacity>
           <TouchableOpacity
             style={[styles.btnSek, { borderColor: theme.colors.primary }]}
             onPress={() => {
@@ -306,10 +402,10 @@ export default function ObmiarDetailScreen() {
         )}
 
         {obszarPodgladu && (
-          <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-            <Text style={[styles.kartaTytul, { color: theme.colors.text }]}>Układanie / WZ</Text>
+          <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border, paddingBottom: 8 }]}>
+            <Text style={[styles.kartaTytul, { color: theme.colors.text }]}>Układanie</Text>
             <Text style={{ color: theme.colors.textSecondary, fontSize: 12, marginBottom: 8 }}>
-              Jak w Zaplanuj masę: recepta (ρ) i grubość. Auta z WZ pojawiają się na rysunku.
+              Recepta (ρ) i grubość jak w Zaplanuj masę. WZ zapiszesz jako raport w archiwum.
             </Text>
             <TouchableOpacity
               style={[styles.btnSek, { borderColor: theme.colors.border, marginTop: 0 }]}
@@ -335,92 +431,158 @@ export default function ObmiarDetailScreen() {
                 }}
               />
             </View>
-            <View style={[styles.polaRzad, { marginTop: 8 }]}>
-              <Pole label="Tony z WZ [Mg]" value={tonyTekst} onChange={setTonyTekst} theme={theme} />
-              <Pole label="Metry z WZ [m]" value={metryTekst} onChange={setMetryTekst} theme={theme} />
-            </View>
-            {sugestiaWz && (
-              <Text style={{ color: theme.colors.textSecondary, fontSize: 12, marginTop: 8 }}>
-                Sugerowane: {formatLiczby(sugestiaWz.metryAuta)} m z tego auta · {formatLiczby(sugestiaWz.metryOdStartu)} m od startu obszaru
-                {(() => {
-                  const startAbs = (obszarPodgladu.bazaStart?.kilometrazKm ?? 0) * 1000
-                    + (obszarPodgladu.bazaStart?.kilometrazM ?? 0);
-                  const abs = obszarPodgladu.kierunekUkladania === 'malejacy'
-                    ? startAbs - sugestiaWz.metryOdStartu
-                    : startAbs + sugestiaWz.metryOdStartu;
-                  const k = zAbsKilometraza(abs);
-                  return ` · ${formatujKilometraz(k.km, k.m)}`;
-                })()}
-              </Text>
-            )}
-            <TouchableOpacity
-              style={[styles.btnSek, { borderColor: theme.colors.success, marginTop: 8 }]}
-              onPress={zapiszWz}
-            >
-              <Text style={{ color: theme.colors.success, fontWeight: '700' }}>Dodaj auto z WZ</Text>
-            </TouchableOpacity>
-            {bilans && (
-              <View style={{ marginTop: 10, gap: 2 }}>
-                <Row label="Długość układania" v={`${formatLiczby(bilans.dlugoscM)} m`} theme={theme} />
-                <Row label="Postęp" v={`${formatLiczby(bilans.postep * 100)} %`} theme={theme} bold />
-                <Row label="Zakryte" v={`${formatLiczby(bilans.zakrytaPowierzchniaM2)} m²`} theme={theme} />
-                <Row label="Pozostało" v={`${formatLiczby(bilans.pozostaloMetrow)} m · ${formatLiczby(bilans.pozostaloM2)} m²`} theme={theme} />
-                {bilans.sredniaGruboscCm != null && (
-                  <Row label="Śr. grubość" v={`${formatLiczby(bilans.sredniaGruboscCm)} cm`} theme={theme} />
+
+            <AnimatedTabBar
+              tabs={[{ id: 'wz', etykieta: 'WZ' }, { id: 'kontrola', etykieta: 'Kontrola' }]}
+              aktywnaId={zakladkaUkladania}
+              onChange={(id) => setZakladkaUkladania(id as 'wz' | 'kontrola')}
+              style={{ marginHorizontal: -14, marginTop: 12 }}
+            />
+
+            {zakladkaUkladania === 'wz' && (
+              <View style={{ paddingTop: 12 }}>
+                <Pole label="Tony z WZ [Mg]" value={tonyTekst} onChange={setTonyTekst} theme={theme} />
+                <View style={{ height: 8 }} />
+                <Pole label="Metry z danego auta [m]" value={metryZAutaTekst} onChange={onZmianaZAuta} theme={theme} />
+                <View style={{ height: 8 }} />
+                <Pole label="Odległość od startu [m]" value={metryOdStartuTekst} onChange={onZmianaOdStartu} theme={theme} />
+                {sugestiaWz && (
+                  <Text style={{ color: theme.colors.textSecondary, fontSize: 12, marginTop: 8 }}>
+                    Sugerowane: {formatLiczby(sugestiaWz.metryAuta)} m z tego auta · {formatLiczby(sugestiaWz.metryOdStartu)} m od startu
+                    {(() => {
+                      const startAbs = (obszarPodgladu.bazaStart?.kilometrazKm ?? 0) * 1000
+                        + (obszarPodgladu.bazaStart?.kilometrazM ?? 0);
+                      const abs = obszarPodgladu.kierunekUkladania === 'malejacy'
+                        ? startAbs - sugestiaWz.metryOdStartu
+                        : startAbs + sugestiaWz.metryOdStartu;
+                      const k = zAbsKilometraza(abs);
+                      return ` · ${formatujKilometraz(k.km, k.m)}`;
+                    })()}
+                  </Text>
                 )}
-                {bilans.pozostaloMgPrzyGrubosci != null && (
-                  <Row label="Pozostało Mg" v={`${formatLiczby(bilans.pozostaloMgPrzyGrubosci)} Mg`} theme={theme} />
+                <TouchableOpacity
+                  style={[styles.btnSek, { borderColor: theme.colors.success, marginTop: 8 }]}
+                  onPress={zapiszWz}
+                >
+                  <Text style={{ color: theme.colors.success, fontWeight: '700' }}>Dodaj auto z WZ</Text>
+                </TouchableOpacity>
+                {bilans && (
+                  <View style={{ marginTop: 10, gap: 2 }}>
+                    <Row label="Długość układania" v={`${formatLiczby(bilans.dlugoscM)} m`} theme={theme} />
+                    <Row label="Postęp" v={`${formatLiczby(bilans.postep * 100)} %`} theme={theme} bold />
+                    <Row label="Zakryte" v={`${formatLiczby(bilans.zakrytaPowierzchniaM2)} m²`} theme={theme} />
+                    <Row label="Pozostało" v={`${formatLiczby(bilans.pozostaloMetrow)} m · ${formatLiczby(bilans.pozostaloM2)} m²`} theme={theme} />
+                    {bilans.sredniaGruboscCm != null && (
+                      <Row label="Śr. grubość" v={`${formatLiczby(bilans.sredniaGruboscCm)} cm`} theme={theme} />
+                    )}
+                    {bilans.pozostaloMgPrzyGrubosci != null && (
+                      <Row label="Pozostało Mg" v={`${formatLiczby(bilans.pozostaloMgPrzyGrubosci)} Mg`} theme={theme} />
+                    )}
+                  </View>
+                )}
+                {(obszarPodgladu.wpisyWz ?? []).map((w) => {
+                  const info = infoAutaWz(obszarPodgladu, w, rho);
+                  return (
+                    <View
+                      key={w.id}
+                      style={{
+                        marginTop: 8,
+                        paddingVertical: 8,
+                        paddingHorizontal: 4,
+                        borderTopWidth: 1,
+                        borderColor: theme.colors.border,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 8,
+                      }}
+                    >
+                      <TouchableOpacity style={{ flex: 1 }} onPress={() => setAutoInfoId(w.id)}>
+                        <Text style={{ color: theme.colors.primary, fontWeight: '700' }}>
+                          Auto #{w.numer} · {formatLiczby(w.tony)} Mg · {formatLiczby(w.przejechaneMetry)} m
+                        </Text>
+                        <Text style={{ color: theme.colors.textSecondary, fontSize: 12, marginTop: 2 }}>
+                          Z tego auta {formatLiczby(info.metryTegoAuta)} m
+                          {info.gruboscCm != null ? ` · Gr. ${formatLiczby(info.gruboscCm)} cm` : ''}
+                          {' · '}{formatLiczby(info.powierzchniaM2)} m²
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => {
+                          const lista = obszarPodgladu.wpisyWz ?? [];
+                          const idx = lista.findIndex((x) => x.id === w.id);
+                          const ostPrev = idx > 0 ? lista[idx - 1].przejechaneMetry : 0;
+                          setEdycjaWzId(w.id);
+                          setEdycjaTony(String(w.tony));
+                          setEdycjaMetryOdStartu(String(w.przejechaneMetry));
+                          setEdycjaMetryZAuta(String(przeliczMetryWz(ostPrev, 'odStartu', w.przejechaneMetry).zAuta));
+                        }}
+                        style={[styles.btnMini, { backgroundColor: `${theme.colors.info}22` }]}
+                      >
+                        <Text style={{ color: theme.colors.info, fontWeight: '700' }}>✎</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => Alert.alert('Usuń auto', `Usunąć auto #${w.numer}? Postęp i grubość liczone od ostatniego pozostałego WZ.`, [
+                          { text: 'Anuluj', style: 'cancel' },
+                          { text: 'Usuń', style: 'destructive', onPress: () => usunWpisWz(sesja.id, obszarPodgladu.id, w.id) },
+                        ])}
+                        style={[styles.btnMini, { backgroundColor: `${theme.colors.danger}20` }]}
+                      >
+                        <Text style={{ color: theme.colors.danger, fontWeight: '700' }}>✕</Text>
+                      </TouchableOpacity>
+                    </View>
+                  );
+                })}
+                <TouchableOpacity
+                  style={[styles.btnArchiwum, { backgroundColor: theme.colors.danger }]}
+                  onPress={zakonczIArchiwizuj}
+                  disabled={generujeRaport}
+                >
+                  {generujeRaport
+                    ? <ActivityIndicator color="#fff" />
+                    : <Text style={styles.btnArchiwumTekst}>Zakończ i archiwizuj</Text>}
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {zakladkaUkladania === 'kontrola' && (
+              <View style={{ paddingTop: 12 }}>
+                <Text style={{ color: theme.colors.textSecondary, fontSize: 13, lineHeight: 18, marginBottom: 10 }}>
+                  Wpisz łączne tony i metry od startu obszaru – program pokaże pozycję i bilans.
+                </Text>
+                <NumInput label="Wbudowane tony [Mg]" value={wbudowaneTonyStr} onChange={setWbudowaneTony} theme={theme} />
+                <View style={{ marginBottom: 10 }}>
+                  <Text style={{ color: theme.colors.textSecondary, fontSize: 13, fontWeight: '600', marginBottom: 5 }}>Gdzie powinniśmy dojechać</Text>
+                  <View style={[styles.poleSzare, { backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.border }]}>
+                    <Text style={{ color: theme.colors.textSecondary, fontSize: 16 }}>
+                      {metryPlanowane != null ? `${formatLiczby(metryPlanowane)} m od startu` : '— wpisz tony powyżej —'}
+                    </Text>
+                  </View>
+                </View>
+                <NumInput label="Przejechane metry [m] od startu" value={przejechaneMetryStr} onChange={setPrzejechaneMetry} theme={theme} />
+                {wynikiKontroli ? (
+                  <View style={styles.wynikKontroli}>
+                    <Text style={[styles.wynikNagl, { color: theme.colors.text, borderBottomColor: theme.colors.border }]}>Wyniki porównania:</Text>
+                    <WynikRow label="Pozycja na obszarze" wartosc={wynikiKontroli.lokalizacjaEtykieta} theme={theme} />
+                    <WynikRow label="Metry od startu (fakt)" wartosc={`${formatLiczby(metryK)} m`} theme={theme} />
+                    <WynikRow label="Metry od startu (wg ton)" wartosc={`${formatLiczby(wynikiKontroli.metryPlanowaneOdTonow)} m`} theme={theme} />
+                    <WynikRow label="Zakryta powierzchnia" wartosc={`${formatLiczby(wynikiKontroli.zakrytaPowierzchnia)} m²`} theme={theme} />
+                    <WynikRow label="Uzyskana grubość" wartosc={`${formatLiczby(wynikiKontroli.uzyskanaGrubosc)} cm`} theme={theme} />
+                    <WynikRowBilans bilans={wynikiKontroli.bilansMasy} theme={theme} />
+                    <View style={[styles.sep, { backgroundColor: theme.colors.border }]} />
+                    <WynikRow label="Do końca metrów (plan)" wartosc={`${formatLiczby(wynikiKontroli.pozostaloMetrow)} m`} theme={theme} />
+                    <WynikRow label="Do wbudowania pow." wartosc={`${formatLiczby(wynikiKontroli.pozostaloPowierzchni)} m²`} theme={theme} />
+                    <WynikRow label={`Do wbudowania wg planu (${formatLiczby(wynikiKontroli.sredniaGruboscPlanu)} cm)`} wartosc={`${formatLiczby(wynikiKontroli.pozostaloMasyWgZalozen, 2)} Mg`} theme={theme} />
+                    <WynikRow label={`Do wbudowania wg śr. (${formatLiczby(wynikiKontroli.uzyskanaGrubosc, 2)} cm)`} wartosc={`${formatLiczby(wynikiKontroli.pozostaloMasyWgSredniej, 2)} Mg`} theme={theme} />
+                  </View>
+                ) : (
+                  <View style={[styles.wynikPuste, { backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.border }]}>
+                    <Text style={{ color: theme.colors.textSecondary, fontSize: 13, textAlign: 'center' }}>
+                      Wpisz tony i metry od startu, aby zobaczyć porównanie.
+                    </Text>
+                  </View>
                 )}
               </View>
             )}
-            {(obszarPodgladu.wpisyWz ?? []).map((w) => {
-              const info = infoAutaWz(obszarPodgladu, w, rho);
-              return (
-                <View
-                  key={w.id}
-                  style={{
-                    marginTop: 8,
-                    paddingVertical: 8,
-                    paddingHorizontal: 4,
-                    borderTopWidth: 1,
-                    borderColor: theme.colors.border,
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: 8,
-                  }}
-                >
-                  <TouchableOpacity style={{ flex: 1 }} onPress={() => setAutoInfoId(w.id)}>
-                    <Text style={{ color: theme.colors.primary, fontWeight: '700' }}>
-                      Auto #{w.numer} · {formatLiczby(w.tony)} Mg · {formatLiczby(w.przejechaneMetry)} m
-                    </Text>
-                    <Text style={{ color: theme.colors.textSecondary, fontSize: 12, marginTop: 2 }}>
-                      Z tego auta {formatLiczby(info.metryTegoAuta)} m
-                      {info.gruboscCm != null ? ` · Gr. ${formatLiczby(info.gruboscCm)} cm` : ''}
-                      {' · '}{formatLiczby(info.powierzchniaM2)} m²
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => {
-                      setEdycjaWzId(w.id);
-                      setEdycjaTony(String(w.tony));
-                      setEdycjaMetry(String(w.przejechaneMetry));
-                    }}
-                    style={[styles.btnMini, { backgroundColor: `${theme.colors.info}22` }]}
-                  >
-                    <Text style={{ color: theme.colors.info, fontWeight: '700' }}>✎</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => Alert.alert('Usuń auto', `Usunąć auto #${w.numer}? Postęp i grubość liczone od ostatniego pozostałego WZ.`, [
-                      { text: 'Anuluj', style: 'cancel' },
-                      { text: 'Usuń', style: 'destructive', onPress: () => usunWpisWz(sesja.id, obszarPodgladu.id, w.id) },
-                    ])}
-                    style={[styles.btnMini, { backgroundColor: `${theme.colors.danger}20` }]}
-                  >
-                    <Text style={{ color: theme.colors.danger, fontWeight: '700' }}>✕</Text>
-                  </TouchableOpacity>
-                </View>
-              );
-            })}
           </View>
         )}
 
@@ -585,6 +747,15 @@ export default function ObmiarDetailScreen() {
         onClose={() => setPickerMieszanka(false)}
       />
 
+      <BudowaPicker
+        visible={pickerBudowa}
+        budowy={budowy.filter((b) => b.status !== 'archiwalna')}
+        selectedId={sesja.budowaId}
+        theme={theme}
+        onSelect={(bid) => ustawBudoweSesji(sesja.id, bid)}
+        onClose={() => setPickerBudowa(false)}
+      />
+
       <SafeModal
         visible={!!autoInfo}
         tytul={autoInfo ? `Auto #${autoInfo.numer}` : 'Auto'}
@@ -615,7 +786,7 @@ export default function ObmiarDetailScreen() {
           onPress: async () => {
             if (!obszarPodgladu || !edycjaWzId) return;
             const tony = parseFloat(edycjaTony.replace(',', '.'));
-            const metry = parseFloat(edycjaMetry.replace(',', '.'));
+            const metry = parseFloat(edycjaMetryOdStartu.replace(',', '.'));
             if (!Number.isFinite(tony) || !Number.isFinite(metry)) {
               Alert.alert('WZ', 'Podaj tony i metry.');
               return;
@@ -630,9 +801,34 @@ export default function ObmiarDetailScreen() {
           <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>
             Po zapisie postęp i grubość liczone są od ostatniego WZ. Grubość tego auta jak w LIVE.
           </Text>
-          <View style={styles.polaRzad}>
+          <View style={{ gap: 10 }}>
             <Pole label="Tony [Mg]" value={edycjaTony} onChange={setEdycjaTony} theme={theme} />
-            <Pole label="Metry od startu [m]" value={edycjaMetry} onChange={setEdycjaMetry} theme={theme} />
+            <Pole
+              label="Metry z danego auta [m]"
+              value={edycjaMetryZAuta}
+              onChange={(t) => {
+                setEdycjaMetryZAuta(t);
+                const lista = obszarPodgladu?.wpisyWz ?? [];
+                const idx = lista.findIndex((x) => x.id === edycjaWzId);
+                const ostPrev = idx > 0 ? lista[idx - 1].przejechaneMetry : 0;
+                const n = parseFloat(t.replace(',', '.'));
+                if (Number.isFinite(n)) setEdycjaMetryOdStartu(String(przeliczMetryWz(ostPrev, 'zAuta', n).odStartu));
+              }}
+              theme={theme}
+            />
+            <Pole
+              label="Odległość od startu [m]"
+              value={edycjaMetryOdStartu}
+              onChange={(t) => {
+                setEdycjaMetryOdStartu(t);
+                const lista = obszarPodgladu?.wpisyWz ?? [];
+                const idx = lista.findIndex((x) => x.id === edycjaWzId);
+                const ostPrev = idx > 0 ? lista[idx - 1].przejechaneMetry : 0;
+                const n = parseFloat(t.replace(',', '.'));
+                if (Number.isFinite(n)) setEdycjaMetryZAuta(String(przeliczMetryWz(ostPrev, 'odStartu', n).zAuta));
+              }}
+              theme={theme}
+            />
           </View>
         </View>
       </SafeModal>
@@ -674,6 +870,50 @@ function Pole({
   );
 }
 
+function NumInput({ label, value, onChange, theme }: { label: string; value: string; onChange: (v: string) => void; theme: AppTheme }) {
+  return (
+    <View style={{ marginBottom: 10 }}>
+      <Text style={{ color: theme.colors.textSecondary, fontSize: 13, fontWeight: '600', marginBottom: 5 }}>{label}</Text>
+      <TextInput
+        value={value}
+        onChangeText={(t) => onChange(t.replace(',', '.'))}
+        keyboardType="decimal-pad"
+        placeholderTextColor={theme.colors.textSecondary}
+        style={{
+          borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, fontSize: 16,
+          backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.border, color: theme.colors.text,
+        }}
+      />
+    </View>
+  );
+}
+
+function WynikRow({ label, wartosc, theme }: { label: string; wartosc: string; theme: AppTheme }) {
+  return (
+    <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 5 }}>
+      <Text style={{ color: theme.colors.textSecondary, fontSize: 13, flex: 1 }}>{label}</Text>
+      <Text style={{ color: theme.colors.text, fontSize: 13, fontWeight: '600', flexShrink: 1, textAlign: 'right' }}>{wartosc}</Text>
+    </View>
+  );
+}
+
+function WynikRowBilans({ bilans, theme }: { bilans: number; theme: AppTheme }) {
+  const czyOszczednosc = bilans < 0;
+  return (
+    <View style={{
+      flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8,
+      backgroundColor: czyOszczednosc ? `${theme.colors.success}20` : `${theme.colors.danger}20`, marginVertical: 4,
+    }}>
+      <Text style={{ color: czyOszczednosc ? theme.colors.success : theme.colors.danger, fontSize: 13, fontWeight: '600' }}>
+        Bilans {czyOszczednosc ? '(oszczędność)' : '(przepał)'}
+      </Text>
+      <Text style={{ color: czyOszczednosc ? theme.colors.success : theme.colors.danger, fontSize: 13, fontWeight: '700' }}>
+        {bilans > 0 ? '+' : ''}{formatLiczby(bilans, 2)} Mg
+      </Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   container: { flex: 1 },
   zawartosc: { padding: 14, gap: 12 },
@@ -684,7 +924,14 @@ const styles = StyleSheet.create({
   btnSek: { marginTop: 10, borderWidth: 1, borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
   btnImport: { paddingVertical: 14, borderRadius: 12, alignItems: 'center', marginTop: 4 },
   btnImportTekst: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  btnArchiwum: { paddingVertical: 13, borderRadius: 12, alignItems: 'center', marginTop: 16 },
+  btnArchiwumTekst: { color: '#fff', fontWeight: '700', fontSize: 15 },
   polaRzad: { flexDirection: 'row', gap: 10 },
   input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16 },
   presetBtn: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, minWidth: 96 },
+  poleSzare: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12 },
+  wynikKontroli: { marginTop: 14 },
+  wynikNagl: { fontSize: 14, fontWeight: '700', borderBottomWidth: 1, paddingBottom: 8, marginBottom: 8 },
+  wynikPuste: { borderWidth: 1, borderRadius: 10, padding: 16, alignItems: 'center', marginTop: 16 },
+  sep: { height: 1, marginVertical: 10 },
 });

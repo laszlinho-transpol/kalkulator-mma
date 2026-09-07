@@ -162,24 +162,66 @@ export function punktNaLancuchu(
   };
 }
 
-export function srodekNaPostepie(
-  obszar: ObszarObmiaru,
-  t: number,
-): { punkt: Punkt2D; headingRad: number; ok: boolean } {
+export interface PrzekrojPoprzeczny {
+  lewy: Punkt2D;
+  prawy: Punkt2D;
+  srodek: Punkt2D;
+  szerokoscM: number;
+  headingRad: number;
+  ok: boolean;
+}
+
+/** Przekrój L–P na osi (t = 0…1). Szerokość = odległość między bokami. */
+export function przekrojPoprzeczny(obszar: ObszarObmiaru, t: number): PrzekrojPoprzeczny {
+  const puste: PrzekrojPoprzeczny = {
+    lewy: { x: 0, y: 0 }, prawy: { x: 0, y: 0 }, srodek: { x: 0, y: 0 },
+    szerokoscM: 0, headingRad: 0, ok: false,
+  };
   const boki = bokiFigury(obszar);
-  if (!boki) return { punkt: { x: 0, y: 0 }, headingRad: 0, ok: false };
+  if (!boki) return puste;
   const L = punktNaLancuchu(obszar.wierzcholkiM, boki.lewa, t);
   const P = punktNaLancuchu(obszar.wierzcholkiM, boki.prawa, t);
-  if (!L.ok || !P.ok) return { punkt: { x: 0, y: 0 }, headingRad: 0, ok: false };
+  if (!L.ok || !P.ok) return puste;
   const headingRad = Math.atan2(
     Math.sin(L.headingRad) + Math.sin(P.headingRad),
     Math.cos(L.headingRad) + Math.cos(P.headingRad),
   );
   return {
-    punkt: { x: (L.punkt.x + P.punkt.x) / 2, y: (L.punkt.y + P.punkt.y) / 2 },
+    lewy: L.punkt,
+    prawy: P.punkt,
+    srodek: { x: (L.punkt.x + P.punkt.x) / 2, y: (L.punkt.y + P.punkt.y) / 2 },
+    szerokoscM: dystans(L.punkt, P.punkt),
     headingRad,
     ok: true,
   };
+}
+
+export function srodekNaPostepie(
+  obszar: ObszarObmiaru,
+  t: number,
+): { punkt: Punkt2D; headingRad: number; ok: boolean } {
+  const p = przekrojPoprzeczny(obszar, t);
+  if (!p.ok) return { punkt: { x: 0, y: 0 }, headingRad: 0, ok: false };
+  return { punkt: p.srodek, headingRad: p.headingRad, ok: true };
+}
+
+/** Obrys ułożonego odcinka: łańcuch L i P od startu do postępu (do zamalowania). */
+export function wielokatUlozony(obszar: ObszarObmiaru, postep: number): Punkt2D[] {
+  const boki = bokiFigury(obszar);
+  const tEnd = Math.max(0, Math.min(1, postep));
+  if (!boki || tEnd < 0.001) return [];
+  const n = Math.max(8, Math.ceil(tEnd * 56));
+  const lewa: Punkt2D[] = [];
+  const prawa: Punkt2D[] = [];
+  for (let i = 0; i <= n; i++) {
+    const t = (i / n) * tEnd;
+    const L = punktNaLancuchu(obszar.wierzcholkiM, boki.lewa, t);
+    const P = punktNaLancuchu(obszar.wierzcholkiM, boki.prawa, t);
+    if (L.ok) lewa.push(L.punkt);
+    if (P.ok) prawa.push(P.punkt);
+  }
+  if (lewa.length < 2 || prawa.length < 2) return [];
+  return [...lewa, ...prawa.reverse()];
 }
 
 export function odlegloscNaLancuchu(wierzcholki: Punkt2D[], idx: number[], wezel: number): number | null {

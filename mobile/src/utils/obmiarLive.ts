@@ -186,3 +186,82 @@ export function metryZTonnObszaru(
   const metryOdStartu = round2((ost?.przejechaneMetry ?? 0) + metryAuta);
   return { metryAuta, metryOdStartu };
 }
+
+export interface WynikiKontroliObszaru {
+  zakrytaPowierzchnia: number;
+  uzyskanaGrubosc: number;
+  bilansMasy: number;
+  pozostaloMetrow: number;
+  pozostaloPowierzchni: number;
+  pozostaloMasyWgZalozen: number;
+  pozostaloMasyWgSredniej: number;
+  metryPlanowaneOdTonow: number;
+  lacznaDlugosc: number;
+  lacznaPowierzchnia: number;
+  sredniaGruboscPlanu: number;
+  lokalizacjaEtykieta: string;
+}
+
+/** Dwa pola WZ: metry z tego auta ↔ odległość od startu (baza = ostatnie WZ). */
+export function przeliczMetryWz(
+  ostMetry: number,
+  zrodlo: 'zAuta' | 'odStartu',
+  wartosc: number,
+): { zAuta: number; odStartu: number } {
+  const ost = Math.max(0, ostMetry);
+  if (zrodlo === 'zAuta') {
+    return { zAuta: wartosc, odStartu: round2(ost + wartosc) };
+  }
+  return { zAuta: round2(wartosc - ost), odStartu: wartosc };
+}
+
+/** Kontrola obszaru – tony + metry od startu, ten sam układ co w wbudowywaniu. */
+export function obliczKontroleObszaru(
+  obszar: ObszarObmiaru,
+  wbudowaneTony: number,
+  przejechaneMetry: number,
+  gestoscMgM3 = 2.4,
+): WynikiKontroliObszaru | null {
+  if (wbudowaneTony <= 0 || przejechaneMetry <= 0) return null;
+  const rho = gestoscObszaru(gestoscMgM3);
+  const dl = Math.max(dlugoscUkladaniaObszaru(obszar), 0.01);
+  const pow = Math.max(obszar.powierzchniaM2, 0.01);
+  const gruboscPlan = obszar.gruboscCm && obszar.gruboscCm > 0 ? obszar.gruboscCm : 4;
+  const postep = Math.max(0, Math.min(1, przejechaneMetry / dl));
+  const zakrytaPowierzchnia = round2(pow * postep);
+  const masaNaM = (pow / dl) * (gruboscPlan / 100) * rho;
+  const metryPlanowaneOdTonow = masaNaM > 1e-9 ? round2(wbudowaneTony / masaNaM) : 0;
+  const uzyskanaGrubosc = zakrytaPowierzchnia > 0.01
+    ? round2((wbudowaneTony / (zakrytaPowierzchnia * rho)) * 100)
+    : 0;
+  const masaWgPlanuNaZakrytej = zakrytaPowierzchnia * (gruboscPlan / 100) * rho;
+  const bilansMasy = round2(wbudowaneTony - masaWgPlanuNaZakrytej);
+  const pozostaloMetrow = round2(Math.max(0, dl - przejechaneMetry));
+  const pozostaloPowierzchni = round2(Math.max(0, pow - zakrytaPowierzchnia));
+  const srGr = uzyskanaGrubosc > 0 ? uzyskanaGrubosc : gruboscPlan;
+  const pozostaloMasyWgZalozen = round2(pozostaloPowierzchni * (gruboscPlan / 100) * rho);
+  const pozostaloMasyWgSredniej = round2(pozostaloPowierzchni * (srGr / 100) * rho);
+
+  const startAbs = (obszar.bazaStart?.kilometrazKm ?? obszar.kilometrazStartKm ?? 0) * 1000
+    + (obszar.bazaStart?.kilometrazM ?? obszar.kilometrazStartM ?? 0);
+  const dir = obszar.kierunekUkladania === 'malejacy' ? -1 : 1;
+  const abs = startAbs + dir * przejechaneMetry;
+  const km = Math.floor(Math.max(0, abs) / 1000);
+  const m = Math.round(Math.max(0, abs) % 1000);
+  const lokalizacjaEtykieta = `${obszar.kolejnosc}. ${obszar.nazwa} · ${km}+${String(m).padStart(3, '0')}`;
+
+  return {
+    zakrytaPowierzchnia,
+    uzyskanaGrubosc,
+    bilansMasy,
+    pozostaloMetrow,
+    pozostaloPowierzchni,
+    pozostaloMasyWgZalozen,
+    pozostaloMasyWgSredniej,
+    metryPlanowaneOdTonow,
+    lacznaDlugosc: round2(dl),
+    lacznaPowierzchnia: round2(pow),
+    sredniaGruboscPlanu: gruboscPlan,
+    lokalizacjaEtykieta,
+  };
+}

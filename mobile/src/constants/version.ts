@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.2';
+export const WERSJA_APLIKACJI = '1.8.3';
 
 export interface WpisChangelog {
   wersja: string;
@@ -12,6 +12,18 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.3',
+    data: '2026-09-07',
+    tytul: 'Obmiar – ostry SVG, maszyny, WZ/Kontrola, archiwum',
+    zmiany: [
+      'Podgląd: zoom/pan/obrót w SVG (wektor) – obszar, węzły i kilometraż zostają ostre przy dużym przybliżeniu',
+      'Ułożony odcinek ciemnoszary; rozkładarka i auta jako SVG na osi, między bokami L/P',
+      'WZ: dwa pola (metry z auta i od startu) przeliczają się nawzajem',
+      'Zakładki WZ i Kontrola (bilans jak we wbudowywaniu)',
+      'Raport WZ do archiwum z budową, eksportem PDF i wysyłką na e-mail',
+    ],
+  },
   {
     wersja: '1.8.2',
     data: '2026-09-07',

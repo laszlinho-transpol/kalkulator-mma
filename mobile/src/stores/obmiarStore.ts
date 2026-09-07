@@ -95,6 +95,8 @@ interface ObmiarStore {
     kierunek: 'rosnacy' | 'malejacy',
   ) => Promise<void>;
   ustawKontynuacje: (sesjaId: string, obszarId: string, kontynuacja: boolean) => Promise<void>;
+  ustawBudoweSesji: (sesjaId: string, budowaId?: string) => Promise<void>;
+  archiwizujSesje: (sesjaId: string) => Promise<void>;
   sesjaPoId: (id: string) => SesjaObmiaruDnia | undefined;
 }
 
@@ -203,6 +205,7 @@ export const useObmiarStore = create<ObmiarStore>((set, get) => ({
       data,
       skala,
       obszary: [],
+      status: 'aktywna',
       createdAt: teraz,
       updatedAt: teraz,
     };
@@ -725,6 +728,26 @@ export const useObmiarStore = create<ObmiarStore>((set, get) => ({
       );
       return { ...s, obszary: kaskadaKilometrazy(obszary), updatedAt: new Date().toISOString() };
     });
+    set({ sesje: zaktualizowane });
+    await zapisz(zaktualizowane);
+  },
+
+  ustawBudoweSesji: async (sesjaId, budowaId) => {
+    const teraz = new Date().toISOString();
+    const zaktualizowane = get().sesje.map((s) =>
+      s.id !== sesjaId ? s : { ...s, budowaId, updatedAt: teraz },
+    );
+    set({ sesje: zaktualizowane });
+    await zapisz(zaktualizowane);
+  },
+
+  archiwizujSesje: async (sesjaId) => {
+    const teraz = new Date().toISOString();
+    const zaktualizowane = get().sesje.map((s) =>
+      s.id !== sesjaId
+        ? s
+        : { ...s, status: 'archiwalna' as const, zakonczonoAt: teraz, updatedAt: teraz },
+    );
     set({ sesje: zaktualizowane });
     await zapisz(zaktualizowane);
   },

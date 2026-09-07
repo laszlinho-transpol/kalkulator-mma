@@ -131,6 +131,7 @@ export default function RootLayout() {
           <Stack.Screen name="wbudowywanie/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="archiwum/index" options={{ headerShown: false }} />
         <Stack.Screen name="archiwum/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="archiwum/obmiar/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="obmiar/index" options={{ headerShown: false }} />
         <Stack.Screen name="obmiar/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="niezbednik/index" options={{ headerShown: false }} />
