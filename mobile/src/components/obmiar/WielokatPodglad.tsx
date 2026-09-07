@@ -254,7 +254,20 @@ export function WielokatPodglad({
 
     const lancuchyOds: { punkty: string; kolor: string; przerywana?: boolean }[] = [];
     for (const o of obszar?.odsadzki ?? []) {
-      if (o.zastosowana && o.wierzcholkiPrzed && o.wierzcholkiPrzed.length >= 2) {
+      const idxLanc = (o.idxP != null && o.idxK != null)
+        ? lancuchKrotszy(wierzcholki.length, o.idxP, o.idxK)
+        : [];
+      if (o.zastosowana && o.wierzcholkiPrzed && o.wierzcholkiPrzed.length >= 2 && idxLanc.length >= 2) {
+        lancuchyOds.push({
+          punkty: idxLanc.map((i) => {
+            const p = o.wierzcholkiPrzed![Math.max(0, Math.min(o.wierzcholkiPrzed!.length - 1, i))];
+            const s = toSvg(p);
+            return `${s.x},${s.y}`;
+          }).join(' '),
+          kolor: KOLOR_SZARY,
+          przerywana: true,
+        });
+      } else if (o.zastosowana && o.wierzcholkiPrzed && o.wierzcholkiPrzed.length >= 2) {
         lancuchyOds.push({
           punkty: o.wierzcholkiPrzed.map((p) => {
             const s = toSvg(p);
@@ -264,14 +277,13 @@ export function WielokatPodglad({
           przerywana: true,
         });
       }
-      if (o.idxP != null && o.idxK != null) {
-        const idx = lancuchKrotszy(wierzcholki.length, o.idxP, o.idxK);
+      if (idxLanc.length >= 2) {
         lancuchyOds.push({
-          punkty: idx.map((i) => {
+          punkty: idxLanc.map((i) => {
             const s = toSvg(wierzcholki[i]);
             return `${s.x},${s.y}`;
           }).join(' '),
-          kolor: o.zastosowana ? KOLOR_SZARY : KOLOR_ODS,
+          kolor: PRIMARY,
         });
       }
     }
@@ -528,7 +540,7 @@ export function WielokatPodglad({
   const m = (metry: number) => metry * mapa.skalaFit;
   const wezelR = m(WEZEL_R_M);
   const wezelHit = Math.max(wezelR * 2.2, 14 / Math.max(xform.s, 0.15));
-  const panOffset = blokadaPodgladu ? 2 : 14;
+  const panOffset = blokadaPodgladu || trybWyboru ? 2 : 14;
   const gXform = `translate(${rozmiar.w / 2 + xform.tx},${rozmiar.h / 2 + xform.ty}) rotate(${(xform.rot * 180) / Math.PI}) scale(${xform.s}) translate(${-rozmiar.w / 2},${-rozmiar.h / 2})`;
 
   return (
@@ -658,13 +670,12 @@ export function WielokatPodglad({
                                   ? kolorRoli(rola.rola)
                                   : '#fff';
                               return (
-                                <G key={`v-${i}`}>
+                                <G key={`v-${i}`} pointerEvents="none">
                                   <Circle
                                     cx={p.x}
                                     cy={p.y}
                                     r={wezelHit}
                                     fill="transparent"
-                                    onPress={onPressWezel ? () => onPressWezel(i) : undefined}
                                   />
                                   <Circle
                                     cx={p.x}
@@ -673,7 +684,6 @@ export function WielokatPodglad({
                                     fill={fill}
                                     stroke={rola ? '#fff' : PRIMARY}
                                     strokeWidth={m(0.08)}
-                                    pointerEvents="none"
                                   />
                                 </G>
                               );

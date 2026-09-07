@@ -2,7 +2,7 @@
 // EKRAN: WBUDOWYWANIE – Live Tracker (Plan / Kontrola / Live)
 // ============================================================
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   TextInput, useColorScheme, Alert, KeyboardAvoidingView,
@@ -19,6 +19,9 @@ import { useLiveStore } from '../../src/stores/liveStore';
 import { useBudowyStore } from '../../src/stores/budowyStore';
 import { lightTheme, darkTheme, type AppTheme } from '../../src/constants/theme';
 import { DzialkaSketch, type WpisLiveMarker } from '../../src/components/sketch/DzialkaSketch';
+import { WielokatPodglad } from '../../src/components/obmiar/WielokatPodglad';
+import { useObmiarStore } from '../../src/stores/obmiarStore';
+import { obszarZWpisamiLive } from '../../src/utils/obmiarDoPlanu';
 import { PlanCalySketch } from '../../src/components/sketch/PlanCalySketch';
 import { AppHeader } from '../../src/components/common/AppHeader';
 import { AnimatedTabBar } from '../../src/components/common/AnimatedTabBar';
@@ -103,6 +106,17 @@ export default function WbudowywanieDetailScreen() {
   const [autaModalZakladka, setAutaModalZakladka] = useState<'szczegoły' | 'odcinek'>('szczegoły');
   const [viewerPzt, setViewerPzt] = useState(false);
   const [generujeRaport, setGenerujeRaport] = useState(false);
+  const [szkicObszarId, setSzkicObszarId] = useState<string | null>(null);
+  const [blokadaSzkicuPzt, setBlokadaSzkicuPzt] = useState(true);
+  const [mapaSzkicAktywna, setMapaSzkicAktywna] = useState(false);
+  const sesjaObmiaru = useObmiarStore((s) => s.sesjaPoId(plan?.sesjaObmiaruId ?? ''));
+
+  useEffect(() => {
+    const p = usePlanyStore.getState().pobierzPlan(id ?? '');
+    if (!p || p.zrodlo !== 'obmiar') return;
+    const akt = znajdzAktywnaDzialke(p, wpisyCalegoPlanu, sesje);
+    if (akt) setSzkicObszarId(akt.dzialka.id);
+  }, [id, wpisyCalegoPlanu, sesje]);
 
   if (!plan) {
     return (
@@ -267,6 +281,32 @@ export default function WbudowywanieDetailScreen() {
     ]);
   };
 
+  const mieszankiUnikalne = [...new Set(plan.dzialki.map((d) => d.mieszankaId))];
+  const koniecMieszanki = () => {
+    const dz = aktywnaDzialka?.dzialka;
+    if (!dz) return;
+    const mix = dz.mieszankaId;
+    const nazwaMix = getMieszanka(mix)?.rodzaj ?? 'mieszanki';
+    Alert.alert('Koniec mieszanki', `Zakończyć wszystkie działki mieszanki ${nazwaMix} i przejść do kolejnej?`, [
+      { text: 'Anuluj', style: 'cancel' },
+      {
+        text: 'Zakończ mieszankę',
+        onPress: async () => {
+          for (const d of plan.dzialki) {
+            if (d.mieszankaId === mix && !czyDzialkaZakonczona(plan.id, d.id)) {
+              await oznaczOstatnieAuto(plan.id, d.id);
+            }
+          }
+          const next = plan.dzialki.find((d) => d.mieszankaId !== mix && !czyDzialkaZakonczona(plan.id, d.id));
+          if (next) {
+            setSzkicObszarId(next.id);
+            Alert.alert('Kolejna mieszanka', `${next.nazwa}\nKolejne auto: #${kolejnyNumerAuta}`);
+          }
+        },
+      },
+    ]);
+  };
+
   const dodajWpisLive = async () => {
     const ton = parseFloat(nowyTonaz.replace(',', '.'));
     const met = rozwiazMetryWpisu();
@@ -383,7 +423,12 @@ export default function WbudowywanieDetailScreen() {
       />
 
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-        <ScrollView contentContainerStyle={[styles.zawartosc, { paddingBottom: insets.bottom + 20 }]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={[styles.zawartosc, { paddingBottom: insets.bottom + 20 }]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          scrollEnabled={!(plan.zrodlo === 'obmiar' && (blokadaSzkicuPzt || mapaSzkicAktywna) && (aktywnaZakladka === 'live' || aktywnaZakladka === 'plan'))}
+        >
 
           {/* ======== PLAN ======== */}
           {aktywnaZakladka === 'plan' && (
@@ -436,13 +481,48 @@ export default function WbudowywanieDetailScreen() {
                   />
                 </View>
                 <View style={{ marginTop: 12 }}>
-                  <DzialkaSketch
-                    dzialka={dz}
-                    ciezarObjetosciowy={mie.ciezarObjetosciowy}
-                    wykonaneMetry={wBiez.reduce((s, w) => s + w.przejechaneMetry, 0)}
-                    markery={cumMDz}
-                    onTruckPress={(wpis) => { setAutaModal({ wpis }); setAutaModalZakladka('szczegoły'); }}
-                  />
+                  {plan.zrodlo === 'obmiar' && sesjaObmiaru ? (() => {
+                    const obszar = sesjaObmiaru.obszary.find((o) => o.id === dz.id);
+                    if (!obszar) {
+                      return (
+                        <DzialkaSketch
+                          dzialka={dz}
+                          ciezarObjetosciowy={mie.ciezarObjetosciowy}
+                          wykonaneMetry={wBiez.reduce((s, w) => s + w.przejechaneMetry, 0)}
+                          markery={cumMDz}
+                          onTruckPress={(wpis) => { setAutaModal({ wpis }); setAutaModalZakladka('szczegoły'); }}
+                        />
+                      );
+                    }
+                    const zLive = obszarZWpisamiLive(obszar, wBiez);
+                    const dl = Math.max(obliczLacznaDlugosc(dz), 0.01);
+                    return (
+                      <WielokatPodglad
+                        wierzcholki={zLive.wierzcholkiM}
+                        obszar={zLive}
+                        kolorWypelnienia={zLive.kolorWypelnienia}
+                        postepLive={(zLive.przejechaneMetry ?? 0) / dl}
+                        wysokosc={260}
+                        resetKlucz={`plan-${obszar.id}`}
+                        pokazMaszyny
+                        onPressAuto={(wpisId) => {
+                          const wpis = wpisyCalegoPlanu.find((w) => w.id === wpisId);
+                          if (wpis) { setAutaModal({ wpis }); setAutaModalZakladka('szczegoły'); }
+                        }}
+                        onDotykZmiana={setMapaSzkicAktywna}
+                        blokadaPodgladu={blokadaSzkicuPzt}
+                        onBlokadaPodgladu={setBlokadaSzkicuPzt}
+                      />
+                    );
+                  })() : (
+                    <DzialkaSketch
+                      dzialka={dz}
+                      ciezarObjetosciowy={mie.ciezarObjetosciowy}
+                      wykonaneMetry={wBiez.reduce((s, w) => s + w.przejechaneMetry, 0)}
+                      markery={cumMDz}
+                      onTruckPress={(wpis) => { setAutaModal({ wpis }); setAutaModalZakladka('szczegoły'); }}
+                    />
+                  )}
                 </View>
               </View>
             );
@@ -518,33 +598,100 @@ export default function WbudowywanieDetailScreen() {
                         ● Aktywna działka: {aktywnaDzialka.dzialka.nazwa}
                       </Text>
                     )}
+                    {plan.zrodlo === 'obmiar' && plan.dzialki.map((dz) => {
+                      const met = wpisyCalegoPlanu.filter((w) => w.dzialkaId === dz.id).reduce((s, w) => s + w.przejechaneMetry, 0);
+                      const dl = obliczLacznaDlugosc(dz);
+                      return (
+                        <IR
+                          key={dz.id}
+                          label={dz.nazwa}
+                          v={`${formatLiczby(met)} / ${formatLiczby(dl)} m`}
+                          theme={theme}
+                        />
+                      );
+                    })}
                   </View>
 
                 <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-                  <Text style={[styles.kartaTytul, { color: theme.colors.primary }]}>Szkic planu dnia</Text>
-                  <Text style={[styles.opisMaly, { color: theme.colors.textSecondary, marginBottom: 8 }]}>
-                    Jeden ciągły odcinek – przewiń w pionie, aby przejrzeć cały plan.
+                  <Text style={[styles.kartaTytul, { color: theme.colors.primary }]}>
+                    {plan.zrodlo === 'obmiar' ? 'Szkic obszarów PZT' : 'Szkic planu dnia'}
                   </Text>
-                  <View style={styles.szkicRow}>
-                    <View style={[styles.szkicLewy, { maxHeight: VIEWPORT_SZKICU_LIVE, borderColor: theme.colors.border, backgroundColor: theme.colors.background }]}>
-                      <ScrollView nestedScrollEnabled showsVerticalScrollIndicator bounces={false} contentContainerStyle={{ paddingVertical: 4 }}>
-                        <PlanCalySketch
-                          figuryPlanu={figuryPlanu}
-                          wykonaneMetryGlobalne={bilansPlanu.laczneMetry}
-                          markery={markeryPlanu}
-                          onTruckPress={(wpis) => { setAutaModal({ wpis }); setAutaModalZakladka('szczegoły'); }}
-                        />
+                  {plan.zrodlo === 'obmiar' && sesjaObmiaru ? (
+                    <>
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
+                        {sesjaObmiaru.obszary.map((o) => {
+                          const on = (szkicObszarId ?? aktywnaDzialka?.dzialka.id) === o.id;
+                          return (
+                            <TouchableOpacity
+                              key={o.id}
+                              onPress={() => setSzkicObszarId(o.id)}
+                              style={[styles.selectorBtn, {
+                                borderColor: on ? theme.colors.primary : theme.colors.border,
+                                backgroundColor: on ? `${theme.colors.primary}15` : theme.colors.inputBackground,
+                              }]}
+                            >
+                              <Text style={{ color: on ? theme.colors.primary : theme.colors.textSecondary, fontWeight: '700', fontSize: 13 }}>
+                                {o.kolejnosc}. {o.nazwaDzialki || o.nazwa}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
                       </ScrollView>
-                    </View>
-                    <View style={[styles.szkicPanel, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}>
-                      <PanelStat label="Aut" wartosc={String(bilansPlanu.liczbaAut)} theme={theme} kolor={theme.colors.primary} />
-                      <PanelStat label="Mg" wartosc={formatLiczby(bilansPlanu.lacznyTonaz, 2)} theme={theme} kolor={theme.colors.text} />
-                      <PanelStat label="m" wartosc={formatLiczby(bilansPlanu.laczneMetry)} theme={theme} kolor={theme.colors.text} />
-                      {bilansPlanu.sredniaGrubosc > 0 && (
-                        <PanelStat label="Śr.gr." wartosc={`${formatLiczby(bilansPlanu.sredniaGrubosc, 2)} cm`} theme={theme} kolor={theme.colors.success} />
-                      )}
-                    </View>
-                  </View>
+                      {(() => {
+                        const oid = szkicObszarId ?? aktywnaDzialka?.dzialka.id ?? sesjaObmiaru.obszary[0]?.id;
+                        const obszar = sesjaObmiaru.obszary.find((o) => o.id === oid);
+                        if (!obszar) return null;
+                        const wp = wpisyCalegoPlanu.filter((w) => w.dzialkaId === obszar.id);
+                        const zLive = obszarZWpisamiLive(obszar, wp);
+                        const dz = plan.dzialki.find((d) => d.id === obszar.id);
+                        const dl = dz ? obliczLacznaDlugosc(dz) : 0;
+                        return (
+                          <WielokatPodglad
+                            wierzcholki={zLive.wierzcholkiM}
+                            obszar={zLive}
+                            kolorWypelnienia={zLive.kolorWypelnienia}
+                            postepLive={dl > 0 ? (zLive.przejechaneMetry ?? 0) / dl : 0}
+                            wysokosc={300}
+                            resetKlucz={obszar.id}
+                            pokazMaszyny
+                            onPressAuto={(wpisId) => {
+                              const wpis = wpisyCalegoPlanu.find((w) => w.id === wpisId);
+                              if (wpis) { setAutaModal({ wpis }); setAutaModalZakladka('szczegoły'); }
+                            }}
+                            onDotykZmiana={setMapaSzkicAktywna}
+                            blokadaPodgladu={blokadaSzkicuPzt}
+                            onBlokadaPodgladu={setBlokadaSzkicuPzt}
+                          />
+                        );
+                      })()}
+                    </>
+                  ) : (
+                    <>
+                      <Text style={[styles.opisMaly, { color: theme.colors.textSecondary, marginBottom: 8 }]}>
+                        Jeden ciągły odcinek – przewiń w pionie, aby przejrzeć cały plan.
+                      </Text>
+                      <View style={styles.szkicRow}>
+                        <View style={[styles.szkicLewy, { maxHeight: VIEWPORT_SZKICU_LIVE, borderColor: theme.colors.border, backgroundColor: theme.colors.background }]}>
+                          <ScrollView nestedScrollEnabled showsVerticalScrollIndicator bounces={false} contentContainerStyle={{ paddingVertical: 4 }}>
+                            <PlanCalySketch
+                              figuryPlanu={figuryPlanu}
+                              wykonaneMetryGlobalne={bilansPlanu.laczneMetry}
+                              markery={markeryPlanu}
+                              onTruckPress={(wpis) => { setAutaModal({ wpis }); setAutaModalZakladka('szczegoły'); }}
+                            />
+                          </ScrollView>
+                        </View>
+                        <View style={[styles.szkicPanel, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}>
+                          <PanelStat label="Aut" wartosc={String(bilansPlanu.liczbaAut)} theme={theme} kolor={theme.colors.primary} />
+                          <PanelStat label="Mg" wartosc={formatLiczby(bilansPlanu.lacznyTonaz, 2)} theme={theme} kolor={theme.colors.text} />
+                          <PanelStat label="m" wartosc={formatLiczby(bilansPlanu.laczneMetry)} theme={theme} kolor={theme.colors.text} />
+                          {bilansPlanu.sredniaGrubosc > 0 && (
+                            <PanelStat label="Śr.gr." wartosc={`${formatLiczby(bilansPlanu.sredniaGrubosc, 2)} cm`} theme={theme} kolor={theme.colors.success} />
+                          )}
+                        </View>
+                      </View>
+                    </>
+                  )}
                 </View>
 
                 {wpisyLivePosortowane.length > 0 && (
@@ -693,6 +840,20 @@ export default function WbudowywanieDetailScreen() {
                       {dzialkaZakonczonaWpisu ? '↩ Wznów rozpisywanie aut' : `🏁 Ostatnie auto – koniec „${dzialkaDoWpisu?.nazwa}”`}
                     </Text>
                   </TouchableOpacity>
+                  {mieszankiUnikalne.length > 1 && aktywnaDzialka && (
+                    <TouchableOpacity
+                      style={[styles.btnOstatnieAuto, {
+                        backgroundColor: `${theme.colors.info}15`,
+                        borderColor: theme.colors.info,
+                        marginTop: 10,
+                      }]}
+                      onPress={koniecMieszanki}
+                    >
+                      <Text style={{ color: theme.colors.info, fontWeight: '700', fontSize: 14 }}>
+                        Koniec mieszanki – {getMieszanka(aktywnaDzialka.dzialka.mieszankaId)?.rodzaj ?? 'następna'}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
 
                 <View style={[styles.karta, { backgroundColor: `${theme.colors.danger}08`, borderColor: theme.colors.danger }]}>

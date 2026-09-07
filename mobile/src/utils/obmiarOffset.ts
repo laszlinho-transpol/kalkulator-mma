@@ -2,8 +2,9 @@
 // ODSADZKA KRAWĘDZI – przesunięcie krawędzi + przeliczenie m²
 // ============================================================
 
-import type { Punkt2D } from '../types';
+import type { ObszarObmiaru, Punkt2D } from '../types';
 import { powierzchniaWielokata, obwodWielokata } from './obmiarGeometry';
+import { bokiFigury, odlegloscNaLancuchu, przekrojPoprzeczny } from './obmiarFigura';
 import { round2 } from './calculations';
 
 function dystans(a: Punkt2D, b: Punkt2D): number {
@@ -131,6 +132,74 @@ export function odsadzPoLancuchu(
     nowe[idx] = { x: p.x + nx * dystansM, y: p.y + ny * dystansM };
   }
 
+  const powStara = powierzchniaWielokata(wierzcholki);
+  const powNowa = powierzchniaWielokata(nowe);
+  return {
+    wierzcholki: nowe,
+    powierzchniaM2: round2(powNowa),
+    obwodM: round2(obwodWielokata(nowe)),
+    deltaPowierzchniaM2: round2(powNowa - powStara),
+    dlugoscKrawedziM: round2(dlugosc),
+  };
+}
+
+/** Punkt osi (środek L–P) przy węźle – kierunek odsadzki: od osi / do osi. */
+export function srodekOsiPrzyWezle(obszar: ObszarObmiaru, idx: number): Punkt2D | null {
+  const boki = bokiFigury(obszar);
+  if (!boki) return null;
+  const tL = odlegloscNaLancuchu(obszar.wierzcholkiM, boki.lewa, idx);
+  const tP = odlegloscNaLancuchu(obszar.wierzcholkiM, boki.prawa, idx);
+  let t: number | null = null;
+  if (tL != null && boki.lewaDl > 0) t = tL / boki.lewaDl;
+  else if (tP != null && boki.prawaDl > 0) t = tP / boki.prawaDl;
+  if (t == null) return null;
+  const pr = przekrojPoprzeczny(obszar, Math.max(0, Math.min(1, t)));
+  return pr.ok ? pr.srodek : null;
+}
+
+/**
+ * Odsadzka względem osi: + od osi na zewnątrz, − w kierunku osi.
+ * Gdy brak podstaw L/P – spadek na normalną wielokąta.
+ */
+export function odsadzPoLancuchuOdOsi(
+  obszar: ObszarObmiaru,
+  lancuch: number[],
+  dystansM: number,
+): WynikOdsadzki {
+  const wierzcholki = obszar.wierzcholkiM;
+  if (lancuch.length < 1) return odsadzKrawedz(wierzcholki, 0, 0);
+  const os = lancuch.map((i) => srodekOsiPrzyWezle({ ...obszar, wierzcholkiM: wierzcholki }, i));
+  if (os.some((p) => p == null)) {
+    return lancuch.length < 2
+      ? odsadzKrawedz(wierzcholki, lancuch[0], dystansM)
+      : odsadzPoLancuchu(wierzcholki, lancuch, dystansM);
+  }
+
+  const nowe = wierzcholki.map((p) => ({ ...p }));
+  let dlugosc = 0;
+  for (let k = 0; k < lancuch.length - 1; k++) {
+    dlugosc += dystans(wierzcholki[lancuch[k]], wierzcholki[lancuch[k + 1]]);
+  }
+  const ccw = poleZeZnakiem(wierzcholki) > 0;
+  for (let k = 0; k < lancuch.length; k++) {
+    const idx = lancuch[k];
+    const p = wierzcholki[idx];
+    const s = os[k]!;
+    let dx = p.x - s.x;
+    let dy = p.y - s.y;
+    const len = Math.hypot(dx, dy);
+    if (len < 1e-6) {
+      const a = wierzcholki[lancuch[Math.max(0, k - 1)]];
+      const b = wierzcholki[lancuch[Math.min(lancuch.length - 1, k + 1)]];
+      const nrm = normalnaZewnetrzna(a, b, ccw);
+      dx = nrm.x;
+      dy = nrm.y;
+    } else {
+      dx /= len;
+      dy /= len;
+    }
+    nowe[idx] = { x: p.x + dx * dystansM, y: p.y + dy * dystansM };
+  }
   const powStara = powierzchniaWielokata(wierzcholki);
   const powNowa = powierzchniaWielokata(nowe);
   return {

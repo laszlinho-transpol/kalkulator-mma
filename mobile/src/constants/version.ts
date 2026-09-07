@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.3';
+export const WERSJA_APLIKACJI = '1.8.4';
 
 export interface WpisChangelog {
   wersja: string;
@@ -12,6 +12,18 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.4',
+    data: '2026-09-07',
+    tytul: 'Obmiar – odsadzka od osi, plan dnia, zapis do wbudowywania',
+    zmiany: [
+      'Odsadzka: odbicie zewnętrzne od osi, wewnętrzne w kierunku osi; nowa linia pomarańczowa ciągła, stara szara przerywana',
+      'Pan/zoom podglądu także przy wciśniętym wyborze węzła; „Wyczyść” przy pomiarze odległości',
+      'Układ: Kolejność układania → podgląd + skala → 1 Start/Koniec, 2 Odsadzka, 3 Konstrukcja, 4 Zatwierdź (kłódka)',
+      'Plan dnia (zamiast sesji dnia): data, powierzchnia i masa po mieszankach/grubościach, auta per mieszanka, kursy',
+      'Zapisz plan → Wbudowywanie: Plan (PZT + rozpiska), Kontrola, LIVE (WZ, szkice obszarów, bilans, koniec mieszanki)',
+    ],
+  },
   {
     wersja: '1.8.3',
     data: '2026-09-07',

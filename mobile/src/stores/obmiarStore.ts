@@ -6,14 +6,14 @@ import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type {
   BazaObmiaru, ObszarObmiaru, OdsadzkaObmiaru, Punkt2D, RolaWezlaObmiaru,
-  SesjaObmiaruDnia, SkalaPzt, WpisWzObmiaru,
+  Rzut, SesjaObmiaruDnia, SkalaPzt, WpisWzObmiaru,
 } from '../types';
 import { DOMYSLNA_SKALA_PZT } from '../types';
 import {
   absKilometraz, bokiFigury, idxWezlowOdcinkaKm, lancuchKrotszy, nowaOdsadzka, podlancuch,
   zastosujKilometrazKonca,
 } from '../utils/obmiarFigura';
-import { odsadzKrawedz, odsadzPoLancuchu } from '../utils/obmiarOffset';
+import { odsadzKrawedz, odsadzPoLancuchuOdOsi } from '../utils/obmiarOffset';
 import { metryNaPunktPdf, obwodWielokata, powierzchniaWielokata } from '../utils/obmiarGeometry';
 import { dlugoscUkladaniaObszaru, zastosujRoleWezla } from '../utils/obmiarLive';
 import { round2 } from '../utils/calculations';
@@ -75,8 +75,18 @@ interface ObmiarStore {
   ustawParametryUkladania: (
     sesjaId: string,
     obszarId: string,
-    dane: { gruboscCm?: number; mieszankaId?: string },
+    dane: {
+      gruboscCm?: number;
+      mieszankaId?: string;
+      nazwaDzialki?: string;
+      gruboscProjektowa?: number;
+      tolerancja?: number;
+      gruboscWbudowywania?: number;
+    },
   ) => Promise<void>;
+  ustawDateSesji: (sesjaId: string, data: string) => Promise<void>;
+  ustawPlanDniaMeta: (sesjaId: string, dane: { tonazAuta?: number; rzuty?: Rzut[] }) => Promise<void>;
+  powiazPlanSesji: (sesjaId: string, planId: string) => Promise<void>;
   dodajWpisWz: (
     sesjaId: string,
     obszarId: string,
@@ -153,9 +163,7 @@ function zastosujJednaOdsadzke(
 ) {
   const lancuch = lancuchDlaOdsadzki({ ...obszar, wierzcholkiM: wierzcholki }, { ...ods, dystansM });
   if (!lancuch || lancuch.length < 1) return null;
-  const wynik = lancuch.length < 2
-    ? odsadzKrawedz(wierzcholki, lancuch[0], dystansM)
-    : odsadzPoLancuchu(wierzcholki, lancuch, dystansM);
+  const wynik = odsadzPoLancuchuOdOsi({ ...obszar, wierzcholkiM: wierzcholki }, lancuch, dystansM);
   return { wynik, lancuch };
 }
 
@@ -728,6 +736,33 @@ export const useObmiarStore = create<ObmiarStore>((set, get) => ({
       );
       return { ...s, obszary: kaskadaKilometrazy(obszary), updatedAt: new Date().toISOString() };
     });
+    set({ sesje: zaktualizowane });
+    await zapisz(zaktualizowane);
+  },
+
+  ustawDateSesji: async (sesjaId, data) => {
+    const teraz = new Date().toISOString();
+    const zaktualizowane = get().sesje.map((s) =>
+      s.id !== sesjaId ? s : { ...s, data, updatedAt: teraz },
+    );
+    set({ sesje: zaktualizowane });
+    await zapisz(zaktualizowane);
+  },
+
+  powiazPlanSesji: async (sesjaId, planId) => {
+    const teraz = new Date().toISOString();
+    const zaktualizowane = get().sesje.map((s) =>
+      s.id !== sesjaId ? s : { ...s, planId, updatedAt: teraz },
+    );
+    set({ sesje: zaktualizowane });
+    await zapisz(zaktualizowane);
+  },
+
+  ustawPlanDniaMeta: async (sesjaId, dane) => {
+    const teraz = new Date().toISOString();
+    const zaktualizowane = get().sesje.map((s) =>
+      s.id !== sesjaId ? s : { ...s, ...dane, updatedAt: teraz },
+    );
     set({ sesje: zaktualizowane });
     await zapisz(zaktualizowane);
   },

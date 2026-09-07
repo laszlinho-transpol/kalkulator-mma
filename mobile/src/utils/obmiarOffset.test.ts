@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { odsadzKrawedz, odsadzLancuch, odsadzPoLancuchu, listaKrawedzi } from './obmiarOffset';
+import { odsadzKrawedz, odsadzLancuch, odsadzPoLancuchu, odsadzPoLancuchuOdOsi, listaKrawedzi } from './obmiarOffset';
 import { pelneKilometrazeCo100m, punktNaSciezceUkladania } from './obmiarKilometraz';
 import type { ObszarObmiaru } from '../types';
 
@@ -37,6 +37,46 @@ describe('obmiarOffset', () => {
   it('odsadz po lancuchu prawego boku', () => {
     const w = odsadzPoLancuchu(prostokat, [3, 2], 0.1);
     assert.ok(Math.abs(Math.abs(w.deltaPowierzchniaM2) - 10) < 0.2);
+  });
+
+  it('odsadzka od osi: zewnatrz na boku L (wzdłuż układania) zwieksza pole', () => {
+    const obszar: ObszarObmiaru = {
+      id: 'o1',
+      nazwa: 'T',
+      kolejnosc: 1,
+      wierzcholkiPdf: [],
+      wierzcholkiM: prostokat,
+      powierzchniaM2: 500,
+      obwodM: 210,
+      zrodloNazwa: 't',
+      bazaStart: { idxLewy: 3, idxPrawy: 0 },
+      bazaKoniec: { idxLewy: 2, idxPrawy: 1 },
+      createdAt: '',
+    };
+    const w = odsadzPoLancuchuOdOsi(obszar, [3, 2], 0.1);
+    assert.ok(w.deltaPowierzchniaM2 > 0, `delta=${w.deltaPowierzchniaM2}`);
+    assert.ok(Math.abs(w.deltaPowierzchniaM2 - 10) < 0.2, `delta=${w.deltaPowierzchniaM2}`);
+    assert.ok(Math.abs(w.wierzcholki[3].y - 5.1) < 0.02, `yL=${w.wierzcholki[3].y}`);
+  });
+
+  it('odsadzka do osi zmniejsza pole na tym samym boku L', () => {
+    const obszar: ObszarObmiaru = {
+      id: 'o1',
+      nazwa: 'T',
+      kolejnosc: 1,
+      wierzcholkiPdf: [],
+      wierzcholkiM: prostokat,
+      powierzchniaM2: 500,
+      obwodM: 210,
+      zrodloNazwa: 't',
+      bazaStart: { idxLewy: 3, idxPrawy: 0 },
+      bazaKoniec: { idxLewy: 2, idxPrawy: 1 },
+      createdAt: '',
+    };
+    const w = odsadzPoLancuchuOdOsi(obszar, [3, 2], -0.1);
+    assert.ok(w.deltaPowierzchniaM2 < 0);
+    assert.ok(Math.abs(w.powierzchniaM2 - 490) < 0.2);
+    assert.ok(Math.abs(w.wierzcholki[3].y - 4.9) < 0.02);
   });
 });
 

@@ -32,6 +32,8 @@ interface Props {
   ) => void;
   onUsunOdsadzke: (odsadzkaId: string) => void;
   pomiar: { p1?: number; p2?: number; wzdluzM?: number; prostoM?: number };
+  onWyczyscPomiar?: () => void;
+  sekcja?: 'start' | 'odsadzka' | 'pomiar';
 }
 
 function Chip({
@@ -239,7 +241,7 @@ function KartaOdsadzki({
         </View>
       </View>
       <Text style={{ color: theme.colors.textSecondary, fontSize: 11 }}>
-        Węzły P/K albo kilometraż na krawędzi L/P (np. prawa 1+300…1+400, 0,1 m na zewnątrz).
+        Zewn. = od osi na zewnątrz. Wewn. = w kierunku osi. Nowa linia pomarańczowa, stara szara przerywana.
       </Text>
       <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
         <Chip
@@ -317,7 +319,7 @@ function KartaOdsadzki({
           {o.kmOdKm != null || o.kmOdM != null
             ? ` · ${o.kmOdKm ?? 0}+${String(o.kmOdM ?? 0).padStart(3, '0')}–${o.kmDoKm ?? 0}+${String(o.kmDoM ?? 0).padStart(3, '0')}`
             : ''}
-          {' · stara linia szara'}
+          {' · stara linia szara przerywana'}
         </Text>
       )}
     </View>
@@ -327,6 +329,7 @@ function KartaOdsadzki({
 export function ObmiarKonfiguracja({
   obszar, theme, trybWyboru, onTryb, zablokowana, onBlokada,
   onBaza, onKierunek, onDodajOdsadzke, onZastosujOdsadzke, onUsunOdsadzke, pomiar,
+  onWyczyscPomiar, sekcja,
 }: Props) {
   const kierunek = kierunekKilometrazu(obszar);
   const dl = useMemo(() => dlugoscUkladaniaObszaru(obszar), [obszar]);
@@ -336,123 +339,138 @@ export function ObmiarKonfiguracja({
   );
   const odsadzki = obszar.odsadzki?.length ? obszar.odsadzki : [];
 
+  const pokazStart = !sekcja || sekcja === 'start';
+  const pokazOds = !sekcja || sekcja === 'odsadzka';
+  const pokazPomiar = !sekcja || sekcja === 'pomiar';
+
   return (
     <View style={{ gap: 14 }}>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Text style={{ color: theme.colors.text, fontWeight: '800', fontSize: 13, textTransform: 'uppercase' }}>
-          Konfiguracja obszaru
-        </Text>
-        <TouchableOpacity onPress={() => onBlokada(!zablokowana)}>
-          <Text style={{ color: theme.colors.primary, fontWeight: '800', fontSize: 13 }}>
-            {zablokowana ? 'Odblokuj' : 'Zablokuj'}
+      {!sekcja && (
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Text style={{ color: theme.colors.text, fontWeight: '800', fontSize: 13, textTransform: 'uppercase' }}>
+            Konfiguracja obszaru
           </Text>
-        </TouchableOpacity>
-      </View>
-
-      <SekcjaBazy
-        tytul="Start"
-        ktora="start"
-        obszar={obszar}
-        theme={theme}
-        zablokowana={zablokowana || !!obszar.kontynuacjaPoprzedniego}
-        trybWyboru={trybWyboru}
-        onTryb={onTryb}
-        onBaza={onBaza}
-      />
-      <SekcjaBazy
-        tytul="Koniec"
-        ktora="koniec"
-        obszar={obszar}
-        theme={theme}
-        zablokowana={zablokowana}
-        trybWyboru={trybWyboru}
-        onTryb={onTryb}
-        onBaza={onBaza}
-        autoKoniec={startKoniecGotowe && kierunek !== 'nieznany'}
-      />
-
-      {startKoniecGotowe && (
-        <View style={{ gap: 8 }}>
-          <Text style={{ color: theme.colors.textSecondary, fontSize: 12, fontWeight: '700' }}>
-            Kierunek układania
-          </Text>
-          <View style={{ flexDirection: 'row', gap: 8 }}>
-            {(['rosnacy', 'malejacy'] as const).map((k) => (
-              <TouchableOpacity
-                key={k}
-                disabled={zablokowana}
-                onPress={() => onKierunek(k)}
-                style={{
-                  flex: 1, borderWidth: 1, borderRadius: 10, paddingVertical: 10, alignItems: 'center',
-                  borderColor: kierunek === k ? theme.colors.primary : theme.colors.border,
-                  backgroundColor: kierunek === k ? `${theme.colors.primary}22` : theme.colors.inputBackground,
-                }}
-              >
-                <Text style={{ color: theme.colors.text, fontWeight: '700', fontSize: 13 }}>
-                  {k === 'rosnacy' ? '↑ Rosnący' : '↓ Malejący'}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-          <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>
-            Oś figury: {formatLiczby(dl)} m
-            {obszar.bazaStart?.kilometrazKm != null || obszar.bazaStart?.kilometrazM != null
-              ? ` · ${formatujKilometraz(obszar.bazaStart?.kilometrazKm, obszar.bazaStart?.kilometrazM)} → ${formatujKilometraz(obszar.bazaKoniec?.kilometrazKm, obszar.bazaKoniec?.kilometrazM)}`
-              : ''}
-          </Text>
-          <Text style={{ color: theme.colors.textSecondary, fontSize: 11 }}>
-            Niebieska linia = start, czerwona = koniec. Odległość od startu wzdłuż osi.
-          </Text>
+          <TouchableOpacity onPress={() => onBlokada(!zablokowana)}>
+            <Text style={{ color: theme.colors.primary, fontWeight: '800', fontSize: 13 }}>
+              {zablokowana ? 'Odblokuj' : 'Zablokuj'}
+            </Text>
+          </TouchableOpacity>
         </View>
       )}
 
-      <View style={{ height: 1, backgroundColor: theme.colors.border }} />
+      {pokazStart && (
+        <>
+          <SekcjaBazy
+            tytul="Start"
+            ktora="start"
+            obszar={obszar}
+            theme={theme}
+            zablokowana={zablokowana || !!obszar.kontynuacjaPoprzedniego}
+            trybWyboru={trybWyboru}
+            onTryb={onTryb}
+            onBaza={onBaza}
+          />
+          <SekcjaBazy
+            tytul="Koniec"
+            ktora="koniec"
+            obszar={obszar}
+            theme={theme}
+            zablokowana={zablokowana}
+            trybWyboru={trybWyboru}
+            onTryb={onTryb}
+            onBaza={onBaza}
+            autoKoniec={startKoniecGotowe && kierunek !== 'nieznany'}
+          />
+          {startKoniecGotowe && (
+            <View style={{ gap: 8 }}>
+              <Text style={{ color: theme.colors.textSecondary, fontSize: 12, fontWeight: '700' }}>
+                Kierunek układania
+              </Text>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                {(['rosnacy', 'malejacy'] as const).map((k) => (
+                  <TouchableOpacity
+                    key={k}
+                    disabled={zablokowana}
+                    onPress={() => onKierunek(k)}
+                    style={{
+                      flex: 1, borderWidth: 1, borderRadius: 10, paddingVertical: 10, alignItems: 'center',
+                      borderColor: kierunek === k ? theme.colors.primary : theme.colors.border,
+                      backgroundColor: kierunek === k ? `${theme.colors.primary}22` : theme.colors.inputBackground,
+                    }}
+                  >
+                    <Text style={{ color: theme.colors.text, fontWeight: '700', fontSize: 13 }}>
+                      {k === 'rosnacy' ? '↑ Rosnący' : '↓ Malejący'}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>
+                Oś figury: {formatLiczby(dl)} m
+                {obszar.bazaStart?.kilometrazKm != null || obszar.bazaStart?.kilometrazM != null
+                  ? ` · ${formatujKilometraz(obszar.bazaStart?.kilometrazKm, obszar.bazaStart?.kilometrazM)} → ${formatujKilometraz(obszar.bazaKoniec?.kilometrazKm, obszar.bazaKoniec?.kilometrazM)}`
+                  : ''}
+              </Text>
+            </View>
+          )}
+        </>
+      )}
 
-      {odsadzki.map((o) => (
-        <KartaOdsadzki
-          key={o.id}
-          o={o}
-          theme={theme}
-          zablokowana={zablokowana}
-          trybWyboru={aktywnaOdsadzkaId === o.id ? trybWyboru : null}
-          onTryb={(t, id) => {
-            setAktywnaOdsadzkaId(id);
-            onTryb(t, id);
-          }}
-          onZastosuj={onZastosujOdsadzke}
-          onUsun={onUsunOdsadzke}
-        />
-      ))}
-      <TouchableOpacity disabled={zablokowana} onPress={onDodajOdsadzke}>
-        <Text style={{ color: zablokowana ? theme.colors.textSecondary : theme.colors.primary, fontWeight: '800' }}>
-          + Dodaj kolejną odsadzkę
-        </Text>
-      </TouchableOpacity>
+      {pokazOds && (
+        <>
+          {odsadzki.map((o) => (
+            <KartaOdsadzki
+              key={o.id}
+              o={o}
+              theme={theme}
+              zablokowana={zablokowana}
+              trybWyboru={aktywnaOdsadzkaId === o.id ? trybWyboru : null}
+              onTryb={(t, id) => {
+                setAktywnaOdsadzkaId(id);
+                onTryb(t, id);
+              }}
+              onZastosuj={onZastosujOdsadzke}
+              onUsun={onUsunOdsadzke}
+            />
+          ))}
+          <TouchableOpacity disabled={zablokowana} onPress={onDodajOdsadzke}>
+            <Text style={{ color: zablokowana ? theme.colors.textSecondary : theme.colors.primary, fontWeight: '800' }}>
+              + Dodaj kolejną odsadzkę
+            </Text>
+          </TouchableOpacity>
+        </>
+      )}
 
-      <View style={{ height: 1, backgroundColor: theme.colors.border }} />
-      <Text style={{ color: theme.colors.text, fontWeight: '800', fontSize: 13, textTransform: 'uppercase' }}>
-        Zmierz odległość
-      </Text>
-      <View style={{ flexDirection: 'row', gap: 8 }}>
-        <Chip
-          label="P1"
-          theme={theme}
-          aktywny={trybWyboru === 'pomiarP1'}
-          ustawiony={pomiar.p1 != null}
-          onPress={() => onTryb(trybWyboru === 'pomiarP1' ? null : 'pomiarP1')}
-        />
-        <Chip
-          label="P2"
-          theme={theme}
-          aktywny={trybWyboru === 'pomiarP2'}
-          ustawiony={pomiar.p2 != null}
-          onPress={() => onTryb(trybWyboru === 'pomiarP2' ? null : 'pomiarP2')}
-        />
-      </View>
-      {pomiar.wzdluzM != null && (
-        <Text style={{ color: theme.colors.text, fontSize: 13 }}>
-          Wzdłuż krawędzi: {formatLiczby(pomiar.wzdluzM)} m · w linii: {formatLiczby(pomiar.prostoM ?? 0)} m
-        </Text>
+      {pokazPomiar && (
+        <>
+          {!sekcja && <View style={{ height: 1, backgroundColor: theme.colors.border }} />}
+          <Text style={{ color: theme.colors.text, fontWeight: '800', fontSize: 13, textTransform: 'uppercase' }}>
+            Zmierz odległość
+          </Text>
+          <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <Chip
+              label="P1"
+              theme={theme}
+              aktywny={trybWyboru === 'pomiarP1'}
+              ustawiony={pomiar.p1 != null}
+              onPress={() => onTryb(trybWyboru === 'pomiarP1' ? null : 'pomiarP1')}
+            />
+            <Chip
+              label="P2"
+              theme={theme}
+              aktywny={trybWyboru === 'pomiarP2'}
+              ustawiony={pomiar.p2 != null}
+              onPress={() => onTryb(trybWyboru === 'pomiarP2' ? null : 'pomiarP2')}
+            />
+            <TouchableOpacity onPress={onWyczyscPomiar}>
+              <Text style={{ color: theme.colors.danger, fontWeight: '800', fontSize: 13 }}>Wyczyść</Text>
+            </TouchableOpacity>
+          </View>
+          {pomiar.wzdluzM != null && (
+            <Text style={{ color: theme.colors.text, fontSize: 13 }}>
+              Wzdłuż krawędzi: {formatLiczby(pomiar.wzdluzM)} m · w linii: {formatLiczby(pomiar.prostoM ?? 0)} m
+            </Text>
+          )}
+        </>
       )}
     </View>
   );

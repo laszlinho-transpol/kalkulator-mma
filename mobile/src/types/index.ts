@@ -152,6 +152,9 @@ export interface Plan {
   rzuty: Rzut[];
   zalaczniki?: ZalacznikPlanu[];
   status: StatusPlanu;
+  /** figury = Zaplanuj masę; obmiar = zapis z Obmiaru PZT */
+  zrodlo?: 'figury' | 'obmiar';
+  sesjaObmiaruId?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -342,8 +345,12 @@ export interface ObszarObmiaru {
   bazaKoniec?: BazaObmiaru;
   odsadzki?: OdsadzkaObmiaru[];
   wpisyWz?: WpisWzObmiaru[];
-  /** Grubość układania [cm] – jak w Zaplanuj masę */
+  /** Grubość układania [cm] – jak w Zaplanuj masę (alias / wstecz) */
   gruboscCm?: number;
+  nazwaDzialki?: string;
+  gruboscProjektowa?: number;
+  tolerancja?: number;
+  gruboscWbudowywania?: number;
   mieszankaId?: string;
   konfiguracjaZablokowana?: boolean;
   /** Rosnący / malejący – do auto-kilometrażu końca */
@@ -364,6 +371,8 @@ export interface SesjaObmiaruDnia {
   obszary: ObszarObmiaru[];
   status?: 'aktywna' | 'archiwalna';
   zakonczonoAt?: string;
+  tonazAuta?: number;
+  rzuty?: Rzut[];
   createdAt: string;
   updatedAt: string;
 }
