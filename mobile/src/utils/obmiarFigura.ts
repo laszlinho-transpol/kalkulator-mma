@@ -193,6 +193,62 @@ export interface OdlegloscWezla {
   odStartuM: number;
 }
 
+/** Podłańcuch od węzła A do B wzdłuż zadanego boku (kolejność łańcucha). */
+export function podlancuch(lancuch: number[], a: number, b: number): number[] {
+  const i = lancuch.indexOf(a);
+  const j = lancuch.indexOf(b);
+  if (i < 0 || j < 0) return [];
+  const lo = Math.min(i, j);
+  const hi = Math.max(i, j);
+  return lancuch.slice(lo, hi + 1);
+}
+
+/**
+ * Węzły boku L/P pokrywające odcinek kilometrażu (najbliższe wierzchołki
+ * obejmujące przedział, np. prawa krawędź 1+300…1+400).
+ */
+export function idxWezlowOdcinkaKm(
+  obszar: ObszarObmiaru,
+  strona: 'lewa' | 'prawa',
+  kmOdAbs: number,
+  kmDoAbs: number,
+): number[] | null {
+  const boki = bokiFigury(obszar);
+  if (!boki) return null;
+  const lancuch = strona === 'lewa' ? boki.lewa : boki.prawa;
+  const startAbs = absKilometraz(obszar.bazaStart?.kilometrazKm, obszar.bazaStart?.kilometrazM);
+  if (startAbs == null || lancuch.length < 1) return null;
+  const sign = kierunekKilometrazu(obszar) === 'malejacy' ? -1 : 1;
+  let d0 = (kmOdAbs - startAbs) * sign;
+  let d1 = (kmDoAbs - startAbs) * sign;
+  if (d1 < d0) {
+    const t = d0;
+    d0 = d1;
+    d1 = t;
+  }
+  const pts = obszar.wierzcholkiM;
+  const dists: number[] = [0];
+  let acc = 0;
+  for (let i = 1; i < lancuch.length; i++) {
+    acc += dystans(pts[lancuch[i - 1]], pts[lancuch[i]]);
+    dists.push(acc);
+  }
+  let iStart = 0;
+  for (let i = 0; i < dists.length; i++) {
+    if (dists[i] <= d0 + 1e-6) iStart = i;
+  }
+  let iEnd = lancuch.length - 1;
+  for (let i = 0; i < dists.length; i++) {
+    if (dists[i] >= d1 - 1e-6) {
+      iEnd = i;
+      break;
+    }
+  }
+  if (iEnd < iStart) return null;
+  const sub = lancuch.slice(iStart, iEnd + 1);
+  return sub.length >= 1 ? sub : null;
+}
+
 /** Odległość każdego węzła od podstawy startu wzdłuż boku L/P. */
 export function odleglosciWezlowOdStartu(obszar: ObszarObmiaru): OdlegloscWezla[] {
   const pts = obszar.wierzcholkiM;

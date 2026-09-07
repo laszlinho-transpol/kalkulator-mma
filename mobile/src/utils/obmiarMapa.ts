@@ -52,6 +52,50 @@ export function translacjaPrzyObrocie(args: {
   };
 }
 
-export const SKALA_MIN = 0.4;
-export const SKALA_MAX = 14;
+export const SKALA_MIN = 0.1;
+export const SKALA_MAX = 64;
 export const TARCIE_DECAY = 0.996;
+
+/** Presety jak w PDF-XChange (10% … 6400%). */
+export const PRESETY_ZOOM_PROC = [10, 25, 50, 100, 200, 400, 800, 1600, 2400, 3200, 6400] as const;
+
+export function skalaZProcentu(proc: number): number {
+  return ograniczenie(proc / 100, SKALA_MIN, SKALA_MAX);
+}
+
+/** Kolejny/poprzedni stopień lupki (albo skrajny preset). */
+export function nastepnyPresetZoom(skala: number, kierunek: -1 | 1): number {
+  const pct = skala * 100;
+  if (kierunek > 0) {
+    const next = PRESETY_ZOOM_PROC.find((p) => p > pct + 0.51);
+    return skalaZProcentu(next ?? PRESETY_ZOOM_PROC[PRESETY_ZOOM_PROC.length - 1]);
+  }
+  const prev = [...PRESETY_ZOOM_PROC].reverse().find((p) => p < pct - 0.51);
+  return skalaZProcentu(prev ?? PRESETY_ZOOM_PROC[0]);
+}
+
+/**
+ * Odwrotność transformacji podglądu (translate → rotate → scale, oś w środku ramki).
+ * Zwraca współrzędne w przestrzeni SVG (przed zoomem).
+ */
+export function punktSvgZEkranu(args: {
+  ekranX: number;
+  ekranY: number;
+  szer: number;
+  wys: number;
+  tx: number;
+  ty: number;
+  rot: number;
+  skala: number;
+}): { x: number; y: number } {
+  const cx = args.szer / 2;
+  const cy = args.wys / 2;
+  const qx = args.ekranX - cx - args.tx;
+  const qy = args.ekranY - cy - args.ty;
+  const c = Math.cos(-args.rot);
+  const s = Math.sin(-args.rot);
+  const rx = qx * c - qy * s;
+  const ry = qx * s + qy * c;
+  const sc = args.skala === 0 ? 1 : args.skala;
+  return { x: cx + rx / sc, y: cy + ry / sc };
+}

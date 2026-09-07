@@ -5,14 +5,18 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type {
-  BazaObmiaru, ObszarObmiaru, OdsadzkaObmiaru, RolaWezlaObmiaru,
+  BazaObmiaru, ObszarObmiaru, OdsadzkaObmiaru, Punkt2D, RolaWezlaObmiaru,
   SesjaObmiaruDnia, SkalaPzt, WpisWzObmiaru,
 } from '../types';
 import { DOMYSLNA_SKALA_PZT } from '../types';
-import { nowaOdsadzka, zastosujKilometrazKonca } from '../utils/obmiarFigura';
-import { odsadzKrawedz, odsadzLancuch } from '../utils/obmiarOffset';
-import { metryNaPunktPdf } from '../utils/obmiarGeometry';
+import {
+  absKilometraz, bokiFigury, idxWezlowOdcinkaKm, lancuchKrotszy, nowaOdsadzka, podlancuch,
+  zastosujKilometrazKonca,
+} from '../utils/obmiarFigura';
+import { odsadzKrawedz, odsadzPoLancuchu } from '../utils/obmiarOffset';
+import { metryNaPunktPdf, obwodWielokata, powierzchniaWielokata } from '../utils/obmiarGeometry';
 import { dlugoscUkladaniaObszaru, zastosujRoleWezla } from '../utils/obmiarLive';
+import { round2 } from '../utils/calculations';
 import { nadajKolejnosc, obszaryZPolygony, przeliczObszarySkalą, type WynikParsowaniaXfdf } from '../utils/xfdfParser';
 
 const KLUCZ = '@mma:obmiar_sesje';
@@ -59,11 +63,13 @@ interface ObmiarStore {
     dane: Partial<OdsadzkaObmiaru>,
   ) => Promise<void>;
   dodajOdsadzke: (sesjaId: string, obszarId: string) => Promise<string | null>;
+  usunOdsadzke: (sesjaId: string, obszarId: string, odsadzkaId: string) => Promise<void>;
   zastosujOdsadzkeLancucha: (
     sesjaId: string,
     obszarId: string,
     odsadzkaId: string,
     dystansM: number,
+    extra?: Partial<OdsadzkaObmiaru>,
   ) => Promise<{ deltaPowierzchniaM2: number; powierzchniaM2: number; dlugoscKrawedziM: number } | null>;
   ustawKonfiguracjeZablokowana: (sesjaId: string, obszarId: string, zablokowana: boolean) => Promise<void>;
   ustawParametryUkladania: (
@@ -77,6 +83,12 @@ interface ObmiarStore {
     dane: { tony: number; przejechaneMetry: number },
   ) => Promise<WpisWzObmiaru | null>;
   usunWpisWz: (sesjaId: string, obszarId: string, wpisId: string) => Promise<void>;
+  edytujWpisWz: (
+    sesjaId: string,
+    obszarId: string,
+    wpisId: string,
+    dane: { tony?: number; przejechaneMetry?: number },
+  ) => Promise<void>;
   ustawKierunekUkladania: (
     sesjaId: string,
     obszarId: string,
@@ -91,6 +103,59 @@ const generujId = () => Date.now().toString(36) + Math.random().toString(36).sli
 const zapisz = async (sesje: SesjaObmiaruDnia[]) => {
   await AsyncStorage.setItem(KLUCZ, JSON.stringify(sesje));
 };
+
+function geometriaZWierzcholkow(
+  o: ObszarObmiaru,
+  wierzcholkiM: Punkt2D[],
+  skala: SkalaPzt,
+): Pick<ObszarObmiaru, 'wierzcholkiM' | 'wierzcholkiPdf' | 'powierzchniaM2' | 'obwodM' | 'wezlyRole'> {
+  const k = metryNaPunktPdf(skala);
+  return {
+    wierzcholkiM,
+    wierzcholkiPdf: wierzcholkiM.map((p) => ({ x: p.x / k, y: p.y / k })),
+    powierzchniaM2: round2(powierzchniaWielokata(wierzcholkiM)),
+    obwodM: round2(obwodWielokata(wierzcholkiM)),
+    wezlyRole: (o.wezlyRole ?? []).map((w) => {
+      const i = Math.max(0, Math.min(wierzcholkiM.length - 1, w.idx));
+      return { ...w, x: wierzcholkiM[i].x, y: wierzcholkiM[i].y };
+    }),
+  };
+}
+
+function lancuchDlaOdsadzki(obszar: ObszarObmiaru, ods: OdsadzkaObmiaru): number[] | null {
+  if (ods.idxP == null || ods.idxK == null) {
+    if (ods.strona) {
+      const odAbs = absKilometraz(ods.kmOdKm, ods.kmOdM);
+      const doAbs = absKilometraz(ods.kmDoKm, ods.kmDoM);
+      if (odAbs != null && doAbs != null) {
+        return idxWezlowOdcinkaKm(obszar, ods.strona, odAbs, doAbs);
+      }
+    }
+    return null;
+  }
+  const boki = bokiFigury(obszar);
+  if (ods.strona && boki) {
+    const bok = ods.strona === 'lewa' ? boki.lewa : boki.prawa;
+    const pod = podlancuch(bok, ods.idxP, ods.idxK);
+    if (pod.length >= 1) return pod;
+  }
+  if (ods.idxP === ods.idxK) return [ods.idxP];
+  return lancuchKrotszy(obszar.wierzcholkiM.length, ods.idxP, ods.idxK);
+}
+
+function zastosujJednaOdsadzke(
+  obszar: ObszarObmiaru,
+  ods: OdsadzkaObmiaru,
+  wierzcholki: Punkt2D[],
+  dystansM: number,
+) {
+  const lancuch = lancuchDlaOdsadzki({ ...obszar, wierzcholkiM: wierzcholki }, { ...ods, dystansM });
+  if (!lancuch || lancuch.length < 1) return null;
+  const wynik = lancuch.length < 2
+    ? odsadzKrawedz(wierzcholki, lancuch[0], dystansM)
+    : odsadzPoLancuchu(wierzcholki, lancuch, dystansM);
+  return { wynik, lancuch };
+}
 
 function kaskadaKilometrazy(obszary: ObszarObmiaru[]): ObszarObmiaru[] {
   const sorted = [...obszary].sort((a, b) => a.kolejnosc - b.kolejnosc);
@@ -409,54 +474,113 @@ export const useObmiarStore = create<ObmiarStore>((set, get) => ({
     return nowa.id;
   },
 
-  zastosujOdsadzkeLancucha: async (sesjaId, obszarId, odsadzkaId, dystansM) => {
+  usunOdsadzke: async (sesjaId, obszarId, odsadzkaId) => {
+    const sesja = get().sesje.find((s) => s.id === sesjaId);
+    if (!sesja) return;
+    const obszar = sesja.obszary.find((o) => o.id === obszarId);
+    if (!obszar) return;
+    const lista = [...(obszar.odsadzki ?? [])];
+    const idx = lista.findIndex((x) => x.id === odsadzkaId);
+    if (idx < 0) return;
+    const target = lista[idx];
+    let wierz = obszar.wierzcholkiM.map((p) => ({ ...p }));
+    if (target.zastosowana && target.wierzcholkiPrzed && target.wierzcholkiPrzed.length >= 3) {
+      wierz = target.wierzcholkiPrzed.map((p) => ({ ...p }));
+    }
+    const pozostale = lista.filter((x) => x.id !== odsadzkaId);
+    const geom0 = geometriaZWierzcholkow(obszar, wierz, sesja.skala);
+    let oNowy: ObszarObmiaru = { ...obszar, ...geom0, odsadzki: pozostale };
+    for (let i = idx; i < pozostale.length; i++) {
+      const ods = pozostale[i];
+      if (!ods.zastosowana || ods.dystansM == null) continue;
+      const zastos = zastosujJednaOdsadzke(oNowy, ods, oNowy.wierzcholkiM, ods.dystansM);
+      if (!zastos) continue;
+      const przed = oNowy.wierzcholkiM.map((p) => ({ ...p }));
+      const g = geometriaZWierzcholkow(oNowy, zastos.wynik.wierzcholki, sesja.skala);
+      pozostale[i] = {
+        ...ods,
+        idxP: zastos.lancuch[0],
+        idxK: zastos.lancuch[zastos.lancuch.length - 1],
+        wierzcholkiPrzed: przed,
+      };
+      oNowy = { ...oNowy, ...g, odsadzki: pozostale };
+    }
+    const zaktualizowane = get().sesje.map((s) => {
+      if (s.id !== sesjaId) return s;
+      return {
+        ...s,
+        obszary: kaskadaKilometrazy(s.obszary.map((o) => (o.id !== obszarId ? o : oNowy))),
+        updatedAt: new Date().toISOString(),
+      };
+    });
+    set({ sesje: zaktualizowane });
+    await zapisz(zaktualizowane);
+  },
+
+  zastosujOdsadzkeLancucha: async (sesjaId, obszarId, odsadzkaId, dystansM, extra) => {
     const sesja = get().sesje.find((s) => s.id === sesjaId);
     if (!sesja) return null;
     const obszar = sesja.obszary.find((o) => o.id === obszarId);
     if (!obszar) return null;
-    const ods = (obszar.odsadzki ?? []).find((x) => x.id === odsadzkaId);
-    if (!ods || ods.idxP == null || ods.idxK == null) return null;
+    const lista = [...(obszar.odsadzki ?? [])];
+    const idx = lista.findIndex((x) => x.id === odsadzkaId);
+    if (idx < 0) return null;
+    const ods: OdsadzkaObmiaru = { ...lista[idx], ...extra, dystansM };
 
-    const przed = obszar.wierzcholkiM.map((p) => ({ ...p }));
-    const wynik = odsadzLancuch(obszar.wierzcholkiM, ods.idxP, ods.idxK, dystansM);
-    const k = metryNaPunktPdf(sesja.skala);
-    const wierzcholkiM = wynik.wierzcholki;
-    const wierzcholkiPdf = wierzcholkiM.map((p) => ({ x: p.x / k, y: p.y / k }));
-    const wezlyRole = (obszar.wezlyRole ?? []).map((w) => {
-      const i = Math.max(0, Math.min(wierzcholkiM.length - 1, w.idx));
-      return { ...w, x: wierzcholkiM[i].x, y: wierzcholkiM[i].y };
-    });
+    let wierz = obszar.wierzcholkiM.map((p) => ({ ...p }));
+    if (lista[idx].zastosowana && lista[idx].wierzcholkiPrzed && lista[idx].wierzcholkiPrzed.length >= 3) {
+      wierz = lista[idx].wierzcholkiPrzed.map((p) => ({ ...p }));
+    }
+
+    const zastos = zastosujJednaOdsadzke({ ...obszar, wierzcholkiM: wierz }, ods, wierz, dystansM);
+    if (!zastos) return null;
+    const przed = wierz.map((p) => ({ ...p }));
+    lista[idx] = {
+      ...ods,
+      dystansM,
+      zastosowana: true,
+      wierzcholkiPrzed: przed,
+      idxP: zastos.lancuch[0],
+      idxK: zastos.lancuch[zastos.lancuch.length - 1],
+    };
+    let oNowy: ObszarObmiaru = {
+      ...obszar,
+      ...geometriaZWierzcholkow(obszar, zastos.wynik.wierzcholki, sesja.skala),
+      odsadzki: lista,
+    };
+    for (let i = idx + 1; i < lista.length; i++) {
+      const nastepna = lista[i];
+      if (!nastepna.zastosowana || nastepna.dystansM == null) continue;
+      const z2 = zastosujJednaOdsadzke(oNowy, nastepna, oNowy.wierzcholkiM, nastepna.dystansM);
+      if (!z2) continue;
+      const przed2 = oNowy.wierzcholkiM.map((p) => ({ ...p }));
+      lista[i] = {
+        ...nastepna,
+        idxP: z2.lancuch[0],
+        idxK: z2.lancuch[z2.lancuch.length - 1],
+        wierzcholkiPrzed: przed2,
+      };
+      oNowy = {
+        ...oNowy,
+        ...geometriaZWierzcholkow(oNowy, z2.wynik.wierzcholki, sesja.skala),
+        odsadzki: lista,
+      };
+    }
 
     const zaktualizowane = get().sesje.map((s) => {
       if (s.id !== sesjaId) return s;
       return {
         ...s,
-        obszary: kaskadaKilometrazy(s.obszary.map((o) =>
-          o.id !== obszarId
-            ? o
-            : {
-                ...o,
-                wierzcholkiM,
-                wierzcholkiPdf,
-                powierzchniaM2: wynik.powierzchniaM2,
-                obwodM: wynik.obwodM,
-                wezlyRole,
-                odsadzki: (o.odsadzki ?? []).map((x) =>
-                  x.id === odsadzkaId
-                    ? { ...x, dystansM, zastosowana: true, wierzcholkiPrzed: przed }
-                    : x,
-                ),
-              },
-        )),
+        obszary: kaskadaKilometrazy(s.obszary.map((o) => (o.id !== obszarId ? o : oNowy))),
         updatedAt: new Date().toISOString(),
       };
     });
     set({ sesje: zaktualizowane });
     await zapisz(zaktualizowane);
     return {
-      deltaPowierzchniaM2: wynik.deltaPowierzchniaM2,
-      powierzchniaM2: wynik.powierzchniaM2,
-      dlugoscKrawedziM: wynik.dlugoscKrawedziM,
+      deltaPowierzchniaM2: zastos.wynik.deltaPowierzchniaM2,
+      powierzchniaM2: oNowy.powierzchniaM2,
+      dlugoscKrawedziM: zastos.wynik.dlugoscKrawedziM,
     };
   },
 
@@ -531,7 +655,41 @@ export const useObmiarStore = create<ObmiarStore>((set, get) => ({
         ...s,
         obszary: s.obszary.map((o) => {
           if (o.id !== obszarId) return o;
-          const wpisy = (o.wpisyWz ?? []).filter((w) => w.id !== wpisId);
+          const wpisy = (o.wpisyWz ?? [])
+            .filter((w) => w.id !== wpisId)
+            .map((w, i) => ({ ...w, numer: i + 1 }));
+          const ost = wpisy[wpisy.length - 1];
+          return {
+            ...o,
+            wpisyWz: wpisy,
+            sumaTon: wpisy.reduce((a, w) => a + w.tony, 0),
+            przejechaneMetry: ost?.przejechaneMetry ?? 0,
+          };
+        }),
+        updatedAt: new Date().toISOString(),
+      };
+    });
+    set({ sesje: zaktualizowane });
+    await zapisz(zaktualizowane);
+  },
+
+  edytujWpisWz: async (sesjaId, obszarId, wpisId, dane) => {
+    const zaktualizowane = get().sesje.map((s) => {
+      if (s.id !== sesjaId) return s;
+      return {
+        ...s,
+        obszary: s.obszary.map((o) => {
+          if (o.id !== obszarId) return o;
+          const wpisy = (o.wpisyWz ?? []).map((w) => {
+            if (w.id !== wpisId) return w;
+            return {
+              ...w,
+              tony: dane.tony != null ? Math.max(0, dane.tony) : w.tony,
+              przejechaneMetry: dane.przejechaneMetry != null
+                ? Math.max(0, dane.przejechaneMetry)
+                : w.przejechaneMetry,
+            };
+          });
           const ost = wpisy[wpisy.length - 1];
           return {
             ...o,

@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { odsadzKrawedz, odsadzLancuch, listaKrawedzi } from './obmiarOffset';
+import { odsadzKrawedz, odsadzLancuch, odsadzPoLancuchu, listaKrawedzi } from './obmiarOffset';
 import { pelneKilometrazeCo100m, punktNaSciezceUkladania } from './obmiarKilometraz';
 import type { ObszarObmiaru } from '../types';
 
@@ -33,6 +33,11 @@ describe('obmiarOffset', () => {
     const w = odsadzLancuch(prostokat, 0, 1, 0.1);
     assert.ok(Math.abs(w.deltaPowierzchniaM2 - 10) < 0.15);
   });
+
+  it('odsadz po lancuchu prawego boku', () => {
+    const w = odsadzPoLancuchu(prostokat, [3, 2], 0.1);
+    assert.ok(Math.abs(Math.abs(w.deltaPowierzchniaM2) - 10) < 0.2);
+  });
 });
 
 describe('obmiarKilometraz', () => {
@@ -48,6 +53,15 @@ describe('obmiarKilometraz', () => {
 
   it('brak znacznikow gdy dlugosc za krotka', () => {
     assert.equal(pelneKilometrazeCo100m(1, 830, 50).length, 0);
+  });
+
+  it('pikiety malejace od 1+830 na 400 m', () => {
+    const z = pelneKilometrazeCo100m(1, 830, 400, 'malejacy');
+    assert.deepEqual(
+      z.map((x) => x.etykieta),
+      ['1+800', '1+700', '1+600', '1+500'],
+    );
+    assert.equal(z[0].odStartuM, 30);
   });
 
   it('punkt na sciezce – w polowie boku', () => {

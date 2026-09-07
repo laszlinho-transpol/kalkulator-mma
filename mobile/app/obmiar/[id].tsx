@@ -37,7 +37,8 @@ export default function ObmiarDetailScreen() {
     sesjaPoId, dodajObszaryZXfdf, przesunObszar, usunObszar, zmienSkale,
     ustawBazeObszaru, ustawOdsadzke, dodajOdsadzke, zastosujOdsadzkeLancucha,
     ustawKonfiguracjeZablokowana, ustawParametryUkladania, dodajWpisWz,
-    usunWpisWz, ustawKierunekUkladania, ustawKontynuacje,
+    usunWpisWz, edytujWpisWz, ustawKierunekUkladania, ustawKontynuacje,
+    usunOdsadzke,
   } = useObmiarStore();
   const mieszanki = useMieszankiStore((s) => s.mieszanki);
   const pobierzMieszanke = useMieszankiStore((s) => s.pobierzMieszanke);
@@ -49,11 +50,15 @@ export default function ObmiarDetailScreen() {
   const [trybWyboru, setTrybWyboru] = useState<TrybWyboruWezla | null>(null);
   const [aktywnaOdsadzkaId, setAktywnaOdsadzkaId] = useState<string | null>(null);
   const [mapaAktywna, setMapaAktywna] = useState(false);
+  const [blokadaPodgladu, setBlokadaPodgladu] = useState(true);
   const [metryTekst, setMetryTekst] = useState('');
   const [tonyTekst, setTonyTekst] = useState('');
   const [gruboscTekst, setGruboscTekst] = useState('');
   const [pickerMieszanka, setPickerMieszanka] = useState(false);
   const [autoInfoId, setAutoInfoId] = useState<string | null>(null);
+  const [edycjaWzId, setEdycjaWzId] = useState<string | null>(null);
+  const [edycjaTony, setEdycjaTony] = useState('');
+  const [edycjaMetry, setEdycjaMetry] = useState('');
   const [pomiarP1, setPomiarP1] = useState<number | undefined>();
   const [pomiarP2, setPomiarP2] = useState<number | undefined>();
 
@@ -212,7 +217,8 @@ export default function ObmiarDetailScreen() {
       <ScrollView
         contentContainerStyle={[styles.zawartosc, { paddingBottom: insets.bottom + 24 }]}
         keyboardShouldPersistTaps="handled"
-        scrollEnabled={!mapaAktywna}
+        nestedScrollEnabled
+        scrollEnabled={!blokadaPodgladu && !mapaAktywna}
       >
         <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
           <Text style={[styles.kartaTytul, { color: theme.colors.text }]}>Sesja dnia</Text>
@@ -254,6 +260,8 @@ export default function ObmiarDetailScreen() {
               idxPodswietlone={idxPodswietlone}
               onPressAuto={(wpisId) => setAutoInfoId(wpisId)}
               onDotykZmiana={setMapaAktywna}
+              blokadaPodgladu={blokadaPodgladu}
+              onBlokadaPodgladu={setBlokadaPodgladu}
             />
           </View>
         )}
@@ -277,15 +285,21 @@ export default function ObmiarDetailScreen() {
                 const nid = await dodajOdsadzke(sesja.id, obszarPodgladu.id);
                 if (nid) setAktywnaOdsadzkaId(nid);
               }}
-              onZastosujOdsadzke={async (odsadzkaId, dystansM) => {
-                const w = await zastosujOdsadzkeLancucha(sesja.id, obszarPodgladu.id, odsadzkaId, dystansM);
+              onZastosujOdsadzke={async (odsadzkaId, dystansM, extra) => {
+                const w = await zastosujOdsadzkeLancucha(sesja.id, obszarPodgladu.id, odsadzkaId, dystansM, extra);
                 if (w) {
                   Alert.alert(
                     'Odsadzka',
                     `Δ powierzchnia ${w.deltaPowierzchniaM2 >= 0 ? '+' : ''}${w.deltaPowierzchniaM2} m²\nNowa: ${w.powierzchniaM2} m²`,
                   );
+                } else {
+                  Alert.alert(
+                    'Odsadzka',
+                    'Nie udało się zastosować. Ustaw start/koniec L i P, zaznacz węzły albo podaj stronę i kilometraż odcinka.',
+                  );
                 }
               }}
+              onUsunOdsadzke={(id) => usunOdsadzke(sesja.id, obszarPodgladu.id, id)}
               pomiar={pomiar}
             />
           </View>
@@ -359,21 +373,54 @@ export default function ObmiarDetailScreen() {
                 )}
               </View>
             )}
-            {(obszarPodgladu.wpisyWz ?? []).map((w) => (
-              <TouchableOpacity
-                key={w.id}
-                onPress={() => setAutoInfoId(w.id)}
-                onLongPress={() => Alert.alert('Usuń auto', `Usunąć auto #${w.numer}?`, [
-                  { text: 'Anuluj', style: 'cancel' },
-                  { text: 'Usuń', style: 'destructive', onPress: () => usunWpisWz(sesja.id, obszarPodgladu.id, w.id) },
-                ])}
-                style={{ marginTop: 8, paddingVertical: 6 }}
-              >
-                <Text style={{ color: theme.colors.primary, fontWeight: '700' }}>
-                  Auto #{w.numer} · {formatLiczby(w.tony)} Mg · {formatLiczby(w.przejechaneMetry)} m
-                </Text>
-              </TouchableOpacity>
-            ))}
+            {(obszarPodgladu.wpisyWz ?? []).map((w) => {
+              const info = infoAutaWz(obszarPodgladu, w, rho);
+              return (
+                <View
+                  key={w.id}
+                  style={{
+                    marginTop: 8,
+                    paddingVertical: 8,
+                    paddingHorizontal: 4,
+                    borderTopWidth: 1,
+                    borderColor: theme.colors.border,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 8,
+                  }}
+                >
+                  <TouchableOpacity style={{ flex: 1 }} onPress={() => setAutoInfoId(w.id)}>
+                    <Text style={{ color: theme.colors.primary, fontWeight: '700' }}>
+                      Auto #{w.numer} · {formatLiczby(w.tony)} Mg · {formatLiczby(w.przejechaneMetry)} m
+                    </Text>
+                    <Text style={{ color: theme.colors.textSecondary, fontSize: 12, marginTop: 2 }}>
+                      Z tego auta {formatLiczby(info.metryTegoAuta)} m
+                      {info.gruboscCm != null ? ` · Gr. ${formatLiczby(info.gruboscCm)} cm` : ''}
+                      {' · '}{formatLiczby(info.powierzchniaM2)} m²
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setEdycjaWzId(w.id);
+                      setEdycjaTony(String(w.tony));
+                      setEdycjaMetry(String(w.przejechaneMetry));
+                    }}
+                    style={[styles.btnMini, { backgroundColor: `${theme.colors.info}22` }]}
+                  >
+                    <Text style={{ color: theme.colors.info, fontWeight: '700' }}>✎</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => Alert.alert('Usuń auto', `Usunąć auto #${w.numer}? Postęp i grubość liczone od ostatniego pozostałego WZ.`, [
+                      { text: 'Anuluj', style: 'cancel' },
+                      { text: 'Usuń', style: 'destructive', onPress: () => usunWpisWz(sesja.id, obszarPodgladu.id, w.id) },
+                    ])}
+                    style={[styles.btnMini, { backgroundColor: `${theme.colors.danger}20` }]}
+                  >
+                    <Text style={{ color: theme.colors.danger, fontWeight: '700' }}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+              );
+            })}
           </View>
         )}
 
@@ -555,6 +602,39 @@ export default function ObmiarDetailScreen() {
             <Row label="Pozostało do końca" v={autoInfo.pozostaloMg != null ? `${formatLiczby(autoInfo.pozostaloMg)} Mg` : '—'} theme={theme} bold />
           </View>
         )}
+      </SafeModal>
+
+      <SafeModal
+        visible={!!edycjaWzId}
+        tytul="Edytuj auto WZ"
+        theme={theme}
+        onClose={() => setEdycjaWzId(null)}
+        lewy={{ tekst: 'Anuluj', onPress: () => setEdycjaWzId(null), kolor: theme.colors.textSecondary }}
+        prawy={{
+          tekst: 'Zapisz',
+          onPress: async () => {
+            if (!obszarPodgladu || !edycjaWzId) return;
+            const tony = parseFloat(edycjaTony.replace(',', '.'));
+            const metry = parseFloat(edycjaMetry.replace(',', '.'));
+            if (!Number.isFinite(tony) || !Number.isFinite(metry)) {
+              Alert.alert('WZ', 'Podaj tony i metry.');
+              return;
+            }
+            await edytujWpisWz(sesja.id, obszarPodgladu.id, edycjaWzId, { tony, przejechaneMetry: metry });
+            setEdycjaWzId(null);
+          },
+          kolor: theme.colors.primary,
+        }}
+      >
+        <View style={{ padding: 16, gap: 12 }}>
+          <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>
+            Po zapisie postęp i grubość liczone są od ostatniego WZ. Grubość tego auta jak w LIVE.
+          </Text>
+          <View style={styles.polaRzad}>
+            <Pole label="Tony [Mg]" value={edycjaTony} onChange={setEdycjaTony} theme={theme} />
+            <Pole label="Metry od startu [m]" value={edycjaMetry} onChange={setEdycjaMetry} theme={theme} />
+          </View>
+        </View>
       </SafeModal>
     </View>
   );

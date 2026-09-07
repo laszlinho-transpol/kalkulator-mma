@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.1';
+export const WERSJA_APLIKACJI = '1.8.2';
 
 export interface WpisChangelog {
   wersja: string;
@@ -12,6 +12,18 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.2',
+    data: '2026-09-07',
+    tytul: 'Obmiar – zoom jak PDF, odsadzki po km, edycja WZ',
+    zmiany: [
+      'Podgląd: lupka −/+, presety 10%…6400% i odczyt procentu; węzły, kreski i maszyny w metrach terenu (nie puchną przy zbliżeniu)',
+      'Kilometraż co 100 m zostaje czytelny (etykiety stałej wielkości na ekranie); gesty na całym białym polu ramki',
+      'Checkbox „Ramka” – zaznaczony blokuje scroll strony, tylko przesuwanie/zoom obszaru',
+      'Odsadzka także po kilometrażu (lewa/prawa krawędź, od–do, np. 1+300…1+400 o 0,1 m) + edycja i usuwanie z przeliczeniem m²',
+      'WZ: edycja i usuwanie auta; po usunięciu postęp od ostatniego WZ; grubość z auta jak w LIVE',
+    ],
+  },
   {
     wersja: '1.8.1',
     data: '2026-09-07',

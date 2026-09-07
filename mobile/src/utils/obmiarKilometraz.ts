@@ -3,7 +3,7 @@
 // ============================================================
 
 import type { ObszarObmiaru, Punkt2D } from '../types';
-import { srodekNaPostepie } from './obmiarFigura';
+import { kierunekKilometrazu, srodekNaPostepie } from './obmiarFigura';
 import { dlugoscUkladaniaObszaru } from './obmiarLive';
 import { round2 } from './calculations';
 
@@ -23,15 +23,21 @@ export function pelneKilometrazeCo100m(
   startKm: number,
   startM: number,
   dlugoscObszaruM: number,
+  kierunek: 'rosnacy' | 'malejacy' = 'rosnacy',
 ): ZnacznikKilometrazu[] {
   if (dlugoscObszaruM <= 0) return [];
   const startAbs = Math.max(0, startKm) * 1000 + Math.max(0, startM);
-  const koniecAbs = startAbs + dlugoscObszaruM;
-  let nastepny = Math.floor(startAbs / 100) * 100 + 100;
-  if (nastepny <= startAbs) nastepny += 100;
+  const sign = kierunek === 'malejacy' ? -1 : 1;
+  const koniecAbs = startAbs + sign * dlugoscObszaruM;
+  const lo = Math.min(startAbs, koniecAbs);
+  const hi = Math.max(startAbs, koniecAbs);
+  let nastepny = Math.floor(lo / 100) * 100 + 100;
+  if (nastepny <= lo + 1e-6) nastepny += 100;
   const out: ZnacznikKilometrazu[] = [];
-  for (let abs = nastepny; abs <= koniecAbs + 1e-6; abs += 100) {
-    const odStartuM = round2(abs - startAbs);
+  for (let abs = nastepny; abs <= hi + 1e-6; abs += 100) {
+    if (Math.abs(abs - startAbs) < 1e-6) continue;
+    const odStartuM = round2(Math.abs(abs - startAbs));
+    if (odStartuM > dlugoscObszaruM + 1e-6) continue;
     const km = Math.floor(abs / 1000);
     const m = Math.round(abs % 1000);
     out.push({
@@ -41,6 +47,7 @@ export function pelneKilometrazeCo100m(
       etykieta: `${km}+${String(m).padStart(3, '0')}`,
     });
   }
+  out.sort((a, b) => a.odStartuM - b.odStartuM);
   return out;
 }
 
@@ -119,9 +126,11 @@ export function znacznikiKilometrazuNaObszarze(obszar: ObszarObmiaru): Array<
 > {
   const km = obszar.bazaStart?.kilometrazKm ?? obszar.kilometrazStartKm;
   const m = obszar.bazaStart?.kilometrazM ?? obszar.kilometrazStartM;
-  if (km == null || m == null) return [];
+  if (km == null && m == null) return [];
   const dl = dlugoscUkladaniaObszaru(obszar);
-  return pelneKilometrazeCo100m(km, m, dl).map((z) => ({
+  const kierunek = kierunekKilometrazu(obszar);
+  const kKier: 'rosnacy' | 'malejacy' = kierunek === 'malejacy' ? 'malejacy' : 'rosnacy';
+  return pelneKilometrazeCo100m(km ?? 0, m ?? 0, dl, kKier).map((z) => ({
     ...z,
     pozycja: punktNaSciezceUkladania(obszar, z.odStartuM),
   }));

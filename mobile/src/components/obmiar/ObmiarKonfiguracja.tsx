@@ -19,7 +19,18 @@ interface Props {
   onBaza: (ktora: 'start' | 'koniec', dane: { kilometrazKm?: number; kilometrazM?: number }) => void;
   onKierunek: (k: 'rosnacy' | 'malejacy') => void;
   onDodajOdsadzke: () => void;
-  onZastosujOdsadzke: (odsadzkaId: string, dystansM: number) => void;
+  onZastosujOdsadzke: (
+    odsadzkaId: string,
+    dystansM: number,
+    extra?: {
+      strona?: 'lewa' | 'prawa';
+      kmOdKm?: number;
+      kmOdM?: number;
+      kmDoKm?: number;
+      kmDoM?: number;
+    },
+  ) => void;
+  onUsunOdsadzke: (odsadzkaId: string) => void;
   pomiar: { p1?: number; p2?: number; wzdluzM?: number; prostoM?: number };
 }
 
@@ -139,23 +150,97 @@ function SekcjaBazy({
 }
 
 function KartaOdsadzki({
-  o, theme, zablokowana, trybWyboru, onTryb, onZastosuj,
+  o, theme, zablokowana, trybWyboru, onTryb, onZastosuj, onUsun,
 }: {
   o: OdsadzkaObmiaru;
   theme: AppTheme;
   zablokowana: boolean;
   trybWyboru: TrybWyboruWezla | null;
   onTryb: (t: TrybWyboruWezla | null, odsadzkaId: string) => void;
-  onZastosuj: (odsadzkaId: string, dystansM: number) => void;
+  onZastosuj: (
+    odsadzkaId: string,
+    dystansM: number,
+    extra?: {
+      strona?: 'lewa' | 'prawa';
+      kmOdKm?: number;
+      kmOdM?: number;
+      kmDoKm?: number;
+      kmDoM?: number;
+    },
+  ) => void;
+  onUsun: (odsadzkaId: string) => void;
 }) {
   const [dyst, setDyst] = useState(o.dystansM != null ? String(Math.abs(o.dystansM)) : '0.10');
   const [zewn, setZewn] = useState(o.dystansM == null || o.dystansM >= 0);
-  const gotowe = o.idxP != null && o.idxK != null;
-  const tenSam = gotowe && o.idxP === o.idxK;
+  const [strona, setStrona] = useState<'lewa' | 'prawa' | undefined>(o.strona);
+  const od0 = polaZKilometraza(o.kmOdKm, o.kmOdM);
+  const do0 = polaZKilometraza(o.kmDoKm, o.kmDoM);
+  const [kmOdKm, setKmOdKm] = useState(od0.km);
+  const [kmOdM, setKmOdM] = useState(od0.m);
+  const [kmDoKm, setKmDoKm] = useState(do0.km);
+  const [kmDoM, setKmDoM] = useState(do0.m);
+  const gotoweWezly = o.idxP != null && o.idxK != null;
+  const tenSam = gotoweWezly && o.idxP === o.idxK;
+
+  useEffect(() => {
+    setStrona(o.strona);
+    const a = polaZKilometraza(o.kmOdKm, o.kmOdM);
+    const b = polaZKilometraza(o.kmDoKm, o.kmDoM);
+    setKmOdKm(a.km);
+    setKmOdM(a.m);
+    setKmDoKm(b.km);
+    setKmDoM(b.m);
+    if (o.dystansM != null) setDyst(String(Math.abs(o.dystansM)));
+    if (o.dystansM != null) setZewn(o.dystansM >= 0);
+  }, [o.id, o.strona, o.kmOdKm, o.kmOdM, o.kmDoKm, o.kmDoM, o.dystansM]);
+
+  const zastosuj = () => {
+    const v = parseFloat(dyst.replace(',', '.'));
+    if (!Number.isFinite(v) || v === 0) {
+      Alert.alert('Odsadzka', 'Podaj wartość w metrach (np. 0.10).');
+      return;
+    }
+    if (!gotoweWezly && !strona) {
+      Alert.alert('Odsadzka', 'Zaznacz węzły P/K albo wybierz stronę L/P i kilometraż odcinka.');
+      return;
+    }
+    const odP = parsujPolaKilometraza(kmOdKm, kmOdM);
+    const doP = parsujPolaKilometraza(kmDoKm, kmDoM);
+    onZastosuj(o.id, Math.abs(v) * (zewn ? 1 : -1), strona
+      ? {
+        strona,
+        kmOdKm: odP.km,
+        kmOdM: odP.m,
+        kmDoKm: doP.km,
+        kmDoM: doP.m,
+      }
+      : undefined);
+  };
 
   return (
     <View style={{ gap: 8, paddingTop: 6 }}>
-      <Text style={{ color: theme.colors.text, fontWeight: '700', fontSize: 13 }}>Odsadzka O{o.nr}</Text>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Text style={{ color: theme.colors.text, fontWeight: '700', fontSize: 13 }}>Odsadzka O{o.nr}</Text>
+        <View style={{ flexDirection: 'row', gap: 12 }}>
+          {o.zastosowana && (
+            <TouchableOpacity disabled={zablokowana} onPress={zastosuj}>
+              <Text style={{ color: theme.colors.primary, fontWeight: '800', fontSize: 13 }}>✎ Edytuj</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            disabled={zablokowana}
+            onPress={() => Alert.alert('Usuń odsadzkę', `Usunąć O${o.nr}? Powierzchnia wróci do stanu sprzed tej odsadzki.`, [
+              { text: 'Anuluj', style: 'cancel' },
+              { text: 'Usuń', style: 'destructive', onPress: () => onUsun(o.id) },
+            ])}
+          >
+            <Text style={{ color: theme.colors.danger, fontWeight: '800', fontSize: 13 }}>Usuń</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+      <Text style={{ color: theme.colors.textSecondary, fontSize: 11 }}>
+        Węzły P/K albo kilometraż na krawędzi L/P (np. prawa 1+300…1+400, 0,1 m na zewnątrz).
+      </Text>
       <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
         <Chip
           label={`P${o.nr}`}
@@ -174,14 +259,36 @@ function KartaOdsadzki({
           onPress={() => onTryb(trybWyboru === 'odsadzkaK' ? null : 'odsadzkaK', o.id)}
         />
       </View>
+      <Text style={{ color: theme.colors.textSecondary, fontSize: 11, fontWeight: '700' }}>Strona (krawędź)</Text>
+      <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+        <Chip
+          label="Lewa"
+          theme={theme}
+          disabled={zablokowana}
+          aktywny={strona === 'lewa'}
+          onPress={() => setStrona(strona === 'lewa' ? undefined : 'lewa')}
+        />
+        <Chip
+          label="Prawa"
+          theme={theme}
+          disabled={zablokowana}
+          aktywny={strona === 'prawa'}
+          onPress={() => setStrona(strona === 'prawa' ? undefined : 'prawa')}
+        />
+      </View>
+      <View style={{ gap: 6 }}>
+        <Text style={{ color: theme.colors.textSecondary, fontSize: 11 }}>Kilometraż od</Text>
+        <PoleKilometraz theme={theme} km={kmOdKm} m={kmOdM} onKm={setKmOdKm} onM={setKmOdM} editable={!zablokowana} compact />
+        <Text style={{ color: theme.colors.textSecondary, fontSize: 11 }}>Kilometraż do</Text>
+        <PoleKilometraz theme={theme} km={kmDoKm} m={kmDoM} onKm={setKmDoKm} onM={setKmDoM} editable={!zablokowana} compact />
+      </View>
       {tenSam && (
         <Text style={{ color: theme.colors.textSecondary, fontSize: 11 }}>
           Ten sam węzeł – odsunięcie krawędzi wychodzącej z początku odcinka.
         </Text>
       )}
-      {gotowe && !o.zastosowana && (
-        <View style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-end' }}>
-          <View style={{ flex: 1 }}>
+      <View style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+          <View style={{ flex: 1, minWidth: 90 }}>
             <Text style={{ color: theme.colors.textSecondary, fontSize: 11, marginBottom: 4 }}>Odsunięcie [m]</Text>
             <TextInput
               value={dyst}
@@ -197,24 +304,20 @@ function KartaOdsadzki({
           </View>
           <Chip label="Zewn." theme={theme} aktywny={zewn} onPress={() => setZewn(true)} disabled={zablokowana} />
           <Chip label="Wewn." theme={theme} aktywny={!zewn} onPress={() => setZewn(false)} disabled={zablokowana} />
-          <TouchableOpacity
-            disabled={zablokowana}
-            onPress={() => {
-              const v = parseFloat(dyst.replace(',', '.'));
-              if (!Number.isFinite(v) || v === 0) {
-                Alert.alert('Odsadzka', 'Podaj wartość w metrach (np. 0.10).');
-                return;
-              }
-              onZastosuj(o.id, Math.abs(v) * (zewn ? 1 : -1));
-            }}
-          >
-            <Text style={{ color: theme.colors.primary, fontWeight: '800' }}>Zastosuj</Text>
+          <TouchableOpacity disabled={zablokowana} onPress={zastosuj}>
+            <Text style={{ color: theme.colors.primary, fontWeight: '800' }}>
+              {o.zastosowana ? 'Zastosuj ponownie' : 'Zastosuj'}
+            </Text>
           </TouchableOpacity>
         </View>
-      )}
       {o.zastosowana && (
         <Text style={{ color: theme.colors.textSecondary, fontSize: 11 }}>
-          Zastosowano {o.dystansM != null && o.dystansM >= 0 ? '+' : ''}{o.dystansM} m · stara linia szara
+          Zastosowano {o.dystansM != null && o.dystansM >= 0 ? '+' : ''}{o.dystansM} m
+          {o.strona ? ` · ${o.strona === 'lewa' ? 'lewa' : 'prawa'}` : ''}
+          {o.kmOdKm != null || o.kmOdM != null
+            ? ` · ${o.kmOdKm ?? 0}+${String(o.kmOdM ?? 0).padStart(3, '0')}–${o.kmDoKm ?? 0}+${String(o.kmDoM ?? 0).padStart(3, '0')}`
+            : ''}
+          {' · stara linia szara'}
         </Text>
       )}
     </View>
@@ -223,7 +326,7 @@ function KartaOdsadzki({
 
 export function ObmiarKonfiguracja({
   obszar, theme, trybWyboru, onTryb, zablokowana, onBlokada,
-  onBaza, onKierunek, onDodajOdsadzke, onZastosujOdsadzke, pomiar,
+  onBaza, onKierunek, onDodajOdsadzke, onZastosujOdsadzke, onUsunOdsadzke, pomiar,
 }: Props) {
   const kierunek = kierunekKilometrazu(obszar);
   const dl = useMemo(() => dlugoscUkladaniaObszaru(obszar), [obszar]);
@@ -317,6 +420,7 @@ export function ObmiarKonfiguracja({
             onTryb(t, id);
           }}
           onZastosuj={onZastosujOdsadzke}
+          onUsun={onUsunOdsadzke}
         />
       ))}
       <TouchableOpacity disabled={zablokowana} onPress={onDodajOdsadzke}>

@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, LayoutChangeEvent, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import {
+  Animated, LayoutChangeEvent, ScrollView, StyleSheet, Text, TouchableOpacity, View,
+} from 'react-native';
 import {
   GestureHandlerRootView,
   PanGestureHandler,
@@ -15,8 +17,15 @@ import { bboxWielokata } from '../../utils/obmiarGeometry';
 import { lancuchKrotszy, osFigury, wezlyZKonfiguracji } from '../../utils/obmiarFigura';
 import { punktNaSciezceUkladania, znacznikiKilometrazuNaObszarze } from '../../utils/obmiarKilometraz';
 import {
-  ograniczenie, SKALA_MAX, SKALA_MIN,
-  translacjaPrzyObrocie, translacjaPrzyZoomie,
+  nastepnyPresetZoom,
+  ograniczenie,
+  PRESETY_ZOOM_PROC,
+  punktSvgZEkranu,
+  SKALA_MAX,
+  SKALA_MIN,
+  skalaZProcentu,
+  translacjaPrzyObrocie,
+  translacjaPrzyZoomie,
 } from '../../utils/obmiarMapa';
 
 const PRIMARY = '#E8A020';
@@ -31,6 +40,16 @@ const KOLOR_SZARY = '#9CA3AF';
 const MASZYNA_OFFSET_DEG = 180;
 const IMG_ROZKLADARKA = require('../../../assets/maszyny/rozkladarka.png');
 const IMG_SAMOCHOD = require('../../../assets/maszyny/samochod.png');
+
+/** Rozmiary w metrach terenu – skalują się razem z drogą (jak w PDF). */
+const WEZEL_R_M = 0.32;
+const OBRYS_M = 0.16;
+const BAZA_M = 0.22;
+const KM_KRESKA_M = 0.9;
+const AUTO_W_M = 2.7;
+const AUTO_H_M = 1.5;
+const ROZ_W_M = 4.6;
+const ROZ_H_M = 2.5;
 
 interface Props {
   wierzcholki: Punkt2D[];
@@ -47,6 +66,8 @@ interface Props {
   idxPodswietlone?: number[];
   onPressAuto?: (wpisId: string) => void;
   onDotykZmiana?: (aktywny: boolean) => void;
+  blokadaPodgladu?: boolean;
+  onBlokadaPodgladu?: (v: boolean) => void;
 }
 
 function hexDoRgba(hex: string | undefined, alpha: number, fallback: string): string {
@@ -79,8 +100,11 @@ export function WielokatPodglad({
   idxPodswietlone = [],
   onPressAuto,
   onDotykZmiana,
+  blokadaPodgladu = false,
+  onBlokadaPodgladu,
 }: Props) {
   const [rozmiar, setRozmiar] = useState({ w: 320, h: wysokosc });
+  const [skalaPct, setSkalaPct] = useState(100);
 
   const bazaSkali = useRef(1);
   const bazaX = useRef(0);
@@ -101,12 +125,35 @@ export function WielokatPodglad({
   const PAN_CZYNNIK = 0.55;
   const TAP_MAX = 10;
 
-  const clampTrans = (x: number, y: number) => {
-    const max = Math.max(rozmiar.w, rozmiar.h) * 0.75;
+  const clampTrans = (x: number, y: number, s = bazaSkali.current) => {
+    const max = Math.max(rozmiar.w, rozmiar.h) * Math.max(s, 1) * 3;
     return { x: ograniczenie(x, -max, max), y: ograniczenie(y, -max, max) };
   };
 
   const zwolnijDotyk = () => onDotykZmiana?.(false);
+
+  const ustawSkaleWokolSrodka = (s1raw: number) => {
+    const s0 = bazaSkali.current;
+    const s1 = ograniczenie(s1raw, SKALA_MIN, SKALA_MAX);
+    const t0 = translacjaPrzyZoomie({
+      skala0: s0,
+      skala1: s1,
+      tx0: bazaX.current,
+      ty0: bazaY.current,
+      f0x: 0,
+      f0y: 0,
+      f1x: 0,
+      f1y: 0,
+    });
+    const t = clampTrans(t0.tx, t0.ty, s1);
+    bazaSkali.current = s1;
+    bazaX.current = t.x;
+    bazaY.current = t.y;
+    skala.setValue(s1);
+    transX.setValue(t.x);
+    transY.setValue(t.y);
+    setSkalaPct(Math.round(s1 * 100));
+  };
 
   const resetWidoku = () => {
     bazaSkali.current = 1;
@@ -117,6 +164,7 @@ export function WielokatPodglad({
     transX.setValue(0);
     transY.setValue(0);
     rotacja.setValue(0);
+    setSkalaPct(100);
     zwolnijDotyk();
   };
 
@@ -279,6 +327,7 @@ export function WielokatPodglad({
     }
 
     return {
+      skalaFit,
       punkty,
       punktyStr: punkty.map((p) => `${p.x},${p.y}`).join(' '),
       clipStr: clipPts.map((p) => `${p.x},${p.y}`).join(' '),
@@ -313,10 +362,12 @@ export function WielokatPodglad({
       f1x: f1.x,
       f1y: f1.y,
     });
-    const t = clampTrans(t0.tx, t0.ty);
+    const t = clampTrans(t0.tx, t0.ty, s1);
     skala.setValue(s1);
     transX.setValue(t.x);
     transY.setValue(t.y);
+    const pct = Math.round(s1 * 100);
+    if (pct !== skalaPct) setSkalaPct(pct);
   };
   const onPinchState = (e: any) => {
     const st = e.nativeEvent.state;
@@ -348,12 +399,13 @@ export function WielokatPodglad({
         f1x: f1.x,
         f1y: f1.y,
       });
-      const t = clampTrans(t0.tx, t0.ty);
+      const t = clampTrans(t0.tx, t0.ty, bazaSkali.current);
       bazaX.current = t.x;
       bazaY.current = t.y;
       skala.setValue(bazaSkali.current);
       transX.setValue(t.x);
       transY.setValue(t.y);
+      setSkalaPct(Math.round(bazaSkali.current * 100));
       zwolnijDotyk();
     }
     if (st === State.FAILED || st === State.CANCELLED || st === State.END) zwolnijDotyk();
@@ -397,6 +449,28 @@ export function WielokatPodglad({
     if (st === State.FAILED || st === State.CANCELLED || st === State.END) zwolnijDotyk();
   };
 
+  const trafWezel = (ekranX: number, ekranY: number) => {
+    if (!mapa || !onPressWezel) return;
+    const p = punktSvgZEkranu({
+      ekranX,
+      ekranY,
+      szer: rozmiar.w,
+      wys: rozmiar.h,
+      tx: bazaX.current,
+      ty: bazaY.current,
+      rot: bazaRot.current,
+      skala: bazaSkali.current,
+    });
+    const hitSvg = Math.max(WEZEL_R_M * 3 * mapa.skalaFit, 18 / Math.max(bazaSkali.current, 0.15));
+    let best = -1;
+    let bestD = hitSvg;
+    mapa.punkty.forEach((pt, i) => {
+      const d = Math.hypot(pt.x - p.x, pt.y - p.y);
+      if (d < bestD) { bestD = d; best = i; }
+    });
+    if (best >= 0) onPressWezel(best);
+  };
+
   const onPan = (e: any) => {
     if (e.nativeEvent.numberOfPointers > 1) return;
     const t = clampTrans(
@@ -413,18 +487,10 @@ export function WielokatPodglad({
       if (st === State.FAILED || st === State.CANCELLED || st === State.END) {
         const dx = e.nativeEvent.translationX ?? 0;
         const dy = e.nativeEvent.translationY ?? 0;
-        if (onPressWezel && Math.hypot(dx, dy) < TAP_MAX && mapa) {
+        if (onPressWezel && Math.hypot(dx, dy) < TAP_MAX) {
           const x = e.nativeEvent.x as number | undefined;
           const y = e.nativeEvent.y as number | undefined;
-          if (x != null && y != null) {
-            let best = -1;
-            let bestD = 22;
-            mapa.punkty.forEach((p, i) => {
-              const d = Math.hypot(p.x - x, p.y - y);
-              if (d < bestD) { bestD = d; best = i; }
-            });
-            if (best >= 0) onPressWezel(best);
-          }
+          if (x != null && y != null) trafWezel(x, y);
         }
         zwolnijDotyk();
       }
@@ -468,188 +534,268 @@ export function WielokatPodglad({
     ],
   };
 
-  return (
-    <View style={[styl.ramka, { height: wysokosc }]} collapsable={false}>
-      {etykieta ? <Text style={styl.etykieta} pointerEvents="none">{etykieta}</Text> : null}
-      {trybWyboru ? (
-        <Text style={styl.tryb} pointerEvents="none">Wybierz węzeł na rysunku</Text>
-      ) : (
-        <Text style={styl.hint} pointerEvents="none">1 palec: przesuń · 2 palce: zoom i obrót</Text>
-      )}
-      <TouchableOpacity style={styl.celownik} onPress={resetWidoku} accessibilityLabel="Przywróć obszar">
-        <Text style={styl.celownikTekst}>⌖</Text>
-      </TouchableOpacity>
+  const m = (metry: number) => metry * mapa.skalaFit;
+  const inv = 1 / Math.max(skalaPct / 100, 0.08);
+  const wezelR = m(WEZEL_R_M);
+  const wezelHit = Math.max(wezelR * 2.2, 16 * inv);
+  const panOffset = blokadaPodgladu ? 2 : 14;
+  const gestyWlaczane = !trybWyboru;
 
-      <View style={styl.klip} collapsable={false} onLayout={onLayout}>
-        <GestureHandlerRootView style={StyleSheet.absoluteFill}>
-          <PinchGestureHandler
-            ref={pinchRef}
-            simultaneousHandlers={[panRef, rotRef]}
-            enabled={!trybWyboru}
-            onGestureEvent={onPinch}
-            onHandlerStateChange={onPinchState}
-          >
-            <Animated.View style={StyleSheet.absoluteFill}>
-              <RotationGestureHandler
-                ref={rotRef}
-                simultaneousHandlers={[pinchRef, panRef]}
-                enabled={!trybWyboru}
-                onGestureEvent={onRot}
-                onHandlerStateChange={onRotState}
-              >
-                <Animated.View style={StyleSheet.absoluteFill}>
-                  <PanGestureHandler
-                    ref={panRef}
-                    simultaneousHandlers={[pinchRef, rotRef]}
-                    minPointers={1}
-                    maxPointers={2}
-                    avgTouches
-                    enabled={!trybWyboru}
-                    activeOffsetX={[-14, 14]}
-                    activeOffsetY={[-14, 14]}
-                    onGestureEvent={onPan}
-                    onHandlerStateChange={onPanState}
-                  >
-                    <Animated.View style={[StyleSheet.absoluteFill, animStyle]}>
-                      <Svg width={rozmiar.w} height={rozmiar.h}>
-                        <Defs>
-                          <ClipPath id="clipObszar">
-                            <Polygon points={mapa.punktyStr} />
-                          </ClipPath>
-                        </Defs>
-                        <G>
-                          {mapa.lancuchyOds.filter((l) => l.przerywana).map((l, i) => (
-                            <Polyline
-                              key={`old-${i}`}
-                              points={l.punkty}
-                              fill="none"
-                              stroke={l.kolor}
-                              strokeWidth={1.6}
-                              strokeDasharray="5 4"
-                              opacity={0.85}
-                            />
-                          ))}
-                          <Polygon
-                            points={mapa.punktyStr}
-                            fill={fillPlan}
-                            stroke={PRIMARY}
-                            strokeWidth={2.5}
+  return (
+    <View>
+      <View style={[styl.ramka, { height: wysokosc }, blokadaPodgladu && styl.ramkaBlokada]} collapsable={false}>
+        {etykieta ? <Text style={styl.etykieta} pointerEvents="none">{etykieta}</Text> : null}
+        {trybWyboru ? (
+          <Text style={styl.tryb} pointerEvents="none">Wybierz węzeł na rysunku</Text>
+        ) : null}
+        <TouchableOpacity style={styl.celownik} onPress={resetWidoku} accessibilityLabel="Przywróć obszar">
+          <Text style={styl.celownikTekst}>⌖</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styl.blokada}
+          onPress={() => onBlokadaPodgladu?.(!blokadaPodgladu)}
+          accessibilityLabel="Blokada podglądu"
+        >
+          <View style={[styl.check, blokadaPodgladu && styl.checkOn]}>
+            {blokadaPodgladu ? <Text style={styl.checkTekst}>✓</Text> : null}
+          </View>
+          <Text style={styl.blokadaTekst}>Ramka</Text>
+        </TouchableOpacity>
+
+        <View style={styl.lupka}>
+          <TouchableOpacity style={styl.lupkaBtn} onPress={() => ustawSkaleWokolSrodka(nastepnyPresetZoom(bazaSkali.current, -1))}>
+            <Text style={styl.lupkaZnak}>−</Text>
+          </TouchableOpacity>
+          <Text style={styl.lupkaPct}>{skalaPct}%</Text>
+          <TouchableOpacity style={styl.lupkaBtn} onPress={() => ustawSkaleWokolSrodka(nastepnyPresetZoom(bazaSkali.current, 1))}>
+            <Text style={styl.lupkaZnak}>+</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styl.klip} collapsable={false} onLayout={onLayout}>
+          <GestureHandlerRootView style={StyleSheet.absoluteFill}>
+            <PinchGestureHandler
+              ref={pinchRef}
+              simultaneousHandlers={[panRef, rotRef]}
+              enabled={gestyWlaczane}
+              onGestureEvent={onPinch}
+              onHandlerStateChange={onPinchState}
+            >
+              <Animated.View style={StyleSheet.absoluteFill} collapsable={false}>
+                <RotationGestureHandler
+                  ref={rotRef}
+                  simultaneousHandlers={[pinchRef, panRef]}
+                  enabled={gestyWlaczane}
+                  onGestureEvent={onRot}
+                  onHandlerStateChange={onRotState}
+                >
+                  <Animated.View style={StyleSheet.absoluteFill} collapsable={false}>
+                    <PanGestureHandler
+                      ref={panRef}
+                      simultaneousHandlers={[pinchRef, rotRef]}
+                      minPointers={1}
+                      maxPointers={2}
+                      avgTouches
+                      enabled={gestyWlaczane}
+                      activeOffsetX={[-panOffset, panOffset]}
+                      activeOffsetY={[-panOffset, panOffset]}
+                      onGestureEvent={onPan}
+                      onHandlerStateChange={onPanState}
+                    >
+                      <Animated.View style={[StyleSheet.absoluteFill, animStyle]} collapsable={false}>
+                        <Svg width={rozmiar.w} height={rozmiar.h}>
+                          <Defs>
+                            <ClipPath id="clipObszar">
+                              <Polygon points={mapa.punktyStr} />
+                            </ClipPath>
+                          </Defs>
+                          <Rect
+                            x={0}
+                            y={0}
+                            width={rozmiar.w}
+                            height={rozmiar.h}
+                            fill="#F8FAFC"
                           />
-                          {postepLive > 0.001 && (
-                            <G clipPath="url(#clipObszar)">
-                              <Polygon points={mapa.clipStr} fill={FILL_LIVE} />
-                            </G>
-                          )}
-                          {mapa.lancuchyOds.filter((l) => !l.przerywana).map((l, i) => (
-                            <Polyline
-                              key={`ods-${i}`}
-                              points={l.punkty}
-                              fill="none"
-                              stroke={l.kolor}
-                              strokeWidth={3}
-                            />
-                          ))}
-                          {mapa.osSvg.length > 1 && (
-                            <Polyline
-                              points={mapa.osSvg.map((p) => `${p.x},${p.y}`).join(' ')}
-                              fill="none"
-                              stroke="#64748B"
-                              strokeWidth={1.4}
-                              strokeDasharray="4 3"
-                            />
-                          )}
-                          {mapa.linieBazy.map((l, i) => (
-                            <Line
-                              key={`baza-${i}`}
-                              x1={l.x1}
-                              y1={l.y1}
-                              x2={l.x2}
-                              y2={l.y2}
-                              stroke={l.kolor}
-                              strokeWidth={3.5}
-                            />
-                          ))}
-                          {mapa.punkty.map((p, i) => {
-                            const hit = idxPodswietlone.includes(i);
-                            const rola = mapa.wezlySvg.find((w) => w.idx === i);
-                            const fill = hit
-                              ? PRIMARY
-                              : rola
-                                ? kolorRoli(rola.rola)
-                                : '#fff';
-                            return (
-                              <Circle
-                                key={`v-${i}`}
-                                cx={p.x}
-                                cy={p.y}
-                                r={hit || trybWyboru ? 6.5 : 4.5}
-                                fill={fill}
-                                stroke={rola ? '#fff' : PRIMARY}
-                                strokeWidth={1.5}
-                                onPress={onPressWezel ? () => onPressWezel(i) : undefined}
+                          <G>
+                            {mapa.lancuchyOds.filter((l) => l.przerywana).map((l, i) => (
+                              <Polyline
+                                key={`old-${i}`}
+                                points={l.punkty}
+                                fill="none"
+                                stroke={l.kolor}
+                                strokeWidth={m(OBRYS_M * 0.7)}
+                                strokeDasharray={`${m(0.8)} ${m(0.55)}`}
+                                opacity={0.85}
                               />
-                            );
-                          })}
-                          {mapa.kmSvg.map((z) => (
-                            <G key={`km-${z.etykieta}`}>
-                              <Line x1={z.x} y1={z.y - 9} x2={z.x} y2={z.y + 9} stroke="#0F766E" strokeWidth={1.5} />
-                              <SvgText x={z.x + 5} y={z.y - 11} fill="#0F766E" fontSize={10} fontWeight="700">
-                                {z.etykieta}
-                              </SvgText>
-                            </G>
-                          ))}
-                          {mapa.maszyny.map((m, i) => {
-                            const isRoz = m.rodzaj === 'rozkladarka';
-                            const w = isRoz ? 58 : 50;
-                            const h = isRoz ? 42 : 28;
-                            return (
-                              <G key={`m-${m.rodzaj}-${i}-${m.numer ?? 0}`}>
-                                <SvgImage
-                                  href={isRoz ? IMG_ROZKLADARKA : IMG_SAMOCHOD}
-                                  x={m.x - w / 2}
-                                  y={m.y - h / 2}
-                                  width={w}
-                                  height={h}
-                                  opacity={0.96}
-                                  transform={`rotate(${m.rotDeg}, ${m.x}, ${m.y})`}
-                                  pointerEvents="none"
-                                />
-                                {!isRoz && m.numer != null && (
-                                  <SvgText
-                                    x={m.x}
-                                    y={m.y + 4}
-                                    fill="#111827"
-                                    fontSize={11}
-                                    fontWeight="800"
-                                    textAnchor="middle"
-                                    pointerEvents="none"
-                                  >
-                                    {m.numer}
-                                  </SvgText>
-                                )}
-                                {!isRoz && m.wpisId && onPressAuto && (
-                                  <Circle
-                                    cx={m.x}
-                                    cy={m.y}
-                                    r={16}
-                                    fill="transparent"
-                                    onPress={() => onPressAuto(m.wpisId!)}
-                                  />
-                                )}
+                            ))}
+                            <Polygon
+                              points={mapa.punktyStr}
+                              fill={fillPlan}
+                              stroke={PRIMARY}
+                              strokeWidth={m(OBRYS_M)}
+                            />
+                            {postepLive > 0.001 && (
+                              <G clipPath="url(#clipObszar)">
+                                <Polygon points={mapa.clipStr} fill={FILL_LIVE} />
                               </G>
-                            );
-                          })}
-                          <Rect x={-1} y={-1} width={1} height={1} fill="transparent" />
-                        </G>
-                      </Svg>
-                    </Animated.View>
-                  </PanGestureHandler>
-                </Animated.View>
-              </RotationGestureHandler>
-            </Animated.View>
-          </PinchGestureHandler>
-        </GestureHandlerRootView>
+                            )}
+                            {mapa.lancuchyOds.filter((l) => !l.przerywana).map((l, i) => (
+                              <Polyline
+                                key={`ods-${i}`}
+                                points={l.punkty}
+                                fill="none"
+                                stroke={l.kolor}
+                                strokeWidth={m(OBRYS_M * 1.15)}
+                              />
+                            ))}
+                            {mapa.osSvg.length > 1 && (
+                              <Polyline
+                                points={mapa.osSvg.map((p) => `${p.x},${p.y}`).join(' ')}
+                                fill="none"
+                                stroke="#64748B"
+                                strokeWidth={m(0.1)}
+                                strokeDasharray={`${m(0.7)} ${m(0.45)}`}
+                              />
+                            )}
+                            {mapa.linieBazy.map((l, i) => (
+                              <Line
+                                key={`baza-${i}`}
+                                x1={l.x1}
+                                y1={l.y1}
+                                x2={l.x2}
+                                y2={l.y2}
+                                stroke={l.kolor}
+                                strokeWidth={m(BAZA_M)}
+                              />
+                            ))}
+                            {mapa.punkty.map((p, i) => {
+                              const hit = idxPodswietlone.includes(i);
+                              const rola = mapa.wezlySvg.find((w) => w.idx === i);
+                              const fill = hit
+                                ? PRIMARY
+                                : rola
+                                  ? kolorRoli(rola.rola)
+                                  : '#fff';
+                              return (
+                                <G key={`v-${i}`}>
+                                  <Circle
+                                    cx={p.x}
+                                    cy={p.y}
+                                    r={wezelHit}
+                                    fill="transparent"
+                                    onPress={onPressWezel ? () => onPressWezel(i) : undefined}
+                                  />
+                                  <Circle
+                                    cx={p.x}
+                                    cy={p.y}
+                                    r={hit || trybWyboru ? wezelR * 1.35 : wezelR}
+                                    fill={fill}
+                                    stroke={rola ? '#fff' : PRIMARY}
+                                    strokeWidth={m(0.08)}
+                                    pointerEvents="none"
+                                  />
+                                </G>
+                              );
+                            })}
+                            {mapa.kmSvg.map((z) => (
+                              <G key={`km-${z.etykieta}`}>
+                                <Line
+                                  x1={z.x}
+                                  y1={z.y - m(KM_KRESKA_M)}
+                                  x2={z.x}
+                                  y2={z.y + m(KM_KRESKA_M)}
+                                  stroke="#0F766E"
+                                  strokeWidth={m(0.12)}
+                                />
+                                <SvgText
+                                  x={z.x + 6 * inv}
+                                  y={z.y - 8 * inv}
+                                  fill="#0F766E"
+                                  fontSize={11 * inv}
+                                  fontWeight="700"
+                                >
+                                  {z.etykieta}
+                                </SvgText>
+                              </G>
+                            ))}
+                            {mapa.maszyny.map((masz, i) => {
+                              const isRoz = masz.rodzaj === 'rozkladarka';
+                              const w = m(isRoz ? ROZ_W_M : AUTO_W_M);
+                              const h = m(isRoz ? ROZ_H_M : AUTO_H_M);
+                              return (
+                                <G key={`m-${masz.rodzaj}-${i}-${masz.numer ?? 0}`}>
+                                  <SvgImage
+                                    href={isRoz ? IMG_ROZKLADARKA : IMG_SAMOCHOD}
+                                    x={masz.x - w / 2}
+                                    y={masz.y - h / 2}
+                                    width={w}
+                                    height={h}
+                                    opacity={0.96}
+                                    transform={`rotate(${masz.rotDeg}, ${masz.x}, ${masz.y})`}
+                                    pointerEvents="none"
+                                  />
+                                  {!isRoz && masz.numer != null && (
+                                    <SvgText
+                                      x={masz.x}
+                                      y={masz.y + 4 * inv}
+                                      fill="#111827"
+                                      fontSize={11 * inv}
+                                      fontWeight="800"
+                                      textAnchor="middle"
+                                      pointerEvents="none"
+                                    >
+                                      {masz.numer}
+                                    </SvgText>
+                                  )}
+                                  {!isRoz && masz.wpisId && onPressAuto && (
+                                    <Circle
+                                      cx={masz.x}
+                                      cy={masz.y}
+                                      r={Math.max(w, h) * 0.55}
+                                      fill="transparent"
+                                      onPress={() => onPressAuto(masz.wpisId!)}
+                                    />
+                                  )}
+                                </G>
+                              );
+                            })}
+                          </G>
+                        </Svg>
+                      </Animated.View>
+                    </PanGestureHandler>
+                  </Animated.View>
+                </RotationGestureHandler>
+              </Animated.View>
+            </PinchGestureHandler>
+          </GestureHandlerRootView>
+        </View>
       </View>
+
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styl.presety}
+        nestedScrollEnabled
+      >
+        {PRESETY_ZOOM_PROC.map((p) => {
+          const aktywny = Math.abs(skalaPct - p) < 1;
+          return (
+            <TouchableOpacity
+              key={p}
+              style={[styl.preset, aktywny && styl.presetOn]}
+              onPress={() => ustawSkaleWokolSrodka(skalaZProcentu(p))}
+            >
+              <Text style={[styl.presetTekst, aktywny && styl.presetTekstOn]}>{p}%</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+      <Text style={styl.hintPod}>
+        {blokadaPodgladu
+          ? 'Blokada ramki: przesuwanie i zoom w podglądzie (strona nie scrolluje). Odznacz „Ramka”, aby przewinąć w dół.'
+          : '1 palec: przesuń · 2 palce / lupka: zoom. Zaznacz „Ramka”, żeby nie scrollować strony.'}
+      </Text>
     </View>
   );
 }
@@ -662,6 +808,9 @@ const styl = StyleSheet.create({
     borderColor: '#E5E7EB',
     overflow: 'hidden',
     position: 'relative',
+  },
+  ramkaBlokada: {
+    borderColor: '#E8A020',
   },
   klip: {
     ...StyleSheet.absoluteFill,
@@ -709,15 +858,89 @@ const styl = StyleSheet.create({
     justifyContent: 'center',
   },
   celownikTekst: { fontSize: 18, color: '#374151', fontWeight: '700' },
-  hint: {
+  blokada: {
     position: 'absolute',
     bottom: 8,
-    left: 10,
-    right: 10,
-    zIndex: 4,
+    left: 8,
+    zIndex: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+  },
+  check: {
+    width: 16,
+    height: 16,
+    borderRadius: 3,
+    borderWidth: 1.5,
+    borderColor: '#9CA3AF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkOn: {
+    backgroundColor: '#E8A020',
+    borderColor: '#E8A020',
+  },
+  checkTekst: { color: '#fff', fontSize: 11, fontWeight: '800', lineHeight: 13 },
+  blokadaTekst: { fontSize: 11, fontWeight: '700', color: '#374151' },
+  lupka: {
+    position: 'absolute',
+    bottom: 8,
+    right: 8,
+    zIndex: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.96)',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    overflow: 'hidden',
+  },
+  lupkaBtn: {
+    width: 34,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  lupkaZnak: { fontSize: 20, fontWeight: '700', color: '#111827', lineHeight: 22 },
+  lupkaPct: {
+    minWidth: 58,
+    textAlign: 'center',
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#111827',
+    paddingHorizontal: 4,
+  },
+  presety: {
+    flexDirection: 'row',
+    gap: 6,
+    paddingTop: 8,
+    paddingBottom: 2,
+  },
+  preset: {
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    backgroundColor: '#fff',
+  },
+  presetOn: {
+    borderColor: '#E8A020',
+    backgroundColor: 'rgba(232,160,32,0.18)',
+  },
+  presetTekst: { fontSize: 11, fontWeight: '700', color: '#4B5563' },
+  presetTekstOn: { color: '#92400E' },
+  hintPod: {
     fontSize: 10,
     color: '#6B7280',
-    textAlign: 'center',
+    marginTop: 6,
+    lineHeight: 14,
   },
   pusto: {
     textAlign: 'center',

@@ -86,31 +86,20 @@ export function odsadzKrawedz(
   };
 }
 
-/** Odsuwa łańcuch wierzchołków idxOd…idxDo (kierunek +1). */
-export function odsadzLancuch(
+/** Odsuwa wskazane wierzchołki łańcucha (kolejność = przebieg krawędzi). */
+export function odsadzPoLancuchu(
   wierzcholki: Punkt2D[],
-  idxOd: number,
-  idxDo: number,
+  lancuch: number[],
   dystansM: number,
 ): WynikOdsadzki {
-  const n = wierzcholki.length;
-  if (n < 3 || Math.abs(dystansM) < 1e-12) {
-    return odsadzKrawedz(wierzcholki, idxOd, 0);
+  if (lancuch.length < 2) {
+    return odsadzKrawedz(wierzcholki, lancuch[0] ?? 0, dystansM);
+  }
+  if (wierzcholki.length < 3 || Math.abs(dystansM) < 1e-12) {
+    return odsadzKrawedz(wierzcholki, lancuch[0], 0);
   }
 
   const ccw = poleZeZnakiem(wierzcholki) > 0;
-  const lancuch: number[] = [];
-  let i = ((idxOd % n) + n) % n;
-  const cel = ((idxDo % n) + n) % n;
-  let guard = 0;
-  while (guard <= n) {
-    lancuch.push(i);
-    if (i === cel) break;
-    i = (i + 1) % n;
-    guard += 1;
-  }
-  if (lancuch.length < 2) return odsadzKrawedz(wierzcholki, idxOd, dystansM);
-
   const normals: Punkt2D[] = [];
   let dlugosc = 0;
   for (let k = 0; k < lancuch.length - 1; k++) {
@@ -151,6 +140,30 @@ export function odsadzLancuch(
     deltaPowierzchniaM2: round2(powNowa - powStara),
     dlugoscKrawedziM: round2(dlugosc),
   };
+}
+
+/** Odsuwa łańcuch wierzchołków idxOd…idxDo (kierunek +1 po obwodzie). */
+export function odsadzLancuch(
+  wierzcholki: Punkt2D[],
+  idxOd: number,
+  idxDo: number,
+  dystansM: number,
+): WynikOdsadzki {
+  const n = wierzcholki.length;
+  if (n < 3 || Math.abs(dystansM) < 1e-12) {
+    return odsadzKrawedz(wierzcholki, idxOd, 0);
+  }
+  const lancuch: number[] = [];
+  let i = ((idxOd % n) + n) % n;
+  const cel = ((idxDo % n) + n) % n;
+  let guard = 0;
+  while (guard <= n) {
+    lancuch.push(i);
+    if (i === cel) break;
+    i = (i + 1) % n;
+    guard += 1;
+  }
+  return odsadzPoLancuchu(wierzcholki, lancuch, dystansM);
 }
 
 export function listaKrawedzi(

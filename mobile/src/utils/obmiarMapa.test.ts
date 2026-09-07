@@ -1,9 +1,12 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { translacjaPrzyZoomie, translacjaPrzyObrocie } from './obmiarMapa';
 import {
-  bokiFigury, formatujKilometraz, kierunekKilometrazu, kilometrazKoncaZOsi, lancuchBoku,
-  odlegloscMiedzyWezlami, odleglosciWezlowOdStartu, parsujKilometraz,
+  nastepnyPresetZoom, PRESETY_ZOOM_PROC, punktSvgZEkranu, skalaZProcentu,
+  translacjaPrzyZoomie, translacjaPrzyObrocie,
+} from './obmiarMapa';
+import {
+  bokiFigury, formatujKilometraz, idxWezlowOdcinkaKm, kierunekKilometrazu, kilometrazKoncaZOsi, lancuchBoku,
+  odlegloscMiedzyWezlami, odleglosciWezlowOdStartu, parsujKilometraz, podlancuch,
 } from './obmiarFigura';
 import { infoAutaWz, metryZTonnObszaru } from './obmiarLive';
 import type { ObszarObmiaru } from '../types';
@@ -32,6 +35,32 @@ describe('obmiarMapa', () => {
     });
     assert.ok(Math.abs(t.tx - 0) < 1e-9);
     assert.ok(Math.abs(t.ty - 10) < 1e-9);
+  });
+
+  it('presety zoom jak PDF-XChange', () => {
+    assert.equal(PRESETY_ZOOM_PROC[0], 10);
+    assert.equal(PRESETY_ZOOM_PROC[PRESETY_ZOOM_PROC.length - 1], 6400);
+    assert.equal(skalaZProcentu(400), 4);
+    assert.equal(nastepnyPresetZoom(1, 1), 2);
+    assert.equal(nastepnyPresetZoom(2, -1), 1);
+    assert.equal(nastepnyPresetZoom(64, 1), 64);
+    assert.equal(nastepnyPresetZoom(0.1, -1), 0.1);
+  });
+
+  it('odwrotnosc transformacji przy identity', () => {
+    const p = punktSvgZEkranu({
+      ekranX: 40, ekranY: 20, szer: 200, wys: 100, tx: 0, ty: 0, rot: 0, skala: 1,
+    });
+    assert.equal(p.x, 40);
+    assert.equal(p.y, 20);
+  });
+
+  it('odwrotnosc zoomu 2x w srodku', () => {
+    const p = punktSvgZEkranu({
+      ekranX: 120, ekranY: 50, szer: 200, wys: 100, tx: 0, ty: 0, rot: 0, skala: 2,
+    });
+    assert.ok(Math.abs(p.x - 110) < 1e-9);
+    assert.ok(Math.abs(p.y - 50) < 1e-9);
   });
 });
 
@@ -96,6 +125,14 @@ describe('obmiarFigura', () => {
     const m = kilometrazKoncaZOsi(1, 500, 100, 'malejacy');
     assert.equal(m.km, 1);
     assert.equal(m.m, 400);
+  });
+
+  it('odsadzka po km na prawym boku 1+520–1+580', () => {
+    const idx = idxWezlowOdcinkaKm(prostokat, 'prawa', 1520, 1580);
+    assert.ok(idx);
+    assert.ok(idx!.includes(3) || idx!.includes(2));
+    const caly = podlancuch(bokiFigury(prostokat)!.prawa, idx![0], idx![idx!.length - 1]);
+    assert.ok(caly.length >= 1);
   });
 });
 

@@ -263,6 +263,12 @@ export interface OdsadzkaObmiaru {
   zastosowana: boolean;
   /** Poprzedni obrys (szary, nieaktywny) po zastosowaniu */
   wierzcholkiPrzed?: Punkt2D[];
+  /** Bok jezdni przy odsadzce po kilometrażu */
+  strona?: 'lewa' | 'prawa';
+  kmOdKm?: number;
+  kmOdM?: number;
+  kmDoKm?: number;
+  kmDoM?: number;
 }
 
 export interface WpisWzObmiaru {
