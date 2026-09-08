@@ -62,7 +62,11 @@ interface ObmiarStore {
     odsadzkaId: string,
     dane: Partial<OdsadzkaObmiaru>,
   ) => Promise<void>;
-  dodajOdsadzke: (sesjaId: string, obszarId: string) => Promise<string | null>;
+  dodajOdsadzke: (
+    sesjaId: string,
+    obszarId: string,
+    dane?: Partial<OdsadzkaObmiaru>,
+  ) => Promise<string | null>;
   usunOdsadzke: (sesjaId: string, obszarId: string, odsadzkaId: string) => Promise<void>;
   zastosujOdsadzkeLancucha: (
     sesjaId: string,
@@ -140,8 +144,11 @@ function lancuchDlaOdsadzki(obszar: ObszarObmiaru, ods: OdsadzkaObmiaru): number
       const odAbs = absKilometraz(ods.kmOdKm, ods.kmOdM);
       const doAbs = absKilometraz(ods.kmDoKm, ods.kmDoM);
       if (odAbs != null && doAbs != null) {
-        return idxWezlowOdcinkaKm(obszar, ods.strona, odAbs, doAbs);
+        const poKm = idxWezlowOdcinkaKm(obszar, ods.strona, odAbs, doAbs);
+        if (poKm && poKm.length >= 1) return poKm;
       }
+      const boki = bokiFigury(obszar);
+      if (boki) return ods.strona === 'lewa' ? boki.lewa : boki.prawa;
     }
     return null;
   }
@@ -464,12 +471,13 @@ export const useObmiarStore = create<ObmiarStore>((set, get) => ({
     await zapisz(zaktualizowane);
   },
 
-  dodajOdsadzke: async (sesjaId, obszarId) => {
+  dodajOdsadzke: async (sesjaId, obszarId, dane) => {
     const sesja = get().sesje.find((s) => s.id === sesjaId);
     const obszar = sesja?.obszary.find((o) => o.id === obszarId);
     if (!obszar) return null;
     const nr = (obszar.odsadzki?.reduce((m, x) => Math.max(m, x.nr), 0) ?? 0) + 1;
-    const nowa = nowaOdsadzka(nr);
+    const bazowa = nowaOdsadzka(nr);
+    const nowa = { ...bazowa, ...dane, id: bazowa.id, nr };
     const zaktualizowane = get().sesje.map((s) => {
       if (s.id !== sesjaId) return s;
       return {

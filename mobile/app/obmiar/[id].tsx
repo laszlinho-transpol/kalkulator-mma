@@ -31,7 +31,7 @@ import {
   podsumowaniePlanuObmiaru, sesjaNaDanePlanu,
 } from '../../src/utils/obmiarDoPlanu';
 import { pobierzUstawienia } from '../ustawienia';
-import { PRESETY_SKALI_PZT, skalaZMianownika, type ObszarObmiaru, type TrybWyboruWezla } from '../../src/types';
+import { PRESETY_SKALI_PZT, skalaZMianownika, type ObszarObmiaru, type OdsadzkaObmiaru, type TrybWyboruWezla } from '../../src/types';
 
 type SekcjaNr = 'start' | 'odsadzka' | 'konstrukcja' | null;
 
@@ -91,12 +91,7 @@ export default function ObmiarDetailScreen() {
     setTrybWyboru(null);
     setPomiarP1(undefined);
     setPomiarP2(undefined);
-    setAktywnaOdsadzkaId(obszarPodgladu.odsadzki?.[0]?.id ?? null);
-    if (!obszarPodgladu.odsadzki?.length && sesja) {
-      dodajOdsadzke(sesja.id, obszarPodgladu.id).then((nid) => {
-        if (nid) setAktywnaOdsadzkaId(nid);
-      });
-    }
+    setAktywnaOdsadzkaId(obszarPodgladu.odsadzki?.find((x) => !x.strona)?.id ?? obszarPodgladu.odsadzki?.[0]?.id ?? null);
   }, [obszarPodgladu?.id]);
 
   const pomiar = useMemo(() => {
@@ -284,14 +279,15 @@ export default function ObmiarDetailScreen() {
     onBaza: (ktora: 'start' | 'koniec', dane: { kilometrazKm?: number; kilometrazM?: number }) =>
       ustawBazeObszaru(sesja.id, obszarPodgladu.id, ktora, dane),
     onKierunek: (k: 'rosnacy' | 'malejacy') => ustawKierunekUkladania(sesja.id, obszarPodgladu.id, k),
-    onDodajOdsadzke: async () => {
-      const nid = await dodajOdsadzke(sesja.id, obszarPodgladu.id);
+    onDodajOdsadzke: async (dane?: Partial<OdsadzkaObmiaru>) => {
+      const nid = await dodajOdsadzke(sesja.id, obszarPodgladu.id, dane);
       if (nid) setAktywnaOdsadzkaId(nid);
+      return nid;
     },
     onZastosujOdsadzke: async (
       odsadzkaId: string,
       dystansM: number,
-      extra?: { strona?: 'lewa' | 'prawa'; kmOdKm?: number; kmOdM?: number; kmDoKm?: number; kmDoM?: number },
+      extra?: { strona?: 'lewa' | 'prawa'; kmOdKm?: number; kmOdM?: number; kmDoKm?: number; kmDoM?: number; calosc?: boolean },
     ) => {
       const w = await zastosujOdsadzkeLancucha(sesja.id, obszarPodgladu.id, odsadzkaId, dystansM, extra);
       if (w) {
@@ -317,7 +313,7 @@ export default function ObmiarDetailScreen() {
         contentContainerStyle={[styles.zawartosc, { paddingBottom: insets.bottom + 24 }]}
         keyboardShouldPersistTaps="handled"
         nestedScrollEnabled
-        scrollEnabled={!blokadaPodgladu && !mapaAktywna && !trybWyboru}
+        scrollEnabled={!blokadaPodgladu && !mapaAktywna}
       >
         <Text style={[styles.kartaTytul, { color: theme.colors.text, marginLeft: 4 }]}>Kolejność układania</Text>
 
@@ -343,21 +339,32 @@ export default function ObmiarDetailScreen() {
                   },
                 ]}
               >
-                <TouchableOpacity onPress={() => toggleObszar(o.id)} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <Text style={{ fontSize: 18 }}>{zamek ? '🔒' : '🔓'}</Text>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ color: theme.colors.primary, fontWeight: '800', fontSize: 14 }}>
-                      {o.kolejnosc}. {o.nazwaDzialki || o.nazwa}
-                    </Text>
-                    <Text style={{ color: theme.colors.textSecondary, fontSize: 12, marginTop: 2 }}>
-                      {formatLiczby(o.powierzchniaM2)} m² · {o.wierzcholkiPdf.length} węzłów
-                      {o.bazaStart?.kilometrazKm != null || o.kilometrazStartKm != null
-                        ? ` · ${formatujKilometraz(o.bazaStart?.kilometrazKm ?? o.kilometrazStartKm, o.bazaStart?.kilometrazM ?? o.kilometrazStartM)}`
-                        : ''}
-                    </Text>
-                  </View>
-                  <Text style={{ color: theme.colors.textSecondary, fontSize: 18 }}>{otwarty ? '▾' : '▸'}</Text>
-                </TouchableOpacity>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <TouchableOpacity
+                    onPress={() => {
+                      if (zamek) ustawKonfiguracjeZablokowana(sesja.id, o.id, false);
+                    }}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    accessibilityLabel={zamek ? 'Odblokuj kłódkę' : 'Kłódka otwarta – do ustawienia'}
+                  >
+                    <Text style={{ fontSize: 22 }}>{zamek ? '🔒' : '🔓'}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => toggleObszar(o.id)} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: theme.colors.primary, fontWeight: '800', fontSize: 14 }}>
+                        {o.kolejnosc}. {o.nazwaDzialki || o.nazwa}
+                      </Text>
+                      <Text style={{ color: theme.colors.textSecondary, fontSize: 12, marginTop: 2 }}>
+                        {zamek ? 'Zatwierdzony – kliknij kłódkę, aby edytować' : 'Do ustawienia'}
+                        {' · '}{formatLiczby(o.powierzchniaM2)} m² · {o.wierzcholkiPdf.length} węzłów
+                        {o.bazaStart?.kilometrazKm != null || o.kilometrazStartKm != null
+                          ? ` · ${formatujKilometraz(o.bazaStart?.kilometrazKm ?? o.kilometrazStartKm, o.bazaStart?.kilometrazM ?? o.kilometrazStartM)}`
+                          : ''}
+                      </Text>
+                    </View>
+                    <Text style={{ color: theme.colors.textSecondary, fontSize: 18 }}>{otwarty ? '▾' : '▸'}</Text>
+                  </TouchableOpacity>
+                </View>
 
                 <View style={styles.rzadAkcji}>
                   <TouchableOpacity style={[styles.btnMini, { backgroundColor: `${theme.colors.primary}20` }]} onPress={() => przesunObszar(sesja.id, o.id, -1)}>
@@ -460,10 +467,11 @@ export default function ObmiarDetailScreen() {
                       />
                     </WierszRozwijany>
                     <TouchableOpacity
-                      style={[styles.btnZatwierdz, { backgroundColor: zamek ? theme.colors.textSecondary : theme.colors.success }]}
-                      onPress={() => (zamek ? ustawKonfiguracjeZablokowana(sesja.id, o.id, false) : zatwierdz(o))}
+                      style={[styles.btnZatwierdz, { backgroundColor: zamek ? theme.colors.textSecondary : theme.colors.success, opacity: zamek ? 0.75 : 1 }]}
+                      onPress={() => { if (!zamek) zatwierdz(o); }}
+                      disabled={zamek}
                     >
-                      <Text style={styles.btnZatwierdzTekst}>{zamek ? '4. Odblokuj kłódkę' : '4. Zatwierdź'}</Text>
+                      <Text style={styles.btnZatwierdzTekst}>{zamek ? '4. Zatwierdzono' : '4. Zatwierdź'}</Text>
                     </TouchableOpacity>
                   </View>
                 )}

@@ -10,16 +10,17 @@ interface Props {
   onM: (v: string) => void;
   editable?: boolean;
   compact?: boolean;
+  mini?: boolean;
 }
 
 /** Dwa okienka: [km] + [m]. Puste km = 0 (np. 450 → 0+450). */
-export function PoleKilometraz({ theme, km, m, onKm, onM, editable = true, compact }: Props) {
+export function PoleKilometraz({ theme, km, m, onKm, onM, editable = true, compact, mini }: Props) {
   return (
-    <View style={styl.wrap}>
+    <View style={[styl.wrap, mini && styl.wrapMini]}>
       <TextInput
         style={[
           styl.input,
-          compact ? styl.kmCompact : styl.km,
+          mini ? styl.kmMini : compact ? styl.kmCompact : styl.km,
           {
             backgroundColor: theme.colors.inputBackground,
             borderColor: theme.colors.border,
@@ -39,7 +40,7 @@ export function PoleKilometraz({ theme, km, m, onKm, onM, editable = true, compa
       <TextInput
         style={[
           styl.input,
-          compact ? styl.mCompact : styl.m,
+          mini ? styl.mMini : compact ? styl.mCompact : styl.m,
           {
             backgroundColor: theme.colors.inputBackground,
             borderColor: theme.colors.border,
@@ -78,6 +79,7 @@ export function polaZKilometraza(km?: number, m?: number): { km: string; m: stri
 
 const styl = StyleSheet.create({
   wrap: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1, minWidth: 140 },
+  wrapMini: { flex: 0, minWidth: 0, gap: 4 },
   input: {
     borderWidth: 1,
     borderRadius: 10,
@@ -90,5 +92,7 @@ const styl = StyleSheet.create({
   m: { flex: 1.2, paddingHorizontal: 8 },
   kmCompact: { width: 56, paddingHorizontal: 6 },
   mCompact: { width: 64, paddingHorizontal: 6 },
+  kmMini: { width: 44, paddingHorizontal: 4, paddingVertical: 8, fontSize: 14, borderRadius: 8 },
+  mMini: { width: 52, paddingHorizontal: 4, paddingVertical: 8, fontSize: 14, borderRadius: 8 },
   plus: { fontSize: 20, fontWeight: '300' },
 });

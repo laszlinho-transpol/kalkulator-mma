@@ -107,7 +107,7 @@ export default function WbudowywanieDetailScreen() {
   const [viewerPzt, setViewerPzt] = useState(false);
   const [generujeRaport, setGenerujeRaport] = useState(false);
   const [szkicObszarId, setSzkicObszarId] = useState<string | null>(null);
-  const [blokadaSzkicuPzt, setBlokadaSzkicuPzt] = useState(true);
+  const [blokadaSzkicuPzt, setBlokadaSzkicuPzt] = useState(false);
   const [mapaSzkicAktywna, setMapaSzkicAktywna] = useState(false);
   const sesjaObmiaru = useObmiarStore((s) => s.sesjaPoId(plan?.sesjaObmiaruId ?? ''));
 
@@ -427,7 +427,7 @@ export default function WbudowywanieDetailScreen() {
           contentContainerStyle={[styles.zawartosc, { paddingBottom: insets.bottom + 20 }]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
-          scrollEnabled={!(plan.zrodlo === 'obmiar' && (blokadaSzkicuPzt || mapaSzkicAktywna) && (aktywnaZakladka === 'live' || aktywnaZakladka === 'plan'))}
+          scrollEnabled={!(blokadaSzkicuPzt && plan.zrodlo === 'obmiar' && (aktywnaZakladka === 'live' || aktywnaZakladka === 'plan'))}
         >
 
           {/* ======== PLAN ======== */}

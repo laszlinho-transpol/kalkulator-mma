@@ -272,6 +272,8 @@ export interface OdsadzkaObmiaru {
   kmOdM?: number;
   kmDoKm?: number;
   kmDoM?: number;
+  /** Cały bok L/P od startu do końca obszaru */
+  calosc?: boolean;
 }
 
 export interface WpisWzObmiaru {

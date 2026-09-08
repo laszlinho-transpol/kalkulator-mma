@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.4';
+export const WERSJA_APLIKACJI = '1.8.5';
 
 export interface WpisChangelog {
   wersja: string;
@@ -12,6 +12,17 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.5',
+    data: '2026-09-08',
+    tytul: 'Obmiar – kłódka, czytelna odsadzka, scroll w wbudowywaniu',
+    zmiany: [
+      'Kłódka otwarta do ustawienia; po Zatwierdź się zamyka; ponowne kliknięcie otwiera edycję',
+      'Odsadzka: zaznacz na mapie (P1/K1, można przewinąć do podglądu), lewa/prawa krawędź z całością, plusem i kilometrażem od–do w jednym wierszu',
+      'Wbudowywanie Plan/LIVE: przywrócony scroll i wpisywanie aut (Ramka tylko gdy chcesz przesuwać szkic)',
+      'Lista Wbudowywanie: rozwijane budowy, edycja i usuwanie każdego planu',
+    ],
+  },
   {
     wersja: '1.8.4',
     data: '2026-09-07',
