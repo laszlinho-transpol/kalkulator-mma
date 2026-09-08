@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.5';
+export const WERSJA_APLIKACJI = '1.8.6';
 
 export interface WpisChangelog {
   wersja: string;
@@ -12,6 +12,17 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.6',
+    data: '2026-09-08',
+    tytul: 'Obmiar – tło PZT z PDF',
+    zmiany: [
+      'Tło pod obszarem: ten sam PDF co w PDF-XChange (strona z poligonami) albo JPG/PNG',
+      'Zoom i przesuwanie ruszają tło razem z obszarem – widać miejsca charakterystyczne w terenie',
+      'Strona PDF, przezroczystość 35/50/70%, „Odwróć pion” gdy mapa jest lustrzana',
+      'To samo tło na szkicach Plan i LIVE we Wbudowywaniu',
+    ],
+  },
   {
     wersja: '1.8.5',
     data: '2026-09-08',

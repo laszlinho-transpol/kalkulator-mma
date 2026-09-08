@@ -10,13 +10,14 @@ import {
   State,
 } from 'react-native-gesture-handler';
 import Svg, {
-  Circle, G, Line, Polygon, Polyline, Rect, Text as SvgText,
+  Circle, G, Image as SvgImage, Line, Polygon, Polyline, Rect, Text as SvgText,
 } from 'react-native-svg';
-import type { ObszarObmiaru, Punkt2D, TrybWyboruWezla, WezelObmiaru } from '../../types';
-import { bboxWielokata } from '../../utils/obmiarGeometry';
+import type { ObszarObmiaru, Punkt2D, SkalaPzt, TloPztObmiaru, TrybWyboruWezla, WezelObmiaru } from '../../types';
+import { bboxWielokata, metryNaPunktPdf } from '../../utils/obmiarGeometry';
 import { lancuchKrotszy, osFigury, przekrojPoprzeczny, wezlyZKonfiguracji, wielokatUlozony } from '../../utils/obmiarFigura';
 import { punktNaSciezceUkladania, znacznikiKilometrazuNaObszarze } from '../../utils/obmiarKilometraz';
 import { dlugoscUkladaniaObszaru } from '../../utils/obmiarLive';
+import { prostokatTlaPdf } from '../../utils/tloPztGeom';
 import {
   nastepnyPresetZoom,
   ograniczenie,
@@ -61,6 +62,9 @@ interface Props {
   onDotykZmiana?: (aktywny: boolean) => void;
   blokadaPodgladu?: boolean;
   onBlokadaPodgladu?: (v: boolean) => void;
+  tloPzt?: TloPztObmiaru | null;
+  skalaPzt?: SkalaPzt;
+  onTloWidoczne?: (v: boolean) => void;
 }
 
 function hexDoRgba(hex: string | undefined, alpha: number, fallback: string): string {
@@ -142,6 +146,9 @@ export function WielokatPodglad({
   onDotykZmiana,
   blokadaPodgladu = false,
   onBlokadaPodgladu,
+  tloPzt,
+  skalaPzt,
+  onTloWidoczne,
 }: Props) {
   const [rozmiar, setRozmiar] = useState({ w: 320, h: wysokosc });
   const [skalaPct, setSkalaPct] = useState(100);
@@ -344,6 +351,20 @@ export function WielokatPodglad({
       poloz(lista[lista.length - 1].przejechaneMetry, 'rozkladarka');
     }
 
+    const tloWidoczne = !!(tloPzt && tloPzt.widoczne !== false && tloPzt.obrazUri && skalaPzt);
+    const tloRect = tloWidoczne
+      ? prostokatTlaPdf({
+        pageW: tloPzt!.pageW,
+        pageH: tloPzt!.pageH,
+        k: metryNaPunktPdf(skalaPzt),
+        cx,
+        cy,
+        skalaFit,
+        w: rozmiar.w,
+        h: rozmiar.h,
+      })
+      : null;
+
     return {
       skalaFit,
       punkty,
@@ -358,8 +379,12 @@ export function WielokatPodglad({
       osSvg,
       kmSvg,
       maszyny,
+      tloRect,
+      tloUri: tloWidoczne ? tloPzt!.obrazUri : null,
+      tloOpacity: tloPzt?.opacity ?? 0.5,
+      tloOdwrocY: !!tloPzt?.odwrocY,
     };
-  }, [wierzcholki, wezlyWidok, rozmiar.w, rozmiar.h, postepLive, obszar, pokazMaszyny]);
+  }, [wierzcholki, wezlyWidok, rozmiar.w, rozmiar.h, postepLive, obszar, pokazMaszyny, tloPzt, skalaPzt]);
 
   const ognisko = (e: { focalX?: number; focalY?: number; x?: number; y?: number }) => ({
     x: (e.focalX ?? e.x ?? rozmiar.w / 2) - rozmiar.w / 2,
@@ -536,7 +561,7 @@ export function WielokatPodglad({
     );
   }
 
-  const fillPlan = hexDoRgba(kolorWypelnienia, 0.38, FILL_PLAN);
+  const fillPlan = hexDoRgba(kolorWypelnienia, mapa.tloUri ? 0.22 : 0.38, mapa.tloUri ? 'rgba(232, 160, 32, 0.22)' : FILL_PLAN);
   const m = (metry: number) => metry * mapa.skalaFit;
   const wezelR = m(WEZEL_R_M);
   const wezelHit = Math.max(wezelR * 2.2, 14 / Math.max(xform.s, 0.15));
@@ -554,16 +579,30 @@ export function WielokatPodglad({
           <Text style={styl.celownikTekst}>⌖</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styl.blokada}
-          onPress={() => onBlokadaPodgladu?.(!blokadaPodgladu)}
-          accessibilityLabel="Blokada podglądu"
-        >
-          <View style={[styl.check, blokadaPodgladu && styl.checkOn]}>
-            {blokadaPodgladu ? <Text style={styl.checkTekst}>✓</Text> : null}
-          </View>
-          <Text style={styl.blokadaTekst}>Ramka</Text>
-        </TouchableOpacity>
+        <View style={styl.blokadaKol}>
+          <TouchableOpacity
+            style={styl.blokada}
+            onPress={() => onBlokadaPodgladu?.(!blokadaPodgladu)}
+            accessibilityLabel="Blokada podglądu"
+          >
+            <View style={[styl.check, blokadaPodgladu && styl.checkOn]}>
+              {blokadaPodgladu ? <Text style={styl.checkTekst}>✓</Text> : null}
+            </View>
+            <Text style={styl.blokadaTekst}>Ramka</Text>
+          </TouchableOpacity>
+          {tloPzt ? (
+            <TouchableOpacity
+              style={styl.blokada}
+              onPress={() => onTloWidoczne?.(tloPzt.widoczne === false)}
+              accessibilityLabel="Tło PZT"
+            >
+              <View style={[styl.check, tloPzt.widoczne !== false && styl.checkOn]}>
+                {tloPzt.widoczne !== false ? <Text style={styl.checkTekst}>✓</Text> : null}
+              </View>
+              <Text style={styl.blokadaTekst}>Tło</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
 
         <View style={styl.lupka}>
           <TouchableOpacity style={styl.lupkaBtn} onPress={() => ustawSkaleWokolSrodka(nastepnyPresetZoom(bazaSkali.current, -1))}>
@@ -612,6 +651,22 @@ export function WielokatPodglad({
                             fill="#F8FAFC"
                           />
                           <G transform={gXform}>
+                            {mapa.tloUri && mapa.tloRect ? (
+                              <G transform={mapa.tloOdwrocY
+                                ? `translate(${mapa.tloRect.x}, ${mapa.tloRect.y + mapa.tloRect.height}) scale(1,-1)`
+                                : undefined}
+                              >
+                                <SvgImage
+                                  href={{ uri: mapa.tloUri }}
+                                  x={mapa.tloOdwrocY ? 0 : mapa.tloRect.x}
+                                  y={mapa.tloOdwrocY ? 0 : mapa.tloRect.y}
+                                  width={mapa.tloRect.width}
+                                  height={mapa.tloRect.height}
+                                  opacity={mapa.tloOpacity}
+                                  preserveAspectRatio="none"
+                                />
+                              </G>
+                            ) : null}
                             {mapa.lancuchyOds.filter((l) => l.przerywana).map((l, i) => (
                               <Polyline
                                 key={`old-${i}`}
@@ -826,11 +881,14 @@ const styl = StyleSheet.create({
     justifyContent: 'center',
   },
   celownikTekst: { fontSize: 18, color: '#374151', fontWeight: '700' },
-  blokada: {
+  blokadaKol: {
     position: 'absolute',
     bottom: 8,
     left: 8,
     zIndex: 6,
+    gap: 6,
+  },
+  blokada: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
@@ -840,6 +898,7 @@ const styl = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 8,
     paddingVertical: 5,
+    alignSelf: 'flex-start',
   },
   check: {
     width: 16,

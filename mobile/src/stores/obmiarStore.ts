@@ -6,7 +6,7 @@ import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type {
   BazaObmiaru, ObszarObmiaru, OdsadzkaObmiaru, Punkt2D, RolaWezlaObmiaru,
-  Rzut, SesjaObmiaruDnia, SkalaPzt, WpisWzObmiaru,
+  Rzut, SesjaObmiaruDnia, SkalaPzt, TloPztObmiaru, WpisWzObmiaru,
 } from '../types';
 import { DOMYSLNA_SKALA_PZT } from '../types';
 import {
@@ -110,6 +110,12 @@ interface ObmiarStore {
   ) => Promise<void>;
   ustawKontynuacje: (sesjaId: string, obszarId: string, kontynuacja: boolean) => Promise<void>;
   ustawBudoweSesji: (sesjaId: string, budowaId?: string) => Promise<void>;
+  ustawTloSesji: (sesjaId: string, tlo: TloPztObmiaru) => Promise<void>;
+  ustawTloOpcje: (
+    sesjaId: string,
+    dane: Partial<Pick<TloPztObmiaru, 'widoczne' | 'opacity' | 'odwrocY' | 'strona' | 'obrazUri' | 'pageW' | 'pageH' | 'liczbaStron'>>,
+  ) => Promise<void>;
+  usunTloSesji: (sesjaId: string) => Promise<void>;
   archiwizujSesje: (sesjaId: string) => Promise<void>;
   sesjaPoId: (id: string) => SesjaObmiaruDnia | undefined;
 }
@@ -780,6 +786,36 @@ export const useObmiarStore = create<ObmiarStore>((set, get) => ({
     const zaktualizowane = get().sesje.map((s) =>
       s.id !== sesjaId ? s : { ...s, budowaId, updatedAt: teraz },
     );
+    set({ sesje: zaktualizowane });
+    await zapisz(zaktualizowane);
+  },
+
+  ustawTloSesji: async (sesjaId, tlo) => {
+    const teraz = new Date().toISOString();
+    const zaktualizowane = get().sesje.map((s) =>
+      s.id !== sesjaId ? s : { ...s, tloPzt: { widoczne: true, opacity: 0.5, odwrocY: false, ...tlo }, updatedAt: teraz },
+    );
+    set({ sesje: zaktualizowane });
+    await zapisz(zaktualizowane);
+  },
+
+  ustawTloOpcje: async (sesjaId, dane) => {
+    const teraz = new Date().toISOString();
+    const zaktualizowane = get().sesje.map((s) => {
+      if (s.id !== sesjaId || !s.tloPzt) return s;
+      return { ...s, tloPzt: { ...s.tloPzt, ...dane }, updatedAt: teraz };
+    });
+    set({ sesje: zaktualizowane });
+    await zapisz(zaktualizowane);
+  },
+
+  usunTloSesji: async (sesjaId) => {
+    const teraz = new Date().toISOString();
+    const zaktualizowane = get().sesje.map((s) => {
+      if (s.id !== sesjaId) return s;
+      const { tloPzt: _t, ...rest } = s;
+      return { ...rest, updatedAt: teraz };
+    });
     set({ sesje: zaktualizowane });
     await zapisz(zaktualizowane);
   },

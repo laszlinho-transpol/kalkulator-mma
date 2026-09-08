@@ -1,12 +1,13 @@
 {
   "name": "mobile",
-    "version": "1.8.5",
+  "version": "1.8.6",
   "main": "expo-router/entry",
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-community/datetimepicker": "9.1.0",
     "babel-preset-expo": "^56.0.15",
     "expo": "~56.0.12",
+    "expo-asset": "~56.0.17",
     "expo-clipboard": "~56.0.4",
     "expo-constants": "~56.0.18",
     "expo-document-picker": "^56.0.4",

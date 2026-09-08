@@ -32,6 +32,8 @@ import {
 } from '../../src/utils/obmiarDoPlanu';
 import { pobierzUstawienia } from '../ustawienia';
 import { PRESETY_SKALI_PZT, skalaZMianownika, type ObszarObmiaru, type OdsadzkaObmiaru, type TrybWyboruWezla } from '../../src/types';
+import { wybierzPlikTlaPzt, rozmiarObrazu, zapiszJpegTla } from '../../src/utils/tloPztImport';
+import { PdfRasterizer } from '../../src/components/obmiar/PdfRasterizer';
 
 type SekcjaNr = 'start' | 'odsadzka' | 'konstrukcja' | null;
 
@@ -46,6 +48,7 @@ export default function ObmiarDetailScreen() {
     ustawKonfiguracjeZablokowana, ustawParametryUkladania,
     ustawKierunekUkladania, ustawKontynuacje, usunOdsadzke,
     ustawBudoweSesji, ustawDateSesji, ustawPlanDniaMeta, powiazPlanSesji,
+    ustawTloSesji, ustawTloOpcje, usunTloSesji,
   } = useObmiarStore();
   const mieszanki = useMieszankiStore((s) => s.mieszanki);
   const pobierzMieszanke = useMieszankiStore((s) => s.pobierzMieszanke);
@@ -69,6 +72,8 @@ export default function ObmiarDetailScreen() {
   const [tonazStr, setTonazStr] = useState(String(DOMYSLNY_TONAZ_AUTA));
   const [rzutyStr, setRzutyStr] = useState('');
   const [zapisuje, setZapisuje] = useState(false);
+  const [rasterPdf, setRasterPdf] = useState<{ uri: string; strona: number } | null>(null);
+  const [rasterBusy, setRasterBusy] = useState(false);
 
   useEffect(() => {
     pobierzUstawienia().then((u) => {
@@ -149,6 +154,35 @@ export default function ObmiarDetailScreen() {
     }
     const suma = odswiezona?.obszary.reduce((a, o) => a + o.powierzchniaM2, 0) ?? 0;
     Alert.alert('Zaimportowano', `Dodano ${wynik.wynik.polygony.length} obszar(ów).\nŁącznie: ${formatLiczby(suma)} m²`);
+  };
+
+  const importujTlo = async () => {
+    try {
+      const plik = await wybierzPlikTlaPzt(sesja.id);
+      if (!plik) return;
+      if (plik.typ === 'obraz') {
+        const { width, height } = await rozmiarObrazu(plik.uri);
+        await ustawTloSesji(sesja.id, {
+          uri: plik.uri,
+          nazwa: plik.nazwa,
+          typ: 'obraz',
+          strona: 1,
+          liczbaStron: 1,
+          pageW: width,
+          pageH: height,
+          obrazUri: plik.uri,
+          widoczne: true,
+          opacity: 0.5,
+        });
+        Alert.alert('Tło PZT', 'Obraz podłożony. Jeśli nie pokrywa się z obszarem, użyj PDF ze strony XChange albo „Odwróć pion”.');
+        return;
+      }
+      setRasterBusy(true);
+      setRasterPdf({ uri: plik.uri, strona: 1 });
+    } catch {
+      Alert.alert('Tło PZT', 'Nie udało się wczytać pliku.');
+      setRasterBusy(false);
+    }
   };
 
   const onWezel = async (idx: number) => {
@@ -401,6 +435,9 @@ export default function ObmiarDetailScreen() {
                       onDotykZmiana={setMapaAktywna}
                       blokadaPodgladu={blokadaPodgladu}
                       onBlokadaPodgladu={setBlokadaPodgladu}
+                      tloPzt={sesja.tloPzt}
+                      skalaPzt={sesja.skala}
+                      onTloWidoczne={(v) => ustawTloOpcje(sesja.id, { widoczne: v })}
                     />
                     <TouchableOpacity
                       style={[styles.btnSek, { borderColor: theme.colors.primary, marginTop: 0 }]}
@@ -410,6 +447,73 @@ export default function ObmiarDetailScreen() {
                         Skala 1:{sesja.skala.mianownik} ({sesja.skala.metryNaCm} m / cm)
                       </Text>
                     </TouchableOpacity>
+
+                    <View style={{ gap: 8 }}>
+                      <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>
+                        Tło jak w PDF-XChange: ten sam PDF (strona z poligonami). Zoom rusza tło razem z obszarem.
+                      </Text>
+                      {rasterBusy ? (
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                          <ActivityIndicator color={theme.colors.primary} />
+                          <Text style={{ color: theme.colors.textSecondary, fontSize: 13 }}>Rastruję stronę PZT…</Text>
+                        </View>
+                      ) : (
+                        <TouchableOpacity
+                          style={[styles.btnSek, { borderColor: theme.colors.border, marginTop: 0 }]}
+                          onPress={importujTlo}
+                        >
+                          <Text style={{ color: theme.colors.text, fontWeight: '700' }}>
+                            {sesja.tloPzt ? `Tło: ${sesja.tloPzt.nazwa}` : '+ Tło z PDF / obrazu'}
+                          </Text>
+                        </TouchableOpacity>
+                      )}
+                      {sesja.tloPzt && !rasterBusy && (
+                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
+                          {sesja.tloPzt.typ === 'pdf' && sesja.tloPzt.liczbaStron > 1 && (
+                            <>
+                              <TouchableOpacity
+                                onPress={() => {
+                                  const n = Math.max(1, sesja.tloPzt!.strona - 1);
+                                  setRasterBusy(true);
+                                  setRasterPdf({ uri: sesja.tloPzt!.uri, strona: n });
+                                }}
+                              >
+                                <Text style={{ color: theme.colors.primary, fontWeight: '800' }}>‹</Text>
+                              </TouchableOpacity>
+                              <Text style={{ color: theme.colors.text, fontWeight: '700' }}>
+                                Strona {sesja.tloPzt.strona}/{sesja.tloPzt.liczbaStron}
+                              </Text>
+                              <TouchableOpacity
+                                onPress={() => {
+                                  const n = Math.min(sesja.tloPzt!.liczbaStron, sesja.tloPzt!.strona + 1);
+                                  setRasterBusy(true);
+                                  setRasterPdf({ uri: sesja.tloPzt!.uri, strona: n });
+                                }}
+                              >
+                                <Text style={{ color: theme.colors.primary, fontWeight: '800' }}>›</Text>
+                              </TouchableOpacity>
+                            </>
+                          )}
+                          <TouchableOpacity onPress={() => ustawTloOpcje(sesja.id, { odwrocY: !sesja.tloPzt?.odwrocY })}>
+                            <Text style={{ color: theme.colors.info, fontWeight: '700', fontSize: 13 }}>Odwróć pion</Text>
+                          </TouchableOpacity>
+                          {([0.35, 0.5, 0.7] as const).map((op) => (
+                            <TouchableOpacity key={op} onPress={() => ustawTloOpcje(sesja.id, { opacity: op })}>
+                              <Text style={{
+                                color: (sesja.tloPzt?.opacity ?? 0.5) === op ? theme.colors.primary : theme.colors.textSecondary,
+                                fontWeight: '700',
+                                fontSize: 12,
+                              }}>
+                                {Math.round(op * 100)}%
+                              </Text>
+                            </TouchableOpacity>
+                          ))}
+                          <TouchableOpacity onPress={() => usunTloSesji(sesja.id)}>
+                            <Text style={{ color: theme.colors.danger, fontWeight: '700', fontSize: 13 }}>Usuń tło</Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
+                    </View>
 
                     <ObmiarKonfiguracja {...wspolneKonfig} sekcja="pomiar" />
 
@@ -623,6 +727,41 @@ export default function ObmiarDetailScreen() {
         onSelect={(bid) => ustawBudoweSesji(sesja.id, bid)}
         onClose={() => setPickerBudowa(false)}
       />
+      {rasterPdf && (
+        <PdfRasterizer
+          sesjaId={sesja.id}
+          pdfUri={rasterPdf.uri}
+          strona={rasterPdf.strona}
+          onGotowe={async (w) => {
+            try {
+              const obrazUri = await zapiszJpegTla(sesja.id, w.dataUrl, w.strona);
+              await ustawTloSesji(sesja.id, {
+                uri: rasterPdf.uri,
+                nazwa: sesja.tloPzt?.nazwa ?? 'PZT.pdf',
+                typ: 'pdf',
+                strona: w.strona,
+                liczbaStron: w.liczbaStron,
+                pageW: w.pageW,
+                pageH: w.pageH,
+                obrazUri,
+                widoczne: true,
+                opacity: sesja.tloPzt?.opacity ?? 0.5,
+                odwrocY: sesja.tloPzt?.odwrocY,
+              });
+            } catch {
+              Alert.alert('Tło PZT', 'Nie udało się zapisać strony PDF.');
+            } finally {
+              setRasterPdf(null);
+              setRasterBusy(false);
+            }
+          }}
+          onBlad={(komunikat) => {
+            setRasterPdf(null);
+            setRasterBusy(false);
+            Alert.alert('Tło PZT', komunikat);
+          }}
+        />
+      )}
     </View>
   );
 }

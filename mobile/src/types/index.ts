@@ -362,6 +362,26 @@ export interface ObszarObmiaru {
   createdAt: string;
 }
 
+/** Tło PZT pod obszarami – ta sama strona PDF co w PDF-XChange (współrzędne XFDF). */
+export interface TloPztObmiaru {
+  uri: string;
+  nazwa: string;
+  typ: 'pdf' | 'obraz';
+  /** 1-based */
+  strona: number;
+  liczbaStron: number;
+  /** Szerokość / wysokość strony w punktach PDF (72 pt = 1 cal) */
+  pageW: number;
+  pageH: number;
+  /** Zrastrowana strona (JPEG/PNG) – ten sam układ co XFDF */
+  obrazUri: string;
+  widoczne?: boolean;
+  /** 0.15–1 */
+  opacity?: number;
+  /** Gdy poligon i strona PDF są lustrzane w pionie */
+  odwrocY?: boolean;
+}
+
 /** Sesja obmiaru na dzień – wiele obszarów z jednego lub wielu PDF */
 export interface SesjaObmiaruDnia {
   id: string;
@@ -375,6 +395,7 @@ export interface SesjaObmiaruDnia {
   zakonczonoAt?: string;
   tonazAuta?: number;
   rzuty?: Rzut[];
+  tloPzt?: TloPztObmiaru;
   createdAt: string;
   updatedAt: string;
 }

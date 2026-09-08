@@ -110,6 +110,7 @@ export default function WbudowywanieDetailScreen() {
   const [blokadaSzkicuPzt, setBlokadaSzkicuPzt] = useState(false);
   const [mapaSzkicAktywna, setMapaSzkicAktywna] = useState(false);
   const sesjaObmiaru = useObmiarStore((s) => s.sesjaPoId(plan?.sesjaObmiaruId ?? ''));
+  const ustawTloOpcje = useObmiarStore((s) => s.ustawTloOpcje);
 
   useEffect(() => {
     const p = usePlanyStore.getState().pobierzPlan(id ?? '');
@@ -128,6 +129,14 @@ export default function WbudowywanieDetailScreen() {
       </View>
     );
   }
+
+  const propsTlaPzt = sesjaObmiaru?.tloPzt
+    ? {
+      tloPzt: sesjaObmiaru.tloPzt,
+      skalaPzt: sesjaObmiaru.skala,
+      onTloWidoczne: (v: boolean) => { void ustawTloOpcje(sesjaObmiaru.id, { widoczne: v }); },
+    }
+    : {};
 
   const getMieszanka = (mId: string) => mieszanki.find((m) => m.id === mId);
   const ciezarPoMieszance = (mId: string) => mieszanki.find((m) => m.id === mId)?.ciezarObjetosciowy;
@@ -512,6 +521,7 @@ export default function WbudowywanieDetailScreen() {
                         onDotykZmiana={setMapaSzkicAktywna}
                         blokadaPodgladu={blokadaSzkicuPzt}
                         onBlokadaPodgladu={setBlokadaSzkicuPzt}
+                        {...propsTlaPzt}
                       />
                     );
                   })() : (
@@ -661,6 +671,7 @@ export default function WbudowywanieDetailScreen() {
                             onDotykZmiana={setMapaSzkicAktywna}
                             blokadaPodgladu={blokadaSzkicuPzt}
                             onBlokadaPodgladu={setBlokadaSzkicuPzt}
+                            {...propsTlaPzt}
                           />
                         );
                       })()}
