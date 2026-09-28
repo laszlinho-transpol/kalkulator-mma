@@ -46,8 +46,8 @@ function Blok({
         },
       ]}
     >
-      <Text style={[styles.blokEtykieta, { color: kolorTekstu }]}>{etykieta}</Text>
-      <Text style={[styles.blokWartosc, { color: kolorTekstu }]}>{wartosc}</Text>
+      <Text style={[styles.blokEtykieta, { color: kolorTekstu }]} numberOfLines={2}>{etykieta}</Text>
+      <Text style={[styles.blokWartosc, { color: kolorTekstu }]} numberOfLines={1}>{wartosc}</Text>
     </View>
   );
   if (!onPress) return inner;
@@ -105,17 +105,13 @@ export function SchematStolu({
   const poszP = poszerzeniaP.reduce((a, b) => a + b, 0);
   const szerMin = wPodstawa + poszL + poszP;
   const szerMax = wMaxStolu + poszL + poszP;
-  const skala = Math.max(wMaxStolu + poszL + poszP, 1);
-  const flexMax = Math.max(wMaxStolu, 0.4);
-  const flexMin = Math.max(wPodstawa, 0.3);
-  const minSzerPct = Math.min(92, Math.max(32, (flexMin / skala) * 100));
   const moznaL = poszerzeniaL.length < MAX_POSZERZEN_STRONA;
   const moznaP = poszerzeniaP.length < MAX_POSZERZEN_STRONA;
 
   return (
     <View style={{ gap: 10 }}>
       <View style={{ alignItems: 'center' }}>
-        <View style={{ width: `${minSzerPct}%` }}>
+        <View style={{ width: '42%' }}>
           <Blok
             etykieta="Min. szerokość"
             wartosc={`${fmtM(wPodstawa)} m`}
@@ -130,14 +126,14 @@ export function SchematStolu({
       <View style={styles.rzadStolu}>
         {moznaL ? (
           <Blok
-            etykieta={`P${poszerzeniaL.length + 1} (L)`}
+            etykieta={`P${poszerzeniaL.length + 1}`}
             wartosc="+"
             kolor={P1}
             kolorTekstu={P1}
             dashed
             onPress={onDodajL}
-            flex={0.55}
-            minHeight={62}
+            flex={0.95}
+            minHeight={64}
           />
         ) : null}
         {[...poszerzeniaL].reverse().map((w, iOdKonca) => {
@@ -149,8 +145,8 @@ export function SchematStolu({
               wartosc={`${fmtM(w)} m`}
               kolor={P1}
               kolorTekstu={P1_TEXT}
-              flex={Math.max(w, 0.35)}
-              minHeight={62}
+              flex={1.15}
+              minHeight={64}
             />
           );
         })}
@@ -159,8 +155,8 @@ export function SchematStolu({
           wartosc={`${fmtM(wMaxStolu)} m`}
           kolor={SZARY}
           kolorTekstu={SZARY_CIEMNY}
-          flex={flexMax}
-          minHeight={62}
+          flex={2.4}
+          minHeight={64}
         />
         {poszerzeniaP.map((w, i) => (
           <Blok
@@ -169,20 +165,20 @@ export function SchematStolu({
             wartosc={`${fmtM(w)} m`}
             kolor={P1}
             kolorTekstu={P1_TEXT}
-            flex={Math.max(w, 0.35)}
-            minHeight={62}
+            flex={1.15}
+            minHeight={64}
           />
         ))}
         {moznaP ? (
           <Blok
-            etykieta={`P${poszerzeniaP.length + 1} (P)`}
+            etykieta={`P${poszerzeniaP.length + 1}`}
             wartosc="+"
             kolor={P1}
             kolorTekstu={P1}
             dashed
             onPress={onDodajP}
-            flex={0.55}
-            minHeight={62}
+            flex={0.95}
+            minHeight={64}
           />
         ) : null}
       </View>
@@ -314,7 +310,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  blokEtykieta: { fontSize: 9, fontWeight: '700', textAlign: 'center' },
+  blokEtykieta: { fontSize: 10, fontWeight: '700', textAlign: 'center' },
   blokWartosc: { fontSize: 13, fontWeight: '800', marginTop: 2, textAlign: 'center' },
   osPion: { width: 1, height: 10, borderLeftWidth: 1, borderStyle: 'dashed', borderColor: '#9CA3AF' },
   rzadStolu: { flexDirection: 'row', gap: 6, alignItems: 'stretch' },
