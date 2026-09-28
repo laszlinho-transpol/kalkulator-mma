@@ -52,7 +52,8 @@
       ]
     ],
     "experiments": {
-      "typedRoutes": true
+      "typedRoutes": true,
+      "baseUrl": "/kalkulator-mma"
     },
     "extra": {
       "eas": {

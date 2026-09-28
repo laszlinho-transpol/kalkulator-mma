@@ -37,7 +37,10 @@ jobs:
         run: npm ci
 
       - name: Export Web Build
-        run: npx expo export --platform web
+        run: |
+          npx expo export --platform web
+          cp dist/index.html dist/404.html
+          touch dist/.nojekyll
         env:
           EXPO_BASE_URL: /kalkulator-mma
 
