@@ -276,6 +276,21 @@ export interface OdsadzkaObmiaru {
   calosc?: boolean;
 }
 
+/**
+ * Krawężnik z XFDF (&lt;polyline&gt; czerwony) – znacznik na ISTNIEJĄCEJ krawędzi obszaru.
+ * Nie jest odsadzką: nie przesuwa obrysu.
+ */
+export interface KrawedznikObmiaru {
+  id: string;
+  wierzcholkiPdf: Punkt2D[];
+  wierzcholkiM: Punkt2D[];
+  dlugoscM: number;
+  /** Średnia odległość od krawędzi obszaru [m] – ~0 gdy pokrywa się z obrysem */
+  odlegloscOdKrawedziM: number;
+  /** Zewnętrzna krawędź jezdni albo od strony osi (wysepka) */
+  polozenie: 'zewnetrzna' | 'odOsi';
+}
+
 export interface WpisWzObmiaru {
   id: string;
   numer: number;
@@ -346,6 +361,10 @@ export interface ObszarObmiaru {
   bazaStart?: BazaObmiaru;
   bazaKoniec?: BazaObmiaru;
   odsadzki?: OdsadzkaObmiaru[];
+  /** Czerwone obwody z XFDF – krawężnik na krawędzi (bez odbicia obrysu) */
+  krawedzniki?: KrawedznikObmiaru[];
+  /** Żółty = lewa, różowy = prawa (trasa główna) */
+  stronaTrasy?: 'lewa' | 'prawa';
   wpisyWz?: WpisWzObmiaru[];
   /** Grubość układania [cm] – jak w Zaplanuj masę (alias / wstecz) */
   gruboscCm?: number;

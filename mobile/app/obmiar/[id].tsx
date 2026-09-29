@@ -391,6 +391,8 @@ export default function ObmiarDetailScreen() {
                       <Text style={{ color: theme.colors.textSecondary, fontSize: 12, marginTop: 2 }}>
                         {zamek ? 'Zatwierdzony – kliknij kłódkę, aby edytować' : 'Do ustawienia'}
                         {' · '}{formatLiczby(o.powierzchniaM2)} m² · {o.wierzcholkiPdf.length} węzłów
+                        {o.stronaTrasy === 'lewa' ? ' · strona L' : o.stronaTrasy === 'prawa' ? ' · strona P' : ''}
+                        {o.krawedzniki?.length ? ` · krawężnik ×${o.krawedzniki.length}` : ''}
                         {o.bazaStart?.kilometrazKm != null || o.kilometrazStartKm != null
                           ? ` · ${formatujKilometraz(o.bazaStart?.kilometrazKm ?? o.kilometrazStartKm, o.bazaStart?.kilometrazM ?? o.kilometrazStartM)}`
                           : ''}

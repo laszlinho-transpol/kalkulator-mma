@@ -247,6 +247,13 @@ export function WielokatPodglad({
       }).join(' ')
       : '';
 
+    const linieKrawedznika = (obszar?.krawedzniki ?? []).map((kr) => ({
+      punkty: kr.wierzcholkiM.map((p) => {
+        const s = toSvg(p);
+        return `${s.x},${s.y}`;
+      }).join(' '),
+      odOsi: kr.polozenie === 'odOsi',
+    }));
     const linieBazy: { x1: number; y1: number; x2: number; y2: number; kolor: string }[] = [];
     if (obszar?.bazaStart?.idxLewy != null && obszar.bazaStart.idxPrawy != null) {
       const a = toSvg(wierzcholki[obszar.bazaStart.idxLewy]);
@@ -375,6 +382,7 @@ export function WielokatPodglad({
         return { ...w, ...toSvg(wierzcholki[i]) };
       }),
       linieBazy,
+      linieKrawedznika,
       lancuchyOds,
       osSvg,
       kmSvg,
@@ -684,6 +692,17 @@ export function WielokatPodglad({
                               stroke={PRIMARY}
                               strokeWidth={m(OBRYS_M)}
                             />
+                            {mapa.linieKrawedznika.map((l, i) => (
+                              <Polyline
+                                key={`kr-${i}`}
+                                points={l.punkty}
+                                fill="none"
+                                stroke="#DC2626"
+                                strokeWidth={m(OBRYS_M * (l.odOsi ? 1.35 : 1.1))}
+                                strokeDasharray={l.odOsi ? `${m(0.55)} ${m(0.35)}` : undefined}
+                                opacity={0.95}
+                              />
+                            ))}
                             {mapa.ulozonyStr ? (
                               <Polygon points={mapa.ulozonyStr} fill={FILL_ULOZONE} />
                             ) : null}

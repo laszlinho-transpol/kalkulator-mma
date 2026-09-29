@@ -36,6 +36,7 @@ describe('obmiarGeometry / xfdfParser', () => {
   it('parsujXfdfTekst – dwa polygony + href PDF', () => {
     const w = parsujXfdfTekst(SAMPLE_XFDF, 'PZT.2.xfdf');
     assert.equal(w.polygony.length, 2);
+    assert.equal(w.polilinie.length, 0);
     assert.ok(w.zrodloPdfHref?.includes('Rozniaty'));
     assert.equal(w.polygony[0].kolorWypelnienia, '#FFEE58');
     assert.ok(w.polygony[0].wierzcholki.length >= 5);
@@ -65,5 +66,38 @@ describe('obmiarGeometry / xfdfParser', () => {
     const metry = skalujWierzcholki(pts, skala);
     const pow = powierzchniaWielokata(metry);
     assert.ok(Math.abs(pow - 1821) < 1);
+  });
+
+  it('żółty/różowy + czerwony obwód: L/P, krawężnik na krawędzi, bez odsadzki', () => {
+    const xfdf = `<?xml version="1.0"?><xfdf>
+<polygon interior-color="#FFEE58" subject="Obszar">
+<vertices>0,40;0,20;100,20;100,40</vertices>
+</polygon>
+<polygon interior-color="#FFC0CB" subject="Obszar">
+<vertices>0,20;0,0;100,0;100,20</vertices>
+</polygon>
+<polyline color="#FF0000" subject="Obwód">
+<vertices>0,40;50,40;100,40</vertices>
+</polyline>
+<polyline color="#FF0000" subject="Obwód">
+<vertices>40,20;60,20</vertices>
+</polyline>
+</xfdf>`;
+    const w = parsujXfdfTekst(xfdf, 'dk25.xfdf');
+    assert.equal(w.polygony.length, 2);
+    assert.equal(w.polilinie.length, 2);
+    const obszary = obszaryZPolygony(w, DOMYSLNA_SKALA_PZT);
+    assert.equal(obszary[0].nazwa, 'Trasa L');
+    assert.equal(obszary[1].nazwa, 'Trasa P');
+    assert.equal(obszary[0].stronaTrasy, 'lewa');
+    assert.equal(obszary[1].stronaTrasy, 'prawa');
+    const krL = obszary[0].krawedzniki ?? [];
+    const krP = obszary[1].krawedzniki ?? [];
+    assert.ok(krL.length >= 1);
+    assert.ok(krL.every((k) => k.odlegloscOdKrawedziM < 0.05));
+    assert.ok(krL.some((k) => k.polozenie === 'zewnetrzna'));
+    assert.ok(krL.some((k) => k.polozenie === 'odOsi') || krP.some((k) => k.polozenie === 'odOsi'));
+    assert.ok(obszary[0].odsadzki?.every((o) => !o.zastosowana));
+    assert.ok(obszary[0].bazaStart?.idxLewy != null && obszary[0].bazaStart.idxPrawy != null);
   });
 });
