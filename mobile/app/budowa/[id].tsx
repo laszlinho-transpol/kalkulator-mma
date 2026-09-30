@@ -2,7 +2,7 @@
 // SZABLON BUDOWY – PROJEKT + WYKONANIE
 // ============================================================
 
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, useColorScheme } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -24,6 +24,8 @@ export default function BudowaSzablonScreen() {
   const insets = useSafeAreaInsets();
   const budowa = useBudowyStore((s) => s.budowy.find((b) => b.id === id));
   const zapiszProjekt = useBudowyStore((s) => s.zapiszProjekt);
+  const [mapaAktywna, setMapaAktywna] = useState(false);
+  const [blokadaPodgladu, setBlokadaPodgladu] = useState(false);
 
   useEffect(() => {
     if (budowa && !budowa.projekt) {
@@ -59,6 +61,8 @@ export default function BudowaSzablonScreen() {
       <ScrollView
         contentContainerStyle={{ padding: 14, paddingBottom: insets.bottom + 24, gap: 4 }}
         keyboardShouldPersistTaps="handled"
+        nestedScrollEnabled
+        scrollEnabled={!blokadaPodgladu && !mapaAktywna}
       >
         <CollapsibleSection
           tytul="1. PROJEKT"
@@ -74,7 +78,14 @@ export default function BudowaSzablonScreen() {
             ikona="🗺️"
             domyslnieRozwinieta
           >
-            <SekcjaPzt projekt={projekt} theme={theme} onZmien={onZmien} />
+            <SekcjaPzt
+              projekt={projekt}
+              theme={theme}
+              onZmien={onZmien}
+              blokadaPodgladu={blokadaPodgladu}
+              onBlokadaPodgladu={setBlokadaPodgladu}
+              onDotykZmiana={setMapaAktywna}
+            />
           </CollapsibleSection>
           <CollapsibleSection
             tytul="1.2 Legenda"

@@ -26,6 +26,9 @@ interface Props {
   projekt: ProjektBudowy;
   theme: AppTheme;
   onZmien: (p: ProjektBudowy) => void;
+  blokadaPodgladu?: boolean;
+  onBlokadaPodgladu?: (v: boolean) => void;
+  onDotykZmiana?: (aktywny: boolean) => void;
 }
 
 function potwierdzWeb(pytanie: string): boolean {
@@ -41,7 +44,9 @@ function pokazKomunikat(tytul: string, tresc: string) {
   Alert.alert(tytul, tresc);
 }
 
-export function SekcjaPzt({ projekt, theme, onZmien }: Props) {
+export function SekcjaPzt({
+  projekt, theme, onZmien, blokadaPodgladu = false, onBlokadaPodgladu, onDotykZmiana,
+}: Props) {
   const [arkuszId, setArkuszId] = useState(projekt.arkusze[0]?.id);
   const [busy, setBusy] = useState(false);
   const [blad, setBlad] = useState<string | null>(null);
@@ -244,7 +249,13 @@ export function SekcjaPzt({ projekt, theme, onZmien }: Props) {
 
           {aktywny ? (
             <>
-              <PztArkuszPodglad arkusz={aktywny} theme={theme} />
+              <PztArkuszPodglad
+                arkusz={aktywny}
+                theme={theme}
+                blokadaPodgladu={blokadaPodgladu}
+                onBlokadaPodgladu={onBlokadaPodgladu}
+                onDotykZmiana={onDotykZmiana}
+              />
               <View style={[karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border, gap: 10 }]}>
                 <Text style={[styles.label, { color: theme.colors.text }]}>Nazwa zakładki</Text>
                 <TextInput
