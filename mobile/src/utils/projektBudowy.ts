@@ -26,8 +26,9 @@ export const GESTOSC_MMA_DOMYSLNA = 2.45;
 export const GESTOSC_KLSM_DOMYSLNA = 2.0;
 export const DOMYSLNY_KM_START_PZT = 0;
 
+let _idSeq = 0;
 const generujId = (): string =>
-  Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+  `${Date.now().toString(36)}${(_idSeq++).toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 
 export function pustyProjektBudowy(kilometrazPoczatkowyM = DOMYSLNY_KM_START_PZT): ProjektBudowy {
   return {
@@ -650,7 +651,7 @@ export function usunArkusz(projekt: ProjektBudowy, arkuszId: string): ProjektBud
     projekt.arkusze.filter((a) => a.id !== arkuszId).map((a, i) => ({
       ...a,
       kolejnosc: i + 1,
-      kontynuacjaPoprzedniego: i === 0 ? false : a.kontynuacjaPoprzedniego,
+      kontynuacjaPoprzedniego: i === 0 ? false : true,
     })),
     projekt.kilometrazPoczatkowyM,
   );
@@ -661,4 +662,37 @@ export function usunArkusz(projekt: ProjektBudowy, arkuszId: string): ProjektBud
     legenda,
     konstrukcje: uzupelnijKonstrukcjeDlaLegendy(projekt.konstrukcje, legenda),
   };
+}
+
+/** Przesuwa arkusz wcześniej / później na trasie i przelicza ciągły kilometraż. */
+export function przesunArkusz(projekt: ProjektBudowy, arkuszId: string, kierunek: -1 | 1): ProjektBudowy {
+  const idx = projekt.arkusze.findIndex((a) => a.id === arkuszId);
+  const j = idx + kierunek;
+  if (idx < 0 || j < 0 || j >= projekt.arkusze.length) return projekt;
+  const kopia = [...projekt.arkusze];
+  const [item] = kopia.splice(idx, 1);
+  kopia.splice(j, 0, item);
+  const arkusze = zastosujKilometrazArkuszy(
+    kopia.map((a, i) => ({
+      ...a,
+      kolejnosc: i + 1,
+      kontynuacjaPoprzedniego: i > 0,
+    })),
+    projekt.kilometrazPoczatkowyM,
+  );
+  return { ...projekt, arkusze };
+}
+
+export function zmienNazweArkusza(projekt: ProjektBudowy, arkuszId: string, nazwa: string): ProjektBudowy {
+  return {
+    ...projekt,
+    arkusze: projekt.arkusze.map((a) => (a.id === arkuszId ? { ...a, nazwa } : a)),
+  };
+}
+
+export function etykietaZakladkiArkusza(nazwa: string): string {
+  return nazwa
+    .replace(/^DK25M[_-]?kowarsko[_-]?/i, 'Ark. ')
+    .replace(/\.(xfdf|xml|txt)$/i, '')
+    .trim() || nazwa;
 }

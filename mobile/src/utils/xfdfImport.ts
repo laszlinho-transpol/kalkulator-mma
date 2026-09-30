@@ -38,10 +38,15 @@ export async function parsujWebFileList(lista: ArrayLike<{ name: string; text: (
   | { sukces: true; wyniki: WynikParsowaniaXfdf[]; pominiete: string[] }
   | { sukces: false; blad: string }
 > {
-  const pliki: Array<{ nazwa: string; tekst: string }> = [];
-  const bledy: string[] = [];
+  const kopia: Array<{ name: string; text: () => Promise<string> }> = [];
   for (let i = 0; i < lista.length; i++) {
     const f = lista[i];
+    if (f) kopia.push(f);
+  }
+  const pliki: Array<{ nazwa: string; tekst: string }> = [];
+  const bledy: string[] = [];
+  for (let i = 0; i < kopia.length; i++) {
+    const f = kopia[i];
     const nazwa = f.name || `arkusz_${i + 1}.xfdf`;
     try {
       pliki.push({ nazwa, tekst: await f.text() });

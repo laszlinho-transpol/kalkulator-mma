@@ -18,12 +18,15 @@ import {
   obliczPrzedmiar,
   powierzchniaWarstwyZOdsadzka,
   pustyProjektBudowy,
+  przesunArkusz,
   scalWiersze,
   sugerowanaNazwaLegendy,
   sumyMieszanek,
   tonyZPowierzchni,
+  usunArkusz,
   zastosujKilometrazArkuszy,
   zbierzLegendeZArkuszy,
+  zmienNazweArkusza,
 } from './projektBudowy';
 
 function prostokat(id: string, kolor: string, dlugoscM: number, szerM: number, nazwa: string): ObszarObmiaru {
@@ -140,6 +143,27 @@ describe('projektBudowy', () => {
     assert.equal(projekt.arkusze[1].kontynuacjaPoprzedniego, true);
     assert.ok(projekt.arkusze[1].kilometrazPoczatkowyM > projekt.arkusze[0].kilometrazPoczatkowyM);
     assert.equal(projekt.arkusze[1].kilometrazPoczatkowyM, projekt.arkusze[0].kilometrazKoncowyM);
+  });
+
+  it('usuwa arkusz i przestawia kolejność z przeliczeniem km', () => {
+    const xfdf = (n: string) => `<?xml version="1.0"?><xfdf>
+<polygon interior-color="#FFEE58"><vertices>0,28;0,0;2268,0;2268,28</vertices></polygon>
+</xfdf>`;
+    let projekt = dodajArkuszeDoProjektu(pustyProjektBudowy(0), [
+      parsujXfdfTekst(xfdf('1'), 'a.xfdf'),
+      parsujXfdfTekst(xfdf('2'), 'b.xfdf'),
+      parsujXfdfTekst(xfdf('3'), 'c.xfdf'),
+    ]);
+    assert.equal(projekt.arkusze.length, 3);
+    const ids = projekt.arkusze.map((a) => a.id);
+    projekt = przesunArkusz(projekt, ids[2], -1);
+    assert.equal(projekt.arkusze[1].zrodloNazwa, 'c.xfdf');
+    assert.equal(projekt.arkusze[1].kilometrazPoczatkowyM, projekt.arkusze[0].kilometrazKoncowyM);
+    projekt = usunArkusz(projekt, projekt.arkusze[0].id);
+    assert.equal(projekt.arkusze.length, 2);
+    assert.equal(projekt.arkusze[0].kontynuacjaPoprzedniego, false);
+    projekt = zmienNazweArkusza(projekt, projekt.arkusze[0].id, 'Odcinek start');
+    assert.equal(projekt.arkusze[0].nazwa, 'Odcinek start');
   });
 
   it('przedmiar: m² + t z odsadzką i scaleniem L+P', () => {
