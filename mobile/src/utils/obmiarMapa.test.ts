@@ -5,7 +5,7 @@ import {
   translacjaPrzyZoomie, translacjaPrzyObrocie,
 } from './obmiarMapa';
 import {
-  bokiFigury, formatujKilometraz, idxWezlowOdcinkaKm, kierunekKilometrazu, kilometrazKoncaZOsi, lancuchBoku,
+  bokiFigury, dlugoscKilometrazaObszaru, formatujKilometraz, idxWezlowOdcinkaKm, kierunekKilometrazu, kilometrazKoncaZOsi, lancuchBoku,
   odlegloscMiedzyWezlami, odleglosciWezlowOdStartu, parsujKilometraz, podlancuch,
   przekrojPoprzeczny, wielokatUlozony,
 } from './obmiarFigura';
@@ -96,6 +96,29 @@ describe('obmiarFigura', () => {
     assert.ok(Math.abs(b!.lewaDl - 100) < 0.01);
     assert.ok(Math.abs(b!.prawaDl - 100) < 0.01);
     assert.ok(Math.abs(b!.dlugoscUkladania - 100) < 0.01);
+  });
+
+  it('pikietaż odrzuca dłuższy bok (wyspa od osi)', () => {
+    const wyspa: ObszarObmiaru = {
+      ...prostokat,
+      wierzcholkiM: [
+        { x: 0, y: 0 },
+        { x: 40, y: 0 },
+        { x: 50, y: -8 },
+        { x: 60, y: 0 },
+        { x: 100, y: 0 },
+        { x: 100, y: 5 },
+        { x: 0, y: 5 },
+      ],
+      bazaStart: { idxLewy: 6, idxPrawy: 0 },
+      bazaKoniec: { idxLewy: 5, idxPrawy: 4 },
+    };
+    const b = bokiFigury(wyspa);
+    assert.ok(b);
+    assert.ok(Math.abs(Math.min(b!.lewaDl, b!.prawaDl) - 100) < 0.2);
+    assert.ok(Math.max(b!.lewaDl, b!.prawaDl) > 104);
+    assert.ok(Math.abs(dlugoscKilometrazaObszaru(wyspa) - 100) < 0.3);
+    assert.ok(b!.dlugoscUkladania > 102);
   });
 
   it('kilometraz rosnacy 1+500 → 1+600', () => {

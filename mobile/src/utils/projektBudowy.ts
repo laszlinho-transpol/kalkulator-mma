@@ -20,6 +20,7 @@ import type {
 import { DOMYSLNA_SKALA_PZT } from '../types';
 import { round2, round3 } from './calculations';
 import { dlugoscUkladaniaObszaru } from './obmiarLive';
+import { dlugoscKilometrazaObszaru, bokiFigury } from './obmiarFigura';
 import { obszaryZPolygony, stronaTrasyZKoloru, type WynikParsowaniaXfdf } from './xfdfParser';
 
 export const GESTOSC_MMA_DOMYSLNA = 2.45;
@@ -160,9 +161,40 @@ export function arkuszZWynikuXfdf(
   };
 }
 
+/** Długość arkusza w pikietażu PZT: średnia osi L/P, bez objeżdżania wysp. */
 export function dlugoscArkuszaM(arkusz: ArkuszPzt): number {
   if (arkusz.obszary.length === 0) return 0;
-  return Math.max(...arkusz.obszary.map((o) => dlugoscUkladaniaObszaru(o)));
+  const ds = arkusz.obszary.map((o) => dlugoscKilometrazaObszaru(o)).filter((d) => d > 0.5);
+  if (ds.length === 0) return 0;
+  return round2(ds.reduce((s, d) => s + d, 0) / ds.length);
+}
+
+/** Średnia/max długość układania MMA (wyspy na krawędzi od osi wydłużają). */
+export function dlugoscUkladaniaArkuszaM(arkusz: ArkuszPzt): number {
+  if (arkusz.obszary.length === 0) return 0;
+  return round2(Math.max(...arkusz.obszary.map((o) => dlugoscUkladaniaObszaru(o))));
+}
+
+export function podsumowanieDlugosciArkusza(arkusz: ArkuszPzt): {
+  kmM: number;
+  ukladanieM: number;
+  obszary: Array<{ nazwa: string; kmM: number; ukladanieM: number; lewaDl: number; prawaDl: number }>;
+} {
+  const obszary = arkusz.obszary.map((o) => {
+    const b = bokiFigury(o);
+    return {
+      nazwa: o.nazwa,
+      kmM: dlugoscKilometrazaObszaru(o),
+      ukladanieM: dlugoscUkladaniaObszaru(o),
+      lewaDl: round2(b?.lewaDl ?? 0),
+      prawaDl: round2(b?.prawaDl ?? 0),
+    };
+  });
+  return {
+    kmM: dlugoscArkuszaM(arkusz),
+    ukladanieM: dlugoscUkladaniaArkuszaM(arkusz),
+    obszary,
+  };
 }
 
 function ustawKmObszaru(obszar: ObszarObmiaru, startM: number, koniecM: number): ObszarObmiaru {

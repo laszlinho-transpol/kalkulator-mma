@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView, Switch, Platform, TextInput, Alert,
 } from 'react-native';
@@ -12,6 +12,7 @@ import {
   dodajArkuszeDoProjektu,
   etykietaZakladkiArkusza,
   formatujKmM,
+  podsumowanieDlugosciArkusza,
   przesunArkusz,
   przeliczProjektPoZmianieKm,
   usunArkusz,
@@ -68,6 +69,22 @@ export function SekcjaPzt({
   const [mStr, setMStr] = useState(startInit.m);
   const aktywny = projekt.arkusze.find((a) => a.id === arkuszId) ?? projekt.arkusze[0];
   const idxAktywny = aktywny ? projekt.arkusze.findIndex((a) => a.id === aktywny.id) : -1;
+  const kmKoniecTrasy = projekt.arkusze[projekt.arkusze.length - 1]?.kilometrazKoncowyM;
+  const dlAkt = aktywny ? podsumowanieDlugosciArkusza(aktywny) : null;
+
+  useEffect(() => {
+    if (projekt.arkusze.length === 0) return;
+    const next = przeliczProjektPoZmianieKm(projekt);
+    const zmiana = next.arkusze.some((a, i) => {
+      const stary = projekt.arkusze[i];
+      return !stary
+        || Math.abs(a.kilometrazKoncowyM - stary.kilometrazKoncowyM) > 0.05
+        || Math.abs(a.kilometrazPoczatkowyM - stary.kilometrazPoczatkowyM) > 0.05;
+    });
+    if (zmiana) onZmien(next);
+    // Przelicza pikietaż po zmianie wzoru (oś zamiast max z wysp).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projekt.arkusze.length, projekt.kilometrazPoczatkowyM]);
 
   const przypnijPdfs = async (
     proj: ProjektBudowy,
@@ -258,10 +275,11 @@ export function SekcjaPzt({
           />
           <Text style={{ color: theme.colors.textSecondary, fontSize: 13, fontWeight: '700' }}>
             {formatujKmM(projekt.kilometrazPoczatkowyM)}
+            {kmKoniecTrasy != null ? ` → ${formatujKmM(kmKoniecTrasy)}` : ''}
           </Text>
         </View>
         <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>
-          Skala PZT 1:{projekt.skala.mianownik} ({projekt.skala.metryNaCm} m / cm)
+          Skala PZT 1:{projekt.skala.mianownik} ({projekt.skala.metryNaCm} m / cm). Pikietaż idzie po osi (krótszy bok / krawężnik zewnętrzny) – wyspy na krawędzi od osi nie doliczają metrów.
         </Text>
       </View>
 
@@ -389,6 +407,15 @@ export function SekcjaPzt({
                 <Text style={{ color: theme.colors.primary, fontWeight: '800', fontSize: 13 }}>
                   Zakres: {formatujKmM(aktywny.kilometrazPoczatkowyM)} → {formatujKmM(aktywny.kilometrazKoncowyM)}
                 </Text>
+                {dlAkt ? (
+                  <Text style={{ color: theme.colors.textSecondary, fontSize: 12, lineHeight: 16 }}>
+                    Oś km: {Math.round(dlAkt.kmM)} m
+                    {dlAkt.ukladanieM - dlAkt.kmM > 0.4
+                      ? ` · układanie MMA ${Math.round(dlAkt.ukladanieM)} m (wyspy/zatoki +${Math.round(dlAkt.ukladanieM - dlAkt.kmM)} m – nie wchodzą do pikietażu)`
+                      : ''}
+                    {dlAkt.obszary.map((o) => `\n${o.nazwa}: boki ${Math.round(Math.min(o.lewaDl, o.prawaDl))}/${Math.round(Math.max(o.lewaDl, o.prawaDl))} m`).join('')}
+                  </Text>
+                ) : null}
                 <View style={styles.rzad}>
                   <TouchableOpacity
                     style={[styles.btnKolej, { borderColor: theme.colors.border, opacity: !kolejnoscOtwarta || idxAktywny <= 0 ? 0.4 : 1 }]}

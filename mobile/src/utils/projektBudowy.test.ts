@@ -29,6 +29,7 @@ import {
   zmienNazweArkusza,
   zmienNazweScalonegoWiersza,
   rozlaczWiersz,
+  dlugoscArkuszaM,
 } from './projektBudowy';
 
 function prostokat(id: string, kolor: string, dlugoscM: number, szerM: number, nazwa: string): ObszarObmiaru {
@@ -104,6 +105,22 @@ describe('projektBudowy', () => {
     assert.equal(s2.kilometrazKoncowyM, 106840 + 400 + 430);
     assert.equal(s1.obszary[0].kilometrazStartKm, 106);
     assert.equal(s1.obszary[0].kilometrazStartM, 840);
+  });
+
+  it('kilometraż arkusza to średnia osi L/P, nie max (dłuższa jezdnia / wyspy)', () => {
+    const a1: ArkuszPzt = {
+      id: 'a1',
+      nazwa: 'ark1',
+      zrodloNazwa: '1.xfdf',
+      kolejnosc: 1,
+      kontynuacjaPoprzedniego: false,
+      kilometrazPoczatkowyM: 0,
+      kilometrazKoncowyM: 0,
+      obszary: [prostokat('l1', '#FFEE58', 400, 5, 'L'), prostokat('p1', '#FFC0CB', 430, 4, 'P')],
+    };
+    assert.equal(dlugoscArkuszaM(a1), 415);
+    const [s1] = zastosujKilometrazArkuszy([a1], 106850);
+    assert.equal(s1.kilometrazKoncowyM, 106850 + 415);
   });
 
   it('zbiera legendę z obszarów i czerwonych linii, zachowując nazwy', () => {

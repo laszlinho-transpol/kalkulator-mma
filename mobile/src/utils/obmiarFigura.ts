@@ -127,6 +127,31 @@ export function bokiFigury(obszar: ObszarObmiaru): BokiFigury | null {
   };
 }
 
+/**
+ * Długość do pikietażu PZT (oś), nie do układania MMA.
+ * Krawędź od osi z wyspami jest dłuższa – odrzucamy ją, gdy wyraźnie wystaje.
+ * Czerwony krawężnik „zewnętrzny” jest bliższy osi trasy niż objeżdżanie wysp.
+ */
+export function dlugoscKilometrazaObszaru(obszar: ObszarObmiaru): number {
+  const boki = bokiFigury(obszar);
+  const zewn = (obszar.krawedzniki ?? [])
+    .filter((k) => k.polozenie === 'zewnetrzna' && k.dlugoscM > 2)
+    .map((k) => k.dlugoscM);
+  if (zewn.length > 0 && boki) {
+    const krot = Math.min(boki.lewaDl, boki.prawaDl);
+    const z = Math.max(...zewn);
+    if (z > krot * 0.7 && z < krot * 1.2) return round2(z);
+  }
+  if (boki) {
+    const krot = Math.min(boki.lewaDl, boki.prawaDl);
+    const dlug = Math.max(boki.lewaDl, boki.prawaDl);
+    const prog = Math.max(3, 0.008 * Math.max(krot, 1));
+    if (dlug - krot > prog) return round2(krot);
+    return round2((boki.lewaDl + boki.prawaDl) / 2);
+  }
+  return round2(Math.max(obszar.obwodM / 2, 0.01));
+}
+
 export function punktNaLancuchu(
   wierzcholki: Punkt2D[],
   idx: number[],
