@@ -338,16 +338,28 @@ export function PztArkuszPodglad({
             <Text style={styl.blokadaTekst}>Ramka</Text>
           </TouchableOpacity>
           {tloMeta ? (
-            <TouchableOpacity
-              style={styl.blokada}
-              onPress={() => onTloZmiana?.({ widoczne: !tloWidoczne })}
-              accessibilityLabel="Tło PDF"
-            >
-              <View style={[styl.check, tloWidoczne && styl.checkOn]}>
-                {tloWidoczne ? <Text style={styl.checkTekst}>✓</Text> : null}
-              </View>
-              <Text style={styl.blokadaTekst}>Tło</Text>
-            </TouchableOpacity>
+            <>
+              <TouchableOpacity
+                style={styl.blokada}
+                onPress={() => onTloZmiana?.({ widoczne: !tloWidoczne })}
+                accessibilityLabel="Tło PDF"
+              >
+                <View style={[styl.check, tloWidoczne && styl.checkOn]}>
+                  {tloWidoczne ? <Text style={styl.checkTekst}>✓</Text> : null}
+                </View>
+                <Text style={styl.blokadaTekst}>Tło</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styl.blokada}
+                onPress={() => onTloZmiana?.({ odwrocY: !tloMeta.odwrocY })}
+                accessibilityLabel="Odwróć oś Y tła PDF"
+              >
+                <View style={[styl.check, tloMeta.odwrocY && styl.checkOn]}>
+                  {tloMeta.odwrocY ? <Text style={styl.checkTekst}>✓</Text> : null}
+                </View>
+                <Text style={styl.blokadaTekst}>Y↕</Text>
+              </TouchableOpacity>
+            </>
           ) : null}
         </View>
 
