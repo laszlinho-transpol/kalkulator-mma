@@ -8,8 +8,8 @@ import {
   PinchGestureHandler,
   State,
 } from 'react-native-gesture-handler';
-import Svg, { G, Polygon, Polyline, Rect, Text as SvgText } from 'react-native-svg';
-import type { ArkuszPzt, Punkt2D } from '../../types';
+import Svg, { G, Polygon, Polyline, Rect } from 'react-native-svg';
+import type { ArkuszPzt, Punkt2D, TloArkuszaPzt } from '../../types';
 import { bboxWielokata } from '../../utils/obmiarGeometry';
 import {
   nastepnyPresetZoom,
@@ -21,6 +21,8 @@ import {
   translacjaPrzyZoomie,
 } from '../../utils/obmiarMapa';
 import { formatujKmM } from '../../utils/projektBudowy';
+import { buforTlaArkusza, podlaczBuforDoArkusza } from '../../utils/tloPdfPamiec';
+import { PztTloPdfCanvas } from './PztTloPdfCanvas';
 import type { AppTheme } from '../../constants/theme';
 
 function hostHtml(node: unknown): HTMLElement | null {
@@ -56,6 +58,7 @@ interface Props {
   blokadaPodgladu?: boolean;
   onBlokadaPodgladu?: (v: boolean) => void;
   onDotykZmiana?: (aktywny: boolean) => void;
+  onTloZmiana?: (patch: Partial<TloArkuszaPzt>) => void;
 }
 
 export function PztArkuszPodglad({
@@ -65,6 +68,7 @@ export function PztArkuszPodglad({
   blokadaPodgladu = false,
   onBlokadaPodgladu,
   onDotykZmiana,
+  onTloZmiana,
 }: Props) {
   const [rozmiar, setRozmiar] = useState({ w: 320, h: wysokosc });
   const [skalaPct, setSkalaPct] = useState(100);
@@ -109,7 +113,7 @@ export function PztArkuszPodglad({
       return {
         id: o.id,
         nazwa: o.nazwa,
-        fill: hexDoRgba(o.kolorWypelnienia, 0.42),
+        fill: hexDoRgba(o.kolorWypelnienia, arkusz.tlo?.widoczne === false ? 0.42 : (arkusz.tlo ? 0.22 : 0.42)),
         stroke: o.kolorWypelnienia || '#E8A020',
         punkty: svgPts.map((p) => `${p.x},${p.y}`).join(' '),
         cx: c.x,
@@ -122,7 +126,7 @@ export function PztArkuszPodglad({
         })),
       };
     });
-    return { obszary, skalaFit };
+    return { obszary, skalaFit, cx, cy };
   }, [arkusz, geometria, rozmiar.w, rozmiar.h]);
 
   const clampTrans = (x: number, y: number, s = bazaSkali.current) => {
@@ -303,7 +307,11 @@ export function PztArkuszPodglad({
   const gXform = `translate(${rozmiar.w / 2 + xform.tx},${rozmiar.h / 2 + xform.ty}) scale(${xform.s}) translate(${-rozmiar.w / 2},${-rozmiar.h / 2})`;
   const swEkran = 1.25;
   const dash = 5 / Math.max(xform.s, 0.12);
-  const fontEtyk = 11;
+  const tloMeta = arkusz.tlo;
+  const tloWidoczne = !!(tloMeta && tloMeta.widoczne !== false);
+  const buforTla = tloMeta
+    ? (buforTlaArkusza(arkusz.id) ?? podlaczBuforDoArkusza(arkusz.id, tloMeta.nazwa) ?? null)
+    : null;
 
   return (
     <View>
@@ -329,6 +337,18 @@ export function PztArkuszPodglad({
             </View>
             <Text style={styl.blokadaTekst}>Ramka</Text>
           </TouchableOpacity>
+          {tloMeta ? (
+            <TouchableOpacity
+              style={styl.blokada}
+              onPress={() => onTloZmiana?.({ widoczne: !tloWidoczne })}
+              accessibilityLabel="Tło PDF"
+            >
+              <View style={[styl.check, tloWidoczne && styl.checkOn]}>
+                {tloWidoczne ? <Text style={styl.checkTekst}>✓</Text> : null}
+              </View>
+              <Text style={styl.blokadaTekst}>Tło</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
 
         <View style={styl.lupka}>
@@ -347,7 +367,23 @@ export function PztArkuszPodglad({
           collapsable={false}
           onLayout={onLayout}
         >
-          <GestureHandlerRootView style={StyleSheet.absoluteFill}>
+          {tloWidoczne && buforTla ? (
+            <PztTloPdfCanvas
+              bufor={buforTla}
+              widoczne={tloWidoczne}
+              opacity={tloMeta?.opacity ?? 0.55}
+              odwrocY={tloMeta?.odwrocY}
+              cx={mapa.cx}
+              cy={mapa.cy}
+              skalaFit={mapa.skalaFit}
+              szer={rozmiar.w}
+              wys={rozmiar.h}
+              skala={xform.s}
+              tx={xform.tx}
+              ty={xform.ty}
+            />
+          ) : null}
+          <GestureHandlerRootView style={[StyleSheet.absoluteFill, { zIndex: 1 }]}>
             <PinchGestureHandler
               ref={pinchRef}
               simultaneousHandlers={[panRef]}
@@ -368,13 +404,15 @@ export function PztArkuszPodglad({
                 >
                   <Animated.View style={StyleSheet.absoluteFill} collapsable={false}>
                     <Svg width={rozmiar.w} height={rozmiar.h}>
-                      <Rect
-                        x={0}
-                        y={0}
-                        width={rozmiar.w}
-                        height={rozmiar.h}
-                        fill={theme.dark ? '#111827' : '#F8FAFC'}
-                      />
+                      {tloWidoczne && buforTla ? null : (
+                        <Rect
+                          x={0}
+                          y={0}
+                          width={rozmiar.w}
+                          height={rozmiar.h}
+                          fill={theme.dark ? '#111827' : '#F8FAFC'}
+                        />
+                      )}
                       <G transform={gXform}>
                         {mapa.obszary.map((o) => (
                           <Polygon
@@ -402,20 +440,6 @@ export function PztArkuszPodglad({
                             />
                           )),
                         )}
-                        {mapa.obszary.map((o) => (
-                          <SvgText
-                            key={`n-${o.id}`}
-                            x={o.cx}
-                            y={o.cy}
-                            fill={theme.dark ? '#F9FAFB' : '#111827'}
-                            fontSize={fontEtyk}
-                            fontWeight="700"
-                            textAnchor="middle"
-                            alignmentBaseline="middle"
-                          >
-                            {o.nazwa}
-                          </SvgText>
-                        ))}
                       </G>
                     </Svg>
                   </Animated.View>
@@ -498,7 +522,7 @@ const styl = StyleSheet.create({
     justifyContent: 'center',
   },
   celownikTekst: { fontSize: 18, color: '#374151', fontWeight: '700' },
-  blokadaKol: { position: 'absolute', bottom: 8, left: 8, zIndex: 6 },
+  blokadaKol: { position: 'absolute', bottom: 8, left: 8, zIndex: 6, gap: 6 },
   blokada: {
     flexDirection: 'row',
     alignItems: 'center',

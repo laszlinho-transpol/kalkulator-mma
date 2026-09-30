@@ -690,6 +690,28 @@ export function zmienNazweArkusza(projekt: ProjektBudowy, arkuszId: string, nazw
   };
 }
 
+export function zmienNazweScalonegoWiersza(
+  projekt: ProjektBudowy,
+  grupaId: string,
+  nazwa: string,
+): ProjektBudowy {
+  return {
+    ...projekt,
+    scaloneWiersze: projekt.scaloneWiersze.map((g) => (g.id === grupaId ? { ...g, nazwa } : g)),
+  };
+}
+
+export function ustawTloArkusza(
+  projekt: ProjektBudowy,
+  arkuszId: string,
+  tlo: ProjektBudowy['arkusze'][0]['tlo'] | undefined,
+): ProjektBudowy {
+  return {
+    ...projekt,
+    arkusze: projekt.arkusze.map((a) => (a.id === arkuszId ? { ...a, tlo } : a)),
+  };
+}
+
 export function etykietaZakladkiArkusza(nazwa: string): string {
   return nazwa
     .replace(/^DK25M[_-]?kowarsko[_-]?/i, 'Ark. ')

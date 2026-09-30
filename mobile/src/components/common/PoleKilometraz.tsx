@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Platform, StyleSheet, Text, TextInput, View } from 'react-native';
 import type { AppTheme } from '../../constants/theme';
 
@@ -13,40 +13,93 @@ interface Props {
   mini?: boolean;
 }
 
-/** Dwa wąskie okienka: [km] + [m]. Na webie type=text + inputMode, żeby dało się wpisać cyfry. */
+/**
+ * Dwa wąskie okienka: [km] + [m].
+ * Cyfry trzymamy w szkicu do rozmazania fokusu – parent nie dostaje
+ * każdej literki i nie nadpisuje pola zerem z padStart.
+ * Na webie type=text (nie number), żeby dało się wpisać.
+ */
 export function PoleKilometraz({ theme, km, m, onKm, onM, editable = true, compact, mini }: Props) {
   const web = Platform.OS === 'web';
-  const pole = (wartosc: string, onChange: (v: string) => void, max: number, szer: 'km' | 'm') => (
-    <TextInput
-      style={[
-        styl.input,
-        mini ? (szer === 'km' ? styl.kmMini : styl.mMini) : szer === 'km' ? styl.km : styl.m,
-        compact && !mini ? (szer === 'km' ? styl.kmCompact : styl.mCompact) : null,
-        {
-          backgroundColor: theme.colors.inputBackground,
-          borderColor: theme.colors.border,
-          color: theme.colors.text,
-          opacity: editable ? 1 : 0.55,
-        },
-      ]}
-      value={wartosc}
-      onChangeText={(v) => onChange(v.replace(/[^0-9]/g, '').slice(0, max))}
-      keyboardType={web ? 'default' : 'number-pad'}
-      inputMode="numeric"
-      autoComplete="off"
-      placeholder={szer === 'km' ? '0' : '000'}
-      placeholderTextColor={theme.colors.textSecondary}
-      editable={editable}
-      maxLength={max}
-      selectTextOnFocus
-    />
-  );
+  const [focus, setFocus] = useState<'km' | 'm' | null>(null);
+  const [draftKm, setDraftKm] = useState(km);
+  const [draftM, setDraftM] = useState(m);
+  const draftKmRef = React.useRef(km);
+  const draftMRef = React.useRef(m);
+
+  useEffect(() => {
+    if (focus !== 'km') setDraftKm(km);
+  }, [km, focus]);
+  useEffect(() => {
+    if (focus !== 'm') setDraftM(m);
+  }, [m, focus]);
+
+  const tylkoCyfry = (v: string, max: number) => v.replace(/[^0-9]/g, '').slice(0, max);
+
+  const pole = (
+    wartosc: string,
+    szkic: string,
+    ktory: 'km' | 'm',
+    onCommit: (v: string) => void,
+    setSzkic: (v: string) => void,
+    max: number,
+  ) => {
+    const pokaz = focus === ktory ? szkic : wartosc;
+    const webProps = web
+      ? ({
+          type: 'text',
+          inputMode: 'numeric',
+          autoCorrect: 'off',
+          spellCheck: false,
+        } as Record<string, unknown>)
+      : {};
+    return (
+      <TextInput
+        style={[
+          styl.input,
+          mini ? (ktory === 'km' ? styl.kmMini : styl.mMini) : ktory === 'km' ? styl.km : styl.m,
+          compact && !mini ? (ktory === 'km' ? styl.kmCompact : styl.mCompact) : null,
+          {
+            backgroundColor: theme.colors.inputBackground,
+            borderColor: theme.colors.border,
+            color: theme.colors.text,
+            opacity: editable ? 1 : 0.55,
+          },
+        ]}
+        value={pokaz}
+        onChangeText={(v) => {
+          const c = tylkoCyfry(v, max);
+          setSzkic(c);
+          if (ktory === 'km') draftKmRef.current = c;
+          else draftMRef.current = c;
+        }}
+        onFocus={() => {
+          setFocus(ktory);
+          setSzkic(wartosc);
+          if (ktory === 'km') draftKmRef.current = wartosc;
+          else draftMRef.current = wartosc;
+        }}
+        onBlur={() => {
+          const c = tylkoCyfry(ktory === 'km' ? draftKmRef.current : draftMRef.current, max);
+          setFocus(null);
+          onCommit(c);
+        }}
+        keyboardType={web ? 'default' : 'number-pad'}
+        autoComplete="off"
+        placeholder={ktory === 'km' ? '0' : '000'}
+        placeholderTextColor={theme.colors.textSecondary}
+        editable={editable}
+        maxLength={max}
+        {...webProps}
+      />
+    );
+  };
 
   return (
     <View style={[styl.wrap, mini && styl.wrapMini]}>
-      {pole(km, onKm, 4, 'km')}
+      {pole(km, draftKm, 'km', onKm, setDraftKm, 4)}
       <Text style={[styl.plus, mini && styl.plusMini, { color: theme.colors.textSecondary }]}>+</Text>
-      {pole(m, onM, 3, 'm')}
+      {pole(m, draftM, 'm', onM, setDraftM, 3)}
     </View>
   );
 }

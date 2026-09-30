@@ -45,6 +45,7 @@ export function SekcjaKonstrukcje({ projekt, theme, onZmien }: Props) {
   const [wyjatekDoKm, setWyjatekDoKm] = useState('0');
   const [wyjatekDoM, setWyjatekDoM] = useState('200');
   const [wyjatekOpis, setWyjatekOpis] = useState('');
+  const [otwarte, setOtwarte] = useState<Record<string, boolean>>({});
 
   const obszary = projekt.legenda.filter((w) => w.typ === 'obszar' && w.nazwa.trim());
   const etykietaWytworni = (id?: string) => wytwornie.find((w) => w.id === id)?.nazwa;
@@ -215,18 +216,33 @@ export function SekcjaKonstrukcje({ projekt, theme, onZmien }: Props) {
   return (
     <View style={{ gap: 12 }}>
       <Text style={{ color: theme.colors.textSecondary, fontSize: 13, lineHeight: 18 }}>
-        Warstwy od ścieralnej w dół. Odsadzka liczona od obrysu PZT. Wyjątki „od–do” zmieniają układ na odcinku.
+        Widać schemat przekroju. Kliknij go, żeby rozwinąć szczegóły warstw. Wyjątki kilometrażu też są w rozwinięciu.
       </Text>
       {obszary.map((wpis) => {
         const k = projekt.konstrukcje.find((x) => x.legendaId === wpis.id);
         if (!k) return null;
+        const rozwinieta = !!otwarte[wpis.id];
         return (
           <View key={wpis.id} style={[karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border, gap: 10 }]}>
-            <View style={styles.rzad}>
-              <View style={[styles.probka, { backgroundColor: wpis.kolor }]} />
-              <Text style={{ color: theme.colors.text, fontWeight: '800', flex: 1 }}>{wpis.nazwa}</Text>
-            </View>
-            <PrzekrojKonstrukcji warstwy={k.warstwy} theme={theme} />
+            <TouchableOpacity
+              onPress={() => setOtwarte((prev) => ({ ...prev, [wpis.id]: !prev[wpis.id] }))}
+              style={{ gap: 8 }}
+              accessibilityLabel={rozwinieta ? 'Zwiń konstrukcję' : 'Rozwiń konstrukcję'}
+            >
+              <View style={styles.rzad}>
+                <View style={[styles.probka, { backgroundColor: wpis.kolor }]} />
+                <Text style={{ color: theme.colors.text, fontWeight: '800', flex: 1, fontSize: 16 }}>{wpis.nazwa}</Text>
+                <Text style={{ color: theme.colors.primary, fontWeight: '800' }}>{rozwinieta ? '▼' : '▶'}</Text>
+              </View>
+              <PrzekrojKonstrukcji warstwy={k.warstwy} theme={theme} szerokosc={280} />
+              {!rozwinieta ? (
+                <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>
+                  Kliknij schemat, aby edytować warstwy
+                </Text>
+              ) : null}
+            </TouchableOpacity>
+            {rozwinieta ? (
+              <>
             {edytorWarstw(k, k.warstwy)}
             <Text style={{ color: theme.colors.primary, fontWeight: '800', fontSize: 12, marginTop: 4 }}>WYJĄTKI KM</Text>
             {k.wyjatki.map((wy) => {
@@ -302,6 +318,8 @@ export function SekcjaKonstrukcje({ projekt, theme, onZmien }: Props) {
             }}>
               <Text style={{ color: theme.colors.info, fontWeight: '700' }}>+ Wyjątek od–do</Text>
             </TouchableOpacity>
+              </>
+            ) : null}
           </View>
         );
       })}

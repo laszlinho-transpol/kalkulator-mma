@@ -476,6 +476,19 @@ export interface KonstrukcjaObszaru {
   wyjatki: WyjatekKonstrukcji[];
 }
 
+/** Tło oryginalnego PDF pod SVG arkusza (binaria w pamięci / IndexedDB, nie w JSON). */
+export interface TloArkuszaPzt {
+  nazwa: string;
+  pageW: number;
+  pageH: number;
+  /** 1-based */
+  strona: number;
+  widoczne: boolean;
+  /** 0.15–1 */
+  opacity: number;
+  odwrocY?: boolean;
+}
+
 export interface ArkuszPzt {
   id: string;
   nazwa: string;
@@ -487,6 +500,7 @@ export interface ArkuszPzt {
   kilometrazPoczatkowyM: number;
   kilometrazKoncowyM: number;
   obszary: ObszarObmiaru[];
+  tlo?: TloArkuszaPzt;
 }
 
 export interface WierszPrzedmiaruScalony {

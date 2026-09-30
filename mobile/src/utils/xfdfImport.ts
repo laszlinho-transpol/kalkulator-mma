@@ -14,7 +14,7 @@ import {
 export { parsujListeTekstowXfdf, parsujZawartoscXfdf, scalWynikiXfdf };
 
 /** Rozszerzenia – XFDF z PDF-XChange często nie ma MIME, więc filtr po rozszerzeniu. */
-export const ACCEPT_XFDF = '.xfdf,.xml,.txt,text/xml,text/plain,application/xml,*/*';
+export const ACCEPT_XFDF = '.xfdf,.xml,.txt,.pdf,text/xml,text/plain,application/xml,application/pdf,*/*';
 
 async function odczytajTekstZUri(uri: string): Promise<string> {
   try {

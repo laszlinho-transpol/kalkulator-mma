@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Switch,
+  View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Switch, Platform, TextInput,
 } from 'react-native';
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
@@ -16,6 +16,7 @@ import {
   rozlaczWiersz,
   scalWiersze,
   sumyMieszanek,
+  zmienNazweScalonegoWiersza,
   type WierszPrzedmiaru,
 } from '../../utils/projektBudowy';
 import { formatLiczby } from '../../utils/calculations';
@@ -105,12 +106,17 @@ export function SekcjaPrzedmiar({ projekt, theme, kodBudowy, onZmien }: Props) {
         </TouchableOpacity>
       </View>
       {edycja ? (
-        <TouchableOpacity
-          onPress={scal}
-          style={[styles.btn, { backgroundColor: theme.colors.primary, alignSelf: 'flex-start' }]}
-        >
-          <Text style={styles.btnTekst}>Scal zaznaczone</Text>
-        </TouchableOpacity>
+        <View style={{ gap: 8 }}>
+          <TouchableOpacity
+            onPress={scal}
+            style={[styles.btn, { backgroundColor: theme.colors.primary, alignSelf: 'flex-start' }]}
+          >
+            <Text style={styles.btnTekst}>Scal zaznaczone</Text>
+          </TouchableOpacity>
+          <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>
+            Zaznacz wiersze i scal. Scalone: zmień nazwę w polu albo wciśnij „Rozłącz”.
+          </Text>
+        </View>
       ) : null}
 
       <ScrollView horizontal showsHorizontalScrollIndicator>
@@ -124,22 +130,21 @@ export function SekcjaPrzedmiar({ projekt, theme, kodBudowy, onZmien }: Props) {
           {wiersze.map((w) => {
             const scalony = w.legendaIds.length > 1;
             const zazn = zaznaczone.includes(w.id);
+            const rozlacz = () => {
+              const wykonaj = () => onZmien(rozlaczWiersz(projekt, w.id));
+              if (Platform.OS === 'web') {
+                if (typeof window !== 'undefined' && !window.confirm(`Rozłączyć „${w.nazwa}”?`)) return;
+                wykonaj();
+                return;
+              }
+              Alert.alert('Rozłącz wiersz', 'Przywrócić osobne pozycje?', [
+                { text: 'Anuluj', style: 'cancel' },
+                { text: 'Rozłącz', onPress: wykonaj },
+              ]);
+            };
             return (
-              <TouchableOpacity
+              <View
                 key={w.id}
-                disabled={!edycja && !scalony}
-                onPress={() => {
-                  if (edycja) {
-                    setZaznaczone((prev) => prev.includes(w.id) ? prev.filter((id) => id !== w.id) : [...prev, w.id]);
-                    return;
-                  }
-                  if (scalony) {
-                    Alert.alert('Rozłącz wiersz', 'Przywrócić osobne pozycje?', [
-                      { text: 'Anuluj', style: 'cancel' },
-                      { text: 'Rozłącz', onPress: () => onZmien(rozlaczWiersz(projekt, w.id)) },
-                    ]);
-                  }
-                }}
                 style={[
                   styles.trow,
                   {
@@ -149,18 +154,42 @@ export function SekcjaPrzedmiar({ projekt, theme, kodBudowy, onZmien }: Props) {
                 ]}
               >
                 <View style={styles.colNazwa}>
-                  <Text style={{ color: theme.colors.text, fontWeight: '700', fontSize: 12 }}>{w.nazwa}</Text>
+                  {edycja && scalony ? (
+                    <TextInput
+                      value={w.nazwa}
+                      onChangeText={(t) => onZmien(zmienNazweScalonegoWiersza(projekt, w.id, t))}
+                      style={[styles.nazwaInput, { color: theme.colors.text, borderColor: theme.colors.border }]}
+                    />
+                  ) : (
+                    <Text style={{ color: theme.colors.text, fontWeight: '700', fontSize: 12 }}>{w.nazwa}</Text>
+                  )}
                   <Text style={{ color: theme.colors.textSecondary, fontSize: 10 }}>
                     {formatLiczby(w.powierzchniaObrysuM2, 1)} m² obrys
                     {scalony ? ' · scalony' : ''}
                   </Text>
+                  {edycja ? (
+                    <TouchableOpacity
+                      onPress={() => setZaznaczone((prev) => prev.includes(w.id) ? prev.filter((id) => id !== w.id) : [...prev, w.id])}
+                    >
+                      <Text style={{ color: theme.colors.primary, fontSize: 11, fontWeight: '700', marginTop: 4 }}>
+                        {zazn ? '✓ Zaznaczony' : 'Zaznacz do scalenia'}
+                      </Text>
+                    </TouchableOpacity>
+                  ) : null}
+                  {scalony ? (
+                    <TouchableOpacity onPress={rozlacz}>
+                      <Text style={{ color: theme.colors.danger, fontSize: 11, fontWeight: '800', marginTop: 4 }}>
+                        Rozłącz
+                      </Text>
+                    </TouchableOpacity>
+                  ) : null}
                 </View>
                 {KAT_KOLUMNY.map((k) => (
                   <Text key={k.kat} style={[styles.td, styles.colKat, { color: theme.colors.text }]}>
                     {komorka(w, k.kat)}
                   </Text>
                 ))}
-              </TouchableOpacity>
+              </View>
             );
           })}
         </View>
@@ -188,6 +217,7 @@ const styles = StyleSheet.create({
   trow: { flexDirection: 'row', borderWidth: 1, borderTopWidth: 0, paddingVertical: 8, alignItems: 'center' },
   th: { fontSize: 11, fontWeight: '800', paddingHorizontal: 8 },
   td: { fontSize: 11, paddingHorizontal: 8, lineHeight: 16 },
-  colNazwa: { width: 150, paddingHorizontal: 8 },
+  colNazwa: { width: 168, paddingHorizontal: 8 },
   colKat: { width: 96, textAlign: 'right' },
+  nazwaInput: { borderWidth: 1, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 4, fontSize: 12, fontWeight: '700' },
 });

@@ -27,6 +27,8 @@ import {
   zastosujKilometrazArkuszy,
   zbierzLegendeZArkuszy,
   zmienNazweArkusza,
+  zmienNazweScalonegoWiersza,
+  rozlaczWiersz,
 } from './projektBudowy';
 
 function prostokat(id: string, kolor: string, dlugoscM: number, szerM: number, nazwa: string): ObszarObmiaru {
@@ -215,12 +217,18 @@ describe('projektBudowy', () => {
     assert.equal(klsm.powierzchniaM2, powKlsm);
     assert.equal(klsm.tony, tonyZPowierzchni(powKlsm, 20, GESTOSC_KLSM_DOMYSLNA));
 
-    const scalony = obliczPrzedmiar(scalWiersze(projekt, ['legL', 'legP'], 'Trasa główna'));
+    const zScaleniem = scalWiersze(projekt, ['legL', 'legP'], 'Trasa główna');
+    const scalony = obliczPrzedmiar(zScaleniem);
     assert.equal(scalony.length, 1);
     assert.equal(scalony[0].nazwa, 'Trasa główna');
     assert.equal(scalony[0].powierzchniaObrysuM2, 3600);
     const smaS = scalony[0].warstwy.find((w) => w.kategoria === 'sma')!;
     assert.equal(smaS.powierzchniaM2, 3600);
+
+    const poNazwie = obliczPrzedmiar(zmienNazweScalonegoWiersza(zScaleniem, scalony[0].id, 'Trasa L+P'));
+    assert.equal(poNazwie[0].nazwa, 'Trasa L+P');
+    const zpowrotem = obliczPrzedmiar(rozlaczWiersz(zScaleniem, scalony[0].id));
+    assert.equal(zpowrotem.length, 2);
   });
 
   it('sumuje tę samą mieszankę przy różnych grubościach', () => {

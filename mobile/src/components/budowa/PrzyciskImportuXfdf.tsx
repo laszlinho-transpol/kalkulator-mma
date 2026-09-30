@@ -2,19 +2,24 @@ import React, { useCallback, useRef } from 'react';
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { ACCEPT_XFDF } from '../../utils/xfdfImport';
 
-type PlikWeb = { name: string; text: () => Promise<string> };
+export type PlikWebImport = {
+  name: string;
+  text: () => Promise<string>;
+  arrayBuffer: () => Promise<ArrayBuffer>;
+};
 
 interface Props {
   etykieta: string;
   kolorTla: string;
   disabled?: boolean;
+  accept?: string;
   onPressNative: () => void;
-  onWebFiles: (files: PlikWeb[]) => void;
+  onWebFiles: (files: PlikWebImport[]) => void;
 }
 
-function zrzutPlikow(lista: ArrayLike<PlikWeb> | null | undefined): PlikWeb[] {
+function zrzutPlikow(lista: ArrayLike<PlikWebImport> | null | undefined): PlikWebImport[] {
   if (!lista || lista.length === 0) return [];
-  const out: PlikWeb[] = [];
+  const out: PlikWebImport[] = [];
   for (let i = 0; i < lista.length; i++) {
     const f = lista[i];
     if (f) out.push(f);
@@ -26,7 +31,9 @@ function zrzutPlikow(lista: ArrayLike<PlikWeb> | null | undefined): PlikWeb[] {
  * Na webie prawdziwy input file. FileList kopiujemy zanim wyczyścimy value
  * (inaczej zostaje tylko pierwszy plik).
  */
-export function PrzyciskImportuXfdf({ etykieta, kolorTla, disabled, onPressNative, onWebFiles }: Props) {
+export function PrzyciskImportuXfdf({
+  etykieta, kolorTla, disabled, accept = ACCEPT_XFDF, onPressNative, onWebFiles,
+}: Props) {
   const web = Platform.OS === 'web';
   const onWebFilesRef = useRef(onWebFiles);
   onWebFilesRef.current = onWebFiles;
@@ -52,10 +59,10 @@ export function PrzyciskImportuXfdf({ etykieta, kolorTla, disabled, onPressNativ
         ? React.createElement('input', {
             type: 'file',
             multiple: true,
-            accept: ACCEPT_XFDF,
+            accept,
             disabled,
             ref: podlaczInput,
-            onChange: (e: { target: { files: ArrayLike<PlikWeb> | null; value: string } }) => {
+            onChange: (e: { target: { files: ArrayLike<PlikWebImport> | null; value: string } }) => {
               const files = zrzutPlikow(e.target.files);
               e.target.value = '';
               if (files.length > 0) onWebFilesRef.current(files);
