@@ -134,6 +134,8 @@ export default function RootLayout() {
         <Stack.Screen name="archiwum/obmiar/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="obmiar/index" options={{ headerShown: false }} />
         <Stack.Screen name="obmiar/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="budowa/index" options={{ headerShown: false }} />
+        <Stack.Screen name="budowa/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="niezbednik/index" options={{ headerShown: false }} />
         <Stack.Screen name="niezbednik/masa/index" options={{ headerShown: false }} />
         <Stack.Screen name="niezbednik/masa/wydajnosc-powierzchniowa" options={{ headerShown: false }} />

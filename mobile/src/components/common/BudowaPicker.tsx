@@ -41,7 +41,7 @@ export function BudowaPicker({ visible, budowy, selectedId, theme, onSelect, onC
 
         {budowy.length === 0 ? (
           <Text style={{ color: theme.colors.textSecondary, textAlign: 'center', marginTop: 20 }}>
-            Brak zapisanych budów. Dodaj budowę na ekranie „Zaplanuj Masę".
+            Brak zapisanych budów. Dodaj budowę na ekranie „Budowa" lub w „Zaplanuj Masę".
           </Text>
         ) : (
           <CollapsibleSection tytul="Budowy" liczba={budowy.length} theme={theme} ikona="🏗️" domyslnieRozwinieta>

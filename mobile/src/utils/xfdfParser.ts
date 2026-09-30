@@ -232,6 +232,7 @@ function dopasujKrawedzniki(
       dlugoscM: round2(dlugoscLancucha(wierzcholkiM)),
       odlegloscOdKrawedziM: round2(odKrawedzi),
       polozenie,
+      kolor: linia.color,
     });
   }
 

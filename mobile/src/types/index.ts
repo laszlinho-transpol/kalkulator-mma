@@ -20,6 +20,8 @@ export interface Budowa {
   nazwaInwestycji: string;   // np. DK25 Mąkowarsko
   kodBudowy: string;         // np. B128
   zalaczniki?: ZalacznikPlanu[];
+  /** Szablon PROJEKT / WYKONANIE (PZT, legenda, konstrukcje, przedmiar) */
+  projekt?: ProjektBudowy;
   status?: 'aktywna' | 'archiwalna';
   createdAt: string;
   updatedAt: string;
@@ -289,6 +291,8 @@ export interface KrawedznikObmiaru {
   odlegloscOdKrawedziM: number;
   /** Zewnętrzna krawędź jezdni albo od strony osi (wysepka) */
   polozenie: 'zewnetrzna' | 'odOsi';
+  /** Kolor polilinii z XFDF (do legendy) */
+  kolor?: string;
 }
 
 export interface WpisWzObmiaru {
@@ -417,4 +421,86 @@ export interface SesjaObmiaruDnia {
   tloPzt?: TloPztObmiaru;
   createdAt: string;
   updatedAt: string;
+}
+
+// --- Projekt budowy (PZT, legenda, konstrukcje, przedmiar) ---
+
+export type TypElementuLegendy = 'obszar' | 'linia';
+
+export type KategoriaWarstwy =
+  | 'sma'
+  | 'wiazaca'
+  | 'podbudowa'
+  | 'klsm'
+  | 'inna';
+
+export interface WpisLegendy {
+  id: string;
+  /** Znormalizowany kolor HEX, np. #FFEE58 */
+  kolor: string;
+  typ: TypElementuLegendy;
+  /** Klucz stabilny: "obszar|#FFEE58" */
+  klucz: string;
+  nazwa: string;
+  sugerowanaNazwa?: string;
+}
+
+export interface WarstwaKonstrukcji {
+  id: string;
+  /** 1 = warstwa najwyższa (ścieralna) */
+  kolejnosc: number;
+  nazwa: string;
+  rodzajOpis: string;
+  gruboscCm: number;
+  /** Odsadzka względem obrysu PZT [cm] */
+  odsadzkaCm: number;
+  kategoria: KategoriaWarstwy;
+  /** Zatwierdzone recepty MMA (wiele wytwórni) */
+  mieszankaIds: string[];
+}
+
+export interface WyjatekKonstrukcji {
+  id: string;
+  opis?: string;
+  /** Kilometraż od [m bieżące] */
+  kmOdM: number;
+  /** Kilometraż do [m bieżące] */
+  kmDoM: number;
+  warstwy: WarstwaKonstrukcji[];
+}
+
+export interface KonstrukcjaObszaru {
+  /** Wpis legendy typu obszar */
+  legendaId: string;
+  warstwy: WarstwaKonstrukcji[];
+  wyjatki: WyjatekKonstrukcji[];
+}
+
+export interface ArkuszPzt {
+  id: string;
+  nazwa: string;
+  zrodloNazwa: string;
+  zrodloPdfHref?: string;
+  kolejnosc: number;
+  /** Kolejny arkusz zaczyna się tam, gdzie skończył się poprzedni */
+  kontynuacjaPoprzedniego: boolean;
+  kilometrazPoczatkowyM: number;
+  kilometrazKoncowyM: number;
+  obszary: ObszarObmiaru[];
+}
+
+export interface WierszPrzedmiaruScalony {
+  id: string;
+  /** Połączone wpisy legendy (np. trasa L + trasa P) */
+  legendaIds: string[];
+  nazwa?: string;
+}
+
+export interface ProjektBudowy {
+  kilometrazPoczatkowyM: number;
+  skala: SkalaPzt;
+  arkusze: ArkuszPzt[];
+  legenda: WpisLegendy[];
+  konstrukcje: KonstrukcjaObszaru[];
+  scaloneWiersze: WierszPrzedmiaruScalony[];
 }

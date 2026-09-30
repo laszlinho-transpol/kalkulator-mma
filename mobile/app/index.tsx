@@ -1,5 +1,5 @@
 // ============================================================
-// EKRAN GŁÓWNY – 4 kafelki nawigacyjne z animacjami
+// EKRAN GŁÓWNY – kafelki nawigacyjne z animacjami
 // ============================================================
 
 import React, { useEffect, useRef } from 'react';
@@ -29,10 +29,11 @@ interface Kafelek {
 
 // Ikony: rozkładarka jako emoji zastępcze (ikona SVG jest w assets/svg/)
 const KAFELKI: Kafelek[] = [
-  { id: 'mieszanki', tytul: 'Mieszanki', podtytul: 'Baza MMA', ikona: '🏭', sciezka: '/mieszanki', kolor: '#E8A020', delay: 0 },
-  { id: 'plan', tytul: 'Zaplanuj Masę', podtytul: 'Zaplanuj dzień', ikona: '📋', sciezka: '/plan', kolor: '#2E86AB', delay: 80 },
-  { id: 'wbudowywanie', tytul: 'Wbudowywanie', podtytul: 'Live Tracker', ikona: '🛣️', sciezka: '/wbudowywanie', kolor: '#22C55E', delay: 160 },
-  { id: 'archiwum', tytul: 'Archiwum', podtytul: 'Raporty', ikona: '📁', sciezka: '/archiwum', kolor: '#8B5CF6', delay: 240 },
+  { id: 'budowa', tytul: 'Budowa', podtytul: 'PZT · projekt · przedmiar', ikona: '🏗️', sciezka: '/budowa', kolor: '#C2410C', delay: 0 },
+  { id: 'mieszanki', tytul: 'Mieszanki', podtytul: 'Baza MMA', ikona: '🏭', sciezka: '/mieszanki', kolor: '#E8A020', delay: 80 },
+  { id: 'plan', tytul: 'Zaplanuj Masę', podtytul: 'Zaplanuj dzień', ikona: '📋', sciezka: '/plan', kolor: '#2E86AB', delay: 160 },
+  { id: 'wbudowywanie', tytul: 'Wbudowywanie', podtytul: 'Live Tracker', ikona: '🛣️', sciezka: '/wbudowywanie', kolor: '#22C55E', delay: 240 },
+  { id: 'archiwum', tytul: 'Archiwum', podtytul: 'Raporty', ikona: '📁', sciezka: '/archiwum', kolor: '#8B5CF6', delay: 320 },
 ];
 
 const NIEZBEDNIK: Kafelek[] = [
