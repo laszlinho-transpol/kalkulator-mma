@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, Text, TextInput, View } from 'react-native';
+import { Platform, StyleSheet, Text, TextInput, View } from 'react-native';
 import type { AppTheme } from '../../constants/theme';
 
 interface Props {
@@ -13,49 +13,40 @@ interface Props {
   mini?: boolean;
 }
 
-/** Dwa okienka: [km] + [m]. Puste km = 0 (np. 450 → 0+450). */
+/** Dwa wąskie okienka: [km] + [m]. Na webie type=text + inputMode, żeby dało się wpisać cyfry. */
 export function PoleKilometraz({ theme, km, m, onKm, onM, editable = true, compact, mini }: Props) {
+  const web = Platform.OS === 'web';
+  const pole = (wartosc: string, onChange: (v: string) => void, max: number, szer: 'km' | 'm') => (
+    <TextInput
+      style={[
+        styl.input,
+        mini ? (szer === 'km' ? styl.kmMini : styl.mMini) : szer === 'km' ? styl.km : styl.m,
+        compact && !mini ? (szer === 'km' ? styl.kmCompact : styl.mCompact) : null,
+        {
+          backgroundColor: theme.colors.inputBackground,
+          borderColor: theme.colors.border,
+          color: theme.colors.text,
+          opacity: editable ? 1 : 0.55,
+        },
+      ]}
+      value={wartosc}
+      onChangeText={(v) => onChange(v.replace(/[^0-9]/g, '').slice(0, max))}
+      keyboardType={web ? 'default' : 'number-pad'}
+      inputMode="numeric"
+      autoComplete="off"
+      placeholder={szer === 'km' ? '0' : '000'}
+      placeholderTextColor={theme.colors.textSecondary}
+      editable={editable}
+      maxLength={max}
+      selectTextOnFocus
+    />
+  );
+
   return (
     <View style={[styl.wrap, mini && styl.wrapMini]}>
-      <TextInput
-        style={[
-          styl.input,
-          mini ? styl.kmMini : compact ? styl.kmCompact : styl.km,
-          {
-            backgroundColor: theme.colors.inputBackground,
-            borderColor: theme.colors.border,
-            color: theme.colors.text,
-            opacity: editable ? 1 : 0.55,
-          },
-        ]}
-        value={km}
-        onChangeText={(v) => onKm(v.replace(/[^0-9]/g, '').slice(0, 4))}
-        keyboardType="numeric"
-        placeholder="0"
-        placeholderTextColor={theme.colors.textSecondary}
-        editable={editable}
-        maxLength={4}
-      />
-      <Text style={[styl.plus, { color: theme.colors.textSecondary }]}>+</Text>
-      <TextInput
-        style={[
-          styl.input,
-          mini ? styl.mMini : compact ? styl.mCompact : styl.m,
-          {
-            backgroundColor: theme.colors.inputBackground,
-            borderColor: theme.colors.border,
-            color: theme.colors.text,
-            opacity: editable ? 1 : 0.55,
-          },
-        ]}
-        value={m}
-        onChangeText={(v) => onM(v.replace(/[^0-9]/g, '').slice(0, 3))}
-        keyboardType="numeric"
-        placeholder="000"
-        placeholderTextColor={theme.colors.textSecondary}
-        editable={editable}
-        maxLength={3}
-      />
+      {pole(km, onKm, 4, 'km')}
+      <Text style={[styl.plus, mini && styl.plusMini, { color: theme.colors.textSecondary }]}>+</Text>
+      {pole(m, onM, 3, 'm')}
     </View>
   );
 }
@@ -78,21 +69,31 @@ export function polaZKilometraza(km?: number, m?: number): { km: string; m: stri
 }
 
 const styl = StyleSheet.create({
-  wrap: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1, minWidth: 140 },
-  wrapMini: { flex: 0, minWidth: 0, gap: 4 },
+  wrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexGrow: 0,
+    flexShrink: 1,
+    alignSelf: 'flex-start',
+    maxWidth: '100%',
+  },
+  wrapMini: { gap: 4 },
   input: {
     borderWidth: 1,
     borderRadius: 10,
-    paddingVertical: 10,
+    paddingVertical: 8,
     fontSize: 16,
     textAlign: 'center',
     fontWeight: '700',
+    minWidth: 0,
   },
-  km: { flex: 2, paddingHorizontal: 10 },
-  m: { flex: 1.2, paddingHorizontal: 8 },
-  kmCompact: { width: 56, paddingHorizontal: 6 },
-  mCompact: { width: 64, paddingHorizontal: 6 },
-  kmMini: { width: 44, paddingHorizontal: 4, paddingVertical: 8, fontSize: 14, borderRadius: 8 },
-  mMini: { width: 52, paddingHorizontal: 4, paddingVertical: 8, fontSize: 14, borderRadius: 8 },
-  plus: { fontSize: 20, fontWeight: '300' },
+  km: { width: 64, paddingHorizontal: 4 },
+  m: { width: 72, paddingHorizontal: 4 },
+  kmCompact: { width: 56, paddingHorizontal: 4 },
+  mCompact: { width: 64, paddingHorizontal: 4 },
+  kmMini: { width: 48, paddingHorizontal: 2, paddingVertical: 6, fontSize: 14, borderRadius: 8 },
+  mMini: { width: 56, paddingHorizontal: 2, paddingVertical: 6, fontSize: 14, borderRadius: 8 },
+  plus: { fontSize: 18, fontWeight: '300', width: 14, textAlign: 'center' },
+  plusMini: { fontSize: 14, width: 10 },
 });

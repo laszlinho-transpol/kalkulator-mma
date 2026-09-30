@@ -40,10 +40,10 @@ export function SekcjaKonstrukcje({ projekt, theme, onZmien }: Props) {
   const wytwornie = useWytwornieStore((s) => s.wytwornie);
   const [mixWarstwa, setMixWarstwa] = useState<{ konstrukcjaId: string; warstwaId: string; wyjatekId?: string } | null>(null);
   const [wyjatekDla, setWyjatekDla] = useState<string | null>(null);
-  const [wyjatekOdKm, setWyjatekOdKm] = useState('106');
-  const [wyjatekOdM, setWyjatekOdM] = useState('840');
-  const [wyjatekDoKm, setWyjatekDoKm] = useState('107');
-  const [wyjatekDoM, setWyjatekDoM] = useState('000');
+  const [wyjatekOdKm, setWyjatekOdKm] = useState('0');
+  const [wyjatekOdM, setWyjatekOdM] = useState('000');
+  const [wyjatekDoKm, setWyjatekDoKm] = useState('0');
+  const [wyjatekDoM, setWyjatekDoM] = useState('200');
   const [wyjatekOpis, setWyjatekOpis] = useState('');
 
   const obszary = projekt.legenda.filter((w) => w.typ === 'obszar' && w.nazwa.trim());
@@ -240,7 +240,7 @@ export function SekcjaKonstrukcje({ projekt, theme, onZmien }: Props) {
                       <Text style={{ color: theme.colors.danger, fontWeight: '700' }}>Usuń</Text>
                     </TouchableOpacity>
                   </View>
-                  <View style={styles.rzad}>
+                  <View style={[styles.rzad, { flexWrap: 'wrap' }]}>
                     <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>od</Text>
                     <PoleKilometraz
                       theme={theme}

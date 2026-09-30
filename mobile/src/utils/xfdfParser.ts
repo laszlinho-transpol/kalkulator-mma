@@ -300,3 +300,46 @@ export function nadajKolejnosc(obszary: ObszarObmiaru[]): ObszarObmiaru[] {
     nazwa: o.nazwa.match(/^Obszar \d+$/) ? `Obszar ${i + 1}` : o.nazwa,
   }));
 }
+
+export function parsujZawartoscXfdf(
+  tekst: string,
+  nazwa: string,
+): { sukces: true; wynik: WynikParsowaniaXfdf } | { sukces: false; blad: string } {
+  if (!tekst.includes('<xfdf') && !tekst.includes('<polygon')) {
+    return { sukces: false, blad: `${nazwa} nie wygląda na plik XFDF z wielokątami PDF-XChange.` };
+  }
+  const wynik = parsujXfdfTekst(tekst, nazwa);
+  if (wynik.polygony.length === 0) {
+    return { sukces: false, blad: `W pliku ${nazwa} nie znaleziono żadnego wielokąta (<polygon>).` };
+  }
+  return { sukces: true, wynik };
+}
+
+export function scalWynikiXfdf(czesci: Array<{ nazwa: string; wynik?: WynikParsowaniaXfdf; blad?: string }>):
+  | { sukces: true; wyniki: WynikParsowaniaXfdf[]; pominiete: string[] }
+  | { sukces: false; blad: string } {
+  const posortowane = [...czesci].sort((a, b) =>
+    a.nazwa.localeCompare(b.nazwa, undefined, { numeric: true, sensitivity: 'base' }),
+  );
+  const wyniki: WynikParsowaniaXfdf[] = [];
+  const pominiete: string[] = [];
+  for (const c of posortowane) {
+    if (c.wynik) wyniki.push(c.wynik);
+    else if (c.blad) pominiete.push(c.blad);
+  }
+  if (wyniki.length === 0) {
+    return { sukces: false, blad: pominiete[0] || 'Nie udało się wczytać żadnego arkusza XFDF.' };
+  }
+  return { sukces: true, wyniki, pominiete };
+}
+
+export function parsujListeTekstowXfdf(pliki: Array<{ nazwa: string; tekst: string }>):
+  | { sukces: true; wyniki: WynikParsowaniaXfdf[]; pominiete: string[] }
+  | { sukces: false; blad: string } {
+  return scalWynikiXfdf(pliki.map((p) => {
+    const r = parsujZawartoscXfdf(p.tekst, p.nazwa);
+    return r.sukces
+      ? { nazwa: p.nazwa, wynik: r.wynik }
+      : { nazwa: p.nazwa, blad: r.blad };
+  }));
+}

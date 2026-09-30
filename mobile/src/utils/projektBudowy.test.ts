@@ -64,7 +64,13 @@ describe('projektBudowy', () => {
     assert.equal(kluczLegendy('obszar', '#ffee58'), 'obszar|#FFEE58');
   });
 
-  it('ciągnie kilometraż arkuszy od 106+840', () => {
+  it('domyślny kilometraż pustego projektu to 0+000', () => {
+    assert.equal(pustyProjektBudowy().kilometrazPoczatkowyM, 0);
+    assert.equal(formatujKmM(0), '0+000');
+    assert.equal(DOMYSLNY_KM_START_PZT, 0);
+  });
+
+  it('ciągnie kilometraż arkuszy od zadanego startu (np. 106+840)', () => {
     const a1: ArkuszPzt = {
       id: 'a1',
       nazwa: 'ark1',
@@ -85,7 +91,7 @@ describe('projektBudowy', () => {
       kilometrazKoncowyM: 0,
       obszary: [prostokat('l2', '#FFEE58', 430, 5, 'L')],
     };
-    const [s1, s2] = zastosujKilometrazArkuszy([a1, a2], DOMYSLNY_KM_START_PZT);
+    const [s1, s2] = zastosujKilometrazArkuszy([a1, a2], 106840);
     assert.equal(s1.kilometrazPoczatkowyM, 106840);
     assert.equal(s1.kilometrazKoncowyM, 106840 + 400);
     assert.equal(formatujKmM(s1.kilometrazPoczatkowyM), '106+840');

@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { parsujVertices, parsujXfdfTekst, obszaryZPolygony } from './xfdfParser';
+import { parsujVertices, parsujXfdfTekst, obszaryZPolygony, parsujListeTekstowXfdf } from './xfdfParser';
 import {
   powierzchniaWielokata,
   skalujWierzcholki,
@@ -99,5 +99,21 @@ describe('obmiarGeometry / xfdfParser', () => {
     assert.ok(krL.some((k) => k.polozenie === 'odOsi') || krP.some((k) => k.polozenie === 'odOsi'));
     assert.ok(obszary[0].odsadzki?.every((o) => !o.zastosowana));
     assert.ok(obszary[0].bazaStart?.idxLewy != null && obszary[0].bazaStart.idxPrawy != null);
+  });
+
+  it('parsujListeTekstowXfdf – sortuje arkusze i pomija śmieci', () => {
+    const xfdf = (kolor: string) =>
+      `<?xml version="1.0"?><xfdf><polygon interior-color="${kolor}"><vertices>0,0;10,0;10,10;0,10</vertices></polygon></xfdf>`;
+    const r = parsujListeTekstowXfdf([
+      { nazwa: 'ark_2_10.xfdf', tekst: xfdf('#FFC0CB') },
+      { nazwa: 'ark_2_2.xfdf', tekst: xfdf('#FFEE58') },
+      { nazwa: 'notatka.txt', tekst: 'to nie jest xfdf' },
+    ]);
+    assert.equal(r.sukces, true);
+    if (!r.sukces) return;
+    assert.equal(r.wyniki.length, 2);
+    assert.equal(r.wyniki[0].zrodloNazwa, 'ark_2_2.xfdf');
+    assert.equal(r.wyniki[1].zrodloNazwa, 'ark_2_10.xfdf');
+    assert.equal(r.pominiete.length, 1);
   });
 });

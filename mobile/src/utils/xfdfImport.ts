@@ -1,18 +1,61 @@
 // ============================================================
-// IMPORT XFDF – DocumentPicker + odczyt pliku (jeden lub wiele)
+// IMPORT XFDF – picker (web: <input>, native: DocumentPicker) + odczyt
 // ============================================================
 
 import * as DocumentPicker from 'expo-document-picker';
 import { File } from 'expo-file-system';
-import { parsujXfdfTekst, type WynikParsowaniaXfdf } from './xfdfParser';
+import {
+  parsujListeTekstowXfdf,
+  parsujZawartoscXfdf,
+  scalWynikiXfdf,
+  type WynikParsowaniaXfdf,
+} from './xfdfParser';
 
-const TYPY_XFDF = [
-  'application/vnd.adobe.xfdf',
-  'text/xml',
-  'application/xml',
-  'text/plain',
-  '*/*',
-];
+export { parsujListeTekstowXfdf, parsujZawartoscXfdf, scalWynikiXfdf };
+
+/** Rozszerzenia – XFDF z PDF-XChange często nie ma MIME, więc filtr po rozszerzeniu. */
+export const ACCEPT_XFDF = '.xfdf,.xml,.txt,text/xml,text/plain,application/xml,*/*';
+
+async function odczytajTekstZUri(uri: string): Promise<string> {
+  try {
+    const res = await fetch(uri);
+    if (res.ok) return await res.text();
+  } catch {
+    /* blob:/data: czasem wymaga File API */
+  }
+  const f = new File(uri);
+  return f.text();
+}
+
+async function odczytajTekstZAssetu(plik: DocumentPicker.DocumentPickerAsset): Promise<string> {
+  if (plik.file) {
+    return plik.file.text();
+  }
+  return odczytajTekstZUri(plik.uri);
+}
+
+export async function parsujWebFileList(lista: ArrayLike<{ name: string; text: () => Promise<string> }>): Promise<
+  | { sukces: true; wyniki: WynikParsowaniaXfdf[]; pominiete: string[] }
+  | { sukces: false; blad: string }
+> {
+  const pliki: Array<{ nazwa: string; tekst: string }> = [];
+  const bledy: string[] = [];
+  for (let i = 0; i < lista.length; i++) {
+    const f = lista[i];
+    const nazwa = f.name || `arkusz_${i + 1}.xfdf`;
+    try {
+      pliki.push({ nazwa, tekst: await f.text() });
+    } catch {
+      bledy.push(`Nie udało się odczytać pliku ${nazwa}.`);
+    }
+  }
+  if (pliki.length === 0) {
+    return { sukces: false, blad: bledy[0] || 'Nie udało się odczytać wybranych plików.' };
+  }
+  const r = parsujListeTekstowXfdf(pliki);
+  if (!r.sukces) return r;
+  return { sukces: true, wyniki: r.wyniki, pominiete: [...bledy, ...r.pominiete] };
+}
 
 async function odczytajWynikZAssetu(
   plik: DocumentPicker.DocumentPickerAsset,
@@ -20,22 +63,11 @@ async function odczytajWynikZAssetu(
   const nazwa = plik.name || 'import.xfdf';
   let tekst: string;
   try {
-    const f = new File(plik.uri);
-    tekst = await f.text();
+    tekst = await odczytajTekstZAssetu(plik);
   } catch {
     return { sukces: false, blad: `Nie udało się odczytać pliku ${nazwa}.` };
   }
-
-  if (!tekst.includes('<xfdf') && !tekst.includes('<polygon')) {
-    return { sukces: false, blad: `${nazwa} nie wygląda na plik XFDF z wielokątami PDF-XChange.` };
-  }
-
-  const wynik = parsujXfdfTekst(tekst, nazwa);
-  if (wynik.polygony.length === 0) {
-    return { sukces: false, blad: `W pliku ${nazwa} nie znaleziono żadnego wielokąta (<polygon>).` };
-  }
-
-  return { sukces: true, wynik };
+  return parsujZawartoscXfdf(tekst, nazwa);
 }
 
 export async function wybierzIParsujXfdf(): Promise<
@@ -45,7 +77,7 @@ export async function wybierzIParsujXfdf(): Promise<
   let picker: DocumentPicker.DocumentPickerResult;
   try {
     picker = await DocumentPicker.getDocumentAsync({
-      type: TYPY_XFDF,
+      type: '*/*',
       copyToCacheDirectory: true,
     });
   } catch {
@@ -67,7 +99,7 @@ export async function wybierzIParsujWieleXfdf(): Promise<
   let picker: DocumentPicker.DocumentPickerResult;
   try {
     picker = await DocumentPicker.getDocumentAsync({
-      type: TYPY_XFDF,
+      type: '*/*',
       multiple: true,
       copyToCacheDirectory: true,
     });
@@ -83,17 +115,12 @@ export async function wybierzIParsujWieleXfdf(): Promise<
     (a.name || '').localeCompare(b.name || '', undefined, { numeric: true, sensitivity: 'base' }),
   );
 
-  const wyniki: WynikParsowaniaXfdf[] = [];
-  const pominiete: string[] = [];
+  const czesci = [];
   for (const asset of posortowane) {
     const r = await odczytajWynikZAssetu(asset);
-    if (r.sukces) wyniki.push(r.wynik);
-    else pominiete.push(r.blad);
+    czesci.push(r.sukces
+      ? { nazwa: asset.name || 'import.xfdf', wynik: r.wynik }
+      : { nazwa: asset.name || 'import.xfdf', blad: r.blad });
   }
-
-  if (wyniki.length === 0) {
-    return { sukces: false, blad: pominiete[0] || 'Nie udało się wczytać żadnego arkusza XFDF.' };
-  }
-
-  return { sukces: true, wyniki, pominiete };
+  return scalWynikiXfdf(czesci);
 }

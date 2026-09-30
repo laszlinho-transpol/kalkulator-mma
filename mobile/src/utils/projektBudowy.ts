@@ -24,7 +24,7 @@ import { obszaryZPolygony, stronaTrasyZKoloru, type WynikParsowaniaXfdf } from '
 
 export const GESTOSC_MMA_DOMYSLNA = 2.45;
 export const GESTOSC_KLSM_DOMYSLNA = 2.0;
-export const DOMYSLNY_KM_START_PZT = 106_840;
+export const DOMYSLNY_KM_START_PZT = 0;
 
 const generujId = (): string =>
   Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
