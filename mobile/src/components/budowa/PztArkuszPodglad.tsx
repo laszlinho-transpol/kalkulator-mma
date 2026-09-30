@@ -73,6 +73,7 @@ export function PztArkuszPodglad({
   const [rozmiar, setRozmiar] = useState({ w: 320, h: wysokosc });
   const [skalaPct, setSkalaPct] = useState(100);
   const [xform, setXform] = useState({ s: 1, tx: 0, ty: 0 });
+  const [bladTla, setBladTla] = useState<string | null>(null);
 
   const bazaSkali = useRef(1);
   const bazaX = useRef(0);
@@ -113,7 +114,7 @@ export function PztArkuszPodglad({
       return {
         id: o.id,
         nazwa: o.nazwa,
-        fill: hexDoRgba(o.kolorWypelnienia, arkusz.tlo?.widoczne === false ? 0.42 : (arkusz.tlo ? 0.22 : 0.42)),
+        fill: hexDoRgba(o.kolorWypelnienia, arkusz.tlo?.widoczne === false ? 0.42 : (arkusz.tlo ? 0.14 : 0.42)),
         stroke: o.kolorWypelnienia || '#E8A020',
         punkty: svgPts.map((p) => `${p.x},${p.y}`).join(' '),
         cx: c.x,
@@ -383,7 +384,7 @@ export function PztArkuszPodglad({
             <PztTloPdfCanvas
               bufor={buforTla}
               widoczne={tloWidoczne}
-              opacity={tloMeta?.opacity ?? 0.55}
+              opacity={tloMeta?.opacity ?? 0.88}
               odwrocY={tloMeta?.odwrocY}
               cx={mapa.cx}
               cy={mapa.cy}
@@ -393,16 +394,17 @@ export function PztArkuszPodglad({
               skala={xform.s}
               tx={xform.tx}
               ty={xform.ty}
+              onBlad={setBladTla}
             />
           ) : null}
-          <GestureHandlerRootView style={[StyleSheet.absoluteFill, { zIndex: 1 }]}>
+          <GestureHandlerRootView style={[StyleSheet.absoluteFill, { zIndex: 1, backgroundColor: 'transparent' }]}>
             <PinchGestureHandler
               ref={pinchRef}
               simultaneousHandlers={[panRef]}
               onGestureEvent={onPinch}
               onHandlerStateChange={onPinchState}
             >
-              <Animated.View style={StyleSheet.absoluteFill} collapsable={false}>
+              <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: 'transparent' }]} collapsable={false}>
                 <PanGestureHandler
                   ref={panRef}
                   simultaneousHandlers={[pinchRef]}
@@ -414,8 +416,12 @@ export function PztArkuszPodglad({
                   onGestureEvent={onPan}
                   onHandlerStateChange={onPanState}
                 >
-                  <Animated.View style={StyleSheet.absoluteFill} collapsable={false}>
-                    <Svg width={rozmiar.w} height={rozmiar.h}>
+                  <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: 'transparent' }]} collapsable={false}>
+                    <Svg
+                      width={rozmiar.w}
+                      height={rozmiar.h}
+                      style={{ backgroundColor: 'transparent' }}
+                    >
                       {tloWidoczne && buforTla ? null : (
                         <Rect
                           x={0}
@@ -481,6 +487,12 @@ export function PztArkuszPodglad({
           );
         })}
       </ScrollView>
+      <Text style={styl.hintPod}>
+        {tloMeta
+          ? `Tło PDF: ${tloMeta.nazwa}${buforTla ? '' : ' — wskaż plik ponownie (po odświeżeniu strony trzeba wgrać PDF jeszcze raz).'}`
+          : 'Żeby widać było pikiety, pobocza i budynki, wgraj oryginalny PDF arkusza („+ Tło PDF”). Nazwa może być krótsza niż XFDF (np. Ark_2_1.pdf).'}
+      </Text>
+      {bladTla ? <Text style={[styl.hintPod, { color: '#B91C1C' }]}>{bladTla}</Text> : null}
       <Text style={styl.hintPod}>
         {blokadaPodgladu
           ? 'Blokada ramki: przesuwanie i zoom w podglądzie (strona nie scrolluje). Odznacz „Ramka”, aby przewinąć w dół.'

@@ -82,10 +82,14 @@ export function SekcjaPzt({
     }
     let next = proj;
     const mapa = dopasujPdfDoArkuszy(next.arkusze, pdfs.map((f) => f.name));
-    if (preferId && pdfs.length === 1 && !mapa.has(preferId)) {
-      mapa.set(preferId, pdfs[0].name);
+    const zajete = new Set(mapa.values());
+    const wolnePdf = pdfs.filter((f) => !zajete.has(f.name));
+    const bezTla = [...next.arkusze.filter((a) => !mapa.has(a.id))]
+      .sort((a, b) => (a.id === preferId ? -1 : b.id === preferId ? 1 : 0));
+    for (let i = 0; i < wolnePdf.length && i < bezTla.length; i++) {
+      mapa.set(bezTla[i].id, wolnePdf[i].name);
     }
-    if (mapa.size === 0 && preferId && pdfs.length >= 1) {
+    if (preferId && pdfs.length === 1 && !mapa.has(preferId)) {
       mapa.set(preferId, pdfs[0].name);
     }
     const bufory = new Map<string, Awaited<ReturnType<typeof wymiaryStronyPdf>> & { data: Uint8Array; nazwa: string }>();
@@ -111,7 +115,7 @@ export function SekcjaPzt({
         pageH: b.pageH,
         strona: 1,
         widoczne: true,
-        opacity: 0.55,
+        opacity: 0.88,
       };
       next = ustawTloArkusza(next, arkId, tlo);
       ile += 1;

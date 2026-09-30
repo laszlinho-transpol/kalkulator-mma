@@ -18,7 +18,7 @@ export function bazowaNazwaPliku(n: string): string {
   const bezSciezki = bezSchematu.replace(/^.*[/\\]/, '');
   return bezSciezki
     .replace(/\.[^.]+$/, '')
-    .replace(/[_-]+/g, ' ')
+    .replace(/[._\-]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
     .toLowerCase();
@@ -41,7 +41,13 @@ export function dopasujNazwePdfDoArkusza(
   const pdf = bazowaNazwaPliku(pdfNazwa);
   if (!pdf) return false;
   const kandydaci = kandydaciNazwyArkusza(arkusz);
-  return kandydaci.some((k) => k === pdf);
+  return kandydaci.some((k) => {
+    if (k === pdf) return true;
+    if (k.length >= 4 && pdf.length >= 4 && (k.endsWith(pdf) || pdf.endsWith(k))) return true;
+    if (k.includes(pdf) && pdf.length >= 6) return true;
+    if (pdf.includes(k) && k.length >= 6) return true;
+    return false;
+  });
 }
 
 /** arkuszId → nazwa pliku PDF. Najpierw dokładna nazwa, potem jedyny pozostały PDF. */

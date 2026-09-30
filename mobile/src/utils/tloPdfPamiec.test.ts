@@ -12,7 +12,7 @@ describe('tloPdfPamiec', () => {
       bazowaNazwaPliku('file:D:\\PZT\\DK25M_kowarsko_Ark_2_1.pdf'),
       'dk25m kowarsko ark 2 1',
     );
-    assert.equal(bazowaNazwaPliku('Ark. 2_1.xfdf'), 'ark. 2 1');
+    assert.equal(bazowaNazwaPliku('Ark. 2_1.xfdf'), 'ark 2 1');
   });
 
   it('dopasowuje PDF do arkusza po href', () => {
@@ -23,6 +23,7 @@ describe('tloPdfPamiec', () => {
       zrodloPdfHref: 'DK25M_kowarsko_Ark_2_1.pdf',
     };
     assert.equal(dopasujNazwePdfDoArkusza(a, 'DK25M_kowarsko_Ark_2_1.pdf'), true);
+    assert.equal(dopasujNazwePdfDoArkusza(a, 'Ark_2_1.pdf'), true);
     assert.equal(dopasujNazwePdfDoArkusza(a, 'inny.pdf'), false);
   });
 

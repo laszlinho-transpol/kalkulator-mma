@@ -28,15 +28,41 @@ export type PdfjsPage = {
 
 let ladowanie: Promise<PdfjsLib> | null = null;
 
+async function pobierzTekst(urls: string[]): Promise<string> {
+  let ostatni = 'Brak silnika PDF.';
+  for (const u of urls) {
+    if (!u) continue;
+    try {
+      const res = await fetch(u);
+      if (res.ok) return await res.text();
+      ostatni = `${u} (${res.status})`;
+    } catch (e) {
+      ostatni = e instanceof Error ? e.message : String(e);
+    }
+  }
+  throw new Error(`Nie udało się wczytać silnika PDF: ${ostatni}`);
+}
+
 async function tekstAssetu(mod: number): Promise<string> {
   const { Asset } = await import('expo-asset');
   const a = Asset.fromModule(mod);
   await a.downloadAsync();
   const uri = a.localUri ?? a.uri;
-  if (!uri) throw new Error('Brak pliku silnika PDF.');
-  const res = await fetch(uri);
-  if (!res.ok) throw new Error('Nie udało się wczytać silnika PDF.');
-  return res.text();
+  const baza = typeof window !== 'undefined' ? window.location.pathname.replace(/\/+$/, '') : '';
+  const prefix = baza.includes('kalkulator-mma') ? '/kalkulator-mma' : '';
+  return pobierzTekst([
+    uri ?? '',
+    `${prefix}/assets/pdf.min.js`,
+    '/kalkulator-mma/assets/pdf.min.js',
+  ].filter(Boolean));
+}
+
+async function tekstWorkera(mod: number): Promise<string> {
+  const { Asset } = await import('expo-asset');
+  const a = Asset.fromModule(mod);
+  await a.downloadAsync();
+  const uri = a.localUri ?? a.uri;
+  return pobierzTekst([uri ?? ''].filter(Boolean));
 }
 
 function blobUrl(tekst: string): string {
@@ -52,7 +78,7 @@ export async function zaladujPdfjs(): Promise<PdfjsLib> {
   if (ladowanie) return ladowanie;
   ladowanie = (async () => {
     const jsTekst = await tekstAssetu(require('../../assets/pdfjs/pdf.min.js.txt'));
-    const wkTekst = await tekstAssetu(require('../../assets/pdfjs/pdf.worker.min.js.txt'));
+    const wkTekst = await tekstWorkera(require('../../assets/pdfjs/pdf.worker.min.js.txt'));
     const jsUrl = blobUrl(jsTekst);
     const wkUrl = blobUrl(wkTekst);
     await new Promise<void>((resolve, reject) => {

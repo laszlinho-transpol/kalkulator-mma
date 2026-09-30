@@ -234,7 +234,7 @@ export function SekcjaKonstrukcje({ projekt, theme, onZmien }: Props) {
                 <Text style={{ color: theme.colors.text, fontWeight: '800', flex: 1, fontSize: 16 }}>{wpis.nazwa}</Text>
                 <Text style={{ color: theme.colors.primary, fontWeight: '800' }}>{rozwinieta ? '▼' : '▶'}</Text>
               </View>
-              <PrzekrojKonstrukcji warstwy={k.warstwy} theme={theme} szerokosc={280} />
+              <PrzekrojKonstrukcji warstwy={k.warstwy} theme={theme} />
               {!rozwinieta ? (
                 <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>
                   Kliknij schemat, aby edytować warstwy
@@ -300,7 +300,7 @@ export function SekcjaKonstrukcje({ projekt, theme, onZmien }: Props) {
                       }}
                     />
                   </View>
-                  <PrzekrojKonstrukcji warstwy={wy.warstwy} theme={theme} szerokosc={156} />
+                  <PrzekrojKonstrukcji warstwy={wy.warstwy} theme={theme} szerokoscSzkicu={112} />
                   {edytorWarstw(k, wy.warstwy, wy.id)}
                 </View>
               );
