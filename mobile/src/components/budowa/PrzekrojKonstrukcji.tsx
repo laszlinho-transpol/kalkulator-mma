@@ -12,13 +12,16 @@ const KOLORY: Record<string, string> = {
   inna: '#64748B',
 };
 
+/** Min. wysokość wiersza opisu – cienkie warstwy (SMA 4 cm) nie mogą ścinać czcionki. */
+const MIN_WIERSZ = 40;
+
 interface Props {
   warstwy: WarstwaKonstrukcji[];
   theme: AppTheme;
   szerokoscSzkicu?: number;
 }
 
-/** Przekrój warstw – opisy obok szkicu, żeby cienkie warstwy (np. SMA 4 cm) były czytelne. */
+/** Przekrój warstw – opisy obok szkicu, każdy wiersz ma wysokość pod dwie linie tekstu. */
 export function PrzekrojKonstrukcji({ warstwy, theme, szerokoscSzkicu = 132 }: Props) {
   const posortowane = useMemo(
     () => [...warstwy].sort((a, b) => a.kolejnosc - b.kolejnosc),
@@ -37,14 +40,13 @@ export function PrzekrojKonstrukcji({ warstwy, theme, szerokoscSzkicu = 132 }: P
   const maxOds = Math.max(0, ...posortowane.map((w) => w.odsadzkaCm));
   const pad = 8;
   const rysW = szerokoscSzkicu - pad * 2;
-  const rysH = Math.max(88, Math.min(140, posortowane.length * 28));
   const bazaW = rysW * 0.72;
   const skalaW = maxOds > 0 ? (rysW - bazaW) / maxOds : 0;
-  const skalaH = rysH / Math.max(sumaH, 1);
+  const proporcH = Math.max(MIN_WIERSZ * posortowane.length, 88);
 
   let y = pad;
   const rects = posortowane.map((w) => {
-    const h = Math.max(Math.max(w.gruboscCm, 1) * skalaH, 6);
+    const h = Math.max((Math.max(w.gruboscCm, 1) / Math.max(sumaH, 1)) * proporcH, MIN_WIERSZ);
     const szer = bazaW + w.odsadzkaCm * skalaW;
     const x = pad + (rysW - szer) / 2;
     const item = { w, x, y, h, szer };
@@ -63,7 +65,7 @@ export function PrzekrojKonstrukcji({ warstwy, theme, szerokoscSzkicu = 132 }: P
             x={r.x}
             y={r.y}
             width={r.szer}
-            height={Math.max(r.h - 0.8, 4)}
+            height={Math.max(r.h - 1.2, 8)}
             fill={KOLORY[r.w.kategoria] ?? KOLORY.inna}
             rx={3}
           />
@@ -71,8 +73,8 @@ export function PrzekrojKonstrukcji({ warstwy, theme, szerokoscSzkicu = 132 }: P
       </Svg>
       <View style={[styles.opisy, { paddingVertical: pad }]}>
         {rects.map((r) => (
-          <View key={r.w.id} style={{ height: r.h, justifyContent: 'center' }}>
-            <Text style={[styles.opisNazwa, { color: theme.colors.text }]} numberOfLines={2}>
+          <View key={r.w.id} style={[styles.wierszOpisu, { minHeight: r.h, height: r.h }]}>
+            <Text style={[styles.opisNazwa, { color: theme.colors.text }]} numberOfLines={1}>
               {r.w.nazwa}
             </Text>
             <Text style={[styles.opisWymiary, { color: theme.colors.textSecondary }]} numberOfLines={1}>
@@ -93,16 +95,20 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     alignSelf: 'stretch',
     flexDirection: 'row',
-    alignItems: 'stretch',
+    alignItems: 'flex-start',
   },
   opisy: {
     flex: 1,
     paddingRight: 10,
-    paddingLeft: 4,
+    paddingLeft: 6,
     justifyContent: 'flex-start',
   },
+  wierszOpisu: {
+    justifyContent: 'center',
+    paddingVertical: 2,
+  },
   opisNazwa: { fontSize: 13, fontWeight: '800', lineHeight: 16 },
-  opisWymiary: { fontSize: 11, fontWeight: '600', marginTop: 1 },
+  opisWymiary: { fontSize: 11, fontWeight: '600', lineHeight: 14, marginTop: 1 },
   puste: {
     borderWidth: 1,
     borderRadius: 10,

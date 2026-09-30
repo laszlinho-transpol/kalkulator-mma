@@ -4,6 +4,7 @@ import {
   bazowaNazwaPliku,
   dopasujNazwePdfDoArkusza,
   dopasujPdfDoArkuszy,
+  kluczArkuszaZNazwy,
 } from './tloPdfPamiec';
 
 describe('tloPdfPamiec', () => {
@@ -25,6 +26,15 @@ describe('tloPdfPamiec', () => {
     assert.equal(dopasujNazwePdfDoArkusza(a, 'DK25M_kowarsko_Ark_2_1.pdf'), true);
     assert.equal(dopasujNazwePdfDoArkusza(a, 'Ark_2_1.pdf'), true);
     assert.equal(dopasujNazwePdfDoArkusza(a, 'inny.pdf'), false);
+    assert.equal(kluczArkuszaZNazwy('Ark. 2_1.xfdf'), '2 1');
+    assert.equal(kluczArkuszaZNazwy('DK25M_kowarsko_Ark_2_1.pdf'), '2 1');
+    assert.equal(
+      dopasujNazwePdfDoArkusza(
+        { nazwa: 'Ark. 2_1', zrodloNazwa: 'Ark. 2_1.xfdf' },
+        'PZT_DK25_Arkusz_2_1.pdf',
+      ),
+      true,
+    );
   });
 
   it('przypisuje wiele PDF do wielu arkuszy po nazwie', () => {

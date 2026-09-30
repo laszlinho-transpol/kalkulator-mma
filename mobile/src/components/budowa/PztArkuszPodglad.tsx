@@ -8,7 +8,7 @@ import {
   PinchGestureHandler,
   State,
 } from 'react-native-gesture-handler';
-import Svg, { G, Polygon, Polyline, Rect } from 'react-native-svg';
+import Svg, { G, Image as SvgImage, Polygon, Polyline, Rect } from 'react-native-svg';
 import type { ArkuszPzt, Punkt2D, TloArkuszaPzt } from '../../types';
 import { bboxWielokata } from '../../utils/obmiarGeometry';
 import {
@@ -22,7 +22,7 @@ import {
 } from '../../utils/obmiarMapa';
 import { formatujKmM } from '../../utils/projektBudowy';
 import { buforTlaArkusza, podlaczBuforDoArkusza } from '../../utils/tloPdfPamiec';
-import { PztTloPdfCanvas } from './PztTloPdfCanvas';
+import { PztTloPdfCanvas, type ObrazTlaPdf } from './PztTloPdfCanvas';
 import type { AppTheme } from '../../constants/theme';
 
 function hostHtml(node: unknown): HTMLElement | null {
@@ -74,6 +74,9 @@ export function PztArkuszPodglad({
   const [skalaPct, setSkalaPct] = useState(100);
   const [xform, setXform] = useState({ s: 1, tx: 0, ty: 0 });
   const [bladTla, setBladTla] = useState<string | null>(null);
+  const [tloObraz, setTloObraz] = useState<ObrazTlaPdf | null>(null);
+  const onObrazTla = useCallback((o: ObrazTlaPdf | null) => setTloObraz(o), []);
+  const onBladTla = useCallback((m: string | null) => setBladTla(m), []);
 
   const bazaSkali = useRef(1);
   const bazaX = useRef(0);
@@ -114,7 +117,7 @@ export function PztArkuszPodglad({
       return {
         id: o.id,
         nazwa: o.nazwa,
-        fill: hexDoRgba(o.kolorWypelnienia, arkusz.tlo?.widoczne === false ? 0.42 : (arkusz.tlo ? 0.14 : 0.42)),
+        fill: hexDoRgba(o.kolorWypelnienia, arkusz.tlo?.widoczne === false ? 0.42 : (arkusz.tlo ? 0.12 : 0.42)),
         stroke: o.kolorWypelnienia || '#E8A020',
         punkty: svgPts.map((p) => `${p.x},${p.y}`).join(' '),
         cx: c.x,
@@ -175,6 +178,8 @@ export function PztArkuszPodglad({
 
   useEffect(() => {
     resetWidoku();
+    setTloObraz(null);
+    setBladTla(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [arkusz.id]);
 
@@ -384,8 +389,6 @@ export function PztArkuszPodglad({
             <PztTloPdfCanvas
               bufor={buforTla}
               widoczne={tloWidoczne}
-              opacity={tloMeta?.opacity ?? 0.88}
-              odwrocY={tloMeta?.odwrocY}
               cx={mapa.cx}
               cy={mapa.cy}
               skalaFit={mapa.skalaFit}
@@ -394,7 +397,8 @@ export function PztArkuszPodglad({
               skala={xform.s}
               tx={xform.tx}
               ty={xform.ty}
-              onBlad={setBladTla}
+              onObraz={onObrazTla}
+              onBlad={onBladTla}
             />
           ) : null}
           <GestureHandlerRootView style={[StyleSheet.absoluteFill, { zIndex: 1, backgroundColor: 'transparent' }]}>
@@ -422,16 +426,31 @@ export function PztArkuszPodglad({
                       height={rozmiar.h}
                       style={{ backgroundColor: 'transparent' }}
                     >
-                      {tloWidoczne && buforTla ? null : (
-                        <Rect
-                          x={0}
-                          y={0}
-                          width={rozmiar.w}
-                          height={rozmiar.h}
-                          fill={theme.dark ? '#111827' : '#F8FAFC'}
-                        />
-                      )}
+                      <Rect
+                        x={0}
+                        y={0}
+                        width={rozmiar.w}
+                        height={rozmiar.h}
+                        fill={tloWidoczne && buforTla ? '#FFFFFF' : (theme.dark ? '#111827' : '#F8FAFC')}
+                      />
                       <G transform={gXform}>
+                        {tloWidoczne && tloObraz ? (
+                          <G
+                            transform={tloMeta?.odwrocY
+                              ? `translate(${tloObraz.x}, ${tloObraz.y + tloObraz.height}) scale(1,-1)`
+                              : undefined}
+                          >
+                            <SvgImage
+                              href={{ uri: tloObraz.uri }}
+                              x={tloMeta?.odwrocY ? 0 : tloObraz.x}
+                              y={tloMeta?.odwrocY ? 0 : tloObraz.y}
+                              width={tloObraz.width}
+                              height={tloObraz.height}
+                              opacity={tloMeta?.opacity ?? 1}
+                              preserveAspectRatio="none"
+                            />
+                          </G>
+                        ) : null}
                         {mapa.obszary.map((o) => (
                           <Polygon
                             key={o.id}
@@ -490,7 +509,7 @@ export function PztArkuszPodglad({
       <Text style={styl.hintPod}>
         {tloMeta
           ? `Tło PDF: ${tloMeta.nazwa}${buforTla ? '' : ' — wskaż plik ponownie (po odświeżeniu strony trzeba wgrać PDF jeszcze raz).'}`
-          : 'Żeby widać było pikiety, pobocza i budynki, wgraj oryginalny PDF arkusza („+ Tło PDF”). Nazwa może być krótsza niż XFDF (np. Ark_2_1.pdf).'}
+          : 'Żeby widać było pikiety, pobocza i budynki, wgraj oryginalny PDF arkusza („+ Tło PDF”). Nazwy nie muszą być identyczne z XFDF – wystarczy numer arkusza (Ark_2_1) albo jeden PDF na otwartą zakładkę.'}
       </Text>
       {bladTla ? <Text style={[styl.hintPod, { color: '#B91C1C' }]}>{bladTla}</Text> : null}
       <Text style={styl.hintPod}>

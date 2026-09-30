@@ -24,6 +24,16 @@ export function bazowaNazwaPliku(n: string): string {
     .toLowerCase();
 }
 
+/** Wspólny klucz arkusza, np. „Ark. 2_1.xfdf” i „DK25M_kowarsko_Ark_2_1.pdf” → „2 1”. */
+export function kluczArkuszaZNazwy(n: string): string | null {
+  const b = bazowaNazwaPliku(n);
+  const zArk = b.match(/ark(?:usz)?\s+(\d+)\s+(\d+)/);
+  if (zArk) return `${zArk[1]} ${zArk[2]}`;
+  const ogon = b.match(/(\d+)\s+(\d+)$/);
+  if (ogon) return `${ogon[1]} ${ogon[2]}`;
+  return null;
+}
+
 export function kandydaciNazwyArkusza(arkusz: {
   zrodloPdfHref?: string;
   zrodloNazwa: string;
@@ -41,8 +51,10 @@ export function dopasujNazwePdfDoArkusza(
   const pdf = bazowaNazwaPliku(pdfNazwa);
   if (!pdf) return false;
   const kandydaci = kandydaciNazwyArkusza(arkusz);
+  const kluczPdf = kluczArkuszaZNazwy(pdfNazwa);
   return kandydaci.some((k) => {
     if (k === pdf) return true;
+    if (kluczPdf && kluczArkuszaZNazwy(k) === kluczPdf) return true;
     if (k.length >= 4 && pdf.length >= 4 && (k.endsWith(pdf) || pdf.endsWith(k))) return true;
     if (k.includes(pdf) && pdf.length >= 6) return true;
     if (pdf.includes(k) && k.length >= 6) return true;

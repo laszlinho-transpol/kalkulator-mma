@@ -115,14 +115,14 @@ export function SekcjaPzt({
         pageH: b.pageH,
         strona: 1,
         widoczne: true,
-        opacity: 0.88,
+        opacity: 1,
       };
       next = ustawTloArkusza(next, arkId, tlo);
       ile += 1;
     }
     setInfo(ile > 0
-      ? `Nałożono tło PDF na ${ile} arkusz(y). Przy zoomie kreski zostają ostre.`
-      : 'Nie dopasowano PDF do arkuszy – nazwa pliku powinna być jak w XFDF (href).');
+      ? `Nałożono tło PDF na ${ile} arkusz(y). Widać pikiety i obrysy z PZT; przy zoomie raster jest odświeżany.`
+      : 'Nie dopasowano PDF – wgraj PDF przy otwartej zakładce (nazwa nie musi być identyczna z XFDF).');
     return next;
   };
 
@@ -286,7 +286,7 @@ export function SekcjaPzt({
       {info ? <Text style={{ color: theme.colors.success, fontSize: 12 }}>{info}</Text> : null}
       {!blad && !info ? (
         <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>
-          W oknie plików zaznacz kilka arkuszy naraz (Shift / Ctrl). PDF o tej samej nazwie co XFDF nakłada się jako ostre tło.
+          W oknie plików zaznacz kilka arkuszy naraz (Shift / Ctrl). PDF nie musi mieć tej samej nazwy co XFDF – dopasowujemy po numerze arkusza (np. Ark_2_1); jeden PDF przy otwartej zakładce trafia na nią.
         </Text>
       ) : null}
 
