@@ -16,7 +16,6 @@ import type {
   WpisLegendy,
   WierszPrzedmiaruScalony,
   WyjatekKonstrukcji,
-  Punkt2D,
 } from '../types';
 import { DOMYSLNA_SKALA_PZT } from '../types';
 import { round2, round3 } from './calculations';
@@ -24,7 +23,7 @@ import { dlugoscUkladaniaObszaru } from './obmiarLive';
 import { dlugoscKilometrazaObszaru, bokiFigury } from './obmiarFigura';
 import { obszaryZPolygony, stronaTrasyZKoloru, type WynikParsowaniaXfdf } from './xfdfParser';
 import { skalujWierzcholki } from './obmiarGeometry';
-import { dlugoscPolilinii, orientujLancuchDoKm } from './osPzt';
+import { dlugoscPolilinii, kierunekRosnacegoKm, orientujLancuchDoKm } from './osPzt';
 
 export const GESTOSC_MMA_DOMYSLNA = 2.45;
 export const GESTOSC_KLSM_DOMYSLNA = 2.0;
@@ -170,15 +169,15 @@ export function arkuszZWynikuXfdf(
     kontynuacjaPoprzedniego: boolean;
     skala?: SkalaPzt;
     kolejnoscObszarowStart?: number;
-    prevOsKoniecPdf?: Punkt2D;
   },
 ): ArkuszPzt {
   const skala = opts.skala ?? DOMYSLNA_SKALA_PZT;
   const os0 = wynik.osTrasy;
+  const kier = kierunekRosnacegoKm(wynik.polygony.flatMap((g) => g.wierzcholki));
   const wynikOs = os0 && os0.wierzcholki.length >= 2
     ? {
       ...wynik,
-      osTrasy: { ...os0, wierzcholki: orientujLancuchDoKm(os0.wierzcholki, opts.prevOsKoniecPdf) },
+      osTrasy: { ...os0, wierzcholki: orientujLancuchDoKm(os0.wierzcholki, kier) },
     }
     : wynik;
   const obszary = obszaryZPolygony(wynikOs, skala, opts.kolejnoscObszarowStart ?? 1);
@@ -395,19 +394,14 @@ export function dodajArkuszeDoProjektu(
 ): ProjektBudowy {
   const startKolejnosc = projekt.arkusze.length;
   let obszarStart = projekt.arkusze.reduce((n, a) => n + a.obszary.length, 0) + 1;
-  const lastOs = projekt.arkusze[projekt.arkusze.length - 1]?.osTrasy?.wierzcholkiPdf;
-  let prevOsKoniecPdf = lastOs && lastOs.length >= 2 ? lastOs[lastOs.length - 1] : undefined;
   const nowe = wyniki.map((wynik, i) => {
     const arkusz = arkuszZWynikuXfdf(wynik, {
       kolejnosc: startKolejnosc + i + 1,
       kontynuacjaPoprzedniego: startKolejnosc + i > 0 || projekt.arkusze.length > 0,
       skala: projekt.skala,
       kolejnoscObszarowStart: obszarStart,
-      prevOsKoniecPdf,
     });
     obszarStart += arkusz.obszary.length;
-    const osPdf = arkusz.osTrasy?.wierzcholkiPdf;
-    if (osPdf && osPdf.length >= 2) prevOsKoniecPdf = osPdf[osPdf.length - 1];
     return arkusz;
   });
   const arkusze = zastosujKilometrazArkuszy(

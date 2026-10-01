@@ -13,6 +13,7 @@ import {
 import { round2 } from './calculations';
 import {
   iloczynWektorowyOsi,
+  kierunekRosnacegoKm,
   orientujLancuchDoKm,
   stacjaNaOsi,
   stronaWzgledemOsi,
@@ -31,6 +32,8 @@ export interface PolylineXfdfSurowa {
   subject?: string;
   style?: string;
   dlugoscEtykietaM?: number;
+  /** <polyline> = oś / krawężnik; <line> = wymiar */
+  zrodlo?: 'polyline' | 'line';
 }
 
 export interface WynikParsowaniaXfdf {
@@ -76,10 +79,19 @@ function tekstBezTagow(s: string): string {
 function etykietaMetrow(body: string): number | undefined {
   const t = tekstBezTagow(body);
   const oczysc = (s: string) => s.replace(/\s|\u00a0/g, '').replace(',', '.');
-  const m = t.match(/([0-9]{1,4}(?:[\s\u00a0][0-9]{3})+|[0-9]{1,4})([,.][0-9]+)?\s*m(?!\s*[²2])/i);
-  if (!m) return undefined;
-  const n = parseFloat(oczysc(`${m[1]}${m[2] ?? ''}`));
-  return Number.isFinite(n) && n > 0 ? n : undefined;
+  const m = t.match(
+    /([0-9]{1,4}(?:[\s\u00a0][0-9]{3})+|[0-9]{1,4})([,.][0-9]+)?\s*(?:m\.?\s*b\.?|mb|m)(?!\s*[²2])/i,
+  );
+  if (m) {
+    const n = parseFloat(oczysc(`${m[1]}${m[2] ?? ''}`));
+    return Number.isFinite(n) && n > 0 ? n : undefined;
+  }
+  const samo = t.match(/^([0-9]{2,4})([,.][0-9]+)?$/);
+  if (samo) {
+    const n = parseFloat(oczysc(`${samo[1]}${samo[2] ?? ''}`));
+    return Number.isFinite(n) && n >= 80 && n <= 2500 ? n : undefined;
+  }
+  return undefined;
 }
 
 function etykietyZBlokuContents(xml: string): number[] {
@@ -109,11 +121,24 @@ function etykietaZAnnotacji(attrs: string, body: string): number | undefined {
 }
 
 /** Gdy oś nie ma wymiaru na polilinii, bierzemy etykietę długości arkusza z XFDF (np. osobna linia wymiarowa). */
-export function etykietaOsiZArkusza(osEtykietaM: number | undefined, xml: string): number | undefined {
-  if (osEtykietaM && osEtykietaM > 1 && osEtykietaM < 2500) return osEtykietaM;
-  const arkuszowe = zbierzEtykietyMetrow(xml).filter((e) => e >= 80 && e <= 2500);
-  if (arkuszowe.length === 0) return osEtykietaM && osEtykietaM > 1 ? osEtykietaM : undefined;
-  return Math.max(...arkuszowe);
+export function etykietaOsiZArkusza(
+  osEtykietaM: number | undefined,
+  xml: string,
+  geomM?: number,
+): number | undefined {
+  const zOsi = osEtykietaM && osEtykietaM > 80 && osEtykietaM < 2500 ? osEtykietaM : undefined;
+  if (zOsi) return zOsi;
+  const wszystkie = zbierzEtykietyMetrow(xml).filter((e) => e >= 80 && e <= 2500);
+  if (wszystkie.length === 0) return osEtykietaM && osEtykietaM > 1 ? osEtykietaM : undefined;
+  if (geomM && geomM > 1) {
+    const bliskie = wszystkie.filter((e) => Math.abs(e - geomM) / geomM <= 0.22);
+    if (bliskie.length > 0) {
+      return bliskie.reduce((a, b) => (Math.abs(a - geomM) <= Math.abs(b - geomM) ? a : b));
+    }
+  }
+  const arkuszowe = wszystkie.filter((e) => e >= 200 && e <= 900);
+  if (arkuszowe.length > 0) return Math.max(...arkuszowe);
+  return Math.max(...wszystkie);
 }
 
 function distPunktOdcinek(p: Punkt2D, a: Punkt2D, b: Punkt2D): number {
@@ -157,6 +182,45 @@ function distKoncow(a: Punkt2D, b: Punkt2D): number {
   return Math.hypot(a.x - b.x, a.y - b.y);
 }
 
+function medianaOdleglosciDoObszarow(pts: Punkt2D[], polygony: PolygonXfdfSurowy[]): number {
+  if (polygony.length === 0 || pts.length === 0) return Infinity;
+  const krok = Math.max(1, Math.floor(pts.length / 12));
+  const ds: number[] = [];
+  for (let i = 0; i < pts.length; i += krok) {
+    let min = Infinity;
+    for (const g of polygony) {
+      const d = distPunktDoPoligonu(pts[i], g.wierzcholki);
+      if (d < min) min = d;
+    }
+    ds.push(min);
+  }
+  return mediana(ds);
+}
+
+function zgodnaZKierunkiemTrasy(pts: Punkt2D[], kier: Punkt2D): boolean {
+  const klen = Math.hypot(kier.x, kier.y) || 1;
+  const kx = kier.x / klen;
+  const ky = kier.y / klen;
+  const cosSeg = (a: Punkt2D, b: Punkt2D) => {
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const len = Math.hypot(dx, dy);
+    if (len < 1e-6) return 0;
+    return Math.abs((dx * kx + dy * ky) / len);
+  };
+  if (pts.length >= 6) {
+    let ok = 0;
+    let n = 0;
+    for (let i = 1; i < pts.length; i++) {
+      if (Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y) < 0.5) continue;
+      n += 1;
+      if (cosSeg(pts[i - 1], pts[i]) >= 0.35) ok += 1;
+    }
+    return n === 0 ? true : ok / n >= 0.45;
+  }
+  return cosSeg(pts[0], pts[pts.length - 1]) >= 0.35;
+}
+
 /** Wymiar z XFDF: ta sama etykieta na wielu kreskach → max; odcinki cząstkowe → suma. */
 function scalEtykietyOsi(osie: PolylineXfdfSurowa[]): number | undefined {
   const etykiety = osie
@@ -169,16 +233,42 @@ function scalEtykietyOsi(osie: PolylineXfdfSurowa[]): number | undefined {
   return sum;
 }
 
-/** Łączy wszystkie polilinie osi (kilka kresek) w jeden łańcuch – kreskowanie nie skraca pikietażu. */
-export function scalLinieOsi(polilinie: PolylineXfdfSurowa[]): PolylineXfdfSurowa | undefined {
-  const osie = polilinie.filter((l) => czyLiniaOsi(l.color, l.subject, l.style) && l.wierzcholki.length >= 2);
+/** Łączy polilinie osi (kreski) w jeden łańcuch – bez linii wymiarowych i kresek poza jezdnią. */
+export function scalLinieOsi(
+  polilinie: PolylineXfdfSurowa[],
+  polygony?: PolygonXfdfSurowy[],
+): PolylineXfdfSurowa | undefined {
+  let osie = polilinie.filter(
+    (l) => czyLiniaOsi(l.color, l.subject, l.style, l.zrodlo) && l.wierzcholki.length >= 2,
+  );
   if (osie.length === 0) return undefined;
+
+  const polyPts = (polygony ?? []).flatMap((g) => g.wierzcholki);
+  if (polyPts.length >= 2 && polygony && polygony.length > 0) {
+    const kier = kierunekRosnacegoKm(polyPts);
+    const xs = polyPts.map((p) => p.x);
+    const ys = polyPts.map((p) => p.y);
+    const diag = Math.hypot(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
+    const progDist = Math.max(48, diag * 0.06);
+    const przyDrodze = osie.filter(
+      (l) => medianaOdleglosciDoObszarow(l.wierzcholki, polygony) <= progDist,
+    );
+    const wzdluz = przyDrodze.filter((l) => zgodnaZKierunkiemTrasy(l.wierzcholki, kier));
+    if (wzdluz.length > 0) osie = wzdluz;
+    else if (przyDrodze.length > 0) osie = przyDrodze;
+  }
+
   const etykieta = scalEtykietyOsi(osie);
   if (osie.length === 1) {
     return { ...osie[0], dlugoscEtykietaM: osie[0].dlugoscEtykietaM ?? etykieta };
   }
   const unused = osie.map((o) => [...o.wierzcholki]);
   unused.sort((a, b) => dlugoscPdfLancucha(b) - dlugoscPdfLancucha(a));
+  const allPts = osie.flatMap((o) => o.wierzcholki);
+  const aXs = allPts.map((p) => p.x);
+  const aYs = allPts.map((p) => p.y);
+  const diagOs = Math.hypot(Math.max(...aXs) - Math.min(...aXs), Math.max(...aYs) - Math.min(...aYs));
+  const maxGap = Math.max(24, diagOs * 0.025);
   let chain = unused.shift()!;
   while (unused.length > 0) {
     const head = chain[0];
@@ -203,6 +293,7 @@ export function scalLinieOsi(polilinie: PolylineXfdfSurowa[]): PolylineXfdfSurow
         }
       }
     }
+    if (bestD > maxGap) break;
     const u = unused.splice(best, 1)[0];
     if (tryb === 'tail0') chain = chain.concat(u);
     else if (tryb === 'tailN') chain = chain.concat(odwracLancuch(u));
@@ -218,8 +309,11 @@ export function scalLinieOsi(polilinie: PolylineXfdfSurowa[]): PolylineXfdfSurow
   };
 }
 
-export function wybierzOsTrasy(polilinie: PolylineXfdfSurowa[]): PolylineXfdfSurowa | undefined {
-  return scalLinieOsi(polilinie);
+export function wybierzOsTrasy(
+  polilinie: PolylineXfdfSurowa[],
+  polygony?: PolygonXfdfSurowy[],
+): PolylineXfdfSurowa | undefined {
+  return scalLinieOsi(polilinie, polygony);
 }
 
 /** Żółty (PDF-XChange) = lewa jezdnia, różowy = prawa. */
@@ -238,10 +332,16 @@ export function stronaTrasyZKoloru(hex?: string): 'lewa' | 'prawa' | undefined {
   return undefined;
 }
 
-export function czyLiniaOsi(color?: string, subject?: string, style?: string): boolean {
+export function czyLiniaOsi(
+  color?: string,
+  subject?: string,
+  style?: string,
+  zrodlo?: 'polyline' | 'line',
+): boolean {
   const s = (subject || '').toLowerCase();
   const st = (style || '').toLowerCase();
   if (s.includes('oś') || s.includes('os trasy') || s.includes('oś trasy') || s.includes('axis')) return true;
+  if (zrodlo === 'line') return false;
   const c = (color || '').toUpperCase();
   if (c === '#FF0000' || c === '#E53935' || c === '#C62828' || c === '#F44336') return false;
   const czarna = !c || c === '#000000' || c === '#000' || c === '#111111' || c === '#212121' || c === '#1A1A1A';
@@ -378,6 +478,7 @@ export function parsujXfdfTekst(xml: string, zrodloNazwa: string): WynikParsowan
       subject: attr(attrs, 'subject'),
       style: attr(attrs, 'style'),
       dlugoscEtykietaM: etykietaZAnnotacji(attrs, body),
+      zrodlo: 'polyline',
     });
   }
 
@@ -406,15 +507,20 @@ export function parsujXfdfTekst(xml: string, zrodloNazwa: string): WynikParsowan
       subject: attr(attrs, 'subject'),
       style: attr(attrs, 'style'),
       dlugoscEtykietaM: etykietaZAnnotacji(attrs, body),
+      zrodlo: 'line',
     });
   }
 
-  const osSurowa = wybierzOsTrasy(polilinie);
+  const osSurowa = wybierzOsTrasy(polilinie, polygony);
+  const kier = kierunekRosnacegoKm(polygony.flatMap((g) => g.wierzcholki));
   const osOrient = osSurowa && osSurowa.wierzcholki.length >= 2
-    ? { ...osSurowa, wierzcholki: orientujLancuchDoKm(osSurowa.wierzcholki) }
+    ? { ...osSurowa, wierzcholki: orientujLancuchDoKm(osSurowa.wierzcholki, kier) }
     : osSurowa;
+  const geomM = osOrient && osOrient.wierzcholki.length >= 2
+    ? round2(dlugoscLancucha(skalujWierzcholki(osOrient.wierzcholki, DOMYSLNA_SKALA_PZT)))
+    : undefined;
   const osTrasy = osOrient
-    ? { ...osOrient, dlugoscEtykietaM: etykietaOsiZArkusza(osOrient.dlugoscEtykietaM, xml) }
+    ? { ...osOrient, dlugoscEtykietaM: etykietaOsiZArkusza(osOrient.dlugoscEtykietaM, xml, geomM) }
     : undefined;
 
   return { zrodloNazwa, zrodloPdfHref, polygony, polilinie, osTrasy };

@@ -11,7 +11,15 @@ import {
 import Svg, { Circle, G, Image as SvgImage, Line, Polygon, Polyline, Rect, Text as SvgText } from 'react-native-svg';
 import type { ArkuszPzt, Punkt2D, TloArkuszaPzt } from '../../types';
 import { bboxWielokata } from '../../utils/obmiarGeometry';
-import { dlugoscPolilinii, punktNaOsi, stacjePodzialki, stycznyNaOsi } from '../../utils/osPzt';
+import {
+  dlugoscPolilinii,
+  medianaSzerokosciObszarowPdf,
+  osPdfZorientowana,
+  punktNaOsi,
+  rozmiarPodzialkiOsi,
+  stacjePodzialki,
+  stycznyNaOsi,
+} from '../../utils/osPzt';
 import {
   nastepnyPresetZoom,
   ograniczenie,
@@ -147,9 +155,9 @@ export function PztArkuszPodglad({
         })),
       };
     });
-    const osPts = (arkusz.osTrasy?.wierzcholkiPdf ?? []).map(toSvg);
+    const osPdf = osPdfZorientowana(arkusz);
+    const osPts = osPdf.map(toSvg);
     const osPunkty = osPts.map((p) => `${p.x},${p.y}`).join(' ');
-    const osPdf = arkusz.osTrasy?.wierzcholkiPdf;
     const dlM = arkusz.osTrasy?.dlugoscM
       ?? Math.max(0.01, arkusz.kilometrazKoncowyM - arkusz.kilometrazPoczatkowyM);
     const stacjaNaSvg = (stacjaM: number): Punkt2D | null => {
@@ -169,30 +177,40 @@ export function PztArkuszPodglad({
       .filter((x): x is LiveAutoPzt & Punkt2D => !!x);
     const dlPdf = osPdf && osPdf.length >= 2 ? dlugoscPolilinii(osPdf) : 0;
     const krok = podzialkaM ?? 0;
+    const szerPdf = medianaSzerokosciObszarowPdf(arkusz.obszary);
+    const podz = rozmiarPodzialkiOsi(szerPdf);
     const podzialki = krok >= 1 && osPdf && osPdf.length >= 2
       ? stacjePodzialki(arkusz.kilometrazPoczatkowyM, arkusz.kilometrazKoncowyM, krok).map((kmM) => {
         const sM = kmM - arkusz.kilometrazPoczatkowyM;
         const sPdf = (sM / Math.max(dlM, 0.01)) * dlPdf;
         const t = stycznyNaOsi(osPdf, sPdf);
         if (!t) return null;
-        const p = toSvg(t.punkt);
-        const vx = t.dx * skalaFit;
-        const vy = -t.dy * skalaFit;
-        const vlen = Math.hypot(vx, vy) || 1;
-        const px = -vy / vlen;
-        const py = vx / vlen;
-        const half = 9;
-        const etykieta = formatujKmM(kmM);
-        const textSide = py > 0 ? -1 : 1;
+        const plen = Math.hypot(t.dx, t.dy) || 1;
+        const nx = -t.dy / plen;
+        const ny = t.dx / plen;
+        const p1 = toSvg({ x: t.punkt.x + nx * podz.halfPdf, y: t.punkt.y + ny * podz.halfPdf });
+        const p2 = toSvg({ x: t.punkt.x - nx * podz.halfPdf, y: t.punkt.y - ny * podz.halfPdf });
+        const mid = toSvg(t.punkt);
+        let tp = toSvg({
+          x: t.punkt.x + nx * podz.odstepTekstuPdf,
+          y: t.punkt.y + ny * podz.odstepTekstuPdf,
+        });
+        if (tp.y > mid.y) {
+          tp = toSvg({
+            x: t.punkt.x - nx * podz.odstepTekstuPdf,
+            y: t.punkt.y - ny * podz.odstepTekstuPdf,
+          });
+        }
         return {
           kmM,
-          etykieta,
-          x1: p.x - px * half,
-          y1: p.y - py * half,
-          x2: p.x + px * half,
-          y2: p.y + py * half,
-          tx: p.x + px * (half + 11) * textSide,
-          ty: p.y + py * (half + 11) * textSide,
+          etykieta: formatujKmM(kmM),
+          x1: p1.x,
+          y1: p1.y,
+          x2: p2.x,
+          y2: p2.y,
+          tx: tp.x,
+          ty: tp.y,
+          fontSvg: podz.fontPdf * skalaFit,
         };
       }).filter((x): x is NonNullable<typeof x> => !!x)
       : [];
@@ -563,17 +581,18 @@ export function PztArkuszPodglad({
                               x2={t.x2}
                               y2={t.y2}
                               stroke="#111827"
-                              strokeWidth={swEkran * 1.15}
+                              strokeWidth={swEkran * 0.7}
                               strokeLinecap="butt"
                               vectorEffect="non-scaling-stroke"
                             />
                             <SvgText
                               x={t.tx}
                               y={t.ty}
-                              fontSize={8}
-                              fontWeight="700"
+                              fontSize={t.fontSvg}
+                              fontWeight="500"
                               fill="#111827"
                               textAnchor="middle"
+                              alignmentBaseline="middle"
                             >
                               {t.etykieta}
                             </SvgText>

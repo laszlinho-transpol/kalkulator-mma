@@ -118,15 +118,81 @@ export function stacjePodzialki(odM: number, doM: number, krokM: number): number
   return out;
 }
 
-/** Ustawia łańcuch osi zgodnie z rosnącym km: do końca poprzedniego arkusza, inaczej od mniejszego X. */
-export function orientujLancuchDoKm(pts: Punkt2D[], prevKoniec?: Punkt2D): Punkt2D[] {
+/**
+ * Kierunek rosnącego km na arkuszu: wzdłuż dłuższej osi bbox obszarów (PZT: zwykle +X).
+ * Każdy arkusz ma własny układ PDF – nie wolno łączyć końców z poprzedniej strony.
+ */
+export function kierunekRosnacegoKm(pts: Punkt2D[]): Punkt2D {
+  if (pts.length < 2) return { x: 1, y: 0 };
+  const xs = pts.map((p) => p.x);
+  const ys = pts.map((p) => p.y);
+  const dx = Math.max(...xs) - Math.min(...xs);
+  const dy = Math.max(...ys) - Math.min(...ys);
+  if (dy > dx * 1.3) return { x: 0, y: 1 };
+  return { x: 1, y: 0 };
+}
+
+/** Ustawia łańcuch osi zgodnie z rosnącym km (kierunek arkusza, domyślnie +X). */
+export function orientujLancuchDoKm(pts: Punkt2D[], kierunek?: Punkt2D): Punkt2D[] {
   if (pts.length < 2) return pts;
-  if (prevKoniec) {
-    return dystans(pts[0], prevKoniec) <= dystans(pts[pts.length - 1], prevKoniec)
-      ? pts
-      : [...pts].reverse();
-  }
-  return pts[0].x <= pts[pts.length - 1].x ? pts : [...pts].reverse();
+  const dir = kierunek && (kierunek.x !== 0 || kierunek.y !== 0) ? kierunek : { x: 1, y: 0 };
+  const len = Math.hypot(dir.x, dir.y) || 1;
+  const kx = dir.x / len;
+  const ky = dir.y / len;
+  const proj = (p: Punkt2D) => p.x * kx + p.y * ky;
+  return proj(pts[0]) <= proj(pts[pts.length - 1]) ? pts : [...pts].reverse();
+}
+
+/** Oś arkusza w kierunku rosnącego km (każda strona PDF osobno). */
+export function osPdfZorientowana(arkusz: ArkuszPzt): Punkt2D[] {
+  const os = arkusz.osTrasy?.wierzcholkiPdf;
+  if (!os || os.length < 2) return [];
+  const pts = arkusz.obszary.flatMap((o) => o.wierzcholkiPdf);
+  return orientujLancuchDoKm(os, kierunekRosnacegoKm(pts));
+}
+
+/** Szerokość poprzeczna obszaru w punktach PDF (podstawa L–P, inaczej cieńszy bok bbox). */
+export function szerokoscObszaruPdf(o: {
+  wierzcholkiPdf: Punkt2D[];
+  bazaStart?: { idxLewy?: number; idxPrawy?: number };
+  bazaKoniec?: { idxLewy?: number; idxPrawy?: number };
+}): number {
+  const dist = (i?: number, j?: number) => {
+    if (i == null || j == null) return 0;
+    const a = o.wierzcholkiPdf[i];
+    const b = o.wierzcholkiPdf[j];
+    if (!a || !b) return 0;
+    return Math.hypot(a.x - b.x, a.y - b.y);
+  };
+  const kand = [
+    dist(o.bazaStart?.idxLewy, o.bazaStart?.idxPrawy),
+    dist(o.bazaKoniec?.idxLewy, o.bazaKoniec?.idxPrawy),
+  ].filter((d) => d > 1);
+  if (kand.length) return Math.min(...kand);
+  if (o.wierzcholkiPdf.length < 2) return 0;
+  const xs = o.wierzcholkiPdf.map((p) => p.x);
+  const ys = o.wierzcholkiPdf.map((p) => p.y);
+  return Math.min(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
+}
+
+export function medianaSzerokosciObszarowPdf(
+  obszary: Array<Parameters<typeof szerokoscObszaruPdf>[0]>,
+): number {
+  const s = obszary.map(szerokoscObszaruPdf).filter((d) => d > 1).sort((a, b) => a - b);
+  if (!s.length) return 36;
+  return s[Math.floor(s.length / 2)];
+}
+
+/** Poprzeczka i opis km: w punktach PDF, łącznie nie szersze niż obszar. */
+export function rozmiarPodzialkiOsi(szerokoscObszaruPdf: number): {
+  halfPdf: number;
+  fontPdf: number;
+  odstepTekstuPdf: number;
+} {
+  const szer = Math.max(10, szerokoscObszaruPdf);
+  const halfPdf = Math.min(szer * 0.42, szer / 2);
+  const fontPdf = Math.min(Math.max(szer * 0.13, 4), 6.2);
+  return { halfPdf, fontPdf, odstepTekstuPdf: halfPdf + fontPdf * 0.65 };
 }
 
 /**

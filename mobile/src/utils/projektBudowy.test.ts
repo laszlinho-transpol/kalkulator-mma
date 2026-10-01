@@ -244,6 +244,34 @@ describe('projektBudowy', () => {
     assert.ok(Math.abs(sumaOsiTrasyM(projekt) - 435.68 * 2) < 0.05);
   });
 
+  it('kolejny arkusz z osią narysowaną od końca ma rosnący km wzdłuż X', () => {
+    const xfdfLtr = `<?xml version="1.0"?><xfdf>
+<polygon interior-color="#FFEE58"><vertices>0,40;0,20;100,20;100,40</vertices></polygon>
+<polyline color="#000000" style="dash">
+<contents>400 m</contents>
+<vertices>0,20;100,20</vertices>
+</polyline>
+</xfdf>`;
+    const xfdfRtl = `<?xml version="1.0"?><xfdf>
+<polygon interior-color="#FFEE58"><vertices>0,40;0,20;100,20;100,40</vertices></polygon>
+<polyline color="#000000" style="dash">
+<contents>400 m</contents>
+<vertices>100,20;0,20</vertices>
+</polyline>
+<line color="#000000" style="dash" start="50,20" end="50,180"><contents>113,89 m</contents></line>
+</xfdf>`;
+    const projekt = dodajArkuszeDoProjektu(pustyProjektBudowy(106850), [
+      parsujXfdfTekst(xfdfLtr, 'a1.xfdf'),
+      parsujXfdfTekst(xfdfRtl, 'a2.xfdf'),
+    ]);
+    const os2 = projekt.arkusze[1].osTrasy?.wierzcholkiPdf ?? [];
+    assert.ok(os2.length >= 2);
+    assert.ok(os2[0].x < os2[os2.length - 1].x);
+    assert.ok(os2.every((p) => p.y < 80));
+    assert.ok(projekt.arkusze[1].kilometrazKoncowyM > projekt.arkusze[1].kilometrazPoczatkowyM);
+    assert.equal(projekt.arkusze[1].kilometrazPoczatkowyM, projekt.arkusze[0].kilometrazKoncowyM);
+  });
+
   it('odsadzki warstwy: L i P, stary zapis tylko jedną krawędź', () => {
     assert.deepEqual(odsadzkiWarstwy({ odsadzkaCm: 7 }), { lewa: 7, prawa: 0 });
     assert.deepEqual(odsadzkiWarstwy({ odsadzkaCm: 7, odsadzkaLewaCm: 7, odsadzkaPrawaCm: 7 }), { lewa: 7, prawa: 7 });

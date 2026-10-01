@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { parsujVertices, parsujXfdfTekst, obszaryZPolygony, parsujListeTekstowXfdf, scalLinieOsi, bazyWzdluzOsi } from './xfdfParser';
-import { stacjePodzialki, stronaWzgledemOsi } from './osPzt';
+import { orientujLancuchDoKm, osPdfZorientowana, rozmiarPodzialkiOsi, stacjePodzialki, stronaWzgledemOsi } from './osPzt';
 import {
   powierzchniaWielokata,
   skalujWierzcholki,
@@ -174,5 +174,89 @@ describe('obmiarGeometry / xfdfParser', () => {
     assert.ok(s.includes(107000));
     assert.equal(s[s.length - 1], 116000);
     assert.ok(!s.includes(116031));
+  });
+
+  it('nie wciąga linii wymiarowej ani kreski poza jezdnią do osi', () => {
+    const xfdf = `<?xml version="1.0"?><xfdf>
+<polygon interior-color="#FFEE58"><vertices>0,40;0,20;400,20;400,40</vertices></polygon>
+<polyline color="#000000" style="dash"><vertices>0,20;400,20</vertices></polyline>
+<line color="#000000" style="dash" start="200,20" end="200,200">
+<contents>113,89 m</contents>
+</line>
+<polyline color="#000000" style="dash"><vertices>0,400;80,400</vertices></polyline>
+</xfdf>`;
+    const w = parsujXfdfTekst(xfdf, 'ark.xfdf');
+    assert.ok(w.osTrasy);
+    assert.ok(w.osTrasy!.wierzcholki.every((p) => p.y < 80));
+    assert.ok(!w.osTrasy!.wierzcholki.some((p) => p.y > 100));
+    assert.ok(w.osTrasy!.wierzcholki[0].x <= w.osTrasy!.wierzcholki[w.osTrasy!.wierzcholki.length - 1].x);
+  });
+
+  it('orientuje oś od strony startu km, nawet gdy wierzchołki są od prawej', () => {
+    const xfdf = `<?xml version="1.0"?><xfdf>
+<polygon interior-color="#FFEE58"><vertices>0,40;0,20;400,20;400,40</vertices></polygon>
+<polyline color="#000000" style="dash"><vertices>400,20;0,20</vertices></polyline>
+</xfdf>`;
+    const w = parsujXfdfTekst(xfdf, 'ark.xfdf');
+    const os = w.osTrasy?.wierzcholki ?? [];
+    assert.ok(os.length >= 2);
+    assert.ok(os[0].x < os[os.length - 1].x);
+  });
+
+  it('bierze wymiar arkusza bliski długości osi, nie poprzeczny 113 m', () => {
+    const xfdf = `<?xml version="1.0"?><xfdf>
+<polygon interior-color="#FFEE58"><vertices>0,40;0,20;400,20;400,40</vertices></polygon>
+<polyline color="#000000" style="dash">
+<contents>435,68 m</contents>
+<vertices>0,20;400,20</vertices>
+</polyline>
+<line color="#000000" start="50,0" end="50,80"><contents>113,89 m</contents></line>
+</xfdf>`;
+    const w = parsujXfdfTekst(xfdf, 'ark.xfdf');
+    assert.ok(Math.abs((w.osTrasy?.dlugoscEtykietaM ?? 0) - 435.68) < 0.01);
+  });
+
+  it('orientujLancuchDoKm idzie w kierunku arkusza, nie do punktu z innej strony PDF', () => {
+    const rtl = [{ x: 100, y: 10 }, { x: 0, y: 10 }];
+    const out = orientujLancuchDoKm(rtl, { x: 1, y: 0 });
+    assert.equal(out[0].x, 0);
+    assert.equal(out[out.length - 1].x, 100);
+  });
+
+  it('osPdfZorientowana odwraca zapisaną oś narysowaną od końca arkusza', () => {
+    const os = osPdfZorientowana({
+      id: 'a',
+      nazwa: 'a',
+      zrodloNazwa: 'a.xfdf',
+      kolejnosc: 1,
+      kontynuacjaPoprzedniego: false,
+      kilometrazPoczatkowyM: 0,
+      kilometrazKoncowyM: 100,
+      obszary: [{
+        id: 'o',
+        nazwa: 'L',
+        kolejnosc: 1,
+        wierzcholkiPdf: [{ x: 0, y: 20 }, { x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 20 }],
+        wierzcholkiM: [],
+        powierzchniaM2: 1,
+        obwodM: 1,
+        zrodloNazwa: 'a.xfdf',
+        createdAt: '',
+      }],
+      osTrasy: {
+        wierzcholkiPdf: [{ x: 100, y: 10 }, { x: 0, y: 10 }],
+        wierzcholkiM: [],
+        dlugoscM: 100,
+      },
+    });
+    assert.equal(os[0].x, 0);
+    assert.equal(os[os.length - 1].x, 100);
+  });
+
+  it('poprzeczka km nie szersza niż obszar i ma drobny opis', () => {
+    const r = rozmiarPodzialkiOsi(40);
+    assert.ok(r.halfPdf * 2 <= 40 + 1e-6);
+    assert.ok(r.fontPdf <= 6.2);
+    assert.ok(r.odstepTekstuPdf < 40);
   });
 });
