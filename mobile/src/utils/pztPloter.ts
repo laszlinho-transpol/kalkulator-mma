@@ -52,37 +52,50 @@ export function transformStyku(
   return { c, s, tx: pDst.x - rx, ty: pDst.y - ry };
 }
 
-function tangensStart(os: Punkt2D[]): Punkt2D {
-  const t = stycznyNaOsi(os, 0);
-  return t ? { x: t.dx, y: t.dy } : { x: 1, y: 0 };
+export function wektorJednostkowy(a: Punkt2D, b: Punkt2D): Punkt2D {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const len = Math.hypot(dx, dy) || 1;
+  return { x: dx / len, y: dy / len };
 }
 
-function tangensKoniec(os: Punkt2D[]): Punkt2D {
-  const t = stycznyNaOsi(os, dlugoscPolilinii(os));
+/**
+ * Kierunek całego arkusza (cięciwa start→koniec), nie styczna haka na krawędzi.
+ * PZT jest już „oknem” L→P; chwilowa styczna na styku potrafi obrócić następny
+ * arkusz o ~180° i trasa na ploterze zawraca.
+ */
+export function kierunekLancucha(os: Punkt2D[]): Punkt2D {
+  if (os.length < 2) return { x: 1, y: 0 };
+  const a = os[0];
+  const b = os[os.length - 1];
+  if (Math.hypot(b.x - a.x, b.y - a.y) > 1e-4) return wektorJednostkowy(a, b);
+  const t = stycznyNaOsi(os, 0);
   return t ? { x: t.dx, y: t.dy } : { x: 1, y: 0 };
 }
 
 /**
  * Składa arkusze w jeden „ploter”: oś ciągła, obszary i krawężniki
  * w metrach (rysowane jako wierzcholkiPdf w podglądzie).
+ *
+ * Każdy arkusz PZT to już okno L→P. Sklejamy cięciwą osi do +X
+ * (początek N = koniec N-1), nigdy chwilową styczną na krawędzi –
+ * hak na końcu poprzedniej strony obracałby następny arkusz o ~180°.
  */
 export function scalPztDoArkusza(arkusze: ArkuszPzt[]): ArkuszPzt | null {
   if (arkusze.length === 0) return null;
   const kmOd = arkusze[0].kilometrazPoczatkowyM;
   const kmDo = arkusze[arkusze.length - 1].kilometrazKoncowyM;
   let prevEnd: Punkt2D | null = null;
-  let prevTang: Punkt2D | null = null;
   const osGlobal: Punkt2D[] = [];
   const obszary: ObszarObmiaru[] = [];
+  const plusX = { x: 1, y: 0 };
 
   for (const ark of arkusze) {
     const os = osMZorientowana(ark);
     let T: Transform2D;
     if (os.length >= 2) {
-      const tang0 = tangensStart(os);
-      T = !prevEnd || !prevTang
-        ? transformStyku(os[0], tang0, { x: 0, y: 0 }, { x: 1, y: 0 })
-        : transformStyku(os[0], tang0, prevEnd, prevTang);
+      const dest = prevEnd ?? { x: 0, y: 0 };
+      T = transformStyku(os[0], kierunekLancucha(os), dest, plusX);
       const osT = transformPunkty(T, os);
       if (osGlobal.length === 0) osGlobal.push(...osT);
       else {
@@ -91,10 +104,9 @@ export function scalPztDoArkusza(arkusze: ArkuszPzt[]): ArkuszPzt | null {
         osGlobal.push(...(d0 < 0.05 ? osT.slice(1) : osT));
       }
       prevEnd = osT[osT.length - 1];
-      prevTang = obrocWektor(T, tangensKoniec(os));
     } else {
-      T = prevEnd && prevTang
-        ? transformStyku({ x: 0, y: 0 }, { x: 1, y: 0 }, prevEnd, prevTang)
+      T = prevEnd
+        ? transformStyku({ x: 0, y: 0 }, plusX, prevEnd, plusX)
         : identTransform();
     }
 

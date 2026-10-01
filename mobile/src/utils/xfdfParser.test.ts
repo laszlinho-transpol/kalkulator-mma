@@ -1,5 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { parsujVertices, parsujXfdfTekst, obszaryZPolygony, parsujListeTekstowXfdf, scalLinieOsi, bazyWzdluzOsi } from './xfdfParser';
 import { orientujLancuchDoKm, osPdfZorientowana, rozmiarPodzialkiOsi, stacjePodzialki, stronaWzgledemOsi } from './osPzt';
 import {
@@ -258,5 +260,15 @@ describe('obmiarGeometry / xfdfParser', () => {
     assert.ok(r.halfPdf * 2 <= 40 + 1e-6);
     assert.ok(r.fontPdf <= 6.2);
     assert.ok(r.odstepTekstuPdf < 40);
+  });
+
+  it('Ark_2_22: przerywana oś 422,07 m od lewej do prawej, bez odwrócenia', () => {
+    const xml = readFileSync(join(process.cwd(), 'src/utils/fixtures/dk25_ark_2_22.xfdf'), 'utf8');
+    const w = parsujXfdfTekst(xml, 'DK25M_kowarsko_2_22.xfdf');
+    const os = w.osTrasy?.wierzcholki ?? [];
+    assert.ok(os.length >= 50);
+    assert.ok(os[0].x < 120 && os[os.length - 1].x > 2300);
+    assert.ok(Math.abs((w.osTrasy?.dlugoscEtykietaM ?? 0) - 422.07) < 0.01);
+    assert.ok(w.zrodloPdfHref?.includes('Ark_2_22'));
   });
 });

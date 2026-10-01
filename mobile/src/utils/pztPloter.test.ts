@@ -1,8 +1,12 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import type { ArkuszPzt, ObszarObmiaru } from '../types';
 import { CALY_PZT_ID, scalPztDoArkusza, transformStyku, zastosujTransform } from './pztPloter';
 import { dlugoscPolilinii } from './osPzt';
+import { parsujXfdfTekst } from './xfdfParser';
+import { arkuszZWynikuXfdf, dlugoscArkuszaM, zastosujKilometrazArkuszy } from './projektBudowy';
 
 function obszar(id: string, w: { x: number; y: number }[]): ObszarObmiaru {
   return {
@@ -86,5 +90,57 @@ describe('pztPloter', () => {
     assert.equal(caly!.obszary.length, 2);
     assert.equal(caly!.kilometrazPoczatkowyM, 0);
     assert.equal(caly!.kilometrazKoncowyM, 150);
+  });
+
+  it('nie zawraca trasy, gdy ostatni odcinek poprzedniej osi to hak wstecz', () => {
+    const a1 = arkusz(
+      'a1',
+      [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 98, y: 0.2 }],
+      0,
+      100,
+      [{ x: 0, y: 5 }, { x: 0, y: -5 }, { x: 100, y: -5 }, { x: 100, y: 5 }],
+    );
+    const a2 = arkusz(
+      'a2',
+      [{ x: 0, y: 0 }, { x: 50, y: 0 }],
+      100,
+      150,
+      [{ x: 0, y: 4 }, { x: 0, y: -4 }, { x: 50, y: -4 }, { x: 50, y: 4 }],
+    );
+    const caly = scalPztDoArkusza([a1, a2]);
+    const os = caly!.osTrasy!.wierzcholkiM;
+    const koniec = os[os.length - 1];
+    assert.ok(koniec.x > 140, `ploter zawrócił, koniec x=${koniec.x} y=${koniec.y}`);
+    assert.ok(Math.abs(koniec.y) < 8, `koniec y=${koniec.y}`);
+  });
+
+  it('Ark_2_22 (ostatni PZT) idzie L→P, 422,07 m, i na ploterze nie zawraca', () => {
+    const xml = readFileSync(join(process.cwd(), 'src/utils/fixtures/dk25_ark_2_22.xfdf'), 'utf8');
+    const w = parsujXfdfTekst(xml, 'DK25M_kowarsko_2_22.xfdf');
+    const osPdf = w.osTrasy?.wierzcholki ?? [];
+    assert.ok(osPdf.length >= 50, `oś ma ${osPdf.length} pkt`);
+    assert.ok(osPdf[0].x < osPdf[osPdf.length - 1].x, 'oś arkusza 2_22 powinna iść L→P');
+    assert.ok(Math.abs((w.osTrasy?.dlugoscEtykietaM ?? 0) - 422.07) < 0.01);
+
+    const a21 = arkusz(
+      'a1',
+      [{ x: 0, y: 0 }, { x: 400, y: 0 }, { x: 396, y: 0.4 }],
+      0,
+      400,
+      [{ x: 0, y: 8 }, { x: 0, y: -8 }, { x: 400, y: -8 }, { x: 400, y: 8 }],
+    );
+    const a22 = arkuszZWynikuXfdf(w, { kolejnosc: 22, kontynuacjaPoprzedniego: true });
+    const [s21, s22] = zastosujKilometrazArkuszy([a21, a22], 0);
+    assert.equal(dlugoscArkuszaM(s22), 422.07);
+    assert.equal(s22.kilometrazPoczatkowyM, s21.kilometrazKoncowyM);
+    assert.ok(Math.abs(s22.kilometrazKoncowyM - s21.kilometrazKoncowyM - 422.07) < 0.05);
+
+    const caly = scalPztDoArkusza([s21, s22]);
+    const os = caly!.osTrasy!.wierzcholkiM;
+    const koniec = os[os.length - 1];
+    assert.ok(koniec.x > 750, `ostatni arkusz zawrócił, koniec x=${koniec.x} y=${koniec.y}`);
+    assert.ok(Math.abs(koniec.y) < 80, `koniec y=${koniec.y} – trasa nie powinna iść wstecz`);
+    assert.equal(caly!.kilometrazPoczatkowyM, s21.kilometrazPoczatkowyM);
+    assert.equal(caly!.kilometrazKoncowyM, s22.kilometrazKoncowyM);
   });
 });
