@@ -30,6 +30,8 @@ import {
   zmienNazweScalonegoWiersza,
   rozlaczWiersz,
   dlugoscArkuszaM,
+  etykietaZakladkiArkusza,
+  zsynchronizujLegendeProjektu,
 } from './projektBudowy';
 
 function prostokat(id: string, kolor: string, dlugoscM: number, szerM: number, nazwa: string): ObszarObmiaru {
@@ -67,7 +69,10 @@ describe('projektBudowy', () => {
     assert.equal(sugerowanaNazwaLegendy('obszar', '#FFEE58'), 'Trasa główna (strona lewa)');
     assert.equal(sugerowanaNazwaLegendy('obszar', '#FFC0CB'), 'Trasa główna (strona prawa)');
     assert.equal(sugerowanaNazwaLegendy('linia', '#FF0000'), 'krawężnik (brak odsadzek)');
+    assert.equal(sugerowanaNazwaLegendy('os', '#000000'), 'oś trasy');
+    assert.equal(sugerowanaNazwaLegendy('obszar', '#4CAF50'), '');
     assert.equal(kluczLegendy('obszar', '#ffee58'), 'obszar|#FFEE58');
+    assert.equal(kluczLegendy('os', '#000000'), 'os|#000000');
   });
 
   it('domyślny kilometraż pustego projektu to 0+000', () => {
@@ -146,6 +151,93 @@ describe('projektBudowy', () => {
     ]);
     const reczna = druga.find((w) => w.klucz === legenda[0].klucz);
     assert.equal(reczna?.nazwa, 'Trasa L – ręcznie');
+  });
+
+  it('legenda dopisuje oś i nowy kolor obszaru z kolejnego XFDF', () => {
+    const xfdfOs = `<?xml version="1.0"?><xfdf>
+<polygon interior-color="#FFEE58"><vertices>0,40;0,20;100,20;100,40</vertices></polygon>
+<polyline color="#000000" style="dash">
+<contents-richtext><body xmlns="http://www.w3.org/1999/xhtml"><p><span>435,68 m </span></p></body></contents-richtext>
+<vertices>0,20;100,20</vertices>
+</polyline>
+</xfdf>`;
+    let projekt = dodajArkuszeDoProjektu(pustyProjektBudowy(0), [
+      parsujXfdfTekst(xfdfOs, 'inwestycja_Ark_2_1.xfdf'),
+    ]);
+    assert.ok(projekt.legenda.some((w) => w.typ === 'os' && w.nazwa === 'oś trasy'));
+    assert.equal(dlugoscArkuszaM(projekt.arkusze[0]), 435.68);
+    assert.ok(projekt.arkusze[0].osTrasy?.dlugoscEtykietaM);
+
+    const xfdfZjazd = `<?xml version="1.0"?><xfdf>
+<polygon interior-color="#4CAF50"><vertices>0,10;0,0;40,0;40,10</vertices></polygon>
+</xfdf>`;
+    projekt = dodajArkuszeDoProjektu(projekt, [parsujXfdfTekst(xfdfZjazd, 'inwestycja_Ark_2_2.xfdf')]);
+    const zjazd = projekt.legenda.find((w) => w.klucz === 'obszar|#4CAF50');
+    assert.ok(zjazd);
+    assert.equal(zjazd?.nazwa, '');
+    assert.equal(projekt.konstrukcje.filter((k) => k.legendaId === zjazd?.id).length, 0);
+
+    const zNazwa = {
+      ...projekt,
+      legenda: projekt.legenda.map((w) => w.id === zjazd!.id ? { ...w, nazwa: 'zjazd' } : w),
+    };
+    const zsync = zsynchronizujLegendeProjektu(zNazwa);
+    assert.ok(zsync.konstrukcje.some((k) => k.legendaId === zjazd!.id));
+  });
+
+  it('zsynchronizujLegendeProjektu dopisuje oś do już wgranego projektu', () => {
+    const projekt = pustyProjektBudowy(0);
+    const zOsią: ProjektBudowy = {
+      ...projekt,
+      arkusze: [{
+        id: 'a1',
+        nazwa: 'a1',
+        zrodloNazwa: 'a1.xfdf',
+        kolejnosc: 1,
+        kontynuacjaPoprzedniego: false,
+        kilometrazPoczatkowyM: 0,
+        kilometrazKoncowyM: 400,
+        obszary: [prostokat('l1', '#FFEE58', 400, 5, 'L')],
+        osTrasy: {
+          wierzcholkiPdf: [{ x: 0, y: 0 }, { x: 100, y: 0 }],
+          wierzcholkiM: [{ x: 0, y: 0 }, { x: 400, y: 0 }],
+          dlugoscM: 400,
+          kolor: '#000000',
+        },
+      }],
+      legenda: [
+        { id: 'legL', kolor: '#FFEE58', typ: 'obszar', klucz: 'obszar|#FFEE58', nazwa: 'Trasa główna (strona lewa)' },
+      ],
+    };
+    const next = zsynchronizujLegendeProjektu(zOsią);
+    assert.ok(next.legenda.some((w) => w.typ === 'os' && w.klucz === 'os|#000000'));
+    const drugi = zsynchronizujLegendeProjektu(next);
+    assert.equal(drugi, next);
+  });
+
+  it('etykieta zakładki bierze numer arkusza, bez nazwy konkretnej inwestycji', () => {
+    assert.equal(etykietaZakladkiArkusza('DK25M_kowarsko_Ark_2_1.xfdf'), 'Ark. 2_1');
+    assert.equal(etykietaZakladkiArkusza('S5_Poznan_Arkusz_3_12.pdf'), 'Ark. 3_12');
+    assert.equal(etykietaZakladkiArkusza('Ark_2_10.xfdf'), 'Ark. 2_10');
+  });
+
+  it('pikietaż sumuje etykiety osi, nie geometrię skali (kreska nie skraca)', () => {
+    const xfdf = `<?xml version="1.0"?><xfdf>
+<polygon interior-color="#FFEE58"><vertices>0,40;0,20;100,20;100,40</vertices></polygon>
+<polyline color="#000000" style="dash">
+<contents-richtext><body xmlns="http://www.w3.org/1999/xhtml"><p><span>435,68 m </span></p></body></contents-richtext>
+<vertices>0,20;100,20</vertices>
+</polyline>
+</xfdf>`;
+    let projekt = pustyProjektBudowy(106850);
+    projekt = dodajArkuszeDoProjektu(projekt, [
+      parsujXfdfTekst(xfdf, 'a1.xfdf'),
+      parsujXfdfTekst(xfdf, 'a2.xfdf'),
+    ]);
+    assert.ok(Math.abs(projekt.arkusze[0].kilometrazKoncowyM - (106850 + 435.68)) < 0.02);
+    assert.ok(Math.abs(projekt.arkusze[1].kilometrazKoncowyM - (106850 + 435.68 * 2)) < 0.02);
+    const geom = projekt.arkusze[0].osTrasy?.wierzcholkiM;
+    assert.ok(geom && geom.length >= 2);
   });
 
   it('dodaje kolejne XFDF jako kontynuację kilometrażu', () => {

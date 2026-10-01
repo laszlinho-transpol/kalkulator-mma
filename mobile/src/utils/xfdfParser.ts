@@ -59,10 +59,11 @@ function attr(attrs: string, name: string): string | undefined {
 }
 
 function etykietaMetrow(body: string): number | undefined {
-  const m = body.match(/>([0-9\s\u00a0]+[,.]?[0-9]*)\s*m/i);
+  const oczysc = (s: string) => s.replace(/\s|\u00a0/g, '').replace(',', '.');
+  const m = body.match(/([0-9]{1,4}(?:[\s\u00a0][0-9]{3})*|[0-9]+)([,.][0-9]+)?\s*m(?!\s*[²2])/i);
   if (!m) return undefined;
-  const n = parseFloat(m[1].replace(/\s|\u00a0/g, '').replace(',', '.'));
-  return Number.isFinite(n) ? n : undefined;
+  const n = parseFloat(oczysc(`${m[1]}${m[2] ?? ''}`));
+  return Number.isFinite(n) && n > 0 ? n : undefined;
 }
 
 function distPunktOdcinek(p: Punkt2D, a: Punkt2D, b: Punkt2D): number {
@@ -94,17 +95,81 @@ function dlugoscPdfLancucha(pts: Punkt2D[]): number {
   return s;
 }
 
-export function wybierzOsTrasy(polilinie: PolylineXfdfSurowa[]): PolylineXfdfSurowa | undefined {
-  const osie = polilinie.filter((l) => czyLiniaOsi(l.color, l.subject, l.style));
-  if (osie.length === 0) return undefined;
-  return osie.reduce((a, b) =>
-    (b.dlugoscEtykietaM ?? dlugoscPdfLancucha(b.wierzcholki)) > (a.dlugoscEtykietaM ?? dlugoscPdfLancucha(a.wierzcholki))
-      ? b
-      : a);
-}
-
 function dlugoscLancucha(pts: Punkt2D[]): number {
   return dlugoscPdfLancucha(pts);
+}
+
+function odwracLancuch(pts: Punkt2D[]): Punkt2D[] {
+  return [...pts].reverse();
+}
+
+function distKoncow(a: Punkt2D, b: Punkt2D): number {
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+/** Wymiar z XFDF: ta sama etykieta na wielu kreskach → max; odcinki cząstkowe → suma. */
+function scalEtykietyOsi(osie: PolylineXfdfSurowa[]): number | undefined {
+  const etykiety = osie
+    .map((o) => o.dlugoscEtykietaM)
+    .filter((n): n is number => typeof n === 'number' && n > 0.5);
+  if (etykiety.length === 0) return undefined;
+  const max = Math.max(...etykiety);
+  const sum = etykiety.reduce((s, n) => s + n, 0);
+  if (etykiety.every((e) => e >= max * 0.9)) return max;
+  return sum;
+}
+
+/** Łączy wszystkie polilinie osi (kilka kresek) w jeden łańcuch – kreskowanie nie skraca pikietażu. */
+export function scalLinieOsi(polilinie: PolylineXfdfSurowa[]): PolylineXfdfSurowa | undefined {
+  const osie = polilinie.filter((l) => czyLiniaOsi(l.color, l.subject, l.style) && l.wierzcholki.length >= 2);
+  if (osie.length === 0) return undefined;
+  const etykieta = scalEtykietyOsi(osie);
+  if (osie.length === 1) {
+    return { ...osie[0], dlugoscEtykietaM: osie[0].dlugoscEtykietaM ?? etykieta };
+  }
+  const unused = osie.map((o) => [...o.wierzcholki]);
+  unused.sort((a, b) => dlugoscPdfLancucha(b) - dlugoscPdfLancucha(a));
+  let chain = unused.shift()!;
+  while (unused.length > 0) {
+    const head = chain[0];
+    const tail = chain[chain.length - 1];
+    let best = 0;
+    type TrybScalania = 'tail0' | 'tailN' | 'head0' | 'headN';
+    let tryb: TrybScalania = 'tail0';
+    let bestD = Infinity;
+    for (let i = 0; i < unused.length; i++) {
+      const u = unused[i];
+      const kand: Array<{ tryb: TrybScalania; d: number }> = [
+        { tryb: 'tail0', d: distKoncow(tail, u[0]) },
+        { tryb: 'tailN', d: distKoncow(tail, u[u.length - 1]) },
+        { tryb: 'head0', d: distKoncow(head, u[0]) },
+        { tryb: 'headN', d: distKoncow(head, u[u.length - 1]) },
+      ];
+      for (const k of kand) {
+        if (k.d < bestD) {
+          bestD = k.d;
+          best = i;
+          tryb = k.tryb;
+        }
+      }
+    }
+    const u = unused.splice(best, 1)[0];
+    if (tryb === 'tail0') chain = chain.concat(u);
+    else if (tryb === 'tailN') chain = chain.concat(odwracLancuch(u));
+    else if (tryb === 'head0') chain = odwracLancuch(u).concat(chain);
+    else chain = u.concat(chain);
+  }
+  return {
+    wierzcholki: chain,
+    color: osie[0].color ?? '#000000',
+    subject: 'oś trasy',
+    style: osie[0].style ?? 'dash',
+    dlugoscEtykietaM: etykieta != null && etykieta > 0.5 ? etykieta : undefined,
+  };
+}
+
+export function wybierzOsTrasy(polilinie: PolylineXfdfSurowa[]): PolylineXfdfSurowa | undefined {
+  return scalLinieOsi(polilinie);
 }
 
 /** Żółty (PDF-XChange) = lewa jezdnia, różowy = prawa. */
@@ -127,9 +192,10 @@ export function czyLiniaOsi(color?: string, subject?: string, style?: string): b
   const s = (subject || '').toLowerCase();
   const st = (style || '').toLowerCase();
   if (s.includes('oś') || s.includes('os trasy') || s.includes('oś trasy') || s.includes('axis')) return true;
-  if (st === 'dash' || st === 'dashed' || st.includes('dash')) return true;
   const c = (color || '').toUpperCase();
-  if ((c === '#000000' || c === '#000') && (st.includes('dash') || s.includes('oś'))) return true;
+  if (c === '#FF0000' || c === '#E53935' || c === '#C62828' || c === '#F44336') return false;
+  const czarna = !c || c === '#000000' || c === '#000' || c === '#111111' || c === '#212121' || c === '#1A1A1A';
+  if (czarna && (st === 'dash' || st === 'dashed' || st.includes('dash'))) return true;
   return false;
 }
 

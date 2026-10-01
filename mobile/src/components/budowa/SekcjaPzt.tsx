@@ -24,6 +24,7 @@ import { karta } from '../../constants/layout';
 import { Z_METROW_BIEZACYCH } from '../../constants';
 import type { WynikParsowaniaXfdf } from '../../utils/xfdfParser';
 import type { TloArkuszaPzt } from '../../types';
+import { SafeModal } from '../common/SafeModal';
 import {
   dopasujPdfDoArkuszy,
   listaWgranychPdf,
@@ -67,6 +68,7 @@ export function SekcjaPzt({
   const [info, setInfo] = useState<string | null>(null);
   const [kolejnoscOtwarta, setKolejnoscOtwarta] = useState(false);
   const [tlaWersja, setTlaWersja] = useState(0);
+  const [konfiguratorTla, setKonfiguratorTla] = useState(false);
   const startInit = polaZKilometraza(
     Z_METROW_BIEZACYCH(projekt.kilometrazPoczatkowyM).km,
     Z_METROW_BIEZACYCH(projekt.kilometrazPoczatkowyM).m,
@@ -155,11 +157,13 @@ export function SekcjaPzt({
     setTlaWersja((n) => n + 1);
     const nieprzypisane = pdfs.length - ile;
     if (ile > 0 && nieprzypisane > 0) {
-      setInfo(`Nałożono tło na ${ile} arkusz(y). ${nieprzypisane} PDF czeka na liście poniżej – przypisz albo usuń zbędny.`);
+      setInfo(`Nałożono tło na ${ile} arkusz(y). ${nieprzypisane} PDF bez pary – otwórz konfigurator teł.`);
+      setKonfiguratorTla(true);
     } else if (ile > 0) {
       setInfo(`Nałożono tło PDF na ${ile} arkusz(y).`);
     } else {
-      setInfo('PDF zapisano na liście poniżej. Wybierz „Użyj tu” przy właściwej zakładce albo usuń zbędny plik.');
+      setInfo('PDF zapisano w konfiguratorze teł. Przypisz do arkusza albo usuń zbędny plik.');
+      setKonfiguratorTla(true);
     }
     return next;
   };
@@ -280,23 +284,27 @@ export function SekcjaPzt({
     ]);
   };
 
-  const usunTloAktywnego = () => {
-    if (!aktywny) return;
+  const usunTloArkusza = (id: string, nazwaArkusza: string) => {
     const wykonaj = () => {
-      odpinBuforTlaArkusza(aktywny.id);
+      odpinBuforTlaArkusza(id);
       setTlaWersja((n) => n + 1);
-      onZmien(ustawTloArkusza(projekt, aktywny.id, undefined));
-      setInfo('Odpięto tło PDF od tej zakładki (plik zostaje na liście, możesz go usunąć albo przypisać gdzie indziej).');
+      onZmien(ustawTloArkusza(projekt, id, undefined));
+      setInfo(`Odpięto tło PDF od „${nazwaArkusza}”.`);
     };
     if (Platform.OS === 'web') {
-      if (!potwierdzWeb(`Odpiąć tło PDF od „${aktywny.nazwa}”?`)) return;
+      if (!potwierdzWeb(`Odpiąć tło PDF od „${nazwaArkusza}”?`)) return;
       wykonaj();
       return;
     }
-    Alert.alert('Usuń tło', `Odpiąć tło PDF od „${aktywny.nazwa}”?`, [
+    Alert.alert('Usuń tło', `Odpiąć tło PDF od „${nazwaArkusza}”?`, [
       { text: 'Anuluj', style: 'cancel' },
       { text: 'Usuń', style: 'destructive', onPress: wykonaj },
     ]);
+  };
+
+  const usunTloAktywnego = () => {
+    if (!aktywny) return;
+    usunTloArkusza(aktywny.id, aktywny.nazwa);
   };
 
   const usunPlikPdf = (nazwa: string) => {
@@ -319,18 +327,19 @@ export function SekcjaPzt({
     ]);
   };
 
-  const uzyjPdfNaAktywnej = (nazwa: string) => {
-    if (!aktywny) {
-      pokazKomunikat('Tło PDF', 'Najpierw wybierz zakładkę arkusza.');
+  const uzyjPdfNaArkuszu = (arkuszId: string, nazwa: string) => {
+    const ark = projekt.arkusze.find((a) => a.id === arkuszId);
+    if (!ark) {
+      pokazKomunikat('Tło PDF', 'Najpierw wybierz arkusz XFDF.');
       return;
     }
-    const buf = przypnijWgranyPdfDoArkusza(aktywny.id, nazwa);
+    const buf = przypnijWgranyPdfDoArkusza(arkuszId, nazwa);
     if (!buf) {
       pokazKomunikat('Tło PDF', 'Nie znaleziono tego pliku w pamięci – wgraj go ponownie.');
       return;
     }
     setTlaWersja((n) => n + 1);
-    onZmien(ustawTloArkusza(projekt, aktywny.id, {
+    onZmien(ustawTloArkusza(projekt, arkuszId, {
       nazwa: buf.nazwa,
       pageW: buf.pageW,
       pageH: buf.pageH,
@@ -338,7 +347,7 @@ export function SekcjaPzt({
       widoczne: true,
       opacity: 1,
     }));
-    setInfo(`Tło „${buf.nazwa}” na zakładce „${aktywny.nazwa}”.`);
+    setInfo(`Tło „${buf.nazwa}” na arkuszu „${ark.nazwa}”.`);
   };
 
   const wgranePdf = listaWgranychPdf();
@@ -373,7 +382,7 @@ export function SekcjaPzt({
           </Text>
         </View>
         <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>
-          Skala PZT 1:{projekt.skala.mianownik} ({projekt.skala.metryNaCm} m / cm). Pikietaż idzie po osi (krótszy bok / krawężnik zewnętrzny) – wyspy na krawędzi od osi nie doliczają metrów.
+          Skala PZT 1:{projekt.skala.mianownik} ({projekt.skala.metryNaCm} m / cm). Pikietaż bierze wymiar osi z XFDF (nie kreskowanie) – wyspy na krawędzi od osi nie doliczają metrów.
         </Text>
       </View>
 
@@ -384,47 +393,18 @@ export function SekcjaPzt({
         onPressNative={importujNative}
         onWebFiles={(files) => { void importujWeb(files); }}
       />
-      {projekt.arkusze.length > 0 ? (
-        <PrzyciskImportuXfdf
-          etykieta={busy ? 'Wczytywanie…' : '+ Tło PDF (oryginał arkusza)'}
-          kolorTla={theme.colors.secondary}
-          accept=".pdf,application/pdf"
-          disabled={busy}
-          onPressNative={() => pokazKomunikat('Tło PDF', 'Wybór tła PDF jest na razie w przeglądarce.')}
-          onWebFiles={(files) => { void importujWeb(files); }}
-        />
-      ) : null}
-      {wgranePdf.length > 0 ? (
-        <View style={[karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border, gap: 8 }]}>
-          <Text style={[styles.label, { color: theme.colors.text }]}>Wgrane tła PDF</Text>
-          <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>
-            Jeśli na zakładce leży zły arkusz – usuń zbędny plik albo kliknij „Użyj tu” przy właściwym.
+      {projekt.arkusze.length > 0 || wgranePdf.length > 0 ? (
+        <TouchableOpacity
+          onPress={() => setKonfiguratorTla(true)}
+          style={[styles.btnKonfigurator, { borderColor: theme.colors.secondary, backgroundColor: `${theme.colors.secondary}14` }]}
+        >
+          <Text style={{ color: theme.colors.secondary, fontWeight: '800', fontSize: 14 }}>
+            {`Tła PDF${wgranePdf.length ? ` (${wgranePdf.length})` : ''} — konfigurator`}
           </Text>
-          {wgranePdf.map((p) => {
-            const naTej = aktywny ? p.arkuszIds.includes(aktywny.id) : false;
-            const etykiety = p.arkuszIds
-              .map((id) => projekt.arkusze.find((a) => a.id === id)?.nazwa)
-              .filter(Boolean);
-            return (
-              <View key={p.nazwa} style={[styles.pdfWiersz, { borderColor: theme.colors.border }]}>
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={{ color: theme.colors.text, fontWeight: '700', fontSize: 13 }} numberOfLines={2}>
-                    {p.nazwa}
-                  </Text>
-                  <Text style={{ color: naTej ? theme.colors.primary : theme.colors.textSecondary, fontSize: 11, marginTop: 2 }}>
-                    {naTej ? 'Na tej zakładce' : etykiety.length ? `Przypisany: ${etykiety.join(', ')}` : 'Nieprzypisany'}
-                  </Text>
-                </View>
-                <TouchableOpacity onPress={() => uzyjPdfNaAktywnej(p.nazwa)} disabled={!aktywny}>
-                  <Text style={{ color: theme.colors.primary, fontWeight: '800', fontSize: 12 }}>Użyj tu</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => usunPlikPdf(p.nazwa)}>
-                  <Text style={{ color: theme.colors.danger, fontWeight: '800', fontSize: 12 }}>Usuń</Text>
-                </TouchableOpacity>
-              </View>
-            );
-          })}
-        </View>
+          <Text style={{ color: theme.colors.textSecondary, fontSize: 12, marginTop: 2 }}>
+            Przypisz, zmień albo usuń oryginały arkuszy. Okno znika po „Gotowe”.
+          </Text>
+        </TouchableOpacity>
       ) : null}
       {blad ? <Text style={{ color: theme.colors.danger, fontSize: 12 }}>{blad}</Text> : null}
       {info ? <Text style={{ color: theme.colors.success, fontSize: 12 }}>{info}</Text> : null}
@@ -636,6 +616,105 @@ export function SekcjaPzt({
           ) : null}
         </>
       )}
+
+      <SafeModal
+        visible={konfiguratorTla}
+        tytul="Konfigurator teł PDF"
+        theme={theme}
+        onClose={() => setKonfiguratorTla(false)}
+        lewy={{ tekst: 'Zamknij', onPress: () => setKonfiguratorTla(false), kolor: theme.colors.textSecondary }}
+        prawy={{ tekst: 'Gotowe', onPress: () => setKonfiguratorTla(false), kolor: theme.colors.primary }}
+      >
+        <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 32 }}>
+          <Text style={{ color: theme.colors.textSecondary, fontSize: 13, lineHeight: 18 }}>
+            Przypisz oryginał PDF do arkusza XFDF. Po „Gotowe” wracasz do planu PZT — konfigurator otworzysz ponownie tym samym przyciskiem.
+          </Text>
+          <PrzyciskImportuXfdf
+            etykieta={busy ? 'Wczytywanie…' : '+ Wgraj PDF tła'}
+            kolorTla={theme.colors.secondary}
+            accept=".pdf,application/pdf"
+            disabled={busy}
+            onPressNative={() => pokazKomunikat('Tło PDF', 'Wybór tła PDF jest na razie w przeglądarce.')}
+            onWebFiles={(files) => { void importujWeb(files); }}
+          />
+
+          {projekt.arkusze.length > 0 ? (
+            <Text style={[styles.label, { color: theme.colors.primary }]}>Arkusze XFDF</Text>
+          ) : (
+            <Text style={{ color: theme.colors.textSecondary, fontSize: 13 }}>Najpierw wgraj arkusze XFDF.</Text>
+          )}
+          {projekt.arkusze.map((a, i) => (
+            <View
+              key={a.id}
+              style={[karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border, gap: 8 }]}
+            >
+              <Text style={{ color: theme.colors.text, fontWeight: '800', fontSize: 14 }}>
+                {i + 1}. {etykietaZakladkiArkusza(a.nazwa)}
+              </Text>
+              <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>
+                {formatujKmM(a.kilometrazPoczatkowyM)} → {formatujKmM(a.kilometrazKoncowyM)}
+                {a.tlo ? `\nTło: ${a.tlo.nazwa}` : '\nBrak tła'}
+              </Text>
+              <View style={styles.pdfChipy}>
+                {wgranePdf.map((p) => {
+                  const wybrane = a.tlo ? p.nazwa === a.tlo.nazwa : p.arkuszIds.includes(a.id);
+                  return (
+                    <TouchableOpacity
+                      key={`${a.id}-${p.nazwa}`}
+                      onPress={() => uzyjPdfNaArkuszu(a.id, p.nazwa)}
+                      style={[
+                        styles.pdfChip,
+                        {
+                          borderColor: wybrane ? theme.colors.primary : theme.colors.border,
+                          backgroundColor: wybrane ? `${theme.colors.primary}18` : theme.colors.inputBackground,
+                        },
+                      ]}
+                    >
+                      <Text style={{ color: theme.colors.text, fontSize: 11, fontWeight: wybrane ? '800' : '600' }} numberOfLines={1}>
+                        {p.nazwa}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              {a.tlo ? (
+                <TouchableOpacity onPress={() => usunTloArkusza(a.id, a.nazwa)}>
+                  <Text style={{ color: theme.colors.warning, fontWeight: '800', fontSize: 12 }}>Odepnij tło</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          ))}
+
+          <Text style={[styles.label, { color: theme.colors.primary }]}>Wgrane pliki PDF</Text>
+          {wgranePdf.length === 0 ? (
+            <Text style={{ color: theme.colors.textSecondary, fontSize: 13 }}>
+              Brak plików w pamięci. Wgraj PDF powyżej albo razem z XFDF.
+            </Text>
+          ) : wgranePdf.map((p) => {
+            const etykiety = p.arkuszIds
+              .map((id) => {
+                const ark = projekt.arkusze.find((a) => a.id === id);
+                return ark ? etykietaZakladkiArkusza(ark.nazwa) : null;
+              })
+              .filter(Boolean);
+            return (
+              <View key={p.nazwa} style={[styles.pdfWiersz, { borderColor: theme.colors.border }]}>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={{ color: theme.colors.text, fontWeight: '700', fontSize: 13 }} numberOfLines={2}>
+                    {p.nazwa}
+                  </Text>
+                  <Text style={{ color: etykiety.length ? theme.colors.textSecondary : theme.colors.warning, fontSize: 11, marginTop: 2 }}>
+                    {etykiety.length ? `Przypisany: ${etykiety.join(', ')}` : 'Nieprzypisany'}
+                  </Text>
+                </View>
+                <TouchableOpacity onPress={() => usunPlikPdf(p.nazwa)}>
+                  <Text style={{ color: theme.colors.danger, fontWeight: '800', fontSize: 12 }}>Usuń</Text>
+                </TouchableOpacity>
+              </View>
+            );
+          })}
+        </ScrollView>
+      </SafeModal>
     </View>
   );
 }
@@ -682,4 +761,7 @@ const styles = StyleSheet.create({
   input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15 },
   btnKolej: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, flexGrow: 1 },
   btnUsun: { borderWidth: 1, borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
+  btnKonfigurator: { borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12 },
+  pdfChipy: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  pdfChip: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 6, maxWidth: '100%' },
 });

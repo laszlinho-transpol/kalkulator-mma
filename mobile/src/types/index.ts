@@ -433,7 +433,7 @@ export interface SesjaObmiaruDnia {
 
 // --- Projekt budowy (PZT, legenda, konstrukcje, przedmiar) ---
 
-export type TypElementuLegendy = 'obszar' | 'linia';
+export type TypElementuLegendy = 'obszar' | 'linia' | 'os';
 
 export type KategoriaWarstwy =
   | 'sma'
@@ -514,6 +514,8 @@ export interface ArkuszPzt {
     wierzcholkiPdf: Punkt2D[];
     wierzcholkiM: Punkt2D[];
     dlugoscM: number;
+    dlugoscEtykietaM?: number;
+    kolor?: string;
   };
 }
 

@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { parsujVertices, parsujXfdfTekst, obszaryZPolygony, parsujListeTekstowXfdf } from './xfdfParser';
+import { parsujVertices, parsujXfdfTekst, obszaryZPolygony, parsujListeTekstowXfdf, scalLinieOsi } from './xfdfParser';
 import {
   powierzchniaWielokata,
   skalujWierzcholki,
@@ -115,5 +115,26 @@ describe('obmiarGeometry / xfdfParser', () => {
     assert.equal(r.wyniki[0].zrodloNazwa, 'ark_2_2.xfdf');
     assert.equal(r.wyniki[1].zrodloNazwa, 'ark_2_10.xfdf');
     assert.equal(r.pominiete.length, 1);
+  });
+
+  it('scala kreski osi i nie dubluje tej samej etykiety metrażu', () => {
+    const xfdf = `<?xml version="1.0"?><xfdf>
+<polyline color="#000000" style="dash">
+<contents-richtext><body xmlns="http://www.w3.org/1999/xhtml"><p><span>435,68 m </span></p></body></contents-richtext>
+<vertices>0,20;50,20</vertices>
+</polyline>
+<polyline color="#000000" style="dash">
+<contents-richtext><body xmlns="http://www.w3.org/1999/xhtml"><p><span>435,68 m </span></p></body></contents-richtext>
+<vertices>50,20;100,20</vertices>
+</polyline>
+<polyline color="#FF0000" subject="Obwód"><vertices>0,40;100,40</vertices></polyline>
+</xfdf>`;
+    const w = parsujXfdfTekst(xfdf, 'ark.xfdf');
+    assert.ok(w.osTrasy);
+    assert.ok((w.osTrasy?.wierzcholki.length ?? 0) >= 4);
+    assert.ok(Math.abs((w.osTrasy?.dlugoscEtykietaM ?? 0) - 435.68) < 0.01);
+    const scalona = scalLinieOsi(w.polilinie);
+    assert.equal(scalona?.dlugoscEtykietaM, 435.68);
+    assert.equal(w.polilinie.filter((p) => (p.color || '').toUpperCase() === '#FF0000').length, 1);
   });
 });

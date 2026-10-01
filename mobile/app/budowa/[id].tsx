@@ -14,7 +14,7 @@ import { SekcjaPzt } from '../../src/components/budowa/SekcjaPzt';
 import { SekcjaLegenda } from '../../src/components/budowa/SekcjaLegenda';
 import { SekcjaKonstrukcje } from '../../src/components/budowa/SekcjaKonstrukcje';
 import { SekcjaPrzedmiar } from '../../src/components/budowa/SekcjaPrzedmiar';
-import { pustyProjektBudowy } from '../../src/utils/projektBudowy';
+import { pustyProjektBudowy, zsynchronizujLegendeProjektu } from '../../src/utils/projektBudowy';
 import type { ProjektBudowy } from '../../src/types';
 
 export default function BudowaSzablonScreen() {
@@ -33,6 +33,14 @@ export default function BudowaSzablonScreen() {
     }
   }, [budowa, zapiszProjekt]);
 
+  useEffect(() => {
+    if (!budowa?.projekt) return;
+    const next = zsynchronizujLegendeProjektu(budowa.projekt);
+    if (next !== budowa.projekt) {
+      void zapiszProjekt(budowa.id, next);
+    }
+  }, [budowa?.id, budowa?.projekt, zapiszProjekt]);
+
   const projekt: ProjektBudowy = useMemo(
     () => budowa?.projekt ?? pustyProjektBudowy(),
     [budowa?.projekt],
@@ -48,7 +56,7 @@ export default function BudowaSzablonScreen() {
   }
 
   const onZmien = (p: ProjektBudowy) => {
-    void zapiszProjekt(budowa.id, p);
+    void zapiszProjekt(budowa.id, zsynchronizujLegendeProjektu(p));
   };
 
   return (

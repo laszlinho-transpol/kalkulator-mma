@@ -66,6 +66,7 @@ export function sugerowanaNazwaLegendy(
 ): string {
   const k = normalizujKolorHex(kolor);
   const stronaZKoloru = strona ?? stronaTrasyZKoloru(k);
+  if (typ === 'os') return 'oś trasy';
   if (typ === 'obszar') {
     if (stronaZKoloru === 'lewa') return 'Trasa główna (strona lewa)';
     if (stronaZKoloru === 'prawa') return 'Trasa główna (strona prawa)';
@@ -151,13 +152,20 @@ export function arkuszZWynikuXfdf(
   const obszary = obszaryZPolygony(wynik, skala, opts.kolejnoscObszarowStart ?? 1);
   const nazwa = wynik.zrodloNazwa.replace(/\.(xfdf|xml|txt)$/i, '');
   const os = wynik.osTrasy;
+  const wierzcholkiM = os && os.wierzcholki.length >= 2
+    ? skalujWierzcholki(os.wierzcholki, skala)
+    : [];
+  const geomM = wierzcholkiM.length >= 2 ? round2(dlugoscPolilinii(wierzcholkiM)) : 0;
+  const etykietaM = os?.dlugoscEtykietaM && os.dlugoscEtykietaM > 1
+    ? round2(os.dlugoscEtykietaM)
+    : undefined;
   const osTrasy = os && os.wierzcholki.length >= 2
     ? {
       wierzcholkiPdf: os.wierzcholki,
-      wierzcholkiM: skalujWierzcholki(os.wierzcholki, skala),
-      dlugoscM: round2(os.dlugoscEtykietaM && os.dlugoscEtykietaM > 1
-        ? os.dlugoscEtykietaM
-        : dlugoscPolilinii(skalujWierzcholki(os.wierzcholki, skala))),
+      wierzcholkiM,
+      dlugoscM: round2(Math.max(geomM, etykietaM ?? 0)),
+      dlugoscEtykietaM: etykietaM,
+      kolor: os.color,
     }
     : undefined;
   return {
@@ -174,9 +182,12 @@ export function arkuszZWynikuXfdf(
   };
 }
 
-/** Długość arkusza w pikietażu: oś z XFDF, inaczej średnia jezdni bez wysp. */
+/** Długość arkusza w pikietażu: wymiar osi z XFDF (max z etykiety i geometrii), inaczej średnia jezdni. */
 export function dlugoscArkuszaM(arkusz: ArkuszPzt): number {
-  if (arkusz.osTrasy && arkusz.osTrasy.dlugoscM > 0.5) return round2(arkusz.osTrasy.dlugoscM);
+  if (arkusz.osTrasy) {
+    const d = Math.max(arkusz.osTrasy.dlugoscM, arkusz.osTrasy.dlugoscEtykietaM ?? 0);
+    if (d > 0.5) return round2(d);
+  }
   if (arkusz.obszary.length === 0) return 0;
   const ds = arkusz.obszary.map((o) => dlugoscKilometrazaObszaru(o)).filter((d) => d > 0.5);
   if (ds.length === 0) return 0;
@@ -239,7 +250,7 @@ export function zastosujKilometrazArkuszy(
       ? biezacy
       : arkusz.kilometrazPoczatkowyM;
     const dlugosc = dlugoscArkuszaM(arkusz);
-    const koniec = start + dlugosc;
+    const koniec = round2(start + dlugosc);
     biezacy = koniec;
     return {
       ...arkusz,
@@ -289,12 +300,39 @@ export function zbierzLegendeZArkuszy(
         }
       }
     }
+    if (arkusz.osTrasy) {
+      const oKolor = normalizujKolorHex(arkusz.osTrasy.kolor || '#000000');
+      const oKlucz = kluczLegendy('os', oKolor);
+      if (!mapa.has(oKlucz)) {
+        const sugerowana = sugerowanaNazwaLegendy('os', oKolor);
+        mapa.set(oKlucz, {
+          id: generujId(),
+          kolor: oKolor,
+          typ: 'os',
+          klucz: oKlucz,
+          nazwa: sugerowana,
+          sugerowanaNazwa: sugerowana || undefined,
+        });
+      }
+    }
   }
 
   const obszary = [...mapa.values()].filter((w) => w.typ === 'obszar');
   const linie = [...mapa.values()].filter((w) => w.typ === 'linia');
+  const osie = [...mapa.values()].filter((w) => w.typ === 'os');
   const kolejnoscKoloru = (a: WpisLegendy, b: WpisLegendy) => a.kolor.localeCompare(b.kolor);
-  return [...obszary.sort(kolejnoscKoloru), ...linie.sort(kolejnoscKoloru)];
+  return [...obszary.sort(kolejnoscKoloru), ...linie.sort(kolejnoscKoloru), ...osie.sort(kolejnoscKoloru)];
+}
+
+/** Uzupełnia legendę i konstrukcje o nowe kolory / oś z już wgranych arkuszy (bez utraty ręcznych nazw). */
+export function zsynchronizujLegendeProjektu(projekt: ProjektBudowy): ProjektBudowy {
+  const legenda = zbierzLegendeZArkuszy(projekt.arkusze, projekt.legenda);
+  const konstrukcje = uzupelnijKonstrukcjeDlaLegendy(projekt.konstrukcje, legenda);
+  const teSameKlucze = legenda.length === projekt.legenda.length
+    && legenda.every((w) => projekt.legenda.some((s) => s.klucz === w.klucz))
+    && projekt.legenda.every((s) => legenda.some((w) => w.klucz === s.klucz));
+  if (teSameKlucze && konstrukcje.length === projekt.konstrukcje.length) return projekt;
+  return { ...projekt, legenda, konstrukcje };
 }
 
 export function uzupelnijKonstrukcjeDlaLegendy(
@@ -765,9 +803,10 @@ export function ustawTloArkusza(
   };
 }
 
+/** Krótka etykieta zakładki z numeru arkusza w nazwie pliku – niezależna od inwestycji. */
 export function etykietaZakladkiArkusza(nazwa: string): string {
-  return nazwa
-    .replace(/^DK25M[_-]?kowarsko[_-]?/i, 'Ark. ')
-    .replace(/\.(xfdf|xml|txt)$/i, '')
-    .trim() || nazwa;
+  const bezExt = nazwa.replace(/\.(xfdf|xml|txt|pdf)$/i, '').trim();
+  const ark = bezExt.match(/ark(?:usz)?[._\-\s]*(\d+)[._\-\s]+(\d+)/i);
+  if (ark) return `Ark. ${ark[1]}_${ark[2]}`;
+  return bezExt || nazwa;
 }
