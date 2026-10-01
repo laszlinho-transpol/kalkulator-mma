@@ -84,11 +84,13 @@ export function dopasujPdfDoArkuszy(
 export function ustawBuforTla(arkuszId: string, bufor: BuforTlaPdf): void {
   poArkuszu.set(arkuszId, bufor);
   poPliku.set(bazowaNazwaPliku(bufor.nazwa), bufor);
+  void trwaleZapiszBufor(bufor);
 }
 
 /** Zapamiętuje PDF bez przypinania do arkusza – użytkownik może potem wybrać / usunąć. */
 export function zapiszBuforPliku(bufor: BuforTlaPdf): void {
   poPliku.set(bazowaNazwaPliku(bufor.nazwa), bufor);
+  void trwaleZapiszBufor(bufor);
 }
 
 export function buforTlaArkusza(arkuszId: string): BuforTlaPdf | undefined {
@@ -157,10 +159,117 @@ export function usunWgranyPdf(nazwa: string): string[] {
       ids.push(arkId);
     }
   }
+  void trwaleUsunBufor(nazwa);
   return ids;
 }
 
 export function wyczyscBuforyTla(): void {
   poArkuszu.clear();
   poPliku.clear();
+}
+
+const IDB_NAZWA = 'kalkulator-mma-pzt';
+const IDB_STORE = 'tla-pdf';
+
+interface WpisTlaIdb {
+  klucz: string;
+  nazwa: string;
+  pageW: number;
+  pageH: number;
+  strona: number;
+  data: ArrayBuffer;
+}
+
+function idbDostepne(): boolean {
+  return typeof indexedDB !== 'undefined';
+}
+
+function otworzIdb(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(IDB_NAZWA, 1);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(IDB_STORE)) {
+        db.createObjectStore(IDB_STORE, { keyPath: 'klucz' });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error ?? new Error('IndexedDB'));
+  });
+}
+
+function kopiaBufora(data: Uint8Array): ArrayBuffer {
+  const out = new Uint8Array(data.byteLength);
+  out.set(data);
+  return out.buffer;
+}
+
+/** Trwały zapis PDF tła (przeglądarka). Bez IndexedDB – no-op. */
+export async function trwaleZapiszBufor(bufor: BuforTlaPdf): Promise<void> {
+  if (!idbDostepne() || bufor.data.byteLength < 32) return;
+  try {
+    const db = await otworzIdb();
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error ?? new Error('zapis tła'));
+      tx.objectStore(IDB_STORE).put({
+        klucz: bazowaNazwaPliku(bufor.nazwa),
+        nazwa: bufor.nazwa,
+        pageW: bufor.pageW,
+        pageH: bufor.pageH,
+        strona: bufor.strona,
+        data: kopiaBufora(bufor.data),
+      } satisfies WpisTlaIdb);
+    });
+    db.close();
+  } catch {
+    /* prywatny tryb / quota */
+  }
+}
+
+export async function trwaleUsunBufor(nazwa: string): Promise<void> {
+  if (!idbDostepne()) return;
+  try {
+    const db = await otworzIdb();
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error ?? new Error('usuwanie tła'));
+      tx.objectStore(IDB_STORE).delete(bazowaNazwaPliku(nazwa));
+    });
+    db.close();
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Wczytuje PDF-y z IndexedDB do pamięci sesji. Zwraca liczbę plików. */
+export async function odtworzTlaZIdb(): Promise<number> {
+  if (!idbDostepne()) return 0;
+  try {
+    const db = await otworzIdb();
+    const wpisy = await new Promise<WpisTlaIdb[]>((resolve, reject) => {
+      const tx = db.transaction(IDB_STORE, 'readonly');
+      const req = tx.objectStore(IDB_STORE).getAll();
+      req.onsuccess = () => resolve((req.result ?? []) as WpisTlaIdb[]);
+      req.onerror = () => reject(req.error ?? new Error('odczyt teł'));
+    });
+    db.close();
+    let n = 0;
+    for (const w of wpisy) {
+      if (!w?.data || w.data.byteLength < 32) continue;
+      poPliku.set(bazowaNazwaPliku(w.nazwa), {
+        data: new Uint8Array(w.data),
+        nazwa: w.nazwa,
+        pageW: w.pageW,
+        pageH: w.pageH,
+        strona: w.strona || 1,
+      });
+      n += 1;
+    }
+    return n;
+  } catch {
+    return 0;
+  }
 }

@@ -23,7 +23,7 @@ import { dlugoscUkladaniaObszaru } from './obmiarLive';
 import { dlugoscKilometrazaObszaru, bokiFigury } from './obmiarFigura';
 import { obszaryZPolygony, stronaTrasyZKoloru, type WynikParsowaniaXfdf } from './xfdfParser';
 import { skalujWierzcholki } from './obmiarGeometry';
-import { dlugoscPolilinii, kierunekRosnacegoKm, orientujLancuchDoKm } from './osPzt';
+import { dlugoscObszarowWzdluzOsiM, dlugoscPolilinii, kierunekRosnacegoKm, orientujLancuchDoKm } from './osPzt';
 
 export const GESTOSC_MMA_DOMYSLNA = 2.45;
 export const GESTOSC_KLSM_DOMYSLNA = 2.0;
@@ -194,7 +194,7 @@ export function arkuszZWynikuXfdf(
     ? {
       wierzcholkiPdf: os.wierzcholki,
       wierzcholkiM,
-      dlugoscM: round2(Math.max(geomM, etykietaM ?? 0)),
+      dlugoscM: round2(etykietaM && etykietaM > 80 ? etykietaM : geomM),
       dlugoscEtykietaM: etykietaM,
       kolor: os.color,
     }
@@ -213,11 +213,17 @@ export function arkuszZWynikuXfdf(
   };
 }
 
-/** Długość arkusza w pikietażu: wymiar osi z XFDF (max z etykiety i geometrii), inaczej średnia jezdni. */
+/** Długość arkusza w pikietażu: wymiar osi z XFDF, inaczej jezdnia wzdłuż osi, inaczej geometria kreski. */
 export function dlugoscArkuszaM(arkusz: ArkuszPzt): number {
+  const etykieta = arkusz.osTrasy?.dlugoscEtykietaM;
+  if (etykieta && etykieta > 80 && etykieta < 2500) return round2(etykieta);
+  const jezdnia = dlugoscObszarowWzdluzOsiM(arkusz);
+  if (jezdnia > 0.5) return jezdnia;
   if (arkusz.osTrasy) {
-    const d = Math.max(arkusz.osTrasy.dlugoscM, arkusz.osTrasy.dlugoscEtykietaM ?? 0);
-    if (d > 0.5) return round2(d);
+    const geom = arkusz.osTrasy.wierzcholkiM.length >= 2
+      ? dlugoscPolilinii(arkusz.osTrasy.wierzcholkiM)
+      : arkusz.osTrasy.dlugoscM;
+    if (geom > 0.5) return round2(geom);
   }
   if (arkusz.obszary.length === 0) return 0;
   const ds = arkusz.obszary.map((o) => dlugoscKilometrazaObszaru(o)).filter((d) => d > 0.5);

@@ -53,7 +53,7 @@ export function translacjaPrzyObrocie(args: {
 }
 
 export const SKALA_MIN = 0.1;
-export const SKALA_MAX = 64;
+export const SKALA_MAX = 128;
 export const TARCIE_DECAY = 0.996;
 
 /** Presety jak w PDF-XChange (10% … 6400%). */

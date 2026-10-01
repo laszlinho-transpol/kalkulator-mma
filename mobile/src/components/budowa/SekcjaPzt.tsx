@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView, Switch, Platform, TextInput, Alert,
 } from 'react-native';
@@ -30,11 +30,14 @@ import {
   dopasujPdfDoArkuszy,
   listaWgranychPdf,
   odpinBuforTlaArkusza,
+  odtworzTlaZIdb,
+  podlaczBuforDoArkusza,
   przypnijWgranyPdfDoArkusza,
   usunWgranyPdf,
   ustawBuforTla,
   zapiszBuforPliku,
 } from '../../utils/tloPdfPamiec';
+import { CALY_PZT_ID, scalPztDoArkusza } from '../../utils/pztPloter';
 import { wymiaryStronyPdf } from '../../utils/pdfjsWeb';
 import type { PlikWebImport } from './PrzyciskImportuXfdf';
 
@@ -63,7 +66,7 @@ function pokazKomunikat(tytul: string, tresc: string) {
 export function SekcjaPzt({
   projekt, theme, onZmien, blokadaPodgladu = false, onBlokadaPodgladu, onDotykZmiana,
 }: Props) {
-  const [arkuszId, setArkuszId] = useState(projekt.arkusze[0]?.id);
+  const [arkuszId, setArkuszId] = useState<string>(CALY_PZT_ID);
   const [busy, setBusy] = useState(false);
   const [blad, setBlad] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -77,7 +80,14 @@ export function SekcjaPzt({
   const [kmStr, setKmStr] = useState(startInit.km);
   const [mStr, setMStr] = useState(startInit.m);
   const [podzStr, setPodzStr] = useState(String(projekt.podzialkaKilometrazuM ?? 50));
-  const aktywny = projekt.arkusze.find((a) => a.id === arkuszId) ?? projekt.arkusze[0];
+  const aktywny = projekt.arkusze.find((a) => a.id === arkuszId) ?? (
+    arkuszId === CALY_PZT_ID ? undefined : projekt.arkusze[0]
+  );
+  const widokCaly = arkuszId === CALY_PZT_ID || (!aktywny && projekt.arkusze.length > 0);
+  const calyArkusz = useMemo(
+    () => (projekt.arkusze.length > 0 ? scalPztDoArkusza(projekt.arkusze) : null),
+    [projekt.arkusze],
+  );
   const idxAktywny = aktywny ? projekt.arkusze.findIndex((a) => a.id === aktywny.id) : -1;
   const kmKoniecTrasy = projekt.arkusze[projekt.arkusze.length - 1]?.kilometrazKoncowyM;
   const sumaOsi = sumaOsiTrasyM(projekt);
@@ -96,6 +106,42 @@ export function SekcjaPzt({
     // Przelicza pikietaż po zmianie wzoru (oś zamiast max z wysp).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projekt.arkusze.length, projekt.kilometrazPoczatkowyM]);
+
+  useEffect(() => {
+    let zyje = true;
+    void (async () => {
+      const n = await odtworzTlaZIdb();
+      if (!zyje || n === 0) return;
+      let next = projekt;
+      let zmieniono = false;
+      for (const a of projekt.arkusze) {
+        if (a.tlo?.nazwa) podlaczBuforDoArkusza(a.id, a.tlo.nazwa);
+      }
+      const nazwy = listaWgranychPdf().map((x) => x.nazwa);
+      const mapa = dopasujPdfDoArkuszy(projekt.arkusze, nazwy);
+      for (const [id, nazwa] of mapa) {
+        const buf = przypnijWgranyPdfDoArkusza(id, nazwa);
+        if (!buf) continue;
+        const ark = next.arkusze.find((a) => a.id === id);
+        if (!ark?.tlo) {
+          next = ustawTloArkusza(next, id, {
+            nazwa: buf.nazwa,
+            pageW: buf.pageW,
+            pageH: buf.pageH,
+            strona: buf.strona,
+            widoczne: true,
+            opacity: 1,
+          });
+          zmieniono = true;
+        }
+      }
+      setTlaWersja((v) => v + 1);
+      if (zmieniono) onZmien(next);
+    })();
+    return () => { zyje = false; };
+    // Odtworzenie teł po odświeżeniu strony – raz na montaż.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const przypnijPdfs = async (
     proj: ProjektBudowy,
@@ -185,8 +231,7 @@ export function SekcjaPzt({
     setBlad(null);
     const next = dodajArkuszeDoProjektu(projekt, r.wyniki);
     onZmien(next);
-    const pierwszyNowy = next.arkusze[Math.max(0, next.arkusze.length - r.wyniki.length)];
-    if (pierwszyNowy) setArkuszId(pierwszyNowy.id);
+    setArkuszId(next.arkusze.length > 1 ? CALY_PZT_ID : (next.arkusze[0]?.id ?? CALY_PZT_ID));
     setInfo(`Dodano ${r.wyniki.length} arkusz(y). Przełączaj zakładkami.`);
     if (r.pominiete.length > 0) {
       const msg = r.pominiete.slice(0, 6).join('\n');
@@ -224,8 +269,7 @@ export function SekcjaPzt({
           return;
         }
         next = dodajArkuszeDoProjektu(projekt, r.wyniki);
-        const pierwszyNowy = next.arkusze[Math.max(0, next.arkusze.length - r.wyniki.length)];
-        if (pierwszyNowy) setArkuszId(pierwszyNowy.id);
+        setArkuszId(next.arkusze.length > 1 ? CALY_PZT_ID : (next.arkusze[0]?.id ?? CALY_PZT_ID));
         setInfo(`Dodano ${r.wyniki.length} arkusz(y). Przełączaj zakładkami.`);
         if (r.pominiete.length > 0) {
           const msg = r.pominiete.slice(0, 6).join('\n');
@@ -265,14 +309,13 @@ export function SekcjaPzt({
   };
 
   const usunArkuszPoId = (id: string, nazwa: string) => {
-    const idx = projekt.arkusze.findIndex((a) => a.id === id);
     const wykonaj = () => {
       odpinBuforTlaArkusza(id);
       setTlaWersja((n) => n + 1);
       const next = usunArkusz(projekt, id);
       onZmien(next);
       if (arkuszId === id) {
-        setArkuszId(next.arkusze[Math.min(Math.max(0, idx), next.arkusze.length - 1)]?.id);
+        setArkuszId(next.arkusze.length > 1 ? CALY_PZT_ID : next.arkusze[0]?.id);
       }
       setInfo(`Usunięto arkusz „${nazwa}”.`);
     };
@@ -432,7 +475,7 @@ export function SekcjaPzt({
             {`Tła PDF${wgranePdf.length ? ` (${wgranePdf.length})` : ''} — konfigurator`}
           </Text>
           <Text style={{ color: theme.colors.textSecondary, fontSize: 12, marginTop: 2 }}>
-            Przypisz, zmień albo usuń oryginały arkuszy. Okno znika po „Gotowe”.
+            Przypisz, zmień albo usuń oryginały arkuszy. Zapisują się w przeglądarce – po odświeżeniu nie trzeba wgrywać ponownie.
           </Text>
         </TouchableOpacity>
       ) : null}
@@ -467,6 +510,32 @@ export function SekcjaPzt({
             showsHorizontalScrollIndicator
             contentContainerStyle={styles.tabLista}
           >
+            {calyArkusz ? (
+              <View style={styles.tabWrap}>
+                <View
+                  style={[
+                    styles.tab,
+                    {
+                      backgroundColor: widokCaly ? `${theme.colors.primary}22` : theme.colors.card,
+                      borderColor: widokCaly ? theme.colors.primary : theme.colors.border,
+                      minWidth: 168,
+                    },
+                  ]}
+                >
+                  <TouchableOpacity onPress={() => setArkuszId(CALY_PZT_ID)} style={{ flex: 1 }}>
+                    <Text style={{ color: theme.colors.text, fontWeight: '800', fontSize: 13 }} numberOfLines={1}>
+                      Cały PZT
+                    </Text>
+                    <Text style={{ color: theme.colors.primary, fontSize: 11, fontWeight: '700', marginTop: 2 }}>
+                      {formatujKmM(calyArkusz.kilometrazPoczatkowyM)} → {formatujKmM(calyArkusz.kilometrazKoncowyM)}
+                    </Text>
+                    <Text style={{ color: theme.colors.textSecondary, fontSize: 10, marginTop: 2 }}>
+                      {projekt.arkusze.length} ark. · ploter
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : null}
             {projekt.arkusze.map((a, i) => {
               const sel = a.id === aktywny?.id;
               return (
@@ -529,7 +598,30 @@ export function SekcjaPzt({
             })}
           </ScrollView>
 
-          {aktywny ? (
+          {widokCaly && calyArkusz ? (
+            <>
+              <PztArkuszPodglad
+                arkusz={calyArkusz}
+                theme={theme}
+                wysokosc={440}
+                blokadaPodgladu={blokadaPodgladu}
+                onBlokadaPodgladu={onBlokadaPodgladu}
+                onDotykZmiana={onDotykZmiana}
+                podzialkaM={projekt.podzialkaKilometrazuM ?? 50}
+              />
+              <View style={[karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border, gap: 8 }]}>
+                <Text style={{ color: theme.colors.text, fontWeight: '800', fontSize: 14 }}>Cały PZT – ciągłość trasy</Text>
+                <Text style={{ color: theme.colors.primary, fontWeight: '800', fontSize: 13 }}>
+                  {formatujKmM(calyArkusz.kilometrazPoczatkowyM)} → {formatujKmM(calyArkusz.kilometrazKoncowyM)}
+                  {`  ·  ${Math.round(sumaOsi)} m osi`}
+                </Text>
+                <Text style={{ color: theme.colors.textSecondary, fontSize: 12, lineHeight: 17 }}>
+                  Arkusze sklejone po osi: koniec N = początek N+1 (przesunięcie + obrót w metrach).
+                  Zakładki pojedynczych stron służą do porównania z oryginalnym PDF.
+                </Text>
+              </View>
+            </>
+          ) : aktywny ? (
             <>
               <PztArkuszPodglad
                 arkusz={aktywny}
@@ -658,7 +750,7 @@ export function SekcjaPzt({
       >
         <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 32 }}>
           <Text style={{ color: theme.colors.textSecondary, fontSize: 13, lineHeight: 18 }}>
-            Przypisz oryginał PDF do arkusza XFDF. Po „Gotowe” wracasz do planu PZT — konfigurator otworzysz ponownie tym samym przyciskiem.
+            Przypisz oryginał PDF do arkusza XFDF. Pliki zostają w przeglądarce po odświeżeniu strony. Po „Gotowe” wracasz do planu PZT.
           </Text>
           <PrzyciskImportuXfdf
             etykieta={busy ? 'Wczytywanie…' : '+ Wgraj PDF tła'}

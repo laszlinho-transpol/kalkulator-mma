@@ -158,8 +158,7 @@ export function PztArkuszPodglad({
     const osPdf = osPdfZorientowana(arkusz);
     const osPts = osPdf.map(toSvg);
     const osPunkty = osPts.map((p) => `${p.x},${p.y}`).join(' ');
-    const dlM = arkusz.osTrasy?.dlugoscM
-      ?? Math.max(0.01, arkusz.kilometrazKoncowyM - arkusz.kilometrazPoczatkowyM);
+    const dlM = Math.max(0.01, arkusz.kilometrazKoncowyM - arkusz.kilometrazPoczatkowyM);
     const stacjaNaSvg = (stacjaM: number): Punkt2D | null => {
       if (!osPdf || osPdf.length < 2) return null;
       const sM = stacjaM - arkusz.kilometrazPoczatkowyM;
@@ -654,7 +653,7 @@ export function PztArkuszPodglad({
       </ScrollView>
       <Text style={styl.hintPod}>
         {tloMeta
-          ? `Tło PDF: ${tloMeta.nazwa}${buforTla ? '' : ' — wskaż plik ponownie (po odświeżeniu strony trzeba wgrać PDF jeszcze raz).'}`
+          ? `Tło PDF: ${tloMeta.nazwa}${buforTla ? '' : ' — odtwarzanie z pamięci przeglądarki… Jeśli nie wraca, otwórz konfigurator teł.'}`
           : 'Żeby widać było pikiety, pobocza i budynki, wgraj oryginalny PDF arkusza („+ Tło PDF”). Nazwy nie muszą być identyczne z XFDF – wystarczy numer arkusza (Ark_2_1) albo jeden PDF na otwartą zakładkę.'}
       </Text>
       {bladTla ? <Text style={[styl.hintPod, { color: '#B91C1C' }]}>{bladTla}</Text> : null}

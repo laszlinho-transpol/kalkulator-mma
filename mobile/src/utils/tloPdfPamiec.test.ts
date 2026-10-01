@@ -6,6 +6,7 @@ import {
   dopasujPdfDoArkuszy,
   kluczArkuszaZNazwy,
   listaWgranychPdf,
+  odtworzTlaZIdb,
   przypnijWgranyPdfDoArkusza,
   usunWgranyPdf,
   ustawBuforTla,
@@ -79,5 +80,10 @@ describe('tloPdfPamiec', () => {
     assert.equal(listaWgranychPdf().length, 1);
     assert.equal(listaWgranychPdf()[0].nazwa, 'Ark_2_1.pdf');
     wyczyscBuforyTla();
+  });
+
+  it('odtworzTlaZIdb bez IndexedDB nic nie psuje', async () => {
+    const n = await odtworzTlaZIdb();
+    assert.equal(n, 0);
   });
 });

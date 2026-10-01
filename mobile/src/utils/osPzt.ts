@@ -151,6 +151,27 @@ export function osPdfZorientowana(arkusz: ArkuszPzt): Punkt2D[] {
   return orientujLancuchDoKm(os, kierunekRosnacegoKm(pts));
 }
 
+export function osMZorientowana(arkusz: ArkuszPzt): Punkt2D[] {
+  const os = arkusz.osTrasy?.wierzcholkiM;
+  if (!os || os.length < 2) return [];
+  const pts = arkusz.obszary.flatMap((o) => o.wierzcholkiM);
+  return orientujLancuchDoKm(os, kierunekRosnacegoKm(pts));
+}
+
+/** Rozpiętość jezdni wzdłuż osi [m] – bliższa pikiecie PZT niż kreska przerywana. */
+export function dlugoscObszarowWzdluzOsiM(arkusz: ArkuszPzt): number {
+  const os = osMZorientowana(arkusz);
+  if (os.length < 2 || arkusz.obszary.length === 0) return 0;
+  const ds = arkusz.obszary.map((o) => {
+    if (o.wierzcholkiM.length < 2) return 0;
+    const st = o.wierzcholkiM.map((p) => stacjaNaOsi(os, p));
+    return Math.max(...st) - Math.min(...st);
+  }).filter((d) => d > 1);
+  if (ds.length === 0) return 0;
+  ds.sort((a, b) => a - b);
+  return round2(ds[Math.floor(ds.length / 2)]);
+}
+
 /** Szerokość poprzeczna obszaru w punktach PDF (podstawa L–P, inaczej cieńszy bok bbox). */
 export function szerokoscObszaruPdf(o: {
   wierzcholkiPdf: Punkt2D[];
