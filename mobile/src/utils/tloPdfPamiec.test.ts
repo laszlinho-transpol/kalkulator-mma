@@ -5,6 +5,13 @@ import {
   dopasujNazwePdfDoArkusza,
   dopasujPdfDoArkuszy,
   kluczArkuszaZNazwy,
+  listaWgranychPdf,
+  przypnijWgranyPdfDoArkusza,
+  usunWgranyPdf,
+  ustawBuforTla,
+  wyczyscBuforyTla,
+  zapiszBuforPliku,
+  type BuforTlaPdf,
 } from './tloPdfPamiec';
 
 describe('tloPdfPamiec', () => {
@@ -53,5 +60,24 @@ describe('tloPdfPamiec', () => {
       ['plan.pdf'],
     );
     assert.equal(map.get('a'), 'plan.pdf');
+  });
+
+  it('lista PDF: zapamiętuje oba pliki, usuwa zbędny i odłącza od arkusza', () => {
+    wyczyscBuforyTla();
+    const a: BuforTlaPdf = { data: new Uint8Array([1]), nazwa: 'Ark_2_1.pdf', pageW: 10, pageH: 10, strona: 1 };
+    const b: BuforTlaPdf = { data: new Uint8Array([2]), nazwa: 'zly.pdf', pageW: 10, pageH: 10, strona: 1 };
+    zapiszBuforPliku(a);
+    zapiszBuforPliku(b);
+    ustawBuforTla('ark1', b);
+    const lista = listaWgranychPdf();
+    assert.equal(lista.length, 2);
+    assert.ok(lista.some((x) => x.nazwa === 'zly.pdf' && x.arkuszIds.includes('ark1')));
+    const przypiety = przypnijWgranyPdfDoArkusza('ark1', 'Ark_2_1.pdf');
+    assert.equal(przypiety?.nazwa, 'Ark_2_1.pdf');
+    const ids = usunWgranyPdf('zly.pdf');
+    assert.deepEqual(ids, []);
+    assert.equal(listaWgranychPdf().length, 1);
+    assert.equal(listaWgranychPdf()[0].nazwa, 'Ark_2_1.pdf');
+    wyczyscBuforyTla();
   });
 });

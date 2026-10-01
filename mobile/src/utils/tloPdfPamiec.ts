@@ -86,6 +86,11 @@ export function ustawBuforTla(arkuszId: string, bufor: BuforTlaPdf): void {
   poPliku.set(bazowaNazwaPliku(bufor.nazwa), bufor);
 }
 
+/** Zapamiętuje PDF bez przypinania do arkusza – użytkownik może potem wybrać / usunąć. */
+export function zapiszBuforPliku(bufor: BuforTlaPdf): void {
+  poPliku.set(bazowaNazwaPliku(bufor.nazwa), bufor);
+}
+
 export function buforTlaArkusza(arkuszId: string): BuforTlaPdf | undefined {
   return poArkuszu.get(arkuszId);
 }
@@ -104,4 +109,58 @@ export function podlaczBuforDoArkusza(arkuszId: string, nazwaHint?: string): Buf
     return zNazwy;
   }
   return undefined;
+}
+
+export interface WpisWgranegoPdf {
+  nazwa: string;
+  arkuszIds: string[];
+}
+
+export function listaWgranychPdf(): WpisWgranegoPdf[] {
+  const idsPoNazwie = new Map<string, string[]>();
+  for (const [arkId, buf] of poArkuszu) {
+    const klucz = bazowaNazwaPliku(buf.nazwa);
+    const lista = idsPoNazwie.get(klucz) ?? [];
+    lista.push(arkId);
+    idsPoNazwie.set(klucz, lista);
+  }
+  const seen = new Set<string>();
+  const out: WpisWgranegoPdf[] = [];
+  for (const buf of poPliku.values()) {
+    const klucz = bazowaNazwaPliku(buf.nazwa);
+    if (seen.has(klucz)) continue;
+    seen.add(klucz);
+    out.push({ nazwa: buf.nazwa, arkuszIds: idsPoNazwie.get(klucz) ?? [] });
+  }
+  return out.sort((a, b) => a.nazwa.localeCompare(b.nazwa, 'pl'));
+}
+
+export function przypnijWgranyPdfDoArkusza(arkuszId: string, nazwa: string): BuforTlaPdf | undefined {
+  const buf = poPliku.get(bazowaNazwaPliku(nazwa));
+  if (!buf) return undefined;
+  poArkuszu.set(arkuszId, buf);
+  return buf;
+}
+
+export function odpinBuforTlaArkusza(arkuszId: string): void {
+  poArkuszu.delete(arkuszId);
+}
+
+/** Usuwa PDF z pamięci. Zwraca id arkuszy, które go miały. */
+export function usunWgranyPdf(nazwa: string): string[] {
+  const klucz = bazowaNazwaPliku(nazwa);
+  poPliku.delete(klucz);
+  const ids: string[] = [];
+  for (const [arkId, buf] of [...poArkuszu.entries()]) {
+    if (bazowaNazwaPliku(buf.nazwa) === klucz) {
+      poArkuszu.delete(arkId);
+      ids.push(arkId);
+    }
+  }
+  return ids;
+}
+
+export function wyczyscBuforyTla(): void {
+  poArkuszu.clear();
+  poPliku.clear();
 }

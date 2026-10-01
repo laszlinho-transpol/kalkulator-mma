@@ -26,7 +26,12 @@ import type { WynikParsowaniaXfdf } from '../../utils/xfdfParser';
 import type { TloArkuszaPzt } from '../../types';
 import {
   dopasujPdfDoArkuszy,
+  listaWgranychPdf,
+  odpinBuforTlaArkusza,
+  przypnijWgranyPdfDoArkusza,
+  usunWgranyPdf,
   ustawBuforTla,
+  zapiszBuforPliku,
 } from '../../utils/tloPdfPamiec';
 import { wymiaryStronyPdf } from '../../utils/pdfjsWeb';
 import type { PlikWebImport } from './PrzyciskImportuXfdf';
@@ -61,6 +66,7 @@ export function SekcjaPzt({
   const [blad, setBlad] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [kolejnoscOtwarta, setKolejnoscOtwarta] = useState(false);
+  const [tlaWersja, setTlaWersja] = useState(0);
   const startInit = polaZKilometraza(
     Z_METROW_BIEZACYCH(projekt.kilometrazPoczatkowyM).km,
     Z_METROW_BIEZACYCH(projekt.kilometrazPoczatkowyM).m,
@@ -90,6 +96,7 @@ export function SekcjaPzt({
     proj: ProjektBudowy,
     files: PlikWebImport[],
     preferId?: string,
+    wymienAktywny = false,
   ): Promise<ProjektBudowy> => {
     const pdfs = files.filter((f) => /\.pdf$/i.test(f.name));
     if (pdfs.length === 0) return proj;
@@ -98,22 +105,30 @@ export function SekcjaPzt({
       return proj;
     }
     let next = proj;
-    const mapa = dopasujPdfDoArkuszy(next.arkusze, pdfs.map((f) => f.name));
-    const zajete = new Set(mapa.values());
-    const wolnePdf = pdfs.filter((f) => !zajete.has(f.name));
-    const bezTla = [...next.arkusze.filter((a) => !mapa.has(a.id))]
-      .sort((a, b) => (a.id === preferId ? -1 : b.id === preferId ? 1 : 0));
-    for (let i = 0; i < wolnePdf.length && i < bezTla.length; i++) {
-      mapa.set(bezTla[i].id, wolnePdf[i].name);
-    }
-    if (preferId && pdfs.length === 1 && !mapa.has(preferId)) {
-      mapa.set(preferId, pdfs[0].name);
-    }
     const bufory = new Map<string, Awaited<ReturnType<typeof wymiaryStronyPdf>> & { data: Uint8Array; nazwa: string }>();
     for (const f of pdfs) {
       const data = new Uint8Array(await f.arrayBuffer());
       const wym = await wymiaryStronyPdf(data, 1);
-      bufory.set(f.name, { ...wym, data, nazwa: f.name });
+      const b = { ...wym, data, nazwa: f.name };
+      bufory.set(f.name, b);
+      zapiszBuforPliku({
+        data: b.data,
+        nazwa: b.nazwa,
+        pageW: b.pageW,
+        pageH: b.pageH,
+        strona: 1,
+      });
+    }
+    const mapa = dopasujPdfDoArkuszy(next.arkusze, pdfs.map((f) => f.name));
+    const zajete = new Set(mapa.values());
+    const wolnePdf = pdfs.filter((f) => !zajete.has(f.name));
+    const bezTla = [...next.arkusze.filter((a) => !mapa.has(a.id) && !a.tlo)]
+      .sort((a, b) => (a.id === preferId ? -1 : b.id === preferId ? 1 : 0));
+    for (let i = 0; i < wolnePdf.length && i < bezTla.length; i++) {
+      mapa.set(bezTla[i].id, wolnePdf[i].name);
+    }
+    if (wymienAktywny && preferId && pdfs.length === 1) {
+      mapa.set(preferId, pdfs[0].name);
     }
     let ile = 0;
     for (const [arkId, nazwa] of mapa) {
@@ -137,9 +152,15 @@ export function SekcjaPzt({
       next = ustawTloArkusza(next, arkId, tlo);
       ile += 1;
     }
-    setInfo(ile > 0
-      ? `Nałożono tło PDF na ${ile} arkusz(y). Widać pikiety i obrysy z PZT; przy zoomie raster jest odświeżany.`
-      : 'Nie dopasowano PDF – wgraj PDF przy otwartej zakładce (nazwa nie musi być identyczna z XFDF).');
+    setTlaWersja((n) => n + 1);
+    const nieprzypisane = pdfs.length - ile;
+    if (ile > 0 && nieprzypisane > 0) {
+      setInfo(`Nałożono tło na ${ile} arkusz(y). ${nieprzypisane} PDF czeka na liście poniżej – przypisz albo usuń zbędny.`);
+    } else if (ile > 0) {
+      setInfo(`Nałożono tło PDF na ${ile} arkusz(y).`);
+    } else {
+      setInfo('PDF zapisano na liście poniżej. Wybierz „Użyj tu” przy właściwej zakładce albo usuń zbędny plik.');
+    }
     return next;
   };
 
@@ -206,7 +227,7 @@ export function SekcjaPzt({
         }
       }
       if (pdfs.length > 0) {
-        next = await przypnijPdfs(next, pdfs, arkuszId);
+        next = await przypnijPdfs(next, pdfs, arkuszId, xfdf.length === 0);
       }
       onZmien(next);
     } catch (e) {
@@ -233,22 +254,95 @@ export function SekcjaPzt({
 
   const usunAktywny = () => {
     if (!aktywny) return;
+    usunArkuszPoId(aktywny.id, aktywny.nazwa);
+  };
+
+  const usunArkuszPoId = (id: string, nazwa: string) => {
+    const idx = projekt.arkusze.findIndex((a) => a.id === id);
     const wykonaj = () => {
-      const next = usunArkusz(projekt, aktywny.id);
+      odpinBuforTlaArkusza(id);
+      setTlaWersja((n) => n + 1);
+      const next = usunArkusz(projekt, id);
       onZmien(next);
-      setArkuszId(next.arkusze[Math.min(idxAktywny, next.arkusze.length - 1)]?.id);
-      setInfo('Usunięto arkusz.');
+      if (arkuszId === id) {
+        setArkuszId(next.arkusze[Math.min(Math.max(0, idx), next.arkusze.length - 1)]?.id);
+      }
+      setInfo(`Usunięto arkusz „${nazwa}”.`);
     };
     if (Platform.OS === 'web') {
-      if (!potwierdzWeb(`Usunąć arkusz „${aktywny.nazwa}”?`)) return;
+      if (!potwierdzWeb(`Usunąć arkusz XFDF „${nazwa}”?`)) return;
       wykonaj();
       return;
     }
-    Alert.alert('Usuń arkusz', `Usunąć „${aktywny.nazwa}”?`, [
+    Alert.alert('Usuń arkusz', `Usunąć „${nazwa}”?`, [
       { text: 'Anuluj', style: 'cancel' },
       { text: 'Usuń', style: 'destructive', onPress: wykonaj },
     ]);
   };
+
+  const usunTloAktywnego = () => {
+    if (!aktywny) return;
+    const wykonaj = () => {
+      odpinBuforTlaArkusza(aktywny.id);
+      setTlaWersja((n) => n + 1);
+      onZmien(ustawTloArkusza(projekt, aktywny.id, undefined));
+      setInfo('Odpięto tło PDF od tej zakładki (plik zostaje na liście, możesz go usunąć albo przypisać gdzie indziej).');
+    };
+    if (Platform.OS === 'web') {
+      if (!potwierdzWeb(`Odpiąć tło PDF od „${aktywny.nazwa}”?`)) return;
+      wykonaj();
+      return;
+    }
+    Alert.alert('Usuń tło', `Odpiąć tło PDF od „${aktywny.nazwa}”?`, [
+      { text: 'Anuluj', style: 'cancel' },
+      { text: 'Usuń', style: 'destructive', onPress: wykonaj },
+    ]);
+  };
+
+  const usunPlikPdf = (nazwa: string) => {
+    const wykonaj = () => {
+      const ids = usunWgranyPdf(nazwa);
+      setTlaWersja((n) => n + 1);
+      let next = projekt;
+      for (const id of ids) next = ustawTloArkusza(next, id, undefined);
+      if (ids.length > 0) onZmien(next);
+      setInfo(`Usunięto plik tła „${nazwa}”.`);
+    };
+    if (Platform.OS === 'web') {
+      if (!potwierdzWeb(`Usunąć wgrany PDF „${nazwa}” z pamięci?`)) return;
+      wykonaj();
+      return;
+    }
+    Alert.alert('Usuń PDF', `Usunąć „${nazwa}”?`, [
+      { text: 'Anuluj', style: 'cancel' },
+      { text: 'Usuń', style: 'destructive', onPress: wykonaj },
+    ]);
+  };
+
+  const uzyjPdfNaAktywnej = (nazwa: string) => {
+    if (!aktywny) {
+      pokazKomunikat('Tło PDF', 'Najpierw wybierz zakładkę arkusza.');
+      return;
+    }
+    const buf = przypnijWgranyPdfDoArkusza(aktywny.id, nazwa);
+    if (!buf) {
+      pokazKomunikat('Tło PDF', 'Nie znaleziono tego pliku w pamięci – wgraj go ponownie.');
+      return;
+    }
+    setTlaWersja((n) => n + 1);
+    onZmien(ustawTloArkusza(projekt, aktywny.id, {
+      nazwa: buf.nazwa,
+      pageW: buf.pageW,
+      pageH: buf.pageH,
+      strona: buf.strona,
+      widoczne: true,
+      opacity: 1,
+    }));
+    setInfo(`Tło „${buf.nazwa}” na zakładce „${aktywny.nazwa}”.`);
+  };
+
+  const wgranePdf = listaWgranychPdf();
+  void tlaWersja;
 
   const przesun = (kierunek: -1 | 1) => {
     if (!aktywny) return;
@@ -300,6 +394,38 @@ export function SekcjaPzt({
           onWebFiles={(files) => { void importujWeb(files); }}
         />
       ) : null}
+      {wgranePdf.length > 0 ? (
+        <View style={[karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border, gap: 8 }]}>
+          <Text style={[styles.label, { color: theme.colors.text }]}>Wgrane tła PDF</Text>
+          <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>
+            Jeśli na zakładce leży zły arkusz – usuń zbędny plik albo kliknij „Użyj tu” przy właściwym.
+          </Text>
+          {wgranePdf.map((p) => {
+            const naTej = aktywny ? p.arkuszIds.includes(aktywny.id) : false;
+            const etykiety = p.arkuszIds
+              .map((id) => projekt.arkusze.find((a) => a.id === id)?.nazwa)
+              .filter(Boolean);
+            return (
+              <View key={p.nazwa} style={[styles.pdfWiersz, { borderColor: theme.colors.border }]}>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={{ color: theme.colors.text, fontWeight: '700', fontSize: 13 }} numberOfLines={2}>
+                    {p.nazwa}
+                  </Text>
+                  <Text style={{ color: naTej ? theme.colors.primary : theme.colors.textSecondary, fontSize: 11, marginTop: 2 }}>
+                    {naTej ? 'Na tej zakładce' : etykiety.length ? `Przypisany: ${etykiety.join(', ')}` : 'Nieprzypisany'}
+                  </Text>
+                </View>
+                <TouchableOpacity onPress={() => uzyjPdfNaAktywnej(p.nazwa)} disabled={!aktywny}>
+                  <Text style={{ color: theme.colors.primary, fontWeight: '800', fontSize: 12 }}>Użyj tu</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => usunPlikPdf(p.nazwa)}>
+                  <Text style={{ color: theme.colors.danger, fontWeight: '800', fontSize: 12 }}>Usuń</Text>
+                </TouchableOpacity>
+              </View>
+            );
+          })}
+        </View>
+      ) : null}
       {blad ? <Text style={{ color: theme.colors.danger, fontSize: 12 }}>{blad}</Text> : null}
       {info ? <Text style={{ color: theme.colors.success, fontSize: 12 }}>{info}</Text> : null}
       {!blad && !info ? (
@@ -335,7 +461,7 @@ export function SekcjaPzt({
               const sel = a.id === aktywny?.id;
               return (
                 <View key={a.id} style={styles.tabWrap}>
-                  <TouchableOpacity
+                  <View
                     style={[
                       styles.tab,
                       {
@@ -343,15 +469,29 @@ export function SekcjaPzt({
                         borderColor: sel ? theme.colors.primary : theme.colors.border,
                       },
                     ]}
-                    onPress={() => setArkuszId(a.id)}
                   >
-                    <Text style={{ color: theme.colors.text, fontWeight: '800', fontSize: 13 }} numberOfLines={1}>
-                      {i + 1}. {etykietaZakladkiArkusza(a.nazwa)}
-                    </Text>
-                    <Text style={{ color: theme.colors.primary, fontSize: 11, fontWeight: '700', marginTop: 2 }}>
-                      {formatujKmM(a.kilometrazPoczatkowyM)} → {formatujKmM(a.kilometrazKoncowyM)}
-                    </Text>
-                  </TouchableOpacity>
+                    <TouchableOpacity onPress={() => setArkuszId(a.id)} style={{ flex: 1 }}>
+                      <Text style={{ color: theme.colors.text, fontWeight: '800', fontSize: 13 }} numberOfLines={1}>
+                        {i + 1}. {etykietaZakladkiArkusza(a.nazwa)}
+                      </Text>
+                      <Text style={{ color: theme.colors.primary, fontSize: 11, fontWeight: '700', marginTop: 2 }}>
+                        {formatujKmM(a.kilometrazPoczatkowyM)} → {formatujKmM(a.kilometrazKoncowyM)}
+                      </Text>
+                      {a.tlo ? (
+                        <Text style={{ color: theme.colors.textSecondary, fontSize: 10, marginTop: 2 }} numberOfLines={1}>
+                          PDF: {a.tlo.nazwa}
+                        </Text>
+                      ) : null}
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => usunArkuszPoId(a.id, a.nazwa)}
+                      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                      accessibilityLabel={`Usuń arkusz ${a.nazwa}`}
+                      style={styles.tabX}
+                    >
+                      <Text style={{ color: theme.colors.danger, fontWeight: '900', fontSize: 16 }}>×</Text>
+                    </TouchableOpacity>
+                  </View>
                   <View style={styles.tabAkcje}>
                     <TouchableOpacity
                       style={[styles.strzalka, { borderColor: theme.colors.border, opacity: !kolejnoscOtwarta || i === 0 ? 0.35 : 1 }]}
@@ -474,14 +614,22 @@ export function SekcjaPzt({
                   </View>
                 ) : null}
                 <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>
-                  Plik: {aktywny.zrodloNazwa}
-                  {aktywny.zrodloPdfHref ? `\nPDF: ${aktywny.zrodloPdfHref}` : ''}
+                  Plik XFDF: {aktywny.zrodloNazwa}
+                  {aktywny.tlo ? `\nTło PDF: ${aktywny.tlo.nazwa}` : '\nBrak tła PDF'}
                 </Text>
+                {aktywny.tlo ? (
+                  <TouchableOpacity
+                    style={[styles.btnUsun, { borderColor: theme.colors.warning ?? theme.colors.danger }]}
+                    onPress={usunTloAktywnego}
+                  >
+                    <Text style={{ color: theme.colors.warning ?? theme.colors.danger, fontWeight: '800' }}>Odepnij tło PDF</Text>
+                  </TouchableOpacity>
+                ) : null}
                 <TouchableOpacity
                   style={[styles.btnUsun, { borderColor: theme.colors.danger }]}
                   onPress={usunAktywny}
                 >
-                  <Text style={{ color: theme.colors.danger, fontWeight: '800' }}>Usuń arkusz</Text>
+                  <Text style={{ color: theme.colors.danger, fontWeight: '800' }}>Usuń arkusz XFDF</Text>
                 </TouchableOpacity>
               </View>
             </>
@@ -503,7 +651,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     minWidth: 148,
-    maxWidth: 200,
+    maxWidth: 220,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+  },
+  tabX: { paddingHorizontal: 2, paddingTop: 0 },
+  pdfWiersz: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
   },
   tabAkcje: { flexDirection: 'row', gap: 4, justifyContent: 'center' },
   klodka: {
