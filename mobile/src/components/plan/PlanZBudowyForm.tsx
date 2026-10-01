@@ -120,8 +120,8 @@ export function PlanZBudowyForm({ tytul, budowaId, initialPlan, onZapisz }: Prop
     const pierwsza = opcjeWarstw[0];
     setWarstwaNazwa(pierwsza.nazwa);
     setWarstwaKat(pierwsza.kategoria);
-    setOdsL(String(pierwsza.odsadzkaCm));
-    setOdsP(String(pierwsza.odsadzkaCm));
+    setOdsL(String(pierwsza.odsadzkaLewaCm ?? pierwsza.odsadzkaCm));
+    setOdsP(String(pierwsza.odsadzkaPrawaCm ?? pierwsza.odsadzkaCm));
     if (pierwsza.mieszankaIds.length === 1) setMieszankaId(pierwsza.mieszankaIds[0]);
   }, [opcjeWarstw, warstwaNazwa]);
 
@@ -282,8 +282,8 @@ export function PlanZBudowyForm({ tytul, budowaId, initialPlan, onZapisz }: Prop
                   onPress={() => {
                     setWarstwaNazwa(w.nazwa);
                     setWarstwaKat(w.kategoria);
-                    setOdsL(String(w.odsadzkaCm));
-                    setOdsP(String(w.odsadzkaCm));
+                    setOdsL(String(w.odsadzkaLewaCm ?? w.odsadzkaCm));
+                    setOdsP(String(w.odsadzkaPrawaCm ?? w.odsadzkaCm));
                     setGrubosci([]);
                     if (w.mieszankaIds.length === 1) setMieszankaId(w.mieszankaIds[0]);
                   }}

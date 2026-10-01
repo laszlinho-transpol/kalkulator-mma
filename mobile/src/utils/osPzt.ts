@@ -86,6 +86,69 @@ export function stacjaNaOsi(os: Punkt2D[], p: Punkt2D): number {
   return najlepsza;
 }
 
+/** Styczny do osi w stacji s – (dx,dy) unormowane, w układzie PDF (Y w górę). */
+export function stycznyNaOsi(os: Punkt2D[], s: number): { punkt: Punkt2D; dx: number; dy: number } | null {
+  const punkt = punktNaOsi(os, s);
+  if (!punkt || os.length < 2) return null;
+  let acc = 0;
+  const target = Math.max(0, s);
+  for (let i = 0; i < os.length - 1; i++) {
+    const d = dystans(os[i], os[i + 1]);
+    if (acc + d >= target - 1e-9 || i === os.length - 2) {
+      const dx = os[i + 1].x - os[i].x;
+      const dy = os[i + 1].y - os[i].y;
+      const len = Math.hypot(dx, dy) || 1;
+      return { punkt, dx: dx / len, dy: dy / len };
+    }
+    acc += d;
+  }
+  return null;
+}
+
+/**
+ * Pełne wielokrotności kroku w [odM, doM], np. start 106+850, krok 50 → 106+850, 106+900, …
+ */
+export function stacjePodzialki(odM: number, doM: number, krokM: number): number[] {
+  const krok = Math.max(1, Math.round(krokM));
+  const lo = Math.min(odM, doM);
+  const hi = Math.max(odM, doM);
+  const first = Math.ceil(lo / krok - 1e-9) * krok;
+  const out: number[] = [];
+  for (let s = first; s <= hi + 1e-6; s += krok) out.push(Math.round(s * 1000) / 1000);
+  return out;
+}
+
+/** Ustawia łańcuch osi zgodnie z rosnącym km: do końca poprzedniego arkusza, inaczej od mniejszego X. */
+export function orientujLancuchDoKm(pts: Punkt2D[], prevKoniec?: Punkt2D): Punkt2D[] {
+  if (pts.length < 2) return pts;
+  if (prevKoniec) {
+    return dystans(pts[0], prevKoniec) <= dystans(pts[pts.length - 1], prevKoniec)
+      ? pts
+      : [...pts].reverse();
+  }
+  return pts[0].x <= pts[pts.length - 1].x ? pts : [...pts].reverse();
+}
+
+/**
+ * Lewa / prawa patrząc zgodnie z rosnącym kilometrażem (kierunek osi).
+ * Iloczyn wektorowy > 0 (PDF Y w górę) = lewa strona trasy.
+ */
+export function stronaWzgledemOsi(p: Punkt2D, os: Punkt2D[]): 'lewa' | 'prawa' | undefined {
+  if (os.length < 2) return undefined;
+  const t = stycznyNaOsi(os, stacjaNaOsi(os, p));
+  if (!t) return undefined;
+  const cross = t.dx * (p.y - t.punkt.y) - t.dy * (p.x - t.punkt.x);
+  if (Math.abs(cross) < 1e-6) return undefined;
+  return cross > 0 ? 'lewa' : 'prawa';
+}
+
+export function iloczynWektorowyOsi(p: Punkt2D, os: Punkt2D[]): number {
+  if (os.length < 2) return 0;
+  const t = stycznyNaOsi(os, stacjaNaOsi(os, p));
+  if (!t) return 0;
+  return t.dx * (p.y - t.punkt.y) - t.dy * (p.x - t.punkt.x);
+}
+
 function interp(a: Punkt2D, b: Punkt2D, sa: number, sb: number, s: number): Punkt2D {
   const t = Math.abs(sb - sa) < 1e-9 ? 0 : (s - sa) / (sb - sa);
   return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };

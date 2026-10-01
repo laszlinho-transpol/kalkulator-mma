@@ -3,6 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import Svg, { Rect } from 'react-native-svg';
 import type { WarstwaKonstrukcji } from '../../types';
 import type { AppTheme } from '../../constants/theme';
+import { odsadzkiWarstwy } from '../../utils/projektBudowy';
 
 const KOLORY: Record<string, string> = {
   sma: '#27272A',
@@ -37,7 +38,10 @@ export function PrzekrojKonstrukcji({ warstwy, theme, szerokoscSzkicu = 132 }: P
   }
 
   const sumaH = posortowane.reduce((s, w) => s + Math.max(w.gruboscCm, 1), 0);
-  const maxOds = Math.max(0, ...posortowane.map((w) => w.odsadzkaCm));
+  const maxOds = Math.max(0, ...posortowane.map((w) => {
+    const o = odsadzkiWarstwy(w);
+    return o.lewa + o.prawa;
+  }));
   const pad = 8;
   const rysW = szerokoscSzkicu - pad * 2;
   const bazaW = rysW * 0.72;
@@ -46,10 +50,11 @@ export function PrzekrojKonstrukcji({ warstwy, theme, szerokoscSzkicu = 132 }: P
 
   let y = pad;
   const rects = posortowane.map((w) => {
+    const ods = odsadzkiWarstwy(w);
     const h = Math.max((Math.max(w.gruboscCm, 1) / Math.max(sumaH, 1)) * proporcH, MIN_WIERSZ);
-    const szer = bazaW + w.odsadzkaCm * skalaW;
+    const szer = bazaW + (ods.lewa + ods.prawa) * skalaW;
     const x = pad + (rysW - szer) / 2;
-    const item = { w, x, y, h, szer };
+    const item = { w, x, y, h, szer, ods };
     y += h;
     return item;
   });
@@ -79,7 +84,7 @@ export function PrzekrojKonstrukcji({ warstwy, theme, szerokoscSzkicu = 132 }: P
             </Text>
             <Text style={[styles.opisWymiary, { color: theme.colors.textSecondary }]} numberOfLines={1}>
               {r.w.gruboscCm} cm
-              {r.w.odsadzkaCm ? ` · odsadzka ${r.w.odsadzkaCm} cm` : ''}
+              {r.ods.lewa || r.ods.prawa ? ` · ods. L ${r.ods.lewa} / P ${r.ods.prawa} cm` : ''}
             </Text>
           </View>
         ))}

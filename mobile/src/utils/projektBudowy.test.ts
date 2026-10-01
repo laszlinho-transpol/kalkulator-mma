@@ -17,6 +17,7 @@ import {
   normalizujKolorHex,
   obliczPrzedmiar,
   powierzchniaWarstwyZOdsadzka,
+  powierzchniaWarstwyZOdsadzkami,
   pustyProjektBudowy,
   przesunArkusz,
   scalWiersze,
@@ -32,6 +33,8 @@ import {
   dlugoscArkuszaM,
   etykietaZakladkiArkusza,
   zsynchronizujLegendeProjektu,
+  sumaOsiTrasyM,
+  odsadzkiWarstwy,
 } from './projektBudowy';
 
 function prostokat(id: string, kolor: string, dlugoscM: number, szerM: number, nazwa: string): ObszarObmiaru {
@@ -238,6 +241,13 @@ describe('projektBudowy', () => {
     assert.ok(Math.abs(projekt.arkusze[1].kilometrazKoncowyM - (106850 + 435.68 * 2)) < 0.02);
     const geom = projekt.arkusze[0].osTrasy?.wierzcholkiM;
     assert.ok(geom && geom.length >= 2);
+    assert.ok(Math.abs(sumaOsiTrasyM(projekt) - 435.68 * 2) < 0.05);
+  });
+
+  it('odsadzki warstwy: L i P, stary zapis tylko jedną krawędź', () => {
+    assert.deepEqual(odsadzkiWarstwy({ odsadzkaCm: 7 }), { lewa: 7, prawa: 0 });
+    assert.deepEqual(odsadzkiWarstwy({ odsadzkaCm: 7, odsadzkaLewaCm: 7, odsadzkaPrawaCm: 7 }), { lewa: 7, prawa: 7 });
+    assert.ok(Math.abs(powierzchniaWarstwyZOdsadzkami(2000, 400, 7, 7) - (2000 + 400 * 0.14)) < 0.02);
   });
 
   it('dodaje kolejne XFDF jako kontynuację kilometrażu', () => {
@@ -319,10 +329,10 @@ describe('projektBudowy', () => {
 
     assert.equal(sma.powierzchniaM2, 2000);
     assert.equal(sma.tony, tonyZPowierzchni(2000, 4, GESTOSC_MMA_DOMYSLNA));
-    const powWiaz = powierzchniaWarstwyZOdsadzka(2000, 400, 7);
+    const powWiaz = powierzchniaWarstwyZOdsadzkami(2000, 400, 7, 7);
     assert.equal(wiaz.powierzchniaM2, powWiaz);
     assert.equal(wiaz.tony, tonyZPowierzchni(powWiaz, 6, GESTOSC_MMA_DOMYSLNA));
-    const powKlsm = powierzchniaWarstwyZOdsadzka(2000, 400, 25);
+    const powKlsm = powierzchniaWarstwyZOdsadzkami(2000, 400, 25, 25);
     assert.equal(klsm.powierzchniaM2, powKlsm);
     assert.equal(klsm.tony, tonyZPowierzchni(powKlsm, 20, GESTOSC_KLSM_DOMYSLNA));
 

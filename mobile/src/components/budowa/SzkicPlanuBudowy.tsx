@@ -93,6 +93,7 @@ export function SzkicPlanuBudowy({
         liveStacjaM={stacjaRozkladarki}
         liveAuta={metryCum}
         onPressAuto={onPressAuto}
+        podzialkaM={projekt.podzialkaKilometrazuM ?? 50}
         onTloZmiana={(patch) => setTloPatch((p) => ({ ...p, [arkusz.id]: { ...p[arkusz.id], ...patch } }))}
       />
     </View>

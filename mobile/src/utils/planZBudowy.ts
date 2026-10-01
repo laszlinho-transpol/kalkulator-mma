@@ -25,6 +25,7 @@ import {
 import {
   formatujKmM,
   kluczLegendy,
+  odsadzkiWarstwy,
   segmentyKonstrukcji,
   tonyZPowierzchni,
 } from './projektBudowy';
@@ -88,6 +89,8 @@ export interface OpcjaWarstwyPlanu {
   nazwa: string;
   kategoria: KategoriaWarstwy;
   odsadzkaCm: number;
+  odsadzkaLewaCm: number;
+  odsadzkaPrawaCm: number;
   mieszankaIds: string[];
 }
 
@@ -109,6 +112,8 @@ export function opcjeWarstwWZakresie(
           nazwa: w.nazwa,
           kategoria: w.kategoria,
           odsadzkaCm: w.odsadzkaCm,
+          odsadzkaLewaCm: odsadzkiWarstwy(w).lewa,
+          odsadzkaPrawaCm: odsadzkiWarstwy(w).prawa,
           mieszankaIds: [...w.mieszankaIds],
         });
       } else {

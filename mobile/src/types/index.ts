@@ -377,6 +377,10 @@ export interface ObszarObmiaru {
   krawedzniki?: KrawedznikObmiaru[];
   /** Żółty = lewa, różowy = prawa (trasa główna) */
   stronaTrasy?: 'lewa' | 'prawa';
+  /** Długość odcinka wzdłuż rosnącego km (oś / boki) */
+  dlugoscOdcinkaM?: number;
+  /** Szerokość poprzeczna (podstawa L–P) */
+  szerokoscOdcinkaM?: number;
   wpisyWz?: WpisWzObmiaru[];
   /** Grubość układania [cm] – jak w Zaplanuj masę (alias / wstecz) */
   gruboscCm?: number;
@@ -460,8 +464,15 @@ export interface WarstwaKonstrukcji {
   nazwa: string;
   rodzajOpis: string;
   gruboscCm: number;
-  /** Odsadzka względem obrysu PZT [cm] */
+  /**
+   * @deprecated użyj odsadzkaLewaCm / odsadzkaPrawaCm
+   * Zachowane: stary zapis = jedna wartość kopiowana na obie strony.
+   */
   odsadzkaCm: number;
+  /** Odsadzka lewej krawędzi (patrząc zgodnie z rosnącym km) [cm] */
+  odsadzkaLewaCm?: number;
+  /** Odsadzka prawej krawędzi (patrząc zgodnie z rosnącym km) [cm] */
+  odsadzkaPrawaCm?: number;
   kategoria: KategoriaWarstwy;
   /** Zatwierdzone recepty MMA (wiele wytwórni) */
   mieszankaIds: string[];
@@ -528,6 +539,8 @@ export interface WierszPrzedmiaruScalony {
 
 export interface ProjektBudowy {
   kilometrazPoczatkowyM: number;
+  /** Co ile metrów rysować podziałkę na osi PZT (0 = wyłącz). Domyślnie 50. */
+  podzialkaKilometrazuM?: number;
   skala: SkalaPzt;
   arkusze: ArkuszPzt[];
   legenda: WpisLegendy[];

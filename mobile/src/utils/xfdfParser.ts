@@ -11,6 +11,12 @@ import {
   metryNaPunktPdf,
 } from './obmiarGeometry';
 import { round2 } from './calculations';
+import {
+  iloczynWektorowyOsi,
+  orientujLancuchDoKm,
+  stacjaNaOsi,
+  stronaWzgledemOsi,
+} from './osPzt';
 
 export interface PolygonXfdfSurowy {
   wierzcholki: Punkt2D[];
@@ -58,12 +64,56 @@ function attr(attrs: string, name: string): string | undefined {
   return attrs.match(new RegExp(`${name}="([^"]*)"`, 'i'))?.[1];
 }
 
+function tekstBezTagow(s: string): string {
+  return s
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;|&#160;/gi, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function etykietaMetrow(body: string): number | undefined {
+  const t = tekstBezTagow(body);
   const oczysc = (s: string) => s.replace(/\s|\u00a0/g, '').replace(',', '.');
-  const m = body.match(/([0-9]{1,4}(?:[\s\u00a0][0-9]{3})*|[0-9]+)([,.][0-9]+)?\s*m(?!\s*[²2])/i);
+  const m = t.match(/([0-9]{1,4}(?:[\s\u00a0][0-9]{3})+|[0-9]{1,4})([,.][0-9]+)?\s*m(?!\s*[²2])/i);
   if (!m) return undefined;
   const n = parseFloat(oczysc(`${m[1]}${m[2] ?? ''}`));
   return Number.isFinite(n) && n > 0 ? n : undefined;
+}
+
+function etykietyZBlokuContents(xml: string): number[] {
+  const out: number[] = [];
+  const blok = /<contents(?:-richtext)?\b[^>]*>([\s\S]*?)<\/contents(?:-richtext)?>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = blok.exec(xml)) !== null) {
+    const n = etykietaMetrow(m[1] ?? '');
+    if (n) out.push(n);
+  }
+  const attrRe = /\bcontents="([^"]*)"/gi;
+  while ((m = attrRe.exec(xml)) !== null) {
+    const n = etykietaMetrow(m[1] ?? '');
+    if (n) out.push(n);
+  }
+  return out;
+}
+
+export function zbierzEtykietyMetrow(xml: string): number[] {
+  return etykietyZBlokuContents(xml);
+}
+
+function etykietaZAnnotacji(attrs: string, body: string): number | undefined {
+  const zBloku = etykietyZBlokuContents(`${attrs} ${body}`);
+  if (zBloku.length > 0) return Math.max(...zBloku);
+  return undefined;
+}
+
+/** Gdy oś nie ma wymiaru na polilinii, bierzemy etykietę długości arkusza z XFDF (np. osobna linia wymiarowa). */
+export function etykietaOsiZArkusza(osEtykietaM: number | undefined, xml: string): number | undefined {
+  if (osEtykietaM && osEtykietaM > 1 && osEtykietaM < 2500) return osEtykietaM;
+  const arkuszowe = zbierzEtykietyMetrow(xml).filter((e) => e >= 80 && e <= 2500);
+  if (arkuszowe.length === 0) return osEtykietaM && osEtykietaM > 1 ? osEtykietaM : undefined;
+  return Math.max(...arkuszowe);
 }
 
 function distPunktOdcinek(p: Punkt2D, a: Punkt2D, b: Punkt2D): number {
@@ -241,6 +291,53 @@ export function bazyZEkstemowX(wierzcholki: Punkt2D[]): { start: BazaObmiaru; ko
 }
 
 /**
+ * Podstawy start/koniec i L/P wzdłuż osi: długość = stacja km, szerokość = poprzeczka.
+ * Lewa = po lewej gdy idziemy rosnącym kilometrażem.
+ */
+export function bazyWzdluzOsi(
+  wierzcholki: Punkt2D[],
+  os: Punkt2D[],
+): { start: BazaObmiaru; koniec: BazaObmiaru; dlugosc: number } | null {
+  if (wierzcholki.length < 4 || os.length < 2) return null;
+  const stacje = wierzcholki.map((p, i) => ({ i, s: stacjaNaOsi(os, p) }));
+  const minS = Math.min(...stacje.map((x) => x.s));
+  const maxS = Math.max(...stacje.map((x) => x.s));
+  const roz = Math.max(maxS - minS, 1e-6);
+  let pas = Math.max(roz * 0.03, 1e-4);
+  const skraj = (lo: number, hi: number): { idxLewy: number; idxPrawy: number } | null => {
+    let kand = stacje.filter((x) => x.s >= lo && x.s <= hi);
+    if (kand.length < 2) kand = stacje.filter((x) => Math.abs(x.s - (lo + hi) / 2) <= pas * 2);
+    if (kand.length < 2) return null;
+    let idxLewy = kand[0].i;
+    let idxPrawy = kand[0].i;
+    let maxC = iloczynWektorowyOsi(wierzcholki[idxLewy], os);
+    let minC = maxC;
+    for (const k of kand) {
+      const c = iloczynWektorowyOsi(wierzcholki[k.i], os);
+      if (c > maxC) {
+        maxC = c;
+        idxLewy = k.i;
+      }
+      if (c < minC) {
+        minC = c;
+        idxPrawy = k.i;
+      }
+    }
+    if (idxLewy === idxPrawy) return null;
+    return { idxLewy, idxPrawy };
+  };
+  let start = skraj(minS, minS + pas);
+  let koniec = skraj(maxS - pas, maxS);
+  if (!start || !koniec) {
+    pas = roz * 0.08;
+    start = skraj(minS, minS + pas);
+    koniec = skraj(maxS - pas, maxS);
+  }
+  if (!start || !koniec) return null;
+  return { start, koniec, dlugosc: roz };
+}
+
+/**
  * Lekki parser XFDF bez pełnego DOM XML –
  * PDF-XChange zapisuje vertices jako tekst w <vertices>…</vertices>.
  */
@@ -280,17 +377,58 @@ export function parsujXfdfTekst(xml: string, zrodloNazwa: string): WynikParsowan
       color: attr(attrs, 'color'),
       subject: attr(attrs, 'subject'),
       style: attr(attrs, 'style'),
-      dlugoscEtykietaM: etykietaMetrow(body),
+      dlugoscEtykietaM: etykietaZAnnotacji(attrs, body),
     });
   }
 
-  return { zrodloNazwa, zrodloPdfHref, polygony, polilinie, osTrasy: wybierzOsTrasy(polilinie) };
+  const lineAnnotRegex = /<line\b([^>]*)>([\s\S]*?)<\/line>/gi;
+  while ((m = lineAnnotRegex.exec(xml)) !== null) {
+    const attrs = m[1] ?? '';
+    const body = m[2] ?? '';
+    let wierzcholki: Punkt2D[] = [];
+    const vertMatch = body.match(/<vertices[^>]*>([\s\S]*?)<\/vertices>/i);
+    if (vertMatch) wierzcholki = parsujVertices(vertMatch[1].trim());
+    if (wierzcholki.length < 2) {
+      const start = attr(attrs, 'start');
+      const end = attr(attrs, 'end');
+      if (start && end) {
+        const [x1, y1] = start.split(',').map((s) => parseFloat(s.trim()));
+        const [x2, y2] = end.split(',').map((s) => parseFloat(s.trim()));
+        if ([x1, y1, x2, y2].every((n) => Number.isFinite(n))) {
+          wierzcholki = [{ x: x1, y: y1 }, { x: x2, y: y2 }];
+        }
+      }
+    }
+    if (wierzcholki.length < 2) continue;
+    polilinie.push({
+      wierzcholki,
+      color: attr(attrs, 'color'),
+      subject: attr(attrs, 'subject'),
+      style: attr(attrs, 'style'),
+      dlugoscEtykietaM: etykietaZAnnotacji(attrs, body),
+    });
+  }
+
+  const osSurowa = wybierzOsTrasy(polilinie);
+  const osOrient = osSurowa && osSurowa.wierzcholki.length >= 2
+    ? { ...osSurowa, wierzcholki: orientujLancuchDoKm(osSurowa.wierzcholki) }
+    : osSurowa;
+  const osTrasy = osOrient
+    ? { ...osOrient, dlugoscEtykietaM: etykietaOsiZArkusza(osOrient.dlugoscEtykietaM, xml) }
+    : undefined;
+
+  return { zrodloNazwa, zrodloPdfHref, polygony, polilinie, osTrasy };
 }
 
-function nazwaObszaru(p: PolygonXfdfSurowy, i: number, kolejnoscStart: number): string {
-  const strona = stronaTrasyZKoloru(p.kolorWypelnienia);
-  if (strona === 'lewa') return 'Trasa L';
-  if (strona === 'prawa') return 'Trasa P';
+function nazwaObszaru(
+  p: PolygonXfdfSurowy,
+  i: number,
+  kolejnoscStart: number,
+  strona?: 'lewa' | 'prawa',
+): string {
+  const s = strona ?? stronaTrasyZKoloru(p.kolorWypelnienia);
+  if (s === 'lewa') return 'Trasa L';
+  if (s === 'prawa') return 'Trasa P';
   return `Obszar ${kolejnoscStart + i}`;
 }
 
@@ -342,13 +480,30 @@ export function obszaryZPolygony(
   kolejnoscStart = 1,
 ): ObszarObmiaru[] {
   const teraz = new Date().toISOString();
+  const osPdf = wynik.osTrasy?.wierzcholki;
   const surowe = wynik.polygony.map((p, i) => {
     const wierzcholkiM = skalujWierzcholki(p.wierzcholki, skala);
-    const stronaTrasy = stronaTrasyZKoloru(p.kolorWypelnienia);
-    const bazy = bazyZEkstemowX(p.wierzcholki);
+    const k = metryNaPunktPdf(skala);
+    const zOsi = osPdf && osPdf.length >= 2 ? bazyWzdluzOsi(p.wierzcholki, osPdf) : null;
+    const bazy = zOsi ?? bazyZEkstemowX(p.wierzcholki);
+    const centroid = {
+      x: p.wierzcholki.reduce((s, q) => s + q.x, 0) / Math.max(p.wierzcholki.length, 1),
+      y: p.wierzcholki.reduce((s, q) => s + q.y, 0) / Math.max(p.wierzcholki.length, 1),
+    };
+    const stronaTrasy = stronaTrasyZKoloru(p.kolorWypelnienia)
+      ?? (osPdf ? stronaWzgledemOsi(centroid, osPdf) : undefined);
+    const dlugoscOdcinkaM = zOsi ? round2(zOsi.dlugosc * k) : undefined;
+    const iL = bazy?.start.idxLewy;
+    const iP = bazy?.start.idxPrawy;
+    const szerokoscOdcinkaM = iL != null && iP != null
+      ? round2(Math.hypot(
+        (p.wierzcholki[iL].x - p.wierzcholki[iP].x) * k,
+        (p.wierzcholki[iL].y - p.wierzcholki[iP].y) * k,
+      ))
+      : undefined;
     return {
       id: generujId(),
-      nazwa: nazwaObszaru(p, i, kolejnoscStart),
+      nazwa: nazwaObszaru({ ...p, kolorWypelnienia: p.kolorWypelnienia }, i, kolejnoscStart, stronaTrasy),
       kolejnosc: kolejnoscStart + i,
       wierzcholkiPdf: p.wierzcholki,
       wierzcholkiM,
@@ -360,7 +515,10 @@ export function obszaryZPolygony(
       stronaTrasy,
       bazaStart: bazy?.start,
       bazaKoniec: bazy?.koniec,
+      dlugoscOdcinkaM,
+      szerokoscOdcinkaM,
       odsadzki: [{ id: generujId(), nr: 1, zastosowana: false }],
+      kierunekUkladania: 'rosnacy' as const,
       createdAt: teraz,
     } satisfies ObszarObmiaru;
   });

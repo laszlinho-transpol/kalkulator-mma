@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { parsujVertices, parsujXfdfTekst, obszaryZPolygony, parsujListeTekstowXfdf, scalLinieOsi } from './xfdfParser';
+import { parsujVertices, parsujXfdfTekst, obszaryZPolygony, parsujListeTekstowXfdf, scalLinieOsi, bazyWzdluzOsi } from './xfdfParser';
+import { stacjePodzialki, stronaWzgledemOsi } from './osPzt';
 import {
   powierzchniaWielokata,
   skalujWierzcholki,
@@ -136,5 +137,42 @@ describe('obmiarGeometry / xfdfParser', () => {
     const scalona = scalLinieOsi(w.polilinie);
     assert.equal(scalona?.dlugoscEtykietaM, 435.68);
     assert.equal(w.polilinie.filter((p) => (p.color || '').toUpperCase() === '#FF0000').length, 1);
+  });
+
+  it('czyta wymiar osi mimo podzielonych tagów HTML i osobnej linii wymiarowej', () => {
+    const xfdf = `<?xml version="1.0"?><xfdf>
+<polygon interior-color="#FFEE58"><vertices>0,40;0,20;100,20;100,40</vertices></polygon>
+<polyline color="#000000" style="dash"><vertices>0,20;100,20</vertices></polyline>
+<line color="#000000" start="0,28" end="100,28">
+<contents-richtext><body xmlns="http://www.w3.org/1999/xhtml"><p><span>435,68</span><span> m</span></p></body></contents-richtext>
+</line>
+</xfdf>`;
+    const w = parsujXfdfTekst(xfdf, 'ark.xfdf');
+    assert.ok(w.osTrasy);
+    assert.ok(Math.abs((w.osTrasy?.dlugoscEtykietaM ?? 0) - 435.68) < 0.01);
+  });
+
+  it('lewa/prawa i podstawy idą wzdłuż osi rosnącego km', () => {
+    const os = [{ x: 0, y: 10 }, { x: 100, y: 10 }];
+    assert.equal(stronaWzgledemOsi({ x: 50, y: 20 }, os), 'lewa');
+    assert.equal(stronaWzgledemOsi({ x: 50, y: 0 }, os), 'prawa');
+    const poly = [
+      { x: 0, y: 20 }, { x: 0, y: 10 }, { x: 100, y: 10 }, { x: 100, y: 20 },
+    ];
+    const b = bazyWzdluzOsi(poly, os);
+    assert.ok(b);
+    assert.equal(b?.start.idxLewy, 0);
+    assert.equal(b?.start.idxPrawy, 1);
+    assert.equal(b?.koniec.idxLewy, 3);
+    assert.equal(b?.koniec.idxPrawy, 2);
+  });
+
+  it('podziałka 50 m od 106+850 zawiera 106+850 i 106+900, bez 116+031', () => {
+    const s = stacjePodzialki(106850, 116031, 50);
+    assert.equal(s[0], 106850);
+    assert.ok(s.includes(106900));
+    assert.ok(s.includes(107000));
+    assert.equal(s[s.length - 1], 116000);
+    assert.ok(!s.includes(116031));
   });
 });

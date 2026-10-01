@@ -16,6 +16,7 @@ import type {
   WpisLegendy,
   WierszPrzedmiaruScalony,
   WyjatekKonstrukcji,
+  Punkt2D,
 } from '../types';
 import { DOMYSLNA_SKALA_PZT } from '../types';
 import { round2, round3 } from './calculations';
@@ -23,7 +24,7 @@ import { dlugoscUkladaniaObszaru } from './obmiarLive';
 import { dlugoscKilometrazaObszaru, bokiFigury } from './obmiarFigura';
 import { obszaryZPolygony, stronaTrasyZKoloru, type WynikParsowaniaXfdf } from './xfdfParser';
 import { skalujWierzcholki } from './obmiarGeometry';
-import { dlugoscPolilinii } from './osPzt';
+import { dlugoscPolilinii, orientujLancuchDoKm } from './osPzt';
 
 export const GESTOSC_MMA_DOMYSLNA = 2.45;
 export const GESTOSC_KLSM_DOMYSLNA = 2.0;
@@ -36,6 +37,7 @@ const generujId = (): string =>
 export function pustyProjektBudowy(kilometrazPoczatkowyM = DOMYSLNY_KM_START_PZT): ProjektBudowy {
   return {
     kilometrazPoczatkowyM,
+    podzialkaKilometrazuM: 50,
     skala: DOMYSLNA_SKALA_PZT,
     arkusze: [],
     legenda: [],
@@ -81,15 +83,29 @@ export function sugerowanaNazwaLegendy(
 export function nowaWarstwa(
   partial: Partial<WarstwaKonstrukcji> & Pick<WarstwaKonstrukcji, 'nazwa' | 'kolejnosc'>,
 ): WarstwaKonstrukcji {
+  const lewa = partial.odsadzkaLewaCm ?? partial.odsadzkaCm ?? 0;
+  const prawa = partial.odsadzkaPrawaCm ?? partial.odsadzkaCm ?? 0;
   return {
     id: generujId(),
     rodzajOpis: '',
     gruboscCm: 4,
-    odsadzkaCm: 0,
     kategoria: 'inna',
     mieszankaIds: [],
     ...partial,
+    odsadzkaLewaCm: partial.odsadzkaLewaCm ?? lewa,
+    odsadzkaPrawaCm: partial.odsadzkaPrawaCm ?? prawa,
+    odsadzkaCm: partial.odsadzkaCm ?? lewa,
   };
+}
+
+/** Odsadzki L/P: nowe pola; stary zapis ma tylko odsadzkaCm (jedna krawędź). */
+export function odsadzkiWarstwy(
+  w: Pick<WarstwaKonstrukcji, 'odsadzkaCm' | 'odsadzkaLewaCm' | 'odsadzkaPrawaCm'>,
+): { lewa: number; prawa: number } {
+  if (w.odsadzkaLewaCm != null || w.odsadzkaPrawaCm != null) {
+    return { lewa: w.odsadzkaLewaCm ?? 0, prawa: w.odsadzkaPrawaCm ?? 0 };
+  }
+  return { lewa: w.odsadzkaCm ?? 0, prawa: 0 };
 }
 
 /** Domyślny układ: SMA 4/0, wiążąca 6/7, podbudowa 10/15, KŁSM 20/25. */
@@ -101,6 +117,8 @@ export function domyslneWarstwyKonstrukcji(): WarstwaKonstrukcji[] {
       rodzajOpis: 'KR 3-7',
       gruboscCm: 4,
       odsadzkaCm: 0,
+      odsadzkaLewaCm: 0,
+      odsadzkaPrawaCm: 0,
       kategoria: 'sma',
     }),
     nowaWarstwa({
@@ -109,6 +127,8 @@ export function domyslneWarstwyKonstrukcji(): WarstwaKonstrukcji[] {
       rodzajOpis: 'KR 3-7',
       gruboscCm: 6,
       odsadzkaCm: 7,
+      odsadzkaLewaCm: 7,
+      odsadzkaPrawaCm: 7,
       kategoria: 'wiazaca',
     }),
     nowaWarstwa({
@@ -117,6 +137,8 @@ export function domyslneWarstwyKonstrukcji(): WarstwaKonstrukcji[] {
       rodzajOpis: 'KR 3-7',
       gruboscCm: 10,
       odsadzkaCm: 15,
+      odsadzkaLewaCm: 15,
+      odsadzkaPrawaCm: 15,
       kategoria: 'podbudowa',
     }),
     nowaWarstwa({
@@ -125,6 +147,8 @@ export function domyslneWarstwyKonstrukcji(): WarstwaKonstrukcji[] {
       rodzajOpis: 'kruszywo łamane 0-31,5',
       gruboscCm: 20,
       odsadzkaCm: 25,
+      odsadzkaLewaCm: 25,
+      odsadzkaPrawaCm: 25,
       kategoria: 'klsm',
     }),
   ];
@@ -146,12 +170,20 @@ export function arkuszZWynikuXfdf(
     kontynuacjaPoprzedniego: boolean;
     skala?: SkalaPzt;
     kolejnoscObszarowStart?: number;
+    prevOsKoniecPdf?: Punkt2D;
   },
 ): ArkuszPzt {
   const skala = opts.skala ?? DOMYSLNA_SKALA_PZT;
-  const obszary = obszaryZPolygony(wynik, skala, opts.kolejnoscObszarowStart ?? 1);
-  const nazwa = wynik.zrodloNazwa.replace(/\.(xfdf|xml|txt)$/i, '');
-  const os = wynik.osTrasy;
+  const os0 = wynik.osTrasy;
+  const wynikOs = os0 && os0.wierzcholki.length >= 2
+    ? {
+      ...wynik,
+      osTrasy: { ...os0, wierzcholki: orientujLancuchDoKm(os0.wierzcholki, opts.prevOsKoniecPdf) },
+    }
+    : wynik;
+  const obszary = obszaryZPolygony(wynikOs, skala, opts.kolejnoscObszarowStart ?? 1);
+  const nazwa = wynikOs.zrodloNazwa.replace(/\.(xfdf|xml|txt)$/i, '');
+  const os = wynikOs.osTrasy;
   const wierzcholkiM = os && os.wierzcholki.length >= 2
     ? skalujWierzcholki(os.wierzcholki, skala)
     : [];
@@ -192,6 +224,11 @@ export function dlugoscArkuszaM(arkusz: ArkuszPzt): number {
   const ds = arkusz.obszary.map((o) => dlugoscKilometrazaObszaru(o)).filter((d) => d > 0.5);
   if (ds.length === 0) return 0;
   return round2(ds.reduce((s, d) => s + d, 0) / ds.length);
+}
+
+/** Suma długości osi (pikietaż) wszystkich arkuszy. */
+export function sumaOsiTrasyM(projekt: ProjektBudowy): number {
+  return round2(projekt.arkusze.reduce((s, a) => s + dlugoscArkuszaM(a), 0));
 }
 
 /** Średnia/max długość układania MMA (wyspy na krawędzi od osi wydłużają). */
@@ -358,14 +395,19 @@ export function dodajArkuszeDoProjektu(
 ): ProjektBudowy {
   const startKolejnosc = projekt.arkusze.length;
   let obszarStart = projekt.arkusze.reduce((n, a) => n + a.obszary.length, 0) + 1;
+  const lastOs = projekt.arkusze[projekt.arkusze.length - 1]?.osTrasy?.wierzcholkiPdf;
+  let prevOsKoniecPdf = lastOs && lastOs.length >= 2 ? lastOs[lastOs.length - 1] : undefined;
   const nowe = wyniki.map((wynik, i) => {
     const arkusz = arkuszZWynikuXfdf(wynik, {
       kolejnosc: startKolejnosc + i + 1,
       kontynuacjaPoprzedniego: startKolejnosc + i > 0 || projekt.arkusze.length > 0,
       skala: projekt.skala,
       kolejnoscObszarowStart: obszarStart,
+      prevOsKoniecPdf,
     });
     obszarStart += arkusz.obszary.length;
+    const osPdf = arkusz.osTrasy?.wierzcholkiPdf;
+    if (osPdf && osPdf.length >= 2) prevOsKoniecPdf = osPdf[osPdf.length - 1];
     return arkusz;
   });
   const arkusze = zastosujKilometrazArkuszy(
@@ -406,7 +448,16 @@ export function powierzchniaWarstwyZOdsadzka(
   dlugoscM: number,
   odsadzkaCm: number,
 ): number {
-  const extra = Math.max(0, dlugoscM) * (Math.max(0, odsadzkaCm) / 100);
+  return powierzchniaWarstwyZOdsadzkami(powierzchniaObrysuM2, dlugoscM, odsadzkaCm, 0);
+}
+
+export function powierzchniaWarstwyZOdsadzkami(
+  powierzchniaObrysuM2: number,
+  dlugoscM: number,
+  odsadzkaLewaCm: number,
+  odsadzkaPrawaCm: number,
+): number {
+  const extra = Math.max(0, dlugoscM) * ((Math.max(0, odsadzkaLewaCm) + Math.max(0, odsadzkaPrawaCm)) / 100);
   return round2(Math.max(0, powierzchniaObrysuM2) + extra);
 }
 
@@ -545,7 +596,8 @@ function ilosciDlaObszaru(
     const powSeg = obszar.powierzchniaM2 * udzial;
     const dlSeg = dlugoscUkladaniaObszaru(obszar) * udzial;
     for (const warstwa of [...seg.warstwy].sort((a, b) => a.kolejnosc - b.kolejnosc)) {
-      const powW = powierzchniaWarstwyZOdsadzka(powSeg, dlSeg, warstwa.odsadzkaCm);
+      const ods = odsadzkiWarstwy(warstwa);
+      const powW = powierzchniaWarstwyZOdsadzkami(powSeg, dlSeg, ods.lewa, ods.prawa);
       const rho = gestoscWarstwy(warstwa, mieszanki);
       dodajIlosc(acc, {
         nazwa: warstwa.nazwa,
@@ -553,7 +605,7 @@ function ilosciDlaObszaru(
         kolejnosc: warstwa.kolejnosc,
         powierzchniaM2: powW,
         gruboscCm: warstwa.gruboscCm,
-        odsadzkaCm: warstwa.odsadzkaCm,
+        odsadzkaCm: ods.lewa + ods.prawa,
         tony: tonyZPowierzchni(powW, warstwa.gruboscCm, rho),
         mieszankaIds: warstwa.mieszankaIds,
       });
@@ -566,7 +618,10 @@ function podpisWarstw(warstwy: WarstwaKonstrukcji[]): string {
   return warstwy
     .slice()
     .sort((a, b) => a.kolejnosc - b.kolejnosc)
-    .map((w) => `${w.nazwa}:${w.gruboscCm}:${w.odsadzkaCm}:${w.kategoria}`)
+    .map((w) => {
+      const ods = odsadzkiWarstwy(w);
+      return `${w.nazwa}:${w.gruboscCm}:${ods.lewa}/${ods.prawa}:${w.kategoria}`;
+    })
     .join('|');
 }
 

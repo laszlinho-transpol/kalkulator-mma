@@ -15,6 +15,7 @@ import {
   podsumowanieDlugosciArkusza,
   przesunArkusz,
   przeliczProjektPoZmianieKm,
+  sumaOsiTrasyM,
   usunArkusz,
   ustawTloArkusza,
   zastosujKilometrazArkuszy,
@@ -75,9 +76,11 @@ export function SekcjaPzt({
   );
   const [kmStr, setKmStr] = useState(startInit.km);
   const [mStr, setMStr] = useState(startInit.m);
+  const [podzStr, setPodzStr] = useState(String(projekt.podzialkaKilometrazuM ?? 50));
   const aktywny = projekt.arkusze.find((a) => a.id === arkuszId) ?? projekt.arkusze[0];
   const idxAktywny = aktywny ? projekt.arkusze.findIndex((a) => a.id === aktywny.id) : -1;
   const kmKoniecTrasy = projekt.arkusze[projekt.arkusze.length - 1]?.kilometrazKoncowyM;
+  const sumaOsi = sumaOsiTrasyM(projekt);
   const dlAkt = aktywny ? podsumowanieDlugosciArkusza(aktywny) : null;
 
   useEffect(() => {
@@ -381,8 +384,35 @@ export function SekcjaPzt({
             {kmKoniecTrasy != null ? ` → ${formatujKmM(kmKoniecTrasy)}` : ''}
           </Text>
         </View>
+        {projekt.arkusze.length > 0 ? (
+          <Text style={{ color: theme.colors.text, fontSize: 12, fontWeight: '700' }}>
+            Suma osi XFDF: {Math.round(sumaOsi).toLocaleString('pl-PL')} m
+            {kmKoniecTrasy != null ? `  (${formatujKmM(projekt.kilometrazPoczatkowyM)} → ${formatujKmM(kmKoniecTrasy)})` : ''}
+          </Text>
+        ) : null}
+        <Text style={[styles.label, { color: theme.colors.text }]}>Podziałka kilometrażu osi</Text>
+        <View style={styles.kmRzad}>
+          <TextInput
+            value={podzStr}
+            keyboardType="numeric"
+            onChangeText={(t) => {
+              setPodzStr(t);
+              const n = parseFloat(t.replace(',', '.'));
+              const krok = Number.isFinite(n) ? Math.max(0, Math.round(n)) : 50;
+              if (krok === (projekt.podzialkaKilometrazuM ?? 50)) return;
+              onZmien({ ...projekt, podzialkaKilometrazuM: krok });
+            }}
+            placeholder="50"
+            placeholderTextColor={theme.colors.textSecondary}
+            style={[
+              styles.input,
+              { width: 88, color: theme.colors.text, borderColor: theme.colors.border, backgroundColor: theme.colors.inputBackground },
+            ]}
+          />
+          <Text style={{ color: theme.colors.textSecondary, fontSize: 13 }}>m — kreska z pikietą co pełne {projekt.podzialkaKilometrazuM ?? 50} m od startu</Text>
+        </View>
         <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>
-          Skala PZT 1:{projekt.skala.mianownik} ({projekt.skala.metryNaCm} m / cm). Pikietaż bierze wymiar osi z XFDF (nie kreskowanie) – wyspy na krawędzi od osi nie doliczają metrów.
+          Skala PZT 1:{projekt.skala.mianownik} ({projekt.skala.metryNaCm} m / cm). Pikietaż to suma wymiarów osi z XFDF (etykiety z pliku, nie kreskowanie). Długość odcinka = wzdłuż osi, szerokość = poprzeczka L–P. Lewa/prawa patrząc zgodnie z rosnącym km.
         </Text>
       </View>
 
@@ -507,6 +537,7 @@ export function SekcjaPzt({
                 blokadaPodgladu={blokadaPodgladu}
                 onBlokadaPodgladu={onBlokadaPodgladu}
                 onDotykZmiana={onDotykZmiana}
+                podzialkaM={projekt.podzialkaKilometrazuM ?? 50}
                 onTloZmiana={(patch) => {
                   if (!aktywny.tlo) return;
                   onZmien(ustawTloArkusza(projekt, aktywny.id, { ...aktywny.tlo, ...patch }));

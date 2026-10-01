@@ -13,6 +13,7 @@ import { useWytwornieStore } from '../../stores/wytwornieStore';
 import {
   czyLegendaUzupelniona,
   nowaWarstwa,
+  odsadzkiWarstwy,
   sklonujWarstwy,
 } from '../../utils/projektBudowy';
 import { Z_METROW_BIEZACYCH } from '../../constants';
@@ -148,13 +149,29 @@ export function SekcjaKonstrukcje({ projekt, theme, onZmien }: Props) {
               />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.miniLabel}>Odsadzka cm</Text>
+              <Text style={styles.miniLabel}>Odsadzka L cm</Text>
               <TextInput
-                value={String(w.odsadzkaCm)}
+                value={String(odsadzkiWarstwy(w).lewa)}
                 keyboardType="numeric"
                 onChangeText={(t) => {
                   const n = parseFloat(t.replace(',', '.'));
-                  patchKonstrukcja(k.legendaId, (kk) => patchWarstwy(kk, w.id, { odsadzkaCm: Number.isFinite(n) ? n : 0 }, wyjatekId));
+                  const lewa = Number.isFinite(n) ? n : 0;
+                  const prawa = odsadzkiWarstwy(w).prawa;
+                  patchKonstrukcja(k.legendaId, (kk) => patchWarstwy(kk, w.id, { odsadzkaLewaCm: lewa, odsadzkaCm: lewa, odsadzkaPrawaCm: prawa }, wyjatekId));
+                }}
+                style={[styles.input, { color: theme.colors.text, borderColor: theme.colors.border, backgroundColor: theme.colors.card }]}
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.miniLabel}>Odsadzka P cm</Text>
+              <TextInput
+                value={String(odsadzkiWarstwy(w).prawa)}
+                keyboardType="numeric"
+                onChangeText={(t) => {
+                  const n = parseFloat(t.replace(',', '.'));
+                  const prawa = Number.isFinite(n) ? n : 0;
+                  const lewa = odsadzkiWarstwy(w).lewa;
+                  patchKonstrukcja(k.legendaId, (kk) => patchWarstwy(kk, w.id, { odsadzkaPrawaCm: prawa, odsadzkaLewaCm: lewa, odsadzkaCm: lewa }, wyjatekId));
                 }}
                 style={[styles.input, { color: theme.colors.text, borderColor: theme.colors.border, backgroundColor: theme.colors.card }]}
               />
@@ -198,6 +215,8 @@ export function SekcjaKonstrukcje({ projekt, theme, onZmien }: Props) {
             kategoria: 'inna',
             gruboscCm: 4,
             odsadzkaCm: 0,
+            odsadzkaLewaCm: 0,
+            odsadzkaPrawaCm: 0,
           });
           if (wyjatekId) {
             return {
@@ -216,7 +235,7 @@ export function SekcjaKonstrukcje({ projekt, theme, onZmien }: Props) {
   return (
     <View style={{ gap: 12 }}>
       <Text style={{ color: theme.colors.textSecondary, fontSize: 13, lineHeight: 18 }}>
-        Widać schemat przekroju. Kliknij go, żeby rozwinąć szczegóły warstw. Wyjątki kilometrażu też są w rozwinięciu.
+        Widać schemat przekroju. Każda warstwa ma odsadzkę lewą i prawą (patrząc zgodnie z rosnącym kilometrażem). Kliknij przekrój, żeby rozwinąć warstwy.
       </Text>
       {obszary.map((wpis) => {
         const k = projekt.konstrukcje.find((x) => x.legendaId === wpis.id);
