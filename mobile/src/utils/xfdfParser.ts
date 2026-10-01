@@ -23,6 +23,7 @@ export interface PolylineXfdfSurowa {
   wierzcholki: Punkt2D[];
   color?: string;
   subject?: string;
+  style?: string;
   dlugoscEtykietaM?: number;
 }
 
@@ -31,6 +32,7 @@ export interface WynikParsowaniaXfdf {
   zrodloPdfHref?: string;
   polygony: PolygonXfdfSurowy[];
   polilinie: PolylineXfdfSurowa[];
+  osTrasy?: PolylineXfdfSurowa;
 }
 
 const generujId = (): string =>
@@ -86,10 +88,23 @@ function mediana(arr: number[]): number {
   return s[Math.floor(s.length / 2)];
 }
 
-function dlugoscLancucha(pts: Punkt2D[]): number {
+function dlugoscPdfLancucha(pts: Punkt2D[]): number {
   let s = 0;
   for (let i = 1; i < pts.length; i++) s += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
   return s;
+}
+
+export function wybierzOsTrasy(polilinie: PolylineXfdfSurowa[]): PolylineXfdfSurowa | undefined {
+  const osie = polilinie.filter((l) => czyLiniaOsi(l.color, l.subject, l.style));
+  if (osie.length === 0) return undefined;
+  return osie.reduce((a, b) =>
+    (b.dlugoscEtykietaM ?? dlugoscPdfLancucha(b.wierzcholki)) > (a.dlugoscEtykietaM ?? dlugoscPdfLancucha(a.wierzcholki))
+      ? b
+      : a);
+}
+
+function dlugoscLancucha(pts: Punkt2D[]): number {
+  return dlugoscPdfLancucha(pts);
 }
 
 /** Żółty (PDF-XChange) = lewa jezdnia, różowy = prawa. */
@@ -108,7 +123,18 @@ export function stronaTrasyZKoloru(hex?: string): 'lewa' | 'prawa' | undefined {
   return undefined;
 }
 
-export function czyLiniaKrawedznika(color?: string, subject?: string): boolean {
+export function czyLiniaOsi(color?: string, subject?: string, style?: string): boolean {
+  const s = (subject || '').toLowerCase();
+  const st = (style || '').toLowerCase();
+  if (s.includes('oś') || s.includes('os trasy') || s.includes('oś trasy') || s.includes('axis')) return true;
+  if (st === 'dash' || st === 'dashed' || st.includes('dash')) return true;
+  const c = (color || '').toUpperCase();
+  if ((c === '#000000' || c === '#000') && (st.includes('dash') || s.includes('oś'))) return true;
+  return false;
+}
+
+export function czyLiniaKrawedznika(color?: string, subject?: string, style?: string): boolean {
+  if (czyLiniaOsi(color, subject, style)) return false;
   const c = (color || '').toUpperCase();
   const s = (subject || '').toLowerCase();
   if (c === '#FF0000' || c === '#E53935' || c === '#C62828' || c === '#F44336') return true;
@@ -187,11 +213,12 @@ export function parsujXfdfTekst(xml: string, zrodloNazwa: string): WynikParsowan
       wierzcholki,
       color: attr(attrs, 'color'),
       subject: attr(attrs, 'subject'),
+      style: attr(attrs, 'style'),
       dlugoscEtykietaM: etykietaMetrow(body),
     });
   }
 
-  return { zrodloNazwa, zrodloPdfHref, polygony, polilinie };
+  return { zrodloNazwa, zrodloPdfHref, polygony, polilinie, osTrasy: wybierzOsTrasy(polilinie) };
 }
 
 function nazwaObszaru(p: PolygonXfdfSurowy, i: number, kolejnoscStart: number): string {
@@ -207,7 +234,7 @@ function dopasujKrawedzniki(
   skala: SkalaPzt,
 ): ObszarObmiaru[] {
   const k = metryNaPunktPdf(skala);
-  const krawedzie = polilinie.filter((l) => czyLiniaKrawedznika(l.color, l.subject));
+  const krawedzie = polilinie.filter((l) => czyLiniaKrawedznika(l.color, l.subject, l.style));
   if (krawedzie.length === 0 || obszary.length === 0) return obszary;
 
   const przypisane: KrawedznikObmiaru[][] = obszary.map(() => []);

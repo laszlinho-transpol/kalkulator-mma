@@ -20,6 +20,7 @@ import { useBudowyStore } from '../../src/stores/budowyStore';
 import { lightTheme, darkTheme, type AppTheme } from '../../src/constants/theme';
 import { DzialkaSketch, type WpisLiveMarker } from '../../src/components/sketch/DzialkaSketch';
 import { WielokatPodglad } from '../../src/components/obmiar/WielokatPodglad';
+import { SzkicPlanuBudowy } from '../../src/components/budowa/SzkicPlanuBudowy';
 import { useObmiarStore } from '../../src/stores/obmiarStore';
 import { obszarZWpisamiLive } from '../../src/utils/obmiarDoPlanu';
 import { PlanCalySketch } from '../../src/components/sketch/PlanCalySketch';
@@ -436,7 +437,7 @@ export default function WbudowywanieDetailScreen() {
           contentContainerStyle={[styles.zawartosc, { paddingBottom: insets.bottom + 20 }]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
-          scrollEnabled={!(blokadaSzkicuPzt && plan.zrodlo === 'obmiar' && (aktywnaZakladka === 'live' || aktywnaZakladka === 'plan'))}
+          scrollEnabled={!(blokadaSzkicuPzt && (plan.zrodlo === 'obmiar' || plan.zrodlo === 'budowa') && (aktywnaZakladka === 'live' || aktywnaZakladka === 'plan'))}
         >
 
           {/* ======== PLAN ======== */}
@@ -450,6 +451,25 @@ export default function WbudowywanieDetailScreen() {
                 <IR label="Łącznie metrów" v={`${formatLiczby(podsumowanieDnia.laczneMetry)} m`} theme={theme} />
                 <IR label="Samochodów (plan)" v={String(podsumowanieDnia.lacznaIloscAut)} theme={theme} bold />
               </View>
+              {plan.zrodlo === 'budowa' && budowa?.projekt ? (
+                <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+                  <Text style={[styles.kartaTytul, { color: theme.colors.primary }]}>Szkic PZT (wycinek km)</Text>
+                  <SzkicPlanuBudowy
+                    projekt={budowa.projekt}
+                    plan={plan}
+                    theme={theme}
+                    wpisy={wpisyCalegoPlanu}
+                    wysokosc={280}
+                    blokadaPodgladu={blokadaSzkicuPzt}
+                    onBlokadaPodgladu={setBlokadaSzkicuPzt}
+                    onDotykZmiana={setMapaSzkicAktywna}
+                    onPressAuto={(wpisId) => {
+                      const wpis = wpisyCalegoPlanu.find((w) => w.id === wpisId);
+                      if (wpis) { setAutaModal({ wpis }); setAutaModalZakladka('szczegoły'); }
+                    }}
+                  />
+                </View>
+              ) : null}
               {plan.dzialki.map((dz) => {
             const mie = getMieszanka(dz.mieszankaId);
             if (!mie) return null;
@@ -608,7 +628,7 @@ export default function WbudowywanieDetailScreen() {
                         ● Aktywna działka: {aktywnaDzialka.dzialka.nazwa}
                       </Text>
                     )}
-                    {plan.zrodlo === 'obmiar' && plan.dzialki.map((dz) => {
+                    {(plan.zrodlo === 'obmiar' || plan.zrodlo === 'budowa') && plan.dzialki.map((dz) => {
                       const met = wpisyCalegoPlanu.filter((w) => w.dzialkaId === dz.id).reduce((s, w) => s + w.przejechaneMetry, 0);
                       const dl = obliczLacznaDlugosc(dz);
                       return (
@@ -624,9 +644,24 @@ export default function WbudowywanieDetailScreen() {
 
                 <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
                   <Text style={[styles.kartaTytul, { color: theme.colors.primary }]}>
-                    {plan.zrodlo === 'obmiar' ? 'Szkic obszarów PZT' : 'Szkic planu dnia'}
+                    {plan.zrodlo === 'budowa' ? 'Szkic PZT (wycinek km)' : plan.zrodlo === 'obmiar' ? 'Szkic obszarów PZT' : 'Szkic planu dnia'}
                   </Text>
-                  {plan.zrodlo === 'obmiar' && sesjaObmiaru ? (
+                  {plan.zrodlo === 'budowa' && budowa?.projekt ? (
+                    <SzkicPlanuBudowy
+                      projekt={budowa.projekt}
+                      plan={plan}
+                      theme={theme}
+                      wpisy={wpisyCalegoPlanu}
+                      wysokosc={Math.min(VIEWPORT_SZKICU_LIVE, 360)}
+                      blokadaPodgladu={blokadaSzkicuPzt}
+                      onBlokadaPodgladu={setBlokadaSzkicuPzt}
+                      onDotykZmiana={setMapaSzkicAktywna}
+                      onPressAuto={(wpisId) => {
+                        const wpis = wpisyCalegoPlanu.find((w) => w.id === wpisId);
+                        if (wpis) { setAutaModal({ wpis }); setAutaModalZakladka('szczegoły'); }
+                      }}
+                    />
+                  ) : plan.zrodlo === 'obmiar' && sesjaObmiaru ? (
                     <>
                       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
                         {sesjaObmiaru.obszary.map((o) => {

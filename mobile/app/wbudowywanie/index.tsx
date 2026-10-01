@@ -16,6 +16,7 @@ import { EmptyState } from '../../src/components/common/EmptyState';
 import { AppHeader } from '../../src/components/common/AppHeader';
 import { CollapsibleSection } from '../../src/components/common/CollapsibleSection';
 import { karta, tekstTytul, tekstPodtytul } from '../../src/constants/layout';
+import { komentarzPlanuBudowy, tytulPlanuBudowy } from '../../src/utils/planZBudowy';
 import type { Plan, Budowa } from '../../src/types';
 
 export default function WbudowywanieScreen() {
@@ -63,7 +64,7 @@ export default function WbudowywanieScreen() {
       router.push(`/obmiar/${plan.sesjaObmiaruId}` as any);
       return;
     }
-    router.push(`/plan/${plan.id}` as any);
+    router.push(`/plan/edytuj/${plan.id}` as any);
   };
 
   const potwierdzUsuniecie = (plan: Plan) => Alert.alert(
@@ -86,7 +87,10 @@ export default function WbudowywanieScreen() {
     const wpisy = wpisyDlaPlanu(item.id);
     const sumaTon = wpisy.reduce((s, w) => s + w.tonazPrzywieziony, 0);
     const sumaMetrow = wpisy.reduce((s, w) => s + w.przejechaneMetry, 0);
-    const zrodlo = item.zrodlo === 'obmiar' ? 'Obmiar PZT' : 'Zaplanuj masę';
+    const tytul = item.zrodlo === 'budowa' ? tytulPlanuBudowy(item) : formatujDate(item.dataWbudowywania);
+    const komentarz = item.zrodlo === 'budowa'
+      ? komentarzPlanuBudowy(item)
+      : `${item.zrodlo === 'obmiar' ? 'Obmiar PZT' : 'Zaplanuj masę'} · ${item.dzialki.length} ${item.dzialki.length === 1 ? 'działka' : 'działki'}`;
     return (
       <View
         key={item.id}
@@ -95,15 +99,17 @@ export default function WbudowywanieScreen() {
         <TouchableOpacity onPress={() => router.push(`/wbudowywanie/${item.id}` as any)}>
           <View style={styles.kartaNaglowek}>
             <Text style={[tekstTytul, { color: theme.colors.text, flex: 1 }]} numberOfLines={2}>
-              {formatujDate(item.dataWbudowywania)}
+              {tytul}
             </Text>
             <View style={[styles.znaczek, { backgroundColor: `${theme.colors.success}20` }]}>
               <Text style={{ color: theme.colors.success, fontSize: 11, fontWeight: '700' }}>● Aktywny</Text>
             </View>
           </View>
-          <Text style={[tekstPodtytul, { color: theme.colors.textSecondary }]}>
-            {zrodlo} · {item.dzialki.length} {item.dzialki.length === 1 ? 'działka' : 'działki'}
-          </Text>
+          {!!komentarz && (
+            <Text style={[tekstPodtytul, { color: theme.colors.textSecondary }]} numberOfLines={2}>
+              {komentarz}
+            </Text>
+          )}
           {wpisy.length > 0 && (
             <Text style={{ color: theme.colors.primary, fontSize: 13, fontWeight: '600', marginTop: 4 }}>
               {wpisy.length} aut • {sumaTon.toFixed(1)} Mg • {sumaMetrow.toFixed(0)} m

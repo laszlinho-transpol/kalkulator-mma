@@ -19,6 +19,7 @@ import { AnimatedTabBar } from '../../src/components/common/AnimatedTabBar';
 import { AppHeader } from '../../src/components/common/AppHeader';
 import { ZalacznikiViewer } from '../../src/components/common/ZalacznikiViewer';
 import { DzialkaSketch } from '../../src/components/sketch/DzialkaSketch';
+import { SzkicPlanuBudowy } from '../../src/components/budowa/SzkicPlanuBudowy';
 import { tekstPrzycisk, tekstWramce } from '../../src/constants/layout';
 import { TabelaAut } from '../../src/components/plan/TabelaAut';
 import {
@@ -27,6 +28,7 @@ import {
 } from '../../src/utils/calculations';
 import { gruboscWbudowywania, gruboscProjektowa, formatujTolerancje } from '../../src/utils/grubosc';
 import { formatujDatePl } from '../../src/utils/dates';
+import { komentarzPlanuBudowy, tytulPlanuBudowy } from '../../src/utils/planZBudowy';
 import { eksportujJSON, generujInteraktywnyHTML } from '../../src/utils/htmlGenerator';
 import type { DzialkaRobocza, Rzut } from '../../src/types';
 import type { AppTheme } from '../../src/constants/theme';
@@ -110,7 +112,8 @@ export default function PlanDetailScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <AppHeader
-        tytul={formatujDatePl(plan.dataWbudowywania).split(',')[0]}
+        tytul={plan.zrodlo === 'budowa' ? tytulPlanuBudowy(plan) : formatujDatePl(plan.dataWbudowywania).split(',')[0]}
+        podtytul={plan.zrodlo === 'budowa' ? komentarzPlanuBudowy(plan) : undefined}
         lewy={{ tekst: '‹ Wstecz', onPress: () => router.back() }}
         prawy={{ tekst: 'Udostępnij', onPress: () => setUdostepnijModal(true), kolor: theme.colors.secondary }}
         przyciski={plan.status === 'aktywny' ? [
@@ -281,6 +284,13 @@ export default function PlanDetailScreen() {
         {/* ---- ZAKŁADKA: SZKIC ---- */}
         {aktywnaZakladka === 'szkic' && (
           <>
+            {plan.zrodlo === 'budowa' && budowa?.projekt ? (
+              <View style={[styles.kartaDzialki, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+                <Text style={[styles.kartaTytul, { color: theme.colors.text }]}>Szkic PZT (wycinek km)</Text>
+                <SzkicPlanuBudowy projekt={budowa.projekt} plan={plan} theme={theme} wysokosc={320} />
+              </View>
+            ) : (
+              <>
             {plan.dzialki.length > 1 && (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.selectorScroll}>
                 {plan.dzialki.map((dz, idx) => (
@@ -307,6 +317,8 @@ export default function PlanDetailScreen() {
                 </View>
               );
             })()}
+              </>
+            )}
           </>
         )}
 

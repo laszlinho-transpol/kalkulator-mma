@@ -22,6 +22,8 @@ import { round2, round3 } from './calculations';
 import { dlugoscUkladaniaObszaru } from './obmiarLive';
 import { dlugoscKilometrazaObszaru, bokiFigury } from './obmiarFigura';
 import { obszaryZPolygony, stronaTrasyZKoloru, type WynikParsowaniaXfdf } from './xfdfParser';
+import { skalujWierzcholki } from './obmiarGeometry';
+import { dlugoscPolilinii } from './osPzt';
 
 export const GESTOSC_MMA_DOMYSLNA = 2.45;
 export const GESTOSC_KLSM_DOMYSLNA = 2.0;
@@ -148,6 +150,16 @@ export function arkuszZWynikuXfdf(
   const skala = opts.skala ?? DOMYSLNA_SKALA_PZT;
   const obszary = obszaryZPolygony(wynik, skala, opts.kolejnoscObszarowStart ?? 1);
   const nazwa = wynik.zrodloNazwa.replace(/\.(xfdf|xml|txt)$/i, '');
+  const os = wynik.osTrasy;
+  const osTrasy = os && os.wierzcholki.length >= 2
+    ? {
+      wierzcholkiPdf: os.wierzcholki,
+      wierzcholkiM: skalujWierzcholki(os.wierzcholki, skala),
+      dlugoscM: round2(os.dlugoscEtykietaM && os.dlugoscEtykietaM > 1
+        ? os.dlugoscEtykietaM
+        : dlugoscPolilinii(skalujWierzcholki(os.wierzcholki, skala))),
+    }
+    : undefined;
   return {
     id: generujId(),
     nazwa,
@@ -158,11 +170,13 @@ export function arkuszZWynikuXfdf(
     kilometrazPoczatkowyM: 0,
     kilometrazKoncowyM: 0,
     obszary,
+    osTrasy,
   };
 }
 
-/** Długość arkusza w pikietażu PZT: średnia osi L/P, bez objeżdżania wysp. */
+/** Długość arkusza w pikietażu: oś z XFDF, inaczej średnia jezdni bez wysp. */
 export function dlugoscArkuszaM(arkusz: ArkuszPzt): number {
+  if (arkusz.osTrasy && arkusz.osTrasy.dlugoscM > 0.5) return round2(arkusz.osTrasy.dlugoscM);
   if (arkusz.obszary.length === 0) return 0;
   const ds = arkusz.obszary.map((o) => dlugoscKilometrazaObszaru(o)).filter((d) => d > 0.5);
   if (ds.length === 0) return 0;
@@ -384,13 +398,18 @@ function kmObszaru(obszar: ObszarObmiaru): { od: number; do: number } {
   return { od, do: od + d };
 }
 
-interface SegmentKonstrukcji {
+export interface SegmentKonstrukcji {
   od: number;
   do: number;
   warstwy: WarstwaKonstrukcji[];
 }
 
-function segmentyKonstrukcji(konstrukcja: KonstrukcjaObszaru, od: number, doKm: number): SegmentKonstrukcji[] {
+/** Dzieli zakres km na odcinki konstrukcji normalnej i wyjątków. */
+export function segmentyKonstrukcji(
+  konstrukcja: KonstrukcjaObszaru,
+  od: number,
+  doKm: number,
+): SegmentKonstrukcji[] {
   const totalOd = Math.min(od, doKm);
   const totalDo = Math.max(od, doKm);
   const wyjatki = [...konstrukcja.wyjatki]
@@ -416,6 +435,8 @@ function segmentyKonstrukcji(konstrukcja: KonstrukcjaObszaru, od: number, doKm: 
   }
   return out.filter((s) => s.do > s.od);
 }
+
+export const podzielZakresNaKonstrukcje = segmentyKonstrukcji;
 
 export interface IloscWarstwy {
   nazwa: string;

@@ -8,9 +8,10 @@ import {
   PinchGestureHandler,
   State,
 } from 'react-native-gesture-handler';
-import Svg, { G, Image as SvgImage, Polygon, Polyline, Rect } from 'react-native-svg';
+import Svg, { Circle, G, Image as SvgImage, Polygon, Polyline, Rect, Text as SvgText } from 'react-native-svg';
 import type { ArkuszPzt, Punkt2D, TloArkuszaPzt } from '../../types';
 import { bboxWielokata } from '../../utils/obmiarGeometry';
+import { dlugoscPolilinii, punktNaOsi } from '../../utils/osPzt';
 import {
   nastepnyPresetZoom,
   ograniczenie,
@@ -51,6 +52,12 @@ function srodek(pts: Punkt2D[]): Punkt2D {
   return { x: x / pts.length, y: y / pts.length };
 }
 
+interface LiveAutoPzt {
+  id: string;
+  stacjaM: number;
+  numer: number;
+}
+
 interface Props {
   arkusz: ArkuszPzt;
   theme: AppTheme;
@@ -59,6 +66,9 @@ interface Props {
   onBlokadaPodgladu?: (v: boolean) => void;
   onDotykZmiana?: (aktywny: boolean) => void;
   onTloZmiana?: (patch: Partial<TloArkuszaPzt>) => void;
+  liveStacjaM?: number;
+  liveAuta?: LiveAutoPzt[];
+  onPressAuto?: (id: string) => void;
 }
 
 export function PztArkuszPodglad({
@@ -69,6 +79,9 @@ export function PztArkuszPodglad({
   onBlokadaPodgladu,
   onDotykZmiana,
   onTloZmiana,
+  liveStacjaM,
+  liveAuta,
+  onPressAuto,
 }: Props) {
   const [rozmiar, setRozmiar] = useState({ w: 320, h: wysokosc });
   const [skalaPct, setSkalaPct] = useState(100);
@@ -95,6 +108,7 @@ export function PztArkuszPodglad({
       ...o.wierzcholkiPdf,
       ...(o.krawedzniki ?? []).flatMap((k) => k.wierzcholkiPdf),
     ]);
+    if (arkusz.osTrasy?.wierzcholkiPdf?.length) pts.push(...arkusz.osTrasy.wierzcholkiPdf);
     return bboxWielokata(pts);
   }, [arkusz]);
 
@@ -130,8 +144,28 @@ export function PztArkuszPodglad({
         })),
       };
     });
-    return { obszary, skalaFit, cx, cy };
-  }, [arkusz, geometria, rozmiar.w, rozmiar.h]);
+    const osPts = (arkusz.osTrasy?.wierzcholkiPdf ?? []).map(toSvg);
+    const osPunkty = osPts.map((p) => `${p.x},${p.y}`).join(' ');
+    const stacjaNaSvg = (stacjaM: number): Punkt2D | null => {
+      const osPdf = arkusz.osTrasy?.wierzcholkiPdf;
+      if (!osPdf || osPdf.length < 2) return null;
+      const dlM = arkusz.osTrasy?.dlugoscM
+        ?? Math.max(0.01, arkusz.kilometrazKoncowyM - arkusz.kilometrazPoczatkowyM);
+      const sM = stacjaM - arkusz.kilometrazPoczatkowyM;
+      if (sM < -1 || sM > dlM + 1) return null;
+      const sPdf = (sM / dlM) * dlugoscPolilinii(osPdf);
+      const p = punktNaOsi(osPdf, sPdf);
+      return p ? toSvg(p) : null;
+    };
+    const rozkladarka = liveStacjaM != null ? stacjaNaSvg(liveStacjaM) : null;
+    const auta = (liveAuta ?? [])
+      .map((a) => {
+        const p = stacjaNaSvg(a.stacjaM);
+        return p ? { ...a, ...p } : null;
+      })
+      .filter((x): x is LiveAutoPzt & Punkt2D => !!x);
+    return { obszary, skalaFit, cx, cy, osPunkty, rozkladarka, auta };
+  }, [arkusz, geometria, rozmiar.w, rozmiar.h, liveStacjaM, liveAuta]);
 
   const clampTrans = (x: number, y: number, s = bazaSkali.current) => {
     const { w, h } = rozmiarRef.current;
@@ -477,6 +511,43 @@ export function PztArkuszPodglad({
                             />
                           )),
                         )}
+                        {mapa.osPunkty ? (
+                          <Polyline
+                            points={mapa.osPunkty}
+                            fill="none"
+                            stroke="#111827"
+                            strokeWidth={swEkran * 1.4}
+                            strokeDasharray={`${dash * 1.6} ${dash * 0.8} ${dash * 0.7} ${dash * 0.8}`}
+                            strokeLinejoin="round"
+                            strokeLinecap="round"
+                            vectorEffect="non-scaling-stroke"
+                          />
+                        ) : null}
+                        {mapa.auta.map((a) => (
+                          <G key={a.id} onPress={() => onPressAuto?.(a.id)}>
+                            <Circle cx={a.x} cy={a.y} r={7} fill="#F59E0B" stroke="#fff" strokeWidth={1.5} />
+                            <SvgText
+                              x={a.x}
+                              y={a.y + 3.5}
+                              fontSize={8}
+                              fontWeight="700"
+                              fill="#111827"
+                              textAnchor="middle"
+                            >
+                              {String(a.numer)}
+                            </SvgText>
+                          </G>
+                        ))}
+                        {mapa.rozkladarka ? (
+                          <Circle
+                            cx={mapa.rozkladarka.x}
+                            cy={mapa.rozkladarka.y}
+                            r={9}
+                            fill="#16A34A"
+                            stroke="#fff"
+                            strokeWidth={2}
+                          />
+                        ) : null}
                       </G>
                     </Svg>
                   </Animated.View>

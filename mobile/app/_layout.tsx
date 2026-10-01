@@ -118,6 +118,7 @@ export default function RootLayout() {
             name="plan/nowy"
             options={{ headerShown: false, animation: 'slide_from_bottom' }}
           />
+          <Stack.Screen name="plan/budowa/[id]" options={{ headerShown: false }} />
           <Stack.Screen name="plan/[id]" options={{ headerShown: false }} />
           <Stack.Screen
             name="plan/import"

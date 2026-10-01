@@ -154,9 +154,17 @@ export interface Plan {
   rzuty: Rzut[];
   zalaczniki?: ZalacznikPlanu[];
   status: StatusPlanu;
-  /** figury = Zaplanuj masę; obmiar = zapis z Obmiaru PZT */
-  zrodlo?: 'figury' | 'obmiar';
+  /** figury = Zaplanuj masę (kształty); obmiar = Obmiar PZT; budowa = z projektu budowy */
+  zrodlo?: 'figury' | 'obmiar' | 'budowa';
   sesjaObmiaruId?: string;
+  legendaId?: string;
+  obszarNazwa?: string;
+  warstwaNazwa?: string;
+  warstwaKategoria?: KategoriaWarstwy;
+  kilometrazOdM?: number;
+  kilometrazDoM?: number;
+  odsadzkaLewaCm?: number;
+  odsadzkaPrawaCm?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -501,6 +509,12 @@ export interface ArkuszPzt {
   kilometrazKoncowyM: number;
   obszary: ObszarObmiaru[];
   tlo?: TloArkuszaPzt;
+  /** Przerywana oś trasy z XFDF – pikietaż PZT */
+  osTrasy?: {
+    wierzcholkiPdf: Punkt2D[];
+    wierzcholkiM: Punkt2D[];
+    dlugoscM: number;
+  };
 }
 
 export interface WierszPrzedmiaruScalony {

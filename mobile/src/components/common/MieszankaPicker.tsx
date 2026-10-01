@@ -15,10 +15,15 @@ interface MieszankaPickerProps {
   onSelect: (mieszanka: Mieszanka) => void;
   onClose: () => void;
   onDodajNowa?: () => void;
+  dozwoloneIds?: string[];
 }
 
-export function MieszankaPicker({ visible, selectedId, theme, onSelect, onClose, onDodajNowa }: MieszankaPickerProps) {
-  const mieszanki = useMieszankiStore((s) => s.mieszanki);
+export function MieszankaPicker({ visible, selectedId, theme, onSelect, onClose, onDodajNowa, dozwoloneIds }: MieszankaPickerProps) {
+  const wszystkie = useMieszankiStore((s) => s.mieszanki);
+  const mieszanki = useMemo(
+    () => (dozwoloneIds && dozwoloneIds.length > 0 ? wszystkie.filter((m) => dozwoloneIds.includes(m.id)) : wszystkie),
+    [wszystkie, dozwoloneIds],
+  );
   const grupy = useMemo(() => grupujPoKluczu(mieszanki, (m) => m.wytwórnia, 'Bez wytwórni'), [mieszanki]);
 
   return (
