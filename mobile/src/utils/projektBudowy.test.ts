@@ -34,6 +34,7 @@ import {
   etykietaZakladkiArkusza,
   zsynchronizujLegendeProjektu,
   sumaOsiTrasyM,
+  podsumowanieOsiTrasy,
   odsadzkiWarstwy,
 } from './projektBudowy';
 
@@ -242,6 +243,28 @@ describe('projektBudowy', () => {
     const geom = projekt.arkusze[0].osTrasy?.wierzcholkiM;
     assert.ok(geom && geom.length >= 2);
     assert.ok(Math.abs(sumaOsiTrasyM(projekt) - 435.68 * 2) < 0.05);
+  });
+
+  it('106+850 + etykiety osi = koniec trasy; kreska 1:500 jest rozciągana do wymiaru', () => {
+    const xfdfKrotka = (etykieta: string) => `<?xml version="1.0"?><xfdf>
+<polygon interior-color="#FFEE58"><vertices>0,40;0,20;80,20;80,40</vertices></polygon>
+<polyline color="#000000" style="dash">
+<contents>${etykieta}</contents>
+<vertices>0,20;80,20</vertices>
+</polyline>
+</xfdf>`;
+    const projekt = dodajArkuszeDoProjektu(pustyProjektBudowy(106850), [
+      parsujXfdfTekst(xfdfKrotka('435,68 m'), 'a1.xfdf'),
+      parsujXfdfTekst(xfdfKrotka('422,07 m'), 'a2.xfdf'),
+    ]);
+    const suma = 435.68 + 422.07;
+    const os = podsumowanieOsiTrasy(projekt);
+    assert.equal(os.nEtykiet, 2);
+    assert.ok(Math.abs(os.etykietyM - suma) < 0.02);
+    assert.ok(Math.abs(os.kmM - suma) < 0.02);
+    assert.ok(Math.abs(os.geomM - suma) < 0.05, `geometria trasy ${os.geomM} ≠ ${suma}`);
+    assert.ok(Math.abs(projekt.arkusze[1].kilometrazKoncowyM - (106850 + suma)) < 0.05);
+    assert.equal(formatujKmM(106850 + 9181), '116+031');
   });
 
   it('kolejny arkusz z osią narysowaną od końca ma rosnący km wzdłuż X', () => {

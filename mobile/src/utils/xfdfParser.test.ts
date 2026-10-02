@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parsujVertices, parsujXfdfTekst, obszaryZPolygony, parsujListeTekstowXfdf, scalLinieOsi, bazyWzdluzOsi } from './xfdfParser';
-import { orientujLancuchDoKm, osPdfZorientowana, rozmiarPodzialkiOsi, stacjePodzialki, stronaWzgledemOsi } from './osPzt';
+import { dlugoscPolilinii, orientujLancuchDoKm, osPdfZorientowana, rozciagnijLancuchDoDlugosci, rozmiarPodzialkiOsi, stacjePodzialki, stronaWzgledemOsi } from './osPzt';
 import {
   powierzchniaWielokata,
   skalujWierzcholki,
@@ -260,6 +260,14 @@ describe('obmiarGeometry / xfdfParser', () => {
     assert.ok(r.halfPdf * 2 <= 40 + 1e-6);
     assert.ok(r.fontPdf <= 6.2);
     assert.ok(r.odstepTekstuPdf < 40);
+  });
+
+  it('rozciąga oś do etykiety XFDF, bez zmiany kierunku', () => {
+    const os = [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 140, y: 0 }];
+    const out = rozciagnijLancuchDoDlugosci(os, 210);
+    assert.ok(Math.abs(dlugoscPolilinii(out) - 210) < 1e-6);
+    assert.ok(out[out.length - 1].x > 200);
+    assert.ok(Math.abs(out[out.length - 1].y) < 1e-9);
   });
 
   it('Ark_2_22: przerywana oś 422,07 m od lewej do prawej, bez odwrócenia', () => {

@@ -23,7 +23,13 @@ import { dlugoscUkladaniaObszaru } from './obmiarLive';
 import { dlugoscKilometrazaObszaru, bokiFigury } from './obmiarFigura';
 import { obszaryZPolygony, stronaTrasyZKoloru, type WynikParsowaniaXfdf } from './xfdfParser';
 import { skalujWierzcholki } from './obmiarGeometry';
-import { dlugoscObszarowWzdluzOsiM, dlugoscPolilinii, kierunekRosnacegoKm, orientujLancuchDoKm } from './osPzt';
+import {
+  dlugoscObszarowWzdluzOsiM,
+  dlugoscPolilinii,
+  dopasujGeometrieArkuszaDoEtykiety,
+  kierunekRosnacegoKm,
+  orientujLancuchDoKm,
+} from './osPzt';
 
 export const GESTOSC_MMA_DOMYSLNA = 2.45;
 export const GESTOSC_KLSM_DOMYSLNA = 2.0;
@@ -199,7 +205,7 @@ export function arkuszZWynikuXfdf(
       kolor: os.color,
     }
     : undefined;
-  return {
+  return dopasujGeometrieArkuszaDoEtykiety({
     id: generujId(),
     nazwa,
     zrodloNazwa: wynik.zrodloNazwa,
@@ -210,7 +216,7 @@ export function arkuszZWynikuXfdf(
     kilometrazKoncowyM: 0,
     obszary,
     osTrasy,
-  };
+  });
 }
 
 /** Długość arkusza w pikietażu: wymiar osi z XFDF, inaczej jezdnia wzdłuż osi, inaczej geometria kreski. */
@@ -234,6 +240,37 @@ export function dlugoscArkuszaM(arkusz: ArkuszPzt): number {
 /** Suma długości osi (pikietaż) wszystkich arkuszy. */
 export function sumaOsiTrasyM(projekt: ProjektBudowy): number {
   return round2(projekt.arkusze.reduce((s, a) => s + dlugoscArkuszaM(a), 0));
+}
+
+export function podsumowanieOsiTrasy(projekt: ProjektBudowy): {
+  kmM: number;
+  etykietyM: number;
+  nEtykiet: number;
+  nArkuszy: number;
+  geomM: number;
+} {
+  let etykietyM = 0;
+  let nEtykiet = 0;
+  let geomM = 0;
+  for (const a of projekt.arkusze) {
+    const e = a.osTrasy?.dlugoscEtykietaM;
+    if (e && e > 80 && e < 2500) {
+      etykietyM += e;
+      nEtykiet += 1;
+    }
+    if (a.osTrasy && a.osTrasy.wierzcholkiM.length >= 2) {
+      geomM += dlugoscPolilinii(a.osTrasy.wierzcholkiM);
+    } else if (a.osTrasy && a.osTrasy.dlugoscM > 0.5) {
+      geomM += a.osTrasy.dlugoscM;
+    }
+  }
+  return {
+    kmM: sumaOsiTrasyM(projekt),
+    etykietyM: round2(etykietyM),
+    nEtykiet,
+    nArkuszy: projekt.arkusze.length,
+    geomM: round2(geomM),
+  };
 }
 
 /** Średnia/max długość układania MMA (wyspy na krawędzi od osi wydłużają). */
@@ -287,7 +324,8 @@ export function zastosujKilometrazArkuszy(
   kilometrazPoczatkowyM: number,
 ): ArkuszPzt[] {
   let biezacy = Math.max(0, kilometrazPoczatkowyM);
-  return arkusze.map((arkusz, i) => {
+  return arkusze.map((surowy, i) => {
+    const arkusz = dopasujGeometrieArkuszaDoEtykiety(surowy);
     const start = i === 0 || arkusz.kontynuacjaPoprzedniego
       ? biezacy
       : arkusz.kilometrazPoczatkowyM;

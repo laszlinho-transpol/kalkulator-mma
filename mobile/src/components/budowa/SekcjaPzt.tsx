@@ -13,9 +13,9 @@ import {
   etykietaZakladkiArkusza,
   formatujKmM,
   podsumowanieDlugosciArkusza,
+  podsumowanieOsiTrasy,
   przesunArkusz,
   przeliczProjektPoZmianieKm,
-  sumaOsiTrasyM,
   usunArkusz,
   ustawTloArkusza,
   zastosujKilometrazArkuszy,
@@ -38,6 +38,7 @@ import {
   zapiszBuforPliku,
 } from '../../utils/tloPdfPamiec';
 import { CALY_PZT_ID, scalPztDoArkusza } from '../../utils/pztPloter';
+import { dlugoscPolilinii } from '../../utils/osPzt';
 import { wymiaryStronyPdf } from '../../utils/pdfjsWeb';
 import type { PlikWebImport } from './PrzyciskImportuXfdf';
 
@@ -90,20 +91,25 @@ export function SekcjaPzt({
   );
   const idxAktywny = aktywny ? projekt.arkusze.findIndex((a) => a.id === aktywny.id) : -1;
   const kmKoniecTrasy = projekt.arkusze[projekt.arkusze.length - 1]?.kilometrazKoncowyM;
-  const sumaOsi = sumaOsiTrasyM(projekt);
+  const sumaOsi = podsumowanieOsiTrasy(projekt);
   const dlAkt = aktywny ? podsumowanieDlugosciArkusza(aktywny) : null;
 
   useEffect(() => {
     if (projekt.arkusze.length === 0) return;
     const next = przeliczProjektPoZmianieKm(projekt);
-    const zmiana = next.arkusze.some((a, i) => {
+      const dlGeom = (a?: typeof next.arkusze[number]) => {
+        const os = a?.osTrasy?.wierzcholkiM;
+        return os && os.length >= 2 ? dlugoscPolilinii(os) : 0;
+      };
+      const zmiana = next.arkusze.some((a, i) => {
       const stary = projekt.arkusze[i];
       return !stary
         || Math.abs(a.kilometrazKoncowyM - stary.kilometrazKoncowyM) > 0.05
-        || Math.abs(a.kilometrazPoczatkowyM - stary.kilometrazPoczatkowyM) > 0.05;
+        || Math.abs(a.kilometrazPoczatkowyM - stary.kilometrazPoczatkowyM) > 0.05
+        || Math.abs(dlGeom(a) - dlGeom(stary)) > 0.05;
     });
     if (zmiana) onZmien(next);
-    // Przelicza pikietaż po zmianie wzoru (oś zamiast max z wysp).
+    // Przelicza pikietaż i rozciąga oś do etykiety XFDF.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projekt.arkusze.length, projekt.kilometrazPoczatkowyM]);
 
@@ -428,10 +434,20 @@ export function SekcjaPzt({
           </Text>
         </View>
         {projekt.arkusze.length > 0 ? (
-          <Text style={{ color: theme.colors.text, fontSize: 12, fontWeight: '700' }}>
-            Suma osi XFDF: {Math.round(sumaOsi).toLocaleString('pl-PL')} m
-            {kmKoniecTrasy != null ? `  (${formatujKmM(projekt.kilometrazPoczatkowyM)} → ${formatujKmM(kmKoniecTrasy)})` : ''}
-          </Text>
+          <View style={{ gap: 4 }}>
+            <Text style={{ color: theme.colors.text, fontSize: 12, fontWeight: '700' }}>
+              {formatujKmM(projekt.kilometrazPoczatkowyM)}
+              {` + ${sumaOsi.kmM.toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m`}
+              {kmKoniecTrasy != null ? ` = ${formatujKmM(kmKoniecTrasy)}` : ''}
+            </Text>
+            <Text style={{ color: theme.colors.textSecondary, fontSize: 11, lineHeight: 16 }}>
+              {sumaOsi.nEtykiet === sumaOsi.nArkuszy && sumaOsi.nEtykiet > 0
+                ? `Suma wymiarów czarnej osi z XFDF (${sumaOsi.nEtykiet} ark.).`
+                : sumaOsi.nEtykiet === 0
+                  ? 'Brak wymiarów osi w zapisanym projekcie — pikietaż z kreski 1:500 (krótsza). Wgraj XFDF ponownie.'
+                  : `Wymiar osi tylko na ${sumaOsi.nEtykiet}/${sumaOsi.nArkuszy} ark. — reszta z kreski 1:500. Wgraj XFDF ponownie.`}
+            </Text>
+          </View>
         ) : null}
         <Text style={[styles.label, { color: theme.colors.text }]}>Podziałka kilometrażu osi</Text>
         <View style={styles.kmRzad}>
@@ -455,7 +471,7 @@ export function SekcjaPzt({
           <Text style={{ color: theme.colors.textSecondary, fontSize: 13 }}>m — kreska z pikietą co pełne {projekt.podzialkaKilometrazuM ?? 50} m od startu</Text>
         </View>
         <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>
-          Skala PZT 1:{projekt.skala.mianownik} ({projekt.skala.metryNaCm} m / cm). Pikietaż to suma wymiarów osi z XFDF (etykiety z pliku, nie kreskowanie). Długość odcinka = wzdłuż osi, szerokość = poprzeczka L–P. Lewa/prawa patrząc zgodnie z rosnącym km.
+          Skala PZT 1:{projekt.skala.mianownik} ({projekt.skala.metryNaCm} m / cm). Pikietaż i długość trasy = suma wymiarów czarnej osi z XFDF (np. 106+850 + 9 181 m = 116+031), nie krótsza kreska 1:500. Długość odcinka = wzdłuż osi, szerokość = poprzeczka L–P.
         </Text>
       </View>
 
@@ -613,7 +629,7 @@ export function SekcjaPzt({
                 <Text style={{ color: theme.colors.text, fontWeight: '800', fontSize: 14 }}>Cały PZT – ciągłość trasy</Text>
                 <Text style={{ color: theme.colors.primary, fontWeight: '800', fontSize: 13 }}>
                   {formatujKmM(calyArkusz.kilometrazPoczatkowyM)} → {formatujKmM(calyArkusz.kilometrazKoncowyM)}
-                  {`  ·  ${Math.round(sumaOsi)} m osi`}
+                  {`  ·  ${sumaOsi.kmM.toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m osi`}
                 </Text>
                 <Text style={{ color: theme.colors.textSecondary, fontSize: 12, lineHeight: 17 }}>
                   Arkusze sklejone po osi: koniec N = początek N+1 (przesunięcie + obrót w metrach).

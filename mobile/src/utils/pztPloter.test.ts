@@ -42,6 +42,7 @@ function arkusz(
       wierzcholkiPdf: os,
       wierzcholkiM: os,
       dlugoscM: km1 - km0,
+      dlugoscEtykietaM: km1 - km0 > 80 ? km1 - km0 : undefined,
     },
   };
 }
@@ -112,6 +113,30 @@ describe('pztPloter', () => {
     const koniec = os[os.length - 1];
     assert.ok(koniec.x > 140, `ploter zawrócił, koniec x=${koniec.x} y=${koniec.y}`);
     assert.ok(Math.abs(koniec.y) < 8, `koniec y=${koniec.y}`);
+  });
+
+  it('ploter ma długość z etykiet XFDF, nie z krótszej kreski 1:500', () => {
+    const a1 = arkusz(
+      'a1',
+      [{ x: 0, y: 0 }, { x: 390, y: 0 }],
+      0,
+      400,
+      [{ x: 0, y: 4 }, { x: 0, y: -4 }, { x: 390, y: -4 }, { x: 390, y: 4 }],
+    );
+    a1.osTrasy = { ...a1.osTrasy!, dlugoscEtykietaM: 400, dlugoscM: 400 };
+    const a2 = arkusz(
+      'a2',
+      [{ x: 0, y: 0 }, { x: 410, y: 0 }],
+      400,
+      822.07,
+      [{ x: 0, y: 4 }, { x: 0, y: -4 }, { x: 410, y: -4 }, { x: 410, y: 4 }],
+    );
+    a2.osTrasy = { ...a2.osTrasy!, dlugoscEtykietaM: 422.07, dlugoscM: 422.07 };
+    const caly = scalPztDoArkusza([a1, a2]);
+    const os = caly!.osTrasy!.wierzcholkiM;
+    const koniec = os[os.length - 1];
+    assert.ok(Math.abs(koniec.x - 822.07) < 0.2, `trasa ${koniec.x} m, oczekiwane 822.07`);
+    assert.ok(Math.abs(dlugoscPolilinii(os) - 822.07) < 0.2);
   });
 
   it('Ark_2_22 (ostatni PZT) idzie L→P, 422,07 m, i na ploterze nie zawraca', () => {

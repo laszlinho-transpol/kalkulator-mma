@@ -8,6 +8,7 @@ import type { ArkuszPzt, ObszarObmiaru, Punkt2D } from '../types';
 import { round2 } from './calculations';
 import {
   dlugoscPolilinii,
+  dopasujGeometrieArkuszaDoEtykiety,
   osMZorientowana,
   stycznyNaOsi,
 } from './osPzt';
@@ -90,7 +91,8 @@ export function scalPztDoArkusza(arkusze: ArkuszPzt[]): ArkuszPzt | null {
   const obszary: ObszarObmiaru[] = [];
   const plusX = { x: 1, y: 0 };
 
-  for (const ark of arkusze) {
+  for (const surowy of arkusze) {
+    const ark = dopasujGeometrieArkuszaDoEtykiety(surowy);
     const os = osMZorientowana(ark);
     let T: Transform2D;
     if (os.length >= 2) {

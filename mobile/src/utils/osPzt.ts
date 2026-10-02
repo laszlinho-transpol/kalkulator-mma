@@ -158,6 +158,83 @@ export function osMZorientowana(arkusz: ArkuszPzt): Punkt2D[] {
   return orientujLancuchDoKm(os, kierunekRosnacegoKm(pts));
 }
 
+/** Rozciąga łańcuch wzdłuż siebie, żeby długość = cel (etykieta XFDF, nie kreska 1:500). */
+export function rozciagnijLancuchDoDlugosci(os: Punkt2D[], celM: number): Punkt2D[] {
+  if (os.length < 2 || !Number.isFinite(celM) || celM < 1e-3) return os;
+  const dl = dlugoscPolilinii(os);
+  if (dl < 1e-6 || Math.abs(dl - celM) < 0.005) return os;
+  const k = celM / dl;
+  const out: Punkt2D[] = [{ ...os[0] }];
+  for (let i = 1; i < os.length; i++) {
+    out.push({
+      x: out[i - 1].x + (os[i].x - os[i - 1].x) * k,
+      y: out[i - 1].y + (os[i].y - os[i - 1].y) * k,
+    });
+  }
+  return out;
+}
+
+/** Przenosi punkt (stacja + odsunięcie) ze starej osi na rozciągniętą. */
+export function przeniesPunktPrzyRozciagnieciuOsi(
+  p: Punkt2D,
+  osStara: Punkt2D[],
+  osNowa: Punkt2D[],
+): Punkt2D {
+  if (osStara.length < 2 || osNowa.length < 2) return p;
+  const s = stacjaNaOsi(osStara, p);
+  const t0 = stycznyNaOsi(osStara, s);
+  if (!t0) return p;
+  const off = (p.x - t0.punkt.x) * (-t0.dy) + (p.y - t0.punkt.y) * t0.dx;
+  const dl0 = dlugoscPolilinii(osStara);
+  const dl1 = dlugoscPolilinii(osNowa);
+  const s1 = dl0 < 1e-9 ? s : s * (dl1 / dl0);
+  const t1 = stycznyNaOsi(osNowa, s1);
+  if (!t1) return p;
+  return { x: t1.punkt.x + (-t1.dy) * off, y: t1.punkt.y + t1.dx * off };
+}
+
+/**
+ * Geometria w metrach = wymiar osi z XFDF. PDF zostaje (tło 1:500).
+ * Bez tego ploter/trasa jest o 0,5–2 m na arkusz krótsza niż pikietaż.
+ */
+export function dopasujGeometrieArkuszaDoEtykiety(arkusz: ArkuszPzt): ArkuszPzt {
+  const etykieta = arkusz.osTrasy?.dlugoscEtykietaM;
+  const os0 = arkusz.osTrasy?.wierzcholkiM;
+  if (!etykieta || etykieta < 80 || !os0 || os0.length < 2) return arkusz;
+  const osStara = osMZorientowana(arkusz);
+  if (osStara.length < 2) return arkusz;
+  const dl = dlugoscPolilinii(osStara);
+  if (Math.abs(dl - etykieta) < 0.02) {
+    return arkusz.osTrasy?.dlugoscM === etykieta
+      ? arkusz
+      : { ...arkusz, osTrasy: { ...arkusz.osTrasy!, dlugoscM: round2(etykieta) } };
+  }
+  const osNowa = rozciagnijLancuchDoDlugosci(osStara, etykieta);
+  const mapuj = (pts: Punkt2D[]) => pts.map((p) => przeniesPunktPrzyRozciagnieciuOsi(p, osStara, osNowa));
+  return {
+    ...arkusz,
+    osTrasy: {
+      ...arkusz.osTrasy!,
+      wierzcholkiM: osNowa,
+      dlugoscM: round2(etykieta),
+    },
+    obszary: arkusz.obszary.map((o) => {
+      const wierzcholkiM = mapuj(o.wierzcholkiM);
+      return {
+        ...o,
+        wierzcholkiM,
+        powierzchniaM2: wierzcholkiM.length >= 3
+          ? round2(powierzchniaWielokata(wierzcholkiM))
+          : o.powierzchniaM2,
+        krawedzniki: (o.krawedzniki ?? []).map((k) => ({
+          ...k,
+          wierzcholkiM: mapuj(k.wierzcholkiM),
+        })),
+      };
+    }),
+  };
+}
+
 /** Rozpiętość jezdni wzdłuż osi [m] – bliższa pikiecie PZT niż kreska przerywana. */
 export function dlugoscObszarowWzdluzOsiM(arkusz: ArkuszPzt): number {
   const os = osMZorientowana(arkusz);
