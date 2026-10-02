@@ -59,6 +59,22 @@ function potwierdzWeb(pytanie: string): boolean {
   return true;
 }
 
+function tekstPikietazuOsi(os: ReturnType<typeof podsumowanieOsiTrasy>): string {
+  if (os.nEtykiet === os.nArkuszy && os.nEtykiet > 0) {
+    if (Math.abs(os.kmM - os.xfdfM) > 0.5) {
+      const k = os.kalibracjaK.toLocaleString('pl-PL', { minimumFractionDigits: 6, maximumFractionDigits: 7 });
+      const pzt = os.kmM.toLocaleString('pl-PL', { maximumFractionDigits: 2 });
+      const xfdf = os.xfdfM.toLocaleString('pl-PL', { maximumFractionDigits: 2 });
+      return `Kalibracja k = ${pzt} / ${xfdf} = ${k}. Długość XFDF × k, szerokość z PDF; poligony zostają na tle.`;
+    }
+    return `Długość osi = pikietaż drogi (${os.nArkuszy} ark. = ${os.kmM.toLocaleString('pl-PL', { maximumFractionDigits: 2 })} m).`;
+  }
+  if (os.nEtykiet === 0) {
+    return 'Nie odczytano wymiaru osi z XFDF (np. „422,07 m” na kresce). Wgraj te same XFDF ponownie — program podmieni arkusze w pamięci przeglądarki, zamiast doklejać stare 116+016.';
+  }
+  return `Wymiar osi odczytany na ${os.nEtykiet}/${os.nArkuszy} ark. Wgraj XFDF ponownie, żeby pikietaż był pełną długością osi.`;
+}
+
 function pokazKomunikat(tytul: string, tresc: string) {
   if (Platform.OS === 'web' && typeof window !== 'undefined') {
     window.alert(`${tytul}\n\n${tresc}`);
@@ -504,14 +520,7 @@ export function SekcjaPzt({
               {kmKoniecTrasy != null ? ` = ${formatujKmM(kmKoniecTrasy)}` : ''}
             </Text>
             <Text style={{ color: theme.colors.textSecondary, fontSize: 11, lineHeight: 16 }}>
-              {sumaOsi.nEtykiet === sumaOsi.nArkuszy && sumaOsi.nEtykiet > 0
-                ? Math.abs(sumaOsi.kmM - sumaOsi.xfdfM) > 0.5
-                  ? `Kalibracja k = ${sumaOsi.kmM.toLocaleString('pl-PL', { maximumFractionDigits: 2 })} / ${sumaOsi.xfdfM.toLocaleString('pl-PL', { maximumFractionDigits: 2 })} = ${sumaOsi.kalibracjaK.toLocaleString('pl-PL', { minimumFractionDigits: 6, maximumFractionDigits: 7 })}. Długość XFDF × k, szerokość z PDF; poligony zostają na tle.`
-                  : `Długość osi = pikietaż drogi (${sumaOsi.nArkuszy} ark. = ${sumaOsi.kmM.toLocaleString('pl-PL', { maximumFractionDigits: 2 })} m).`
-                  : `Długość osi = pikietaż drogi (${sumaOsi.nArkuszy} ark. = ${sumaOsi.kmM.toLocaleString('pl-PL', { maximumFractionDigits: 2 })} m).`
-                : sumaOsi.nEtykiet === 0
-                  ? 'Nie odczytano wymiaru osi z XFDF (np. „422,07 m” na kresce). Wgraj te same XFDF ponownie — program podmieni arkusze w pamięci przeglądarki, zamiast doklejać stare 116+016.'
-                  : `Wymiar osi odczytany na ${sumaOsi.nEtykiet}/${sumaOsi.nArkuszy} ark. Wgraj XFDF ponownie, żeby pikietaż był pełną długością osi.`}
+              {tekstPikietazuOsi(sumaOsi)}
             </Text>
             {sumaOsi.lukaNumeracji ? (
               <Text style={{ color: theme.colors.textSecondary, fontSize: 11, lineHeight: 16 }}>{sumaOsi.lukaNumeracji}</Text>
@@ -731,7 +740,6 @@ export function SekcjaPzt({
                   <Text style={{ color: theme.colors.textSecondary, fontSize: 12, lineHeight: 17 }}>
                     {Math.abs(sumaOsi.kmM - sumaOsi.xfdfM) > 0.5
                       ? `k = ${sumaOsi.kmM.toLocaleString('pl-PL', { maximumFractionDigits: 2 })} / ${sumaOsi.xfdfM.toLocaleString('pl-PL', { maximumFractionDigits: 2 })} = ${sumaOsi.kalibracjaK.toLocaleString('pl-PL', { minimumFractionDigits: 6, maximumFractionDigits: 7 })} (${sumaOsi.nArkuszy} ark.).`
-                      : `Pikietaż z XFDF: ${sumaOsi.kmM.toLocaleString('pl-PL', { maximumFractionDigits: 2 })} m (${sumaOsi.nArkuszy} ark.).`}
                       : `Pikietaż z XFDF: ${sumaOsi.kmM.toLocaleString('pl-PL', { maximumFractionDigits: 2 })} m (${sumaOsi.nArkuszy} ark.).`}
                     {sumaOsi.lukaNumeracji ? ` ${sumaOsi.lukaNumeracji}` : ''}
                   </Text>
