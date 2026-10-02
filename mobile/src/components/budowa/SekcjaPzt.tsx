@@ -75,6 +75,16 @@ function tekstPikietazuOsi(os: ReturnType<typeof podsumowanieOsiTrasy>): string 
   return `Wymiar osi odczytany na ${os.nEtykiet}/${os.nArkuszy} ark. Wgraj XFDF ponownie, żeby pikietaż był pełną długością osi.`;
 }
 
+function tekstPolaKoncaZadanego(zadany: number | undefined, xfdfKoniec: number | undefined): string {
+  if (zadany != null) {
+    return `Wpisane ${formatujKmM(zadany)} — pikietaż terenu (k). Do 21. arkusza bliżej nadruku jest XFDF.`;
+  }
+  if (xfdfKoniec != null) {
+    return `Z XFDF: ${formatujKmM(xfdfKoniec)}. Puste pole = bez k. Wpisz 116+031 tylko do porównania kresek.`;
+  }
+  return 'Opcjonalnie: ostatnia pikieta osi z PZT (np. 116+031).';
+}
+
 function pokazKomunikat(tytul: string, tresc: string) {
   if (Platform.OS === 'web' && typeof window !== 'undefined') {
     window.alert(`${tytul}\n\n${tresc}`);
@@ -505,13 +515,27 @@ export function SekcjaPzt({
             onM={(v) => ustawKoniec(kmKoniecStr, v)}
           />
           <Text style={{ color: theme.colors.textSecondary, fontSize: 12, flex: 1 }}>
-            {projekt.kilometrazKoncowyZadanyM != null
-              ? `Wpisane ${formatujKmM(projekt.kilometrazKoncowyZadanyM)} — pikietaż terenu.`
-              : (kmKoniecTrasy != null
-                ? `Z XFDF: ${formatujKmM(kmKoniecTrasy)}. Wpisz ostatnią pikietę z PZT (np. 116+031).`
-                : 'Opcjonalnie: ostatnia pikieta osi z PZT.')}
+            {tekstPolaKoncaZadanego(projekt.kilometrazKoncowyZadanyM, kmKoniecTrasy)}
           </Text>
         </View>
+        {kalibracjaAktywna ? (
+          <TouchableOpacity
+            style={[styles.btnXfdf, { borderColor: theme.colors.secondary }]}
+            onPress={() => {
+              setKmKoniecStr('');
+              setMKoniecStr('');
+              onZmien(przeliczProjektPoZmianieKm({
+                ...projekt,
+                kilometrazKoncowyZadanyM: undefined,
+              }));
+            }}
+            accessibilityLabel="Pikietaż z XFDF bez k"
+          >
+            <Text style={{ color: theme.colors.secondary, fontWeight: '800', fontSize: 13 }}>
+              Pikietaż z XFDF (bez k)
+            </Text>
+          </TouchableOpacity>
+        ) : null}
         {projekt.arkusze.length > 0 ? (
           <View style={{ gap: 4 }}>
             <Text style={{ color: theme.colors.text, fontSize: 12, fontWeight: '700' }}>
@@ -562,7 +586,7 @@ export function SekcjaPzt({
           <Text style={{ color: theme.colors.textSecondary, fontSize: 13 }}>m — kreska z pikietą co pełne {projekt.podzialkaKilometrazuM ?? 50} m od startu</Text>
         </View>
         <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>
-          Oś od pierwszej pikiety do ostatniej (np. 106+850 → 116+031). k = 9 181 / 9 166 ≈ 1,001636: każda długość z XFDF × k, szerokość zostaje z PDF, poligony nie odjeżdżają od tła. Pominięty arkusz drogi bocznej (np. 2_9) nie robi dziury: 2_8 styka się z 2_10.
+          Oś od pierwszej pikiety do ostatniej. Do 21. arkusza nadruk zgadza się lepiej z wymiarem XFDF (pomarańczowe) niż z jednolitym k. Na ostatnim arkuszu (2_22) kreska XFDF = 1:500 = 422,07 m, a 115+608→116+031 = 423 m. Zaznacz „Zmierz” i tapnij 115+700 oraz 115+800 na osi — jeśli ≈ 100 m, podziałka PDF jest w skali, a 116+031 może być błędem etykiety. Puste pole końca = pikietaż z XFDF, bez k.
           Ponowne wgranie tego samego arkusza podmienia geometrię w pamięci przeglądarki (nie dokleja kopii).
         </Text>
         <Text style={{ color: theme.colors.textSecondary, fontSize: 10 }}>
@@ -1019,6 +1043,7 @@ const styles = StyleSheet.create({
   input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15 },
   btnKolej: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, flexGrow: 1 },
   btnUsun: { borderWidth: 1, borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
+  btnXfdf: { borderWidth: 1, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 12, alignItems: 'center', alignSelf: 'flex-start' },
   btnKonfigurator: { borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12 },
   pdfChipy: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   pdfChip: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 6, maxWidth: '100%' },

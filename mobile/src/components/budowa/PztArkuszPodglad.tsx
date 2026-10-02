@@ -12,14 +12,22 @@ import Svg, { Circle, G, Image as SvgImage, Line, Polygon, Polyline, Rect, Text 
 import type { ArkuszPzt, Punkt2D, TloArkuszaPzt } from '../../types';
 import { bboxWielokata } from '../../utils/obmiarGeometry';
 import {
+  dlugoscOsiPdf1500M,
   dlugoscPolilinii,
   medianaSzerokosciObszarowPdf,
+  ocenaOdstempuPodzialkiM,
   osPdfZorientowana,
+  pdfDoSvgPodgladu,
+  pomiarWzdlozOsiPdf,
   punktNaOsi,
   rozmiarPodzialkiOsi,
+  stacjaNaOsi,
   stacjePodzialki,
   stycznyNaOsi,
+  svgDoPdfPodgladu,
+  wycinekPolilinii,
 } from '../../utils/osPzt';
+import type { WynikPomiaruOsi } from '../../utils/osPzt';
 import {
   nastepnyPresetZoom,
   ograniczenie,
@@ -28,6 +36,7 @@ import {
   SKALA_MIN,
   skalaZProcentu,
   translacjaPrzyZoomie,
+  punktSvgZEkranu,
 } from '../../utils/obmiarMapa';
 import { formatujKmM } from '../../utils/projektBudowy';
 import { buforTlaArkusza, podlaczBuforDoArkusza } from '../../utils/tloPdfPamiec';
@@ -58,6 +67,37 @@ function srodek(pts: Punkt2D[]): Punkt2D {
     y += p.y;
   }
   return { x: x / pts.length, y: y / pts.length };
+}
+
+function kmAlboPuste(v: number | null | undefined): string {
+  return v == null ? '—' : formatujKmM(v);
+}
+
+function tekstHintuPomiaru(n: number, metry: number | null): string {
+  if (n === 0) {
+    return 'Zmierz: zaznacz „Ramka”, przybliż nadruk (np. 115+700) i tapnij kreskę na osi. Drugie tapnięcie = kolejna pikieta (115+800). Wynik w metrach 1:500, bez k.';
+  }
+  if (n === 1) return 'Zmierz: tapnij drugą pikietę na osi (np. 115+800).';
+  const m = (metry ?? 0).toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return `Zmierz 1:500 (bez k): ${m} m. Trzecie tapnięcie zaczyna nowy odcinek.`;
+}
+
+function tekstKmPunktow(w: WynikPomiaruOsi): string {
+  const xfdfRozne = w.kmXfdfA != null && w.kmPztA != null && Math.abs(w.kmXfdfA - w.kmPztA) > 0.4;
+  if (!xfdfRozne) {
+    return `A ${kmAlboPuste(w.kmPztA)} · B ${kmAlboPuste(w.kmPztB)}`;
+  }
+  return `A: XFDF ${kmAlboPuste(w.kmXfdfA)} / PZT ${kmAlboPuste(w.kmPztA)} · B: XFDF ${kmAlboPuste(w.kmXfdfB)} / PZT ${kmAlboPuste(w.kmPztB)}`;
+}
+
+function tekstOsi1500(os1500M: number, xfdfM: number | undefined, dlM: number): string {
+  const a = os1500M.toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const pzt = dlM.toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (xfdfM && xfdfM > 1) {
+    const x = xfdfM.toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return `Oś 1:500 = ${a} m · XFDF = ${x} m · PZT = ${pzt} m. Na 2_22 XFDF i 1:500 to to samo (422,07 m); 116+031 to +1 m na tym arkuszu i ~14 m z k na ark. 1–21.`;
+  }
+  return `Oś 1:500 = ${a} m · PZT = ${pzt} m.`;
 }
 
 interface LiveAutoPzt {
@@ -105,8 +145,11 @@ export function PztArkuszPodglad({
   const [xform, setXform] = useState({ s: 1, tx: 0, ty: 0 });
   const [bladTla, setBladTla] = useState<string | null>(null);
   const [tloObraz, setTloObraz] = useState<ObrazTlaPdf | null>(null);
+  const [zmierz, setZmierz] = useState(false);
+  const [punktyPomiaru, setPunktyPomiaru] = useState<Punkt2D[]>([]);
   const onObrazTla = useCallback((o: ObrazTlaPdf | null) => setTloObraz(o), []);
   const onBladTla = useCallback((m: string | null) => setBladTla(m), []);
+  const TAP_MAX = 12;
 
   const bazaSkali = useRef(1);
   const bazaX = useRef(0);
@@ -227,10 +270,88 @@ export function PztArkuszPodglad({
     const podzialkiXfdf = xfdfRozne && pikietazXfdf
       ? kreski(pikietazXfdf.odM, pikietazXfdf.doM, 0.72)
       : [];
+    const mapaSvg = { w: rozmiar.w, h: rozmiar.h, cx, cy, skalaFit };
+    const os1500M = osPdf && osPdf.length >= 2 ? dlugoscOsiPdf1500M(osPdf) : 0;
+    const xfdfM = arkusz.osTrasy?.dlugoscEtykietaM;
     return {
-      obszary, skalaFit, cx, cy, osPunkty, rozkladarka, auta, podzialki, podzialkiXfdf, xfdfRozne,
+      obszary,
+      skalaFit,
+      cx,
+      cy,
+      osPdf,
+      osPunkty,
+      mapaSvg,
+      os1500M,
+      xfdfM,
+      dlM,
+      rozkladarka,
+      auta,
+      podzialki,
+      podzialkiXfdf,
+      xfdfRozne,
     };
   }, [arkusz, geometria, rozmiar.w, rozmiar.h, liveStacjaM, liveAuta, podzialkaM, pikietazXfdf]);
+
+  const mapaRef = useRef(mapa);
+  mapaRef.current = mapa;
+  const zmierzRef = useRef(zmierz);
+  zmierzRef.current = zmierz;
+  const lastTapMs = useRef(0);
+
+  const dodajPunktPomiaru = (ekranX: number, ekranY: number) => {
+    const m = mapaRef.current;
+    if (!zmierzRef.current || !m?.osPdf || m.osPdf.length < 2) return;
+    const now = Date.now();
+    if (now - lastTapMs.current < 280) return;
+    lastTapMs.current = now;
+    const svg = punktSvgZEkranu({
+      ekranX,
+      ekranY,
+      szer: rozmiarRef.current.w,
+      wys: rozmiarRef.current.h,
+      tx: bazaX.current,
+      ty: bazaY.current,
+      rot: 0,
+      skala: bazaSkali.current,
+    });
+    const pdf = svgDoPdfPodgladu(svg, m.mapaSvg);
+    setPunktyPomiaru((prev) => (prev.length >= 2 ? [pdf] : [...prev, pdf]));
+  };
+
+  const wynikPomiaru = useMemo(() => {
+    if (!mapa?.osPdf || punktyPomiaru.length < 2) return null;
+    return pomiarWzdlozOsiPdf({
+      osPdf: mapa.osPdf,
+      a: punktyPomiaru[0],
+      b: punktyPomiaru[1],
+      kmPzt: { odM: arkusz.kilometrazPoczatkowyM, doM: arkusz.kilometrazKoncowyM },
+      kmXfdf: pikietazXfdf ?? {
+        odM: arkusz.kilometrazPoczatkowyM,
+        doM: arkusz.kilometrazKoncowyM,
+      },
+    });
+  }, [mapa, punktyPomiaru, arkusz.kilometrazPoczatkowyM, arkusz.kilometrazKoncowyM, pikietazXfdf]);
+
+  const rysunekPomiaru = useMemo(() => {
+    if (!mapa?.osPdf || punktyPomiaru.length === 0) return null;
+    const toSvg = (p: Punkt2D) => pdfDoSvgPodgladu(p, mapa.mapaSvg);
+    const markery = punktyPomiaru.map((p, i) => {
+      const naOsi = i === 0 && wynikPomiaru
+        ? wynikPomiaru.punktA
+        : (i === 1 && wynikPomiaru
+          ? wynikPomiaru.punktB
+          : (punktNaOsi(mapa.osPdf, stacjaNaOsi(mapa.osPdf, p)) ?? p));
+      return { i, ...toSvg(naOsi) };
+    });
+    const odcinek = wynikPomiaru
+      ? wycinekPolilinii(
+        mapa.osPdf,
+        Math.min(wynikPomiaru.stacjaAPdf, wynikPomiaru.stacjaBPdf),
+        Math.max(wynikPomiaru.stacjaAPdf, wynikPomiaru.stacjaBPdf),
+      ).map(toSvg)
+      : [];
+    return { markery, odcinek };
+  }, [mapa, punktyPomiaru, wynikPomiaru]);
 
   const clampTrans = (x: number, y: number, s = bazaSkali.current) => {
     const { w, h } = rozmiarRef.current;
@@ -279,6 +400,8 @@ export function PztArkuszPodglad({
     resetWidoku();
     setTloObraz(null);
     setBladTla(null);
+    setPunktyPomiaru([]);
+    setZmierz(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [arkusz.id]);
 
@@ -299,7 +422,16 @@ export function PztArkuszPodglad({
       zoomFnRef.current(nastepnyPresetZoom(bazaSkali.current, dir), f0x, f0y);
     };
     el.addEventListener('wheel', handler, { passive: false });
-    odpinWheel.current = () => el.removeEventListener('wheel', handler);
+    const onClick = (e: MouseEvent) => {
+      if (!zmierzRef.current) return;
+      const rect = el.getBoundingClientRect();
+      dodajPunktPomiaru(e.clientX - rect.left, e.clientY - rect.top);
+    };
+    el.addEventListener('click', onClick);
+    odpinWheel.current = () => {
+      el.removeEventListener('wheel', handler);
+      el.removeEventListener('click', onClick);
+    };
   }, []);
   useEffect(() => () => odpinWheel.current?.(), []);
 
@@ -381,9 +513,26 @@ export function PztArkuszPodglad({
 
   const onPanState = (e: any) => {
     const st = e.nativeEvent.state;
+    const dx = e.nativeEvent.translationX ?? 0;
+    const dy = e.nativeEvent.translationY ?? 0;
+    const tap = Math.hypot(dx, dy) < TAP_MAX;
     if (st === State.ACTIVE) onDotykZmiana?.(true);
     if (e.nativeEvent.oldState !== State.ACTIVE) {
-      if (st === State.FAILED || st === State.CANCELLED || st === State.END) onDotykZmiana?.(false);
+      if (st === State.FAILED || st === State.CANCELLED || st === State.END) {
+        if (zmierzRef.current && tap) {
+          const x = e.nativeEvent.x as number | undefined;
+          const y = e.nativeEvent.y as number | undefined;
+          if (x != null && y != null) dodajPunktPomiaru(x, y);
+        }
+        onDotykZmiana?.(false);
+      }
+      return;
+    }
+    if (zmierzRef.current && tap) {
+      const x = e.nativeEvent.x as number | undefined;
+      const y = e.nativeEvent.y as number | undefined;
+      if (x != null && y != null) dodajPunktPomiaru(x, y);
+      onDotykZmiana?.(false);
       return;
     }
     if (e.nativeEvent.numberOfPointers > 1) {
@@ -466,6 +615,23 @@ export function PztArkuszPodglad({
               </TouchableOpacity>
             </>
           ) : null}
+          <TouchableOpacity
+            style={styl.blokada}
+            onPress={() => {
+              setZmierz((v) => {
+                const next = !v;
+                if (next) onBlokadaPodgladu?.(true);
+                else setPunktyPomiaru([]);
+                return next;
+              });
+            }}
+            accessibilityLabel="Zmierz oś 1:500"
+          >
+            <View style={[styl.check, zmierz && styl.checkOn]}>
+              {zmierz ? <Text style={styl.checkTekst}>✓</Text> : null}
+            </View>
+            <Text style={styl.blokadaTekst}>Zmierz</Text>
+          </TouchableOpacity>
         </View>
 
         <View style={styl.lupka}>
@@ -524,6 +690,13 @@ export function PztArkuszPodglad({
                       width={rozmiar.w}
                       height={rozmiar.h}
                       style={{ backgroundColor: 'transparent' }}
+                      onPress={(e) => {
+                        if (!zmierzRef.current) return;
+                        const ne = e.nativeEvent as { locationX?: number; x?: number; locationY?: number; y?: number };
+                        const x = ne.locationX ?? ne.x;
+                        const y = ne.locationY ?? ne.y;
+                        if (x != null && y != null) dodajPunktPomiaru(x, y);
+                      }}
                     >
                       <Rect
                         x={0}
@@ -664,6 +837,39 @@ export function PztArkuszPodglad({
                             strokeWidth={2}
                           />
                         ) : null}
+                        {rysunekPomiaru?.odcinek && rysunekPomiaru.odcinek.length >= 2 ? (
+                          <Polyline
+                            points={rysunekPomiaru.odcinek.map((p) => `${p.x},${p.y}`).join(' ')}
+                            fill="none"
+                            stroke="#2563EB"
+                            strokeWidth={swEkran * 2.1}
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            vectorEffect="non-scaling-stroke"
+                          />
+                        ) : null}
+                        {rysunekPomiaru?.markery.map((mk) => (
+                          <G key={`pom-${mk.i}`}>
+                            <Circle
+                              cx={mk.x}
+                              cy={mk.y}
+                              r={6}
+                              fill="#2563EB"
+                              stroke="#fff"
+                              strokeWidth={1.5}
+                            />
+                            <SvgText
+                              x={mk.x}
+                              y={mk.y + 3.2}
+                              fontSize={8}
+                              fontWeight="800"
+                              fill="#fff"
+                              textAnchor="middle"
+                            >
+                              {mk.i === 0 ? 'A' : 'B'}
+                            </SvgText>
+                          </G>
+                        ))}
                       </G>
                     </Svg>
                   </Animated.View>
@@ -693,17 +899,30 @@ export function PztArkuszPodglad({
           );
         })}
       </ScrollView>
+      {mapa.os1500M > 1 ? (
+        <Text style={styl.hintPod}>{tekstOsi1500(mapa.os1500M, mapa.xfdfM, mapa.dlM)}</Text>
+      ) : null}
+      {zmierz ? (
+        <Text style={[styl.hintPod, { color: '#1D4ED8', fontWeight: '700' }]}>
+          {tekstHintuPomiaru(punktyPomiaru.length, wynikPomiaru?.metry1500 ?? null)}
+        </Text>
+      ) : null}
+      {wynikPomiaru ? (
+        <Text style={[styl.hintPod, { color: '#1E3A8A' }]}>
+          {`${tekstKmPunktow(wynikPomiaru)}. ${ocenaOdstempuPodzialkiM(wynikPomiaru.metry1500).tekst}`}
+        </Text>
+      ) : null}
       <Text style={styl.hintPod}>
         {tloMeta
           ? `Tło PDF: ${tloMeta.nazwa}${buforTla ? '' : ' — odtwarzanie z pamięci przeglądarki… Jeśli nie wraca, otwórz konfigurator teł.'}`
           : 'Żeby widać było pikiety, pobocza i budynki, wgraj oryginalny PDF arkusza („+ Tło PDF”). Nazwy nie muszą być identyczne z XFDF – wystarczy numer arkusza (Ark_2_1) albo jeden PDF na otwartą zakładkę.'}
       </Text>
-      {mapa?.xfdfRozne ? (
+      {mapa.xfdfRozne ? (
         <Text style={styl.hintPod}>
           <Text style={{ color: '#0F766E', fontWeight: '800' }}>zielone</Text>
-          {' = pikiety PZT (po kalibracji k). '}
+          {' = pikiety PZT (po k). '}
           <Text style={{ color: '#EA580C', fontWeight: '800' }}>pomarańczowe</Text>
-          {' = wymiar XFDF bez k. Poligony leżą na tle PDF (bez przesuwania). Na końcu trasy kreski się rozjeżdżają o ~15 m — porównaj z nadrukiem 116+000 / 116+031.'}
+          {' = XFDF bez k — do 21. arkusza bliżej nadruku. Na ostatnim arkuszu zmierz podziałkę (Zmierz): 115+700 → 115+800 ma być ~100 m na 1:500.'}
         </Text>
       ) : null}
       <Text style={styl.hintPod}>

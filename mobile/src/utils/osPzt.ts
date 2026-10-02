@@ -2,8 +2,9 @@
 // OŚ PZT – pikietaż i wycinek wielokąta wzdłuż przerywanej osi z XFDF
 // ============================================================
 
-import type { ArkuszPzt, ObszarObmiaru, Punkt2D, ProjektBudowy } from '../types';
-import { powierzchniaWielokata } from './obmiarGeometry';
+import type { ArkuszPzt, ObszarObmiaru, Punkt2D, ProjektBudowy, SkalaPzt } from '../types';
+import { DOMYSLNA_SKALA_PZT } from '../types';
+import { metryNaPunktPdf, powierzchniaWielokata } from './obmiarGeometry';
 import { round2 } from './calculations';
 
 function dystans(a: Punkt2D, b: Punkt2D): number {
@@ -494,4 +495,125 @@ export function arkuszWycinekDlaKm(
     obszary,
     osTrasy,
   };
+}
+
+/** Mapowanie PDF ↔ SVG podglądu arkusza (Y PDF w górę, Y SVG w dół). */
+export interface MapaPdfSvg {
+  w: number;
+  h: number;
+  cx: number;
+  cy: number;
+  skalaFit: number;
+}
+
+export function pdfDoSvgPodgladu(p: Punkt2D, m: MapaPdfSvg): Punkt2D {
+  return {
+    x: m.w / 2 + (p.x - m.cx) * m.skalaFit,
+    y: m.h / 2 - (p.y - m.cy) * m.skalaFit,
+  };
+}
+
+export function svgDoPdfPodgladu(s: Punkt2D, m: MapaPdfSvg): Punkt2D {
+  const k = m.skalaFit === 0 ? 1 : m.skalaFit;
+  return {
+    x: m.cx + (s.x - m.w / 2) / k,
+    y: m.cy - (s.y - m.h / 2) / k,
+  };
+}
+
+/** Długość osi w metrach terenu przy skali rysunku (1:500), bez współczynnika k. */
+export function dlugoscOsiPdf1500M(
+  osPdf: Punkt2D[],
+  skala: SkalaPzt = DOMYSLNA_SKALA_PZT,
+): number {
+  return round2(dlugoscPolilinii(osPdf) * metryNaPunktPdf(skala));
+}
+
+export interface WynikPomiaruOsi {
+  metry1500: number;
+  pdf: number;
+  stacjaAPdf: number;
+  stacjaBPdf: number;
+  punktA: Punkt2D;
+  punktB: Punkt2D;
+  kmPztA: number | null;
+  kmPztB: number | null;
+  kmXfdfA: number | null;
+  kmXfdfB: number | null;
+}
+
+function kmZUlamka(zakres: { odM: number; doM: number } | null | undefined, ulamek: number): number | null {
+  if (!zakres) return null;
+  const span = zakres.doM - zakres.odM;
+  if (!Number.isFinite(span) || Math.abs(span) < 0.01) return null;
+  return round2(zakres.odM + ulamek * span);
+}
+
+/**
+ * Dwa punkty (PDF) rzutowane na oś: odległość wzdłuż kreski w metrach 1:500, bez k.
+ * Na 2_22: tapnij nadruk 115+700 i 115+800 — jeśli ≈ 100 m, podziałka PDF jest w skali.
+ */
+export function pomiarWzdlozOsiPdf(args: {
+  osPdf: Punkt2D[];
+  a: Punkt2D;
+  b: Punkt2D;
+  skala?: SkalaPzt;
+  kmPzt?: { odM: number; doM: number } | null;
+  kmXfdf?: { odM: number; doM: number } | null;
+}): WynikPomiaruOsi | null {
+  const os = args.osPdf;
+  if (os.length < 2) return null;
+  const L = dlugoscPolilinii(os);
+  if (L < 1e-6) return null;
+  const sa = stacjaNaOsi(os, args.a);
+  const sb = stacjaNaOsi(os, args.b);
+  const pdf = Math.abs(sb - sa);
+  const k = metryNaPunktPdf(args.skala ?? DOMYSLNA_SKALA_PZT);
+  const punktA = punktNaOsi(os, sa) ?? args.a;
+  const punktB = punktNaOsi(os, sb) ?? args.b;
+  const ua = sa / L;
+  const ub = sb / L;
+  return {
+    metry1500: round2(pdf * k),
+    pdf: round2(pdf),
+    stacjaAPdf: sa,
+    stacjaBPdf: sb,
+    punktA,
+    punktB,
+    kmPztA: kmZUlamka(args.kmPzt, ua),
+    kmPztB: kmZUlamka(args.kmPzt, ub),
+    kmXfdfA: kmZUlamka(args.kmXfdf, ua),
+    kmXfdfB: kmZUlamka(args.kmXfdf, ub),
+  };
+}
+
+export function ocenaOdstempuPodzialkiM(metry1500: number): {
+  krokM: number;
+  roznicaM: number;
+  zgadzaSie: boolean;
+  tekst: string;
+} {
+  const kandydaci = [50, 100, 150, 200, 250, 300, 400];
+  let krokM = 100;
+  let best = Infinity;
+  for (const k of kandydaci) {
+    const r = Math.abs(metry1500 - k);
+    if (r < best) {
+      best = r;
+      krokM = k;
+    }
+  }
+  const roznicaM = round2(metry1500 - krokM);
+  const zgadzaSie = best <= Math.max(2.5, krokM * 0.025);
+  const m = metry1500.toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const d = Math.abs(roznicaM).toLocaleString('pl-PL', { maximumFractionDigits: 2 });
+  let tekst: string;
+  if (zgadzaSie && krokM === 100) {
+    tekst = `Odstęp ${m} m ≈ 100 m na 1:500 — podziałka na PDF jest w skali. Jeśli kreski nie pokrywają nadruku, przesunięty jest start arkusza albo etykieta 116+031, nie sam odstęp 100 m.`;
+  } else if (zgadzaSie) {
+    tekst = `Odstęp ${m} m ≈ ${krokM} m na 1:500 (nie 100 m między tymi dwoma punktami).`;
+  } else {
+    tekst = `Odstęp ${m} m (Δ ${d} m od ${krokM} m) — nadruk na tym arkuszu może nie być co 100 m. Możliwy błąd projektowy oryginalnego PDF.`;
+  }
+  return { krokM, roznicaM, zgadzaSie, tekst };
 }
