@@ -74,83 +74,118 @@ export function kierunekLancucha(os: Punkt2D[]): Punkt2D {
   return t ? { x: t.dx, y: t.dy } : { x: 1, y: 0 };
 }
 
-function punktBazy(
-  o: ObszarObmiaru,
-  ktory: 'start' | 'koniec',
-  ktora: 'lewy' | 'prawy',
-): Punkt2D | undefined {
-  const b = ktory === 'start' ? o.bazaStart : o.bazaKoniec;
-  const i = ktora === 'lewy' ? b?.idxLewy : b?.idxPrawy;
-  if (i == null) return undefined;
-  return o.wierzcholkiM[i];
+function punktyNaCzoie(os: Punkt2D[], pts: Punkt2D[], ktory: 'start' | 'koniec'): Punkt2D[] {
+  if (os.length < 2 || pts.length === 0) return [];
+  const st = pts.map((p) => ({ p, s: stacjaNaOsi(os, p) }));
+  const lo = Math.min(...st.map((x) => x.s));
+  const hi = Math.max(...st.map((x) => x.s));
+  const pas = Math.max((hi - lo) * 0.015, 0.35);
+  const pasmo = ktory === 'start'
+    ? st.filter((x) => x.s <= lo + pas)
+    : st.filter((x) => x.s >= hi - pas);
+  return (pasmo.length >= 1 ? pasmo : st.filter((x) => (
+    ktory === 'start' ? x.s <= lo + pas * 3 : x.s >= hi - pas * 3
+  ))).map((x) => x.p);
+}
+
+/** Najdłuższy obszar danej strony (jezdnia, nie wjazd / łata). */
+function glownyObszar(ark: ArkuszPzt, strona: 'lewa' | 'prawa'): ObszarObmiaru | undefined {
+  const os = osMZorientowana(ark);
+  const kand = ark.obszary.filter((o) => o.stronaTrasy === strona && o.wierzcholkiM.length >= 2);
+  if (kand.length === 0) return undefined;
+  if (kand.length === 1 || os.length < 2) return kand[0];
+  return kand.reduce((best, o) => {
+    const d = (pts: Punkt2D[]) => {
+      const st = pts.map((p) => stacjaNaOsi(os, p));
+      return Math.max(...st) - Math.min(...st);
+    };
+    return d(o.wierzcholkiM) > d(best.wierzcholkiM) ? o : best;
+  });
+}
+
+function skrajPoStronie(os: Punkt2D[], pts: Punkt2D[], strona: 'lewa' | 'prawa'): Punkt2D | undefined {
+  if (pts.length === 0) return undefined;
+  let best = pts[0];
+  let bestC = iloczynWektorowyOsi(best, os);
+  for (const p of pts) {
+    const c = iloczynWektorowyOsi(p, os);
+    if (strona === 'lewa' ? c > bestC : c < bestC) {
+      bestC = c;
+      best = p;
+    }
+  }
+  return best;
 }
 
 function skrajLewyPrawy(os: Punkt2D[], pts: Punkt2D[]): { lewy: Punkt2D; prawy: Punkt2D } | null {
-  if (os.length < 2 || pts.length < 2) return null;
-  let lewy = pts[0];
-  let prawy = pts[0];
-  let maxC = iloczynWektorowyOsi(lewy, os);
-  let minC = maxC;
-  for (const p of pts) {
-    const c = iloczynWektorowyOsi(p, os);
-    if (c > maxC) {
-      maxC = c;
-      lewy = p;
-    }
-    if (c < minC) {
-      minC = c;
-      prawy = p;
-    }
-  }
-  if (Math.hypot(lewy.x - prawy.x, lewy.y - prawy.y) < 0.05) return null;
+  const lewy = skrajPoStronie(os, pts, 'lewa');
+  const prawy = skrajPoStronie(os, pts, 'prawa');
+  if (!lewy || !prawy || Math.hypot(lewy.x - prawy.x, lewy.y - prawy.y) < 0.05) return null;
   return { lewy, prawy };
 }
 
+/** Poprzeczka (L–P) jest prostopadła do osi, nie wzdłuż jezdni. */
+export function czyPoprzeczka(
+  styk: { lewy: Punkt2D; prawy: Punkt2D },
+  os: Punkt2D[],
+  stacjaM: number,
+): boolean {
+  const t = stycznyNaOsi(os, stacjaM);
+  if (!t) return false;
+  const dx = styk.prawy.x - styk.lewy.x;
+  const dy = styk.prawy.y - styk.lewy.y;
+  const len = Math.hypot(dx, dy);
+  if (len < 0.05) return false;
+  return Math.abs((dx * t.dx + dy * t.dy) / len) < 0.5;
+}
+
+export interface WezlyCzola {
+  lewy?: Punkt2D;
+  prawy?: Punkt2D;
+  os?: Punkt2D;
+}
+
 /**
- * Poprzeczka L–P na początku / końcu arkusza (bazy XFDF albo skraj jezdni na osi).
- * To punkty tyczenia: ostatnie L/P arkusza N = pierwsze L/P arkusza N+1.
+ * Węzły czoła: skraj żółtego (L) i różowego (P) przy min/max stacji osi.
+ * Nie bierzemy zapisanej bazy – para wzdłuż jezdni + Helmert dawały załamanie 90°.
+ */
+export function wezlyCzola(ark: ArkuszPzt, ktory: 'start' | 'koniec'): WezlyCzola {
+  const os = osMZorientowana(ark);
+  const out: WezlyCzola = {};
+  if (os.length >= 2) out.os = ktory === 'start' ? os[0] : os[os.length - 1];
+  const lewa = glownyObszar(ark, 'lewa');
+  const prawa = glownyObszar(ark, 'prawa');
+  if (os.length >= 2 && lewa) {
+    out.lewy = skrajPoStronie(os, punktyNaCzoie(os, lewa.wierzcholkiM, ktory), 'lewa');
+  }
+  if (os.length >= 2 && prawa) {
+    out.prawy = skrajPoStronie(os, punktyNaCzoie(os, prawa.wierzcholkiM, ktory), 'prawa');
+  }
+  if ((!out.lewy || !out.prawy) && os.length >= 2) {
+    const skraj = skrajLewyPrawy(os, punktyNaCzoie(os, ark.obszary.flatMap((o) => o.wierzcholkiM), ktory));
+    if (skraj) {
+      out.lewy = out.lewy ?? skraj.lewy;
+      out.prawy = out.prawy ?? skraj.prawy;
+    }
+  }
+  return out;
+}
+
+/**
+ * Węzły L i P na czole / końcu arkusza – skraj jezdni przy min/max stacji osi.
  */
 export function stykLewyPrawy(
   ark: ArkuszPzt,
   ktory: 'start' | 'koniec',
 ): { lewy: Punkt2D; prawy: Punkt2D } | null {
-  const os = osMZorientowana(ark);
-  const lewa = ark.obszary.find((o) => o.stronaTrasy === 'lewa');
-  const prawa = ark.obszary.find((o) => o.stronaTrasy === 'prawa');
-  if (lewa && prawa) {
-    const lewy = punktBazy(lewa, ktory, 'lewy');
-    const prawy = punktBazy(prawa, ktory, 'prawy');
-    if (lewy && prawy && Math.hypot(lewy.x - prawy.x, lewy.y - prawy.y) > 0.05) {
-      return { lewy, prawy };
-    }
-  }
-  for (const o of ark.obszary) {
-    const lewy = punktBazy(o, ktory, 'lewy');
-    const prawy = punktBazy(o, ktory, 'prawy');
-    if (lewy && prawy && Math.hypot(lewy.x - prawy.x, lewy.y - prawy.y) > 0.05) {
-      return { lewy, prawy };
-    }
-  }
-  if (os.length >= 2) {
-    const all = ark.obszary.flatMap((o) => o.wierzcholkiM);
-    const st = all.map((p) => ({ p, s: stacjaNaOsi(os, p) }));
-    if (st.length >= 2) {
-      const lo = Math.min(...st.map((x) => x.s));
-      const hi = Math.max(...st.map((x) => x.s));
-      const pas = Math.max((hi - lo) * 0.04, 0.25);
-      const pasmo = ktory === 'start'
-        ? st.filter((x) => x.s <= lo + pas)
-        : st.filter((x) => x.s >= hi - pas);
-      const skraj = skrajLewyPrawy(os, (pasmo.length >= 2 ? pasmo : st).map((x) => x.p));
-      if (skraj) return skraj;
-    }
-  }
-  return null;
+  const w = wezlyCzola(ark, ktory);
+  if (!w.lewy || !w.prawy) return null;
+  if (Math.hypot(w.lewy.x - w.prawy.x, w.lewy.y - w.prawy.y) < 0.05) return null;
+  return { lewy: w.lewy, prawy: w.prawy };
 }
 
 /**
  * Helmert 2 punkty: A,B z XFDF → A',B' z poprzedniego arkusza.
- * Reszta punktów: te same różnice (obrót + ewentualna skala styku L–P).
  */
 export function transformDwochPunktow(
   srcA: Punkt2D,
@@ -172,8 +207,41 @@ export function transformDwochPunktow(
   return { c, s, tx: dstA.x - (c * srcA.x - s * srcA.y), ty: dstA.y - (s * srcA.x + c * srcA.y) };
 }
 
-function transformPrzesuniecia(src: Punkt2D, dst: Punkt2D): Transform2D {
-  return { c: 1, s: 0, tx: dst.x - src.x, ty: dst.y - src.y };
+const ZGODNY_PRZESUW_M = 2.5;
+
+/**
+ * Tyczenie wstecz: pierwszy L := ostatni L, pierwszy P := ostatni P.
+ * Samo przesunięcie (te same Δx, Δy z XFDF). Helmert/obrót na złej parze
+ * L–P (wzdłuż jezdni zamiast poprzeczki) łamał ploter pod 90°.
+ */
+export function transformTyczeniaWstecz(
+  srcLewy: Punkt2D,
+  srcPrawy: Punkt2D,
+  dstLewy: Punkt2D,
+  dstPrawy: Punkt2D,
+): Transform2D {
+  return transformZajeciaWezlow(
+    { lewy: srcLewy, prawy: srcPrawy },
+    { lewy: dstLewy, prawy: dstPrawy },
+  );
+}
+
+/** Przesuwa arkusz tak, by węzły czoła wpadły w węzły końca poprzedniego. Bez obrotu. */
+export function transformZajeciaWezlow(src: WezlyCzola, dst: WezlyCzola): Transform2D {
+  const kand: Punkt2D[] = [];
+  if (src.lewy && dst.lewy) kand.push({ x: dst.lewy.x - src.lewy.x, y: dst.lewy.y - src.lewy.y });
+  if (src.prawy && dst.prawy) kand.push({ x: dst.prawy.x - src.prawy.x, y: dst.prawy.y - src.prawy.y });
+  if (src.os && dst.os) kand.push({ x: dst.os.x - src.os.x, y: dst.os.y - src.os.y });
+  if (kand.length === 0) return identTransform();
+  const glowny = kand[0];
+  const zgodne = kand.filter((d) => Math.hypot(d.x - glowny.x, d.y - glowny.y) <= ZGODNY_PRZESUW_M);
+  const n = zgodne.length;
+  return {
+    c: 1,
+    s: 0,
+    tx: zgodne.reduce((s, d) => s + d.x, 0) / n,
+    ty: zgodne.reduce((s, d) => s + d.y, 0) / n,
+  };
 }
 
 /**
@@ -186,26 +254,18 @@ export function scalPztDoArkusza(arkusze: ArkuszPzt[]): ArkuszPzt | null {
   if (arkusze.length === 0) return null;
   const kmOd = arkusze[0].kilometrazPoczatkowyM;
   const kmDo = arkusze[arkusze.length - 1].kilometrazKoncowyM;
-  let prevStyk: { lewy: Punkt2D; prawy: Punkt2D } | null = null;
-  let prevOsEnd: Punkt2D | null = null;
+  let prevWezly: WezlyCzola | null = null;
   const osGlobal: Punkt2D[] = [];
   const obszary: ObszarObmiaru[] = [];
 
   for (const surowy of arkusze) {
     const ark = dopasujGeometrieArkuszaDoEtykiety(surowy);
     const os = osMZorientowana(ark);
-    const styk0 = stykLewyPrawy(ark, 'start');
-    const styk1 = stykLewyPrawy(ark, 'koniec');
-    let T: Transform2D;
-    if (!prevStyk && !prevOsEnd) {
-      T = identTransform();
-    } else if (prevStyk && styk0) {
-      T = transformDwochPunktow(styk0.lewy, styk0.prawy, prevStyk.lewy, prevStyk.prawy);
-    } else if (os.length >= 2 && prevOsEnd) {
-      T = transformPrzesuniecia(os[0], prevOsEnd);
-    } else {
-      T = identTransform();
-    }
+    const wezly0 = wezlyCzola(ark, 'start');
+    const wezly1 = wezlyCzola(ark, 'koniec');
+    const T: Transform2D = prevWezly
+      ? transformZajeciaWezlow(wezly0, prevWezly)
+      : identTransform();
 
     if (os.length >= 2) {
       const osT = transformPunkty(T, os);
@@ -215,16 +275,13 @@ export function scalPztDoArkusza(arkusze: ArkuszPzt[]): ArkuszPzt | null {
         const d0 = Math.hypot(osT[0].x - last.x, osT[0].y - last.y);
         osGlobal.push(...(d0 < 0.05 ? osT.slice(1) : osT));
       }
-      prevOsEnd = osT[osT.length - 1];
     }
-    if (styk1) {
-      prevStyk = {
-        lewy: zastosujTransform(T, styk1.lewy),
-        prawy: zastosujTransform(T, styk1.prawy),
-      };
-    } else {
-      prevStyk = null;
-    }
+    const mapWezel = (p?: Punkt2D): Punkt2D | undefined => (p ? zastosujTransform(T, p) : undefined);
+    prevWezly = {
+      lewy: mapWezel(wezly1.lewy),
+      prawy: mapWezel(wezly1.prawy),
+      os: mapWezel(wezly1.os) ?? (os.length >= 2 ? transformPunkty(T, os).at(-1) : undefined),
+    };
 
     for (const o of ark.obszary) {
       obszary.push({
