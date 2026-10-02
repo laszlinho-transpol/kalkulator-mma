@@ -40,9 +40,37 @@ jobs:
         run: |
           npx expo export --platform web
           cp dist/index.html dist/404.html
-          touch dist/.nojekyll
+          python3 - <<'PY'
+          import os, re, pathlib
+          sha = os.environ.get("GITHUB_SHA", "dev")
+          short = sha[:12]
+          meta = (
+              '<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>'
+              f'<meta name="mma-build" content="{sha}"/>'
+          )
+          def bust(url: str) -> str:
+              if url.startswith(("data:", "mailto:", "javascript:", "#")):
+                  return url
+              sep = "&" if "?" in url else "?"
+              return f"{url}{sep}v={short}"
+          for name in ("index.html", "404.html"):
+              p = pathlib.Path("dist") / name
+              if not p.exists():
+                  continue
+              html = p.read_text(encoding="utf-8")
+              html = re.sub(
+                  r'(<(?:script|link)\b[^>]*?\b(?:src|href)=")([^"]+)(")',
+                  lambda m: m.group(1) + bust(m.group(2)) + m.group(3),
+                  html,
+                  flags=re.I,
+              )
+              html = re.sub(r'(<head[^>]*>)', r"\1" + meta, html, count=1, flags=re.I)
+              p.write_text(html, encoding="utf-8")
+          pathlib.Path("dist/.nojekyll").touch()
+          PY
         env:
           EXPO_BASE_URL: /kalkulator-mma
+          EXPO_PUBLIC_MMA_BUILD: ${{ github.sha }}
 
       - name: Setup Pages
         uses: actions/configure-pages@v5

@@ -4,6 +4,10 @@
 
 export const WERSJA_APLIKACJI = '1.8.6';
 
+/** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
+export const MMA_WEB_BUILD =
+  (typeof process !== 'undefined' && process.env.EXPO_PUBLIC_MMA_BUILD) || 'dev';
+
 export interface WpisChangelog {
   wersja: string;
   data: string;

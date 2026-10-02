@@ -32,6 +32,8 @@ import {
   rozlaczWiersz,
   dlugoscArkuszaM,
   etykietaZakladkiArkusza,
+  kluczArkuszaPzt,
+  komunikatPoImporcieXfdf,
   zsynchronizujLegendeProjektu,
   sumaOsiTrasyM,
   podsumowanieOsiTrasy,
@@ -315,6 +317,54 @@ describe('projektBudowy', () => {
     assert.equal(projekt.arkusze[1].kontynuacjaPoprzedniego, true);
     assert.ok(projekt.arkusze[1].kilometrazPoczatkowyM > projekt.arkusze[0].kilometrazPoczatkowyM);
     assert.equal(projekt.arkusze[1].kilometrazPoczatkowyM, projekt.arkusze[0].kilometrazKoncowyM);
+  });
+
+  it('ponowne wgranie tego samego arkusza zastępuje geometrię i bierze wymiar osi', () => {
+    const xfdfBez = `<?xml version="1.0"?><xfdf>
+<polygon interior-color="#FFEE58"><vertices>0,40;0,20;80,20;80,40</vertices></polygon>
+<polyline color="#000000" style="dash"><vertices>0,20;80,20</vertices></polyline>
+</xfdf>`;
+    const xfdfWymiar = (etykieta: string) => `<?xml version="1.0"?><xfdf>
+<polygon interior-color="#FFEE58"><vertices>0,40;0,20;80,20;80,40</vertices></polygon>
+<polyline color="#000000" style="dash">
+<contents>${etykieta}</contents>
+<vertices>0,20;80,20</vertices>
+</polyline>
+</xfdf>`;
+    let projekt = dodajArkuszeDoProjektu(pustyProjektBudowy(106850), [
+      parsujXfdfTekst(xfdfBez, 'DK25_Ark_2_1.xfdf'),
+      parsujXfdfTekst(xfdfBez, 'DK25_Ark_2_2.xfdf'),
+    ]);
+    assert.equal(projekt.arkusze.length, 2);
+    const ids = projekt.arkusze.map((a) => a.id);
+    projekt = {
+      ...projekt,
+      arkusze: projekt.arkusze.map((a, i) => ({
+        ...a,
+        nazwa: i === 0 ? 'Odcinek ręczny' : a.nazwa,
+        osTrasy: a.osTrasy ? { ...a.osTrasy, dlugoscEtykietaM: undefined } : undefined,
+      })),
+    };
+    const przeliczony = zastosujKilometrazArkuszy(projekt.arkusze, 106850);
+    const staryKoniec = przeliczony[1].kilometrazKoncowyM;
+    assert.ok(staryKoniec < 106850 + 800, `geometria bez etykiety ${staryKoniec}`);
+
+    const wyniki = [
+      parsujXfdfTekst(xfdfWymiar('435,68 m'), 'DK25_Ark_2_1.xfdf'),
+      parsujXfdfTekst(xfdfWymiar('422,07 m'), 'DK25_Ark_2_2.xfdf'),
+    ];
+    const next = dodajArkuszeDoProjektu({ ...projekt, arkusze: przeliczony }, wyniki);
+    assert.equal(next.arkusze.length, 2);
+    assert.equal(next.arkusze[0].id, ids[0]);
+    assert.equal(next.arkusze[1].id, ids[1]);
+    const suma = 435.68 + 422.07;
+    assert.ok(Math.abs(next.arkusze[1].kilometrazKoncowyM - (106850 + suma)) < 0.05);
+    assert.equal(formatujKmM(next.arkusze[1].kilometrazKoncowyM), formatujKmM(106850 + suma));
+    assert.notEqual(formatujKmM(next.arkusze[1].kilometrazKoncowyM), '116+016');
+    const msg = komunikatPoImporcieXfdf({ ...projekt, arkusze: przeliczony }, next, wyniki.map((w) => w.zrodloNazwa));
+    assert.match(msg, /Zastąpiono 2/);
+    assert.match(msg, /857[,.]75/);
+    assert.equal(kluczArkuszaPzt('Odcinek ręczny', 'DK25_Ark_2_1.xfdf'), 'ark. 2_1');
   });
 
   it('usuwa arkusz i przestawia kolejność z przeliczeniem km', () => {

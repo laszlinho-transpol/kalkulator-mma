@@ -335,6 +335,7 @@ export function zastosujKilometrazArkuszy(
     return {
       ...arkusz,
       kolejnosc: i + 1,
+      kontynuacjaPoprzedniego: i > 0,
       kilometrazPoczatkowyM: start,
       kilometrazKoncowyM: koniec,
       obszary: arkusz.obszary.map((o) => ustawKmObszaru(o, start, koniec)),
@@ -432,6 +433,16 @@ export function uzupelnijKonstrukcjeDlaLegendy(
   return [...zachowane, ...brakujace];
 }
 
+/** Ten sam arkusz PZT (Ark. 2_1) – także po ręcznej zmianie nazwy zakładki. */
+export function kluczArkuszaPzt(nazwa: string, zrodloNazwa?: string): string {
+  for (const kandydat of [zrodloNazwa, nazwa]) {
+    if (!kandydat) continue;
+    const e = etykietaZakladkiArkusza(kandydat);
+    if (/^Ark\.\s+\d+_\d+$/i.test(e)) return e.replace(/\s+/g, ' ').toLowerCase();
+  }
+  return etykietaZakladkiArkusza(zrodloNazwa || nazwa).toLowerCase();
+}
+
 export function dodajArkuszeDoProjektu(
   projekt: ProjektBudowy,
   wyniki: WynikParsowaniaXfdf[],
@@ -448,10 +459,28 @@ export function dodajArkuszeDoProjektu(
     obszarStart += arkusz.obszary.length;
     return arkusz;
   });
-  const arkusze = zastosujKilometrazArkuszy(
-    [...projekt.arkusze, ...nowe],
-    projekt.kilometrazPoczatkowyM,
-  );
+  const uzyte = new Set<number>();
+  const scalone: ArkuszPzt[] = [];
+  for (const stary of projekt.arkusze) {
+    const kluczStary = kluczArkuszaPzt(stary.nazwa, stary.zrodloNazwa);
+    const i = nowe.findIndex(
+      (n, idx) => !uzyte.has(idx) && kluczArkuszaPzt(n.nazwa, n.zrodloNazwa) === kluczStary,
+    );
+    if (i >= 0) {
+      uzyte.add(i);
+      scalone.push({
+        ...nowe[i],
+        id: stary.id,
+        tlo: stary.tlo,
+      });
+    } else {
+      scalone.push(stary);
+    }
+  }
+  for (let i = 0; i < nowe.length; i++) {
+    if (!uzyte.has(i)) scalone.push(nowe[i]);
+  }
+  const arkusze = zastosujKilometrazArkuszy(scalone, projekt.kilometrazPoczatkowyM);
   const legenda = zbierzLegendeZArkuszy(arkusze, projekt.legenda);
   return {
     ...projekt,
@@ -459,6 +488,45 @@ export function dodajArkuszeDoProjektu(
     legenda,
     konstrukcje: uzupelnijKonstrukcjeDlaLegendy(projekt.konstrukcje, legenda),
   };
+}
+
+/** Komunikat po wgraniu XFDF: podmiana (nie doklejanie) + pikietaż z wymiaru osi. */
+export function komunikatPoImporcieXfdf(
+  przed: ProjektBudowy,
+  po: ProjektBudowy,
+  zrodla: string[],
+): string {
+  const os = podsumowanieOsiTrasy(po);
+  const przedKlucze = new Set(przed.arkusze.map((a) => kluczArkuszaPzt(a.nazwa, a.zrodloNazwa)));
+  const seen = new Set<string>();
+  let zastapiono = 0;
+  for (const z of zrodla) {
+    const k = kluczArkuszaPzt(z, z);
+    if (przedKlucze.has(k) && !seen.has(k)) {
+      zastapiono += 1;
+      seen.add(k);
+    }
+  }
+  const dodano = Math.max(0, zrodla.length - zastapiono);
+  const start = formatujKmM(po.kilometrazPoczatkowyM);
+  const koniecArk = po.arkusze[po.arkusze.length - 1];
+  const koniec = koniecArk ? formatujKmM(koniecArk.kilometrazKoncowyM) : start;
+  const dl = os.kmM.toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const czesci: string[] = [];
+  if (zastapiono > 0 && dodano === 0) {
+    czesci.push(`Zastąpiono ${zastapiono} arkusz(y) świeżym XFDF (stary kilometraż z przeglądarki nie obowiązuje).`);
+  } else if (zastapiono > 0) {
+    czesci.push(`Zastąpiono ${zastapiono}, dodano ${dodano} arkusz(y). Łącznie ${po.arkusze.length}.`);
+  } else {
+    czesci.push(`Dodano ${zrodla.length} arkusz(y). Łącznie ${po.arkusze.length}.`);
+  }
+  czesci.push(`${start} + ${dl} m = ${koniec}.`);
+  if (os.nArkuszy > 0 && os.nEtykiet < os.nArkuszy) {
+    czesci.push(`Wymiar osi tylko na ${os.nEtykiet}/${os.nArkuszy} ark. — reszta z rysunku (stąd bywa 116+016 zamiast 116+031).`);
+  } else if (os.nEtykiet > 0) {
+    czesci.push(`Oś z wymiaru XFDF: ${os.etykietyM.toLocaleString('pl-PL', { maximumFractionDigits: 2 })} m.`);
+  }
+  return czesci.join(' ');
 }
 
 export function przeliczProjektPoZmianieKm(projekt: ProjektBudowy): ProjektBudowy {
