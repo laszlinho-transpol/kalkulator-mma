@@ -1,7 +1,7 @@
 // ============================================================
-// CAŁY PZT – sklejenie arkuszy do jednego układu (wydruk plotera)
-// Każda strona PDF ma własny (x,y). Łączymy przez oś: początek N = koniec N-1
-// po przesunięciu i obrocie, w metrach terenowych.
+// CAŁY PZT – sklejenie jak tyczenie wstecz (niweleta)
+// Baza = współrzędne XFDF. Ostatnie L/P arkusza N = pierwsze L/P N+1.
+// Reszta punktów: te same różnice z XFDF arkusza.
 // ============================================================
 
 import type { ArkuszPzt, ObszarObmiaru, Punkt2D } from '../types';
@@ -9,7 +9,9 @@ import { round2 } from './calculations';
 import {
   dlugoscPolilinii,
   dopasujGeometrieArkuszaDoEtykiety,
+  iloczynWektorowyOsi,
   osMZorientowana,
+  stacjaNaOsi,
   stycznyNaOsi,
 } from './osPzt';
 
@@ -62,8 +64,6 @@ export function wektorJednostkowy(a: Punkt2D, b: Punkt2D): Punkt2D {
 
 /**
  * Kierunek całego arkusza (cięciwa start→koniec), nie styczna haka na krawędzi.
- * PZT jest już „oknem” L→P; chwilowa styczna na styku potrafi obrócić następny
- * arkusz o ~180° i trasa na ploterze zawraca.
  */
 export function kierunekLancucha(os: Punkt2D[]): Punkt2D {
   if (os.length < 2) return { x: 1, y: 0 };
@@ -74,30 +74,140 @@ export function kierunekLancucha(os: Punkt2D[]): Punkt2D {
   return t ? { x: t.dx, y: t.dy } : { x: 1, y: 0 };
 }
 
+function punktBazy(
+  o: ObszarObmiaru,
+  ktory: 'start' | 'koniec',
+  ktora: 'lewy' | 'prawy',
+): Punkt2D | undefined {
+  const b = ktory === 'start' ? o.bazaStart : o.bazaKoniec;
+  const i = ktora === 'lewy' ? b?.idxLewy : b?.idxPrawy;
+  if (i == null) return undefined;
+  return o.wierzcholkiM[i];
+}
+
+function skrajLewyPrawy(os: Punkt2D[], pts: Punkt2D[]): { lewy: Punkt2D; prawy: Punkt2D } | null {
+  if (os.length < 2 || pts.length < 2) return null;
+  let lewy = pts[0];
+  let prawy = pts[0];
+  let maxC = iloczynWektorowyOsi(lewy, os);
+  let minC = maxC;
+  for (const p of pts) {
+    const c = iloczynWektorowyOsi(p, os);
+    if (c > maxC) {
+      maxC = c;
+      lewy = p;
+    }
+    if (c < minC) {
+      minC = c;
+      prawy = p;
+    }
+  }
+  if (Math.hypot(lewy.x - prawy.x, lewy.y - prawy.y) < 0.05) return null;
+  return { lewy, prawy };
+}
+
 /**
- * Składa arkusze w jeden „ploter”: oś ciągła, obszary i krawężniki
- * w metrach (rysowane jako wierzcholkiPdf w podglądzie).
- *
- * Każdy arkusz PZT to już okno L→P. Sklejamy cięciwą osi do +X
- * (początek N = koniec N-1), nigdy chwilową styczną na krawędzi –
- * hak na końcu poprzedniej strony obracałby następny arkusz o ~180°.
+ * Poprzeczka L–P na początku / końcu arkusza (bazy XFDF albo skraj jezdni na osi).
+ * To punkty tyczenia: ostatnie L/P arkusza N = pierwsze L/P arkusza N+1.
+ */
+export function stykLewyPrawy(
+  ark: ArkuszPzt,
+  ktory: 'start' | 'koniec',
+): { lewy: Punkt2D; prawy: Punkt2D } | null {
+  const os = osMZorientowana(ark);
+  const lewa = ark.obszary.find((o) => o.stronaTrasy === 'lewa');
+  const prawa = ark.obszary.find((o) => o.stronaTrasy === 'prawa');
+  if (lewa && prawa) {
+    const lewy = punktBazy(lewa, ktory, 'lewy');
+    const prawy = punktBazy(prawa, ktory, 'prawy');
+    if (lewy && prawy && Math.hypot(lewy.x - prawy.x, lewy.y - prawy.y) > 0.05) {
+      return { lewy, prawy };
+    }
+  }
+  for (const o of ark.obszary) {
+    const lewy = punktBazy(o, ktory, 'lewy');
+    const prawy = punktBazy(o, ktory, 'prawy');
+    if (lewy && prawy && Math.hypot(lewy.x - prawy.x, lewy.y - prawy.y) > 0.05) {
+      return { lewy, prawy };
+    }
+  }
+  if (os.length >= 2) {
+    const all = ark.obszary.flatMap((o) => o.wierzcholkiM);
+    const st = all.map((p) => ({ p, s: stacjaNaOsi(os, p) }));
+    if (st.length >= 2) {
+      const lo = Math.min(...st.map((x) => x.s));
+      const hi = Math.max(...st.map((x) => x.s));
+      const pas = Math.max((hi - lo) * 0.04, 0.25);
+      const pasmo = ktory === 'start'
+        ? st.filter((x) => x.s <= lo + pas)
+        : st.filter((x) => x.s >= hi - pas);
+      const skraj = skrajLewyPrawy(os, (pasmo.length >= 2 ? pasmo : st).map((x) => x.p));
+      if (skraj) return skraj;
+    }
+  }
+  return null;
+}
+
+/**
+ * Helmert 2 punkty: A,B z XFDF → A',B' z poprzedniego arkusza.
+ * Reszta punktów: te same różnice (obrót + ewentualna skala styku L–P).
+ */
+export function transformDwochPunktow(
+  srcA: Punkt2D,
+  srcB: Punkt2D,
+  dstA: Punkt2D,
+  dstB: Punkt2D,
+): Transform2D {
+  const sdx = srcB.x - srcA.x;
+  const sdy = srcB.y - srcA.y;
+  const ddx = dstB.x - dstA.x;
+  const ddy = dstB.y - dstA.y;
+  const sl = Math.hypot(sdx, sdy);
+  const dl = Math.hypot(ddx, ddy);
+  let k = sl > 1e-9 ? dl / sl : 1;
+  if (!Number.isFinite(k) || k < 0.85 || k > 1.15) k = 1;
+  const rot = Math.atan2(ddy, ddx) - Math.atan2(sdy, sdx);
+  const c = Math.cos(rot) * k;
+  const s = Math.sin(rot) * k;
+  return { c, s, tx: dstA.x - (c * srcA.x - s * srcA.y), ty: dstA.y - (s * srcA.x + c * srcA.y) };
+}
+
+function transformPrzesuniecia(src: Punkt2D, dst: Punkt2D): Transform2D {
+  return { c: 1, s: 0, tx: dst.x - src.x, ty: dst.y - src.y };
+}
+
+/**
+ * Składa arkusze jak tyczenie wstecz:
+ * – baza = współrzędne XFDF (metry z arkusza, bez wymuszania +X),
+ * – pierwsze L/P następnego arkusza = ostatnie L/P poprzedniego,
+ * – pozostałe punkty z różnic XFDF (ten sam układ względny).
  */
 export function scalPztDoArkusza(arkusze: ArkuszPzt[]): ArkuszPzt | null {
   if (arkusze.length === 0) return null;
   const kmOd = arkusze[0].kilometrazPoczatkowyM;
   const kmDo = arkusze[arkusze.length - 1].kilometrazKoncowyM;
-  let prevEnd: Punkt2D | null = null;
+  let prevStyk: { lewy: Punkt2D; prawy: Punkt2D } | null = null;
+  let prevOsEnd: Punkt2D | null = null;
   const osGlobal: Punkt2D[] = [];
   const obszary: ObszarObmiaru[] = [];
-  const plusX = { x: 1, y: 0 };
 
   for (const surowy of arkusze) {
     const ark = dopasujGeometrieArkuszaDoEtykiety(surowy);
     const os = osMZorientowana(ark);
+    const styk0 = stykLewyPrawy(ark, 'start');
+    const styk1 = stykLewyPrawy(ark, 'koniec');
     let T: Transform2D;
+    if (!prevStyk && !prevOsEnd) {
+      T = identTransform();
+    } else if (prevStyk && styk0) {
+      T = transformDwochPunktow(styk0.lewy, styk0.prawy, prevStyk.lewy, prevStyk.prawy);
+    } else if (os.length >= 2 && prevOsEnd) {
+      T = transformPrzesuniecia(os[0], prevOsEnd);
+    } else {
+      T = identTransform();
+    }
+
     if (os.length >= 2) {
-      const dest = prevEnd ?? { x: 0, y: 0 };
-      T = transformStyku(os[0], kierunekLancucha(os), dest, plusX);
       const osT = transformPunkty(T, os);
       if (osGlobal.length === 0) osGlobal.push(...osT);
       else {
@@ -105,11 +215,15 @@ export function scalPztDoArkusza(arkusze: ArkuszPzt[]): ArkuszPzt | null {
         const d0 = Math.hypot(osT[0].x - last.x, osT[0].y - last.y);
         osGlobal.push(...(d0 < 0.05 ? osT.slice(1) : osT));
       }
-      prevEnd = osT[osT.length - 1];
+      prevOsEnd = osT[osT.length - 1];
+    }
+    if (styk1) {
+      prevStyk = {
+        lewy: zastosujTransform(T, styk1.lewy),
+        prawy: zastosujTransform(T, styk1.prawy),
+      };
     } else {
-      T = prevEnd
-        ? transformStyku({ x: 0, y: 0 }, plusX, prevEnd, plusX)
-        : identTransform();
+      prevStyk = null;
     }
 
     for (const o of ark.obszary) {

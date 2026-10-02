@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ArkuszPzt, ObszarObmiaru } from '../types';
-import { CALY_PZT_ID, scalPztDoArkusza, transformStyku, zastosujTransform } from './pztPloter';
+import { CALY_PZT_ID, scalPztDoArkusza, stykLewyPrawy, transformDwochPunktow, transformStyku, zastosujTransform } from './pztPloter';
 import { dlugoscPolilinii } from './osPzt';
 import { parsujXfdfTekst } from './xfdfParser';
 import { arkuszZWynikuXfdf, dlugoscArkuszaM, zastosujKilometrazArkuszy } from './projektBudowy';
@@ -63,6 +63,58 @@ describe('pztPloter', () => {
     assert.ok(Math.abs(v.y) < 1e-6);
   });
 
+  it('tyczenie wstecz: pierwsze L/P arkusza 2 = ostatnie L/P arkusza 1', () => {
+    const lewa1: ObszarObmiaru = {
+      ...obszar('L1', [{ x: 0, y: 8 }, { x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 8 }]),
+      stronaTrasy: 'lewa',
+      bazaStart: { idxLewy: 0, idxPrawy: 1 },
+      bazaKoniec: { idxLewy: 3, idxPrawy: 2 },
+    };
+    const prawa1: ObszarObmiaru = {
+      ...obszar('P1', [{ x: 0, y: 0 }, { x: 0, y: -8 }, { x: 100, y: -8 }, { x: 100, y: 0 }]),
+      stronaTrasy: 'prawa',
+      bazaStart: { idxLewy: 0, idxPrawy: 1 },
+      bazaKoniec: { idxLewy: 3, idxPrawy: 2 },
+    };
+    const lewa2: ObszarObmiaru = {
+      ...obszar('L2', [{ x: -8, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 40 }, { x: -8, y: 40 }]),
+      stronaTrasy: 'lewa',
+      bazaStart: { idxLewy: 0, idxPrawy: 1 },
+      bazaKoniec: { idxLewy: 3, idxPrawy: 2 },
+    };
+    const prawa2: ObszarObmiaru = {
+      ...obszar('P2', [{ x: 0, y: 0 }, { x: 8, y: 0 }, { x: 8, y: 40 }, { x: 0, y: 40 }]),
+      stronaTrasy: 'prawa',
+      bazaStart: { idxLewy: 0, idxPrawy: 1 },
+      bazaKoniec: { idxLewy: 3, idxPrawy: 2 },
+    };
+    const a1: ArkuszPzt = {
+      ...arkusz('a1', [{ x: 0, y: 0 }, { x: 100, y: 0 }], 0, 100, lewa1.wierzcholkiM),
+      obszary: [lewa1, prawa1],
+    };
+    const a2: ArkuszPzt = {
+      ...arkusz('a2', [{ x: 0, y: 0 }, { x: 0, y: 40 }], 100, 140, lewa2.wierzcholkiM),
+      obszary: [lewa2, prawa2],
+    };
+    const s1 = stykLewyPrawy(a1, 'koniec');
+    const s2 = stykLewyPrawy(a2, 'start');
+    assert.ok(s1 && s2);
+    const T = transformDwochPunktow(s2!.lewy, s2!.prawy, s1!.lewy, s1!.prawy);
+    const l = zastosujTransform(T, s2!.lewy);
+    const p = zastosujTransform(T, s2!.prawy);
+    assert.ok(Math.abs(l.x - s1!.lewy.x) < 1e-8 && Math.abs(l.y - s1!.lewy.y) < 1e-8);
+    assert.ok(Math.abs(p.x - s1!.prawy.x) < 1e-8 && Math.abs(p.y - s1!.prawy.y) < 1e-8);
+    const caly = scalPztDoArkusza([a1, a2])!;
+    const l2 = caly.obszary.find((o) => o.id.includes('L2'))!;
+    const p2 = caly.obszary.find((o) => o.id.includes('P2'))!;
+    const blisko = (pts: { x: number; y: number }[], cel: { x: number; y: number }) =>
+      pts.some((pt) => Math.hypot(pt.x - cel.x, pt.y - cel.y) < 0.08);
+    assert.ok(blisko(l2.wierzcholkiM, { x: 100, y: 8 }), 'początek L2 ma być końcem L1');
+    assert.ok(blisko(p2.wierzcholkiM, { x: 100, y: -8 }), 'początek P2 ma być końcem P1');
+    const koniec = caly.osTrasy!.wierzcholkiM[caly.osTrasy!.wierzcholkiM.length - 1];
+    assert.ok(koniec.x > 135, `brak ciągłości, koniec x=${koniec.x} y=${koniec.y}`);
+  });
+
   it('scalPztDoArkusza: drugi arkusz (lokalnie w +Y) dokleja się w +X', () => {
     const a1 = arkusz(
       'a1',
@@ -76,7 +128,7 @@ describe('pztPloter', () => {
       [{ x: 0, y: 0 }, { x: 0, y: 50 }],
       100,
       150,
-      [{ x: -4, y: 0 }, { x: 4, y: 0 }, { x: 4, y: 50 }, { x: -4, y: 50 }],
+      [{ x: -5, y: 0 }, { x: 5, y: 0 }, { x: 5, y: 50 }, { x: -5, y: 50 }],
     );
     const caly = scalPztDoArkusza([a1, a2]);
     assert.ok(caly);
@@ -106,7 +158,7 @@ describe('pztPloter', () => {
       [{ x: 0, y: 0 }, { x: 50, y: 0 }],
       100,
       150,
-      [{ x: 0, y: 4 }, { x: 0, y: -4 }, { x: 50, y: -4 }, { x: 50, y: 4 }],
+      [{ x: 0, y: 5 }, { x: 0, y: -5 }, { x: 50, y: -5 }, { x: 50, y: 5 }],
     );
     const caly = scalPztDoArkusza([a1, a2]);
     const os = caly!.osTrasy!.wierzcholkiM;

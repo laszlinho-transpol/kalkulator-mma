@@ -632,8 +632,8 @@ export function SekcjaPzt({
                   {`  ·  ${sumaOsi.kmM.toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m osi`}
                 </Text>
                 <Text style={{ color: theme.colors.textSecondary, fontSize: 12, lineHeight: 17 }}>
-                  Arkusze sklejone po osi: koniec N = początek N+1 (przesunięcie + obrót w metrach).
-                  Zakładki pojedynczych stron służą do porównania z oryginalnym PDF.
+                  Baza: współrzędne XFDF. Ostatnie punkty L/P arkusza N stają się pierwszymi N+1,
+                  reszta z tych samych różnic (tyczenie wstecz). Zakładki stron – porównanie z PDF.
                 </Text>
               </View>
             </>
