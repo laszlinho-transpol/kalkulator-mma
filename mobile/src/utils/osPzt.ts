@@ -141,6 +141,12 @@ export function stacjePodzialki(odM: number, doM: number, krokM: number): number
   return out;
 }
 
+/** Ułamek stacji na odcinku osi (do porównania pikiet PZT vs XFDF na tym samym PDF). */
+export function udzialStacjiNaOsi(odM: number, doM: number, stacjaM: number): number {
+  const span = Math.max(0.01, doM - odM);
+  return (stacjaM - odM) / span;
+}
+
 /**
  * Kierunek rosnącego km na arkuszu: wzdłuż dłuższej osi bbox obszarów (PZT: zwykle +X).
  * Każdy arkusz ma własny układ PDF – nie wolno łączyć końców z poprzedniej strony.

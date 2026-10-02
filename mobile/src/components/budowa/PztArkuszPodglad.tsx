@@ -79,6 +79,11 @@ interface Props {
   onPressAuto?: (id: string) => void;
   /** Co ile metrów kreska pikiety na osi (0 = wyłącz). */
   podzialkaM?: number;
+  /**
+   * Surowy zakres XFDF tego arkusza (bez k). Na tle PDF: pomarańczowe kreski.
+   * Poligony zostają na wierzchołkach PDF; kalibracja nie przesuwa tła.
+   */
+  pikietazXfdf?: { odM: number; doM: number } | null;
 }
 
 export function PztArkuszPodglad({
@@ -93,6 +98,7 @@ export function PztArkuszPodglad({
   liveAuta,
   onPressAuto,
   podzialkaM = 50,
+  pikietazXfdf = null,
 }: Props) {
   const [rozmiar, setRozmiar] = useState({ w: 320, h: wysokosc });
   const [skalaPct, setSkalaPct] = useState(100);
@@ -178,26 +184,28 @@ export function PztArkuszPodglad({
     const krok = podzialkaM ?? 0;
     const szerPdf = medianaSzerokosciObszarowPdf(arkusz.obszary);
     const podz = rozmiarPodzialkiOsi(szerPdf);
-    const podzialki = krok >= 1 && osPdf && osPdf.length >= 2
-      ? stacjePodzialki(arkusz.kilometrazPoczatkowyM, arkusz.kilometrazKoncowyM, krok).map((kmM) => {
-        const sM = kmM - arkusz.kilometrazPoczatkowyM;
-        const sPdf = (sM / Math.max(dlM, 0.01)) * dlPdf;
+    const kreski = (odM: number, doM: number, skalaKreski: number) => {
+      if (krok < 1 || !osPdf || osPdf.length < 2) return [];
+      const span = Math.max(0.01, doM - odM);
+      return stacjePodzialki(odM, doM, krok).map((kmM) => {
+        const sPdf = ((kmM - odM) / span) * dlPdf;
         const t = stycznyNaOsi(osPdf, sPdf);
         if (!t) return null;
         const plen = Math.hypot(t.dx, t.dy) || 1;
         const nx = -t.dy / plen;
         const ny = t.dx / plen;
-        const p1 = toSvg({ x: t.punkt.x + nx * podz.halfPdf, y: t.punkt.y + ny * podz.halfPdf });
-        const p2 = toSvg({ x: t.punkt.x - nx * podz.halfPdf, y: t.punkt.y - ny * podz.halfPdf });
+        const half = podz.halfPdf * skalaKreski;
+        const p1 = toSvg({ x: t.punkt.x + nx * half, y: t.punkt.y + ny * half });
+        const p2 = toSvg({ x: t.punkt.x - nx * half, y: t.punkt.y - ny * half });
         const mid = toSvg(t.punkt);
         let tp = toSvg({
-          x: t.punkt.x + nx * podz.odstepTekstuPdf,
-          y: t.punkt.y + ny * podz.odstepTekstuPdf,
+          x: t.punkt.x + nx * podz.odstepTekstuPdf * skalaKreski,
+          y: t.punkt.y + ny * podz.odstepTekstuPdf * skalaKreski,
         });
         if (tp.y > mid.y) {
           tp = toSvg({
-            x: t.punkt.x - nx * podz.odstepTekstuPdf,
-            y: t.punkt.y - ny * podz.odstepTekstuPdf,
+            x: t.punkt.x - nx * podz.odstepTekstuPdf * skalaKreski,
+            y: t.punkt.y - ny * podz.odstepTekstuPdf * skalaKreski,
           });
         }
         return {
@@ -209,12 +217,20 @@ export function PztArkuszPodglad({
           y2: p2.y,
           tx: tp.x,
           ty: tp.y,
-          fontSvg: podz.fontPdf * skalaFit,
+          fontSvg: podz.fontPdf * skalaFit * (skalaKreski < 1 ? 0.92 : 1),
         };
-      }).filter((x): x is NonNullable<typeof x> => !!x)
+      }).filter((x): x is NonNullable<typeof x> => !!x);
+    };
+    const podzialki = kreski(arkusz.kilometrazPoczatkowyM, arkusz.kilometrazKoncowyM, 1);
+    const xfdfRozne = !!(pikietazXfdf
+      && Math.abs((pikietazXfdf.doM - pikietazXfdf.odM) - dlM) > 0.4);
+    const podzialkiXfdf = xfdfRozne && pikietazXfdf
+      ? kreski(pikietazXfdf.odM, pikietazXfdf.doM, 0.72)
       : [];
-    return { obszary, skalaFit, cx, cy, osPunkty, rozkladarka, auta, podzialki };
-  }, [arkusz, geometria, rozmiar.w, rozmiar.h, liveStacjaM, liveAuta, podzialkaM]);
+    return {
+      obszary, skalaFit, cx, cy, osPunkty, rozkladarka, auta, podzialki, podzialkiXfdf, xfdfRozne,
+    };
+  }, [arkusz, geometria, rozmiar.w, rozmiar.h, liveStacjaM, liveAuta, podzialkaM, pikietazXfdf]);
 
   const clampTrans = (x: number, y: number, s = bazaSkali.current) => {
     const { w, h } = rozmiarRef.current;
@@ -572,15 +588,16 @@ export function PztArkuszPodglad({
                             vectorEffect="non-scaling-stroke"
                           />
                         ) : null}
-                        {mapa.podzialki.map((t) => (
-                          <G key={`pk-${t.kmM}`}>
+                        {mapa.podzialkiXfdf.map((t) => (
+                          <G key={`xf-${t.kmM}`}>
                             <Line
                               x1={t.x1}
                               y1={t.y1}
                               x2={t.x2}
                               y2={t.y2}
-                              stroke="#111827"
-                              strokeWidth={swEkran * 0.7}
+                              stroke="#EA580C"
+                              strokeWidth={swEkran * 0.85}
+                              strokeDasharray={`${dash * 0.5} ${dash * 0.45}`}
                               strokeLinecap="butt"
                               vectorEffect="non-scaling-stroke"
                             />
@@ -588,8 +605,33 @@ export function PztArkuszPodglad({
                               x={t.tx}
                               y={t.ty}
                               fontSize={t.fontSvg}
-                              fontWeight="500"
-                              fill="#111827"
+                              fontWeight="600"
+                              fill="#EA580C"
+                              textAnchor="middle"
+                              alignmentBaseline="middle"
+                            >
+                              {t.etykieta}
+                            </SvgText>
+                          </G>
+                        ))}
+                        {mapa.podzialki.map((t) => (
+                          <G key={`pk-${t.kmM}`}>
+                            <Line
+                              x1={t.x1}
+                              y1={t.y1}
+                              x2={t.x2}
+                              y2={t.y2}
+                              stroke="#0F766E"
+                              strokeWidth={swEkran * 0.75}
+                              strokeLinecap="butt"
+                              vectorEffect="non-scaling-stroke"
+                            />
+                            <SvgText
+                              x={t.tx}
+                              y={t.ty}
+                              fontSize={t.fontSvg}
+                              fontWeight="600"
+                              fill="#0F766E"
                               textAnchor="middle"
                               alignmentBaseline="middle"
                             >
@@ -656,7 +698,14 @@ export function PztArkuszPodglad({
           ? `Tło PDF: ${tloMeta.nazwa}${buforTla ? '' : ' — odtwarzanie z pamięci przeglądarki… Jeśli nie wraca, otwórz konfigurator teł.'}`
           : 'Żeby widać było pikiety, pobocza i budynki, wgraj oryginalny PDF arkusza („+ Tło PDF”). Nazwy nie muszą być identyczne z XFDF – wystarczy numer arkusza (Ark_2_1) albo jeden PDF na otwartą zakładkę.'}
       </Text>
-      {bladTla ? <Text style={[styl.hintPod, { color: '#B91C1C' }]}>{bladTla}</Text> : null}
+      {mapa?.xfdfRozne ? (
+        <Text style={styl.hintPod}>
+          <Text style={{ color: '#0F766E', fontWeight: '800' }}>zielone</Text>
+          {' = pikiety PZT (po kalibracji k). '}
+          <Text style={{ color: '#EA580C', fontWeight: '800' }}>pomarańczowe</Text>
+          {' = wymiar XFDF bez k. Poligony leżą na tle PDF (bez przesuwania). Na końcu trasy kreski się rozjeżdżają o ~15 m — porównaj z nadrukiem 116+000 / 116+031.'}
+        </Text>
+      ) : null}
       <Text style={styl.hintPod}>
         {blokadaPodgladu
           ? 'Blokada ramki: przesuwanie i zoom w podglądzie (strona nie scrolluje). Odznacz „Ramka”, aby przewinąć w dół.'

@@ -285,6 +285,7 @@ export function podsumowanieOsiTrasy(projekt: ProjektBudowy): {
   geomM: number;
   wymiary: number[];
   lukaNumeracji: string | null;
+  kalibracjaK: number;
 } {
   let etykietyM = 0;
   let nEtykiet = 0;
@@ -306,16 +307,44 @@ export function podsumowanieOsiTrasy(projekt: ProjektBudowy): {
       geomM += a.osTrasy.dlugoscM;
     }
   }
+  const xfdf = round2(xfdfM);
+  const kmM = sumaOsiTrasyM(projekt);
   return {
-    kmM: sumaOsiTrasyM(projekt),
-    xfdfM: round2(xfdfM),
+    kmM,
+    xfdfM: xfdf,
     etykietyM: round2(etykietyM),
     nEtykiet,
     nArkuszy: projekt.arkusze.length,
     geomM: round2(geomM),
     wymiary,
     lukaNumeracji: lukaNumeracjiArkuszy(projekt),
+    kalibracjaK: wspolczynnikKalibracjiPzt(xfdf, kmM),
   };
+}
+
+/** k = pikietaż PZT / wymiar XFDF, np. 9181 / 9166,36 ≈ 1,001636. */
+export function wspolczynnikKalibracjiPzt(xfdfM: number, pztM: number): number {
+  if (!(xfdfM > 1) || !(pztM > 1)) return 1;
+  return pztM / xfdfM;
+}
+
+/**
+ * Surowy kilometraż z wymiarów XFDF (bez k) – do porównania kresek z tłem PDF.
+ * Poligony zostają na PDF; k mnoży tylko długość w metrach.
+ */
+export function kilometrazXfdfArkuszy(
+  arkusze: ArkuszPzt[],
+  kilometrazPoczatkowyM: number,
+): Array<{ id: string; odM: number; doM: number; xfdfM: number }> {
+  let biezacy = Math.max(0, kilometrazPoczatkowyM);
+  return arkusze.map((a) => {
+    const e = a.osTrasy?.dlugoscEtykietaM;
+    const xfdfM = round2(e && e > 80 && e < 2500 ? e : dlugoscArkuszaM(a));
+    const odM = biezacy;
+    const doM = round2(odM + xfdfM);
+    biezacy = doM;
+    return { id: a.id, odM, doM, xfdfM };
+  });
 }
 
 export function numerArkuszaZNazwy(nazwa: string, zrodloNazwa?: string): { seria: number; nr: number } | null {
@@ -395,8 +424,8 @@ function ustawKmObszaru(obszar: ObszarObmiaru, startM: number, koniecM: number):
 /**
  * Uciągla kilometraż: pierwszy arkusz od km projektu,
  * kolejne z flagą kontynuacji startują na końcu poprzedniego.
- * Gdy podano pikietę końcową PZT, długości XFDF są rozciągane proporcjonalnie
- * (oś od pierwszej kreski do ostatniej, np. 106+850 → 116+031).
+ * Gdy podano pikietę końcową PZT, k = (koniec−start) / suma XFDF
+ * (np. 9181 / 9166,36 ≈ 1,001636). Każda długość arkusza × k; szerokość z PDF.
  */
 export function zastosujKilometrazArkuszy(
   arkusze: ArkuszPzt[],

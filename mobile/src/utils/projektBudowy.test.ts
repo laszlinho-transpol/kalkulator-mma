@@ -40,7 +40,10 @@ import {
   sumaOsiTrasyM,
   podsumowanieOsiTrasy,
   odsadzkiWarstwy,
+  wspolczynnikKalibracjiPzt,
+  kilometrazXfdfArkuszy,
 } from './projektBudowy';
+import { udzialStacjiNaOsi } from './osPzt';
 
 function prostokat(id: string, kolor: string, dlugoscM: number, szerM: number, nazwa: string): ObszarObmiaru {
   return {
@@ -565,8 +568,19 @@ describe('projektBudowy', () => {
     assert.match(os.lukaNumeracji ?? '', /boczn/);
     assert.ok(Math.abs(os.xfdfM - xfdfM) < 0.3);
     assert.ok(Math.abs(os.kmM - 9181) < 0.05);
+    assert.ok(Math.abs(os.kalibracjaK - 9181 / os.xfdfM) < 1e-9);
+    assert.ok(Math.abs(wspolczynnikKalibracjiPzt(9166.36, 9181) - 9181 / 9166.36) < 1e-12);
+    assert.ok(os.kalibracjaK > 1.0015 && os.kalibracjaK < 1.0017);
     const d0 = zPzt[0].osTrasy?.dlugoscM ?? 0;
     assert.ok(Math.abs(d0 - (dl * 9181) / xfdfM) < 0.15, `oś arkusza ${d0}`);
+    const xf = kilometrazXfdfArkuszy(zPzt, 106850);
+    const last = zPzt[zPzt.length - 1];
+    const lastXf = xf[xf.length - 1];
+    assert.equal(formatujKmM(lastXf.doM), '116+016');
+    const fPzt = udzialStacjiNaOsi(last.kilometrazPoczatkowyM, last.kilometrazKoncowyM, 116000);
+    const fXfdf = udzialStacjiNaOsi(lastXf.odM, lastXf.doM, 116000);
+    assert.ok(fPzt > 0 && fPzt < 1 && fXfdf > 0 && fXfdf < 1);
+    assert.ok(fPzt < fXfdf - 0.02, `116+000 PZT ${fPzt} ma być wcześniej na osi niż XFDF ${fXfdf}`);
   });
 
   it('przelicza projekt do pikiety końcowej PZT i pisze o rozciągnięciu XFDF', () => {
@@ -589,6 +603,7 @@ describe('projektBudowy', () => {
     const os = podsumowanieOsiTrasy(projekt);
     assert.ok(Math.abs(os.xfdfM - sumaXfdf) < 0.05);
     assert.ok(Math.abs(os.kmM - (107720 - 106850)) < 0.05);
+    assert.ok(Math.abs(os.kalibracjaK - os.kmM / os.xfdfM) < 1e-9);
     const msg = komunikatPoImporcieXfdf(pustyProjektBudowy(106850), projekt, ['Ark_2_1.xfdf', 'Ark_2_2.xfdf']);
     assert.match(msg, /rozciągnięt/i);
     assert.match(msg, /857[,.]75/);

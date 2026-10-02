@@ -12,6 +12,7 @@ import {
   dodajArkuszeDoProjektu,
   etykietaZakladkiArkusza,
   formatujKmM,
+  kilometrazXfdfArkuszy,
   komunikatPoImporcieXfdf,
   podsumowanieDlugosciArkusza,
   podsumowanieOsiTrasy,
@@ -103,6 +104,11 @@ export function SekcjaPzt({
   const kmKoniecTrasy = projekt.arkusze[projekt.arkusze.length - 1]?.kilometrazKoncowyM;
   const sumaOsi = podsumowanieOsiTrasy(projekt);
   const dlAkt = aktywny ? podsumowanieDlugosciArkusza(aktywny) : null;
+  const xfdfKm = useMemo(
+    () => kilometrazXfdfArkuszy(projekt.arkusze, projekt.kilometrazPoczatkowyM),
+    [projekt.arkusze, projekt.kilometrazPoczatkowyM],
+  );
+  const kalibracjaAktywna = Math.abs(sumaOsi.kalibracjaK - 1) > 0.0003 && sumaOsi.xfdfM > 1;
 
   const kluczPikietazu = `${projekt.kilometrazPoczatkowyM}|${projekt.kilometrazKoncowyZadanyM ?? ''}|${projekt.arkusze.length}|${sumaOsi.nEtykiet}|${sumaOsi.etykietyM}|${sumaOsi.kmM}`;
   useEffect(() => {
@@ -500,7 +506,8 @@ export function SekcjaPzt({
             <Text style={{ color: theme.colors.textSecondary, fontSize: 11, lineHeight: 16 }}>
               {sumaOsi.nEtykiet === sumaOsi.nArkuszy && sumaOsi.nEtykiet > 0
                 ? Math.abs(sumaOsi.kmM - sumaOsi.xfdfM) > 0.5
-                  ? `Wymiar XFDF ${sumaOsi.xfdfM.toLocaleString('pl-PL', { maximumFractionDigits: 2 })} m → pikietaż PZT ${sumaOsi.kmM.toLocaleString('pl-PL', { maximumFractionDigits: 2 })} m (${sumaOsi.nArkuszy} ark.).`
+                  ? `Kalibracja k = ${sumaOsi.kmM.toLocaleString('pl-PL', { maximumFractionDigits: 2 })} / ${sumaOsi.xfdfM.toLocaleString('pl-PL', { maximumFractionDigits: 2 })} = ${sumaOsi.kalibracjaK.toLocaleString('pl-PL', { minimumFractionDigits: 6, maximumFractionDigits: 7 })}. Długość XFDF × k, szerokość z PDF; poligony zostają na tle.`
+                  : `Długość osi = pikietaż drogi (${sumaOsi.nArkuszy} ark. = ${sumaOsi.kmM.toLocaleString('pl-PL', { maximumFractionDigits: 2 })} m).`
                   : `Długość osi = pikietaż drogi (${sumaOsi.nArkuszy} ark. = ${sumaOsi.kmM.toLocaleString('pl-PL', { maximumFractionDigits: 2 })} m).`
                 : sumaOsi.nEtykiet === 0
                   ? 'Nie odczytano wymiaru osi z XFDF (np. „422,07 m” na kresce). Wgraj te same XFDF ponownie — program podmieni arkusze w pamięci przeglądarki, zamiast doklejać stare 116+016.'
@@ -546,7 +553,7 @@ export function SekcjaPzt({
           <Text style={{ color: theme.colors.textSecondary, fontSize: 13 }}>m — kreska z pikietą co pełne {projekt.podzialkaKilometrazuM ?? 50} m od startu</Text>
         </View>
         <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>
-          Oś od pierwszej pikiety do ostatniej (np. 106+850 → 116+031). Wymiar XFDF bywa o ~15 m krótszy od PZT (skala 1:500) — wpisany koniec rozciąga arkusze proporcjonalnie, żeby 110+600 w terenie = 110+600 w projekcie. Pominięty arkusz drogi bocznej (np. 2_9) nie robi dziury: 2_8 styka się z 2_10.
+          Oś od pierwszej pikiety do ostatniej (np. 106+850 → 116+031). k = 9 181 / 9 166 ≈ 1,001636: każda długość z XFDF × k, szerokość zostaje z PDF, poligony nie odjeżdżają od tła. Pominięty arkusz drogi bocznej (np. 2_9) nie robi dziury: 2_8 styka się z 2_10.
           Ponowne wgranie tego samego arkusza podmienia geometrię w pamięci przeglądarki (nie dokleja kopii).
         </Text>
         <Text style={{ color: theme.colors.textSecondary, fontSize: 10 }}>
@@ -704,6 +711,9 @@ export function SekcjaPzt({
                 onBlokadaPodgladu={onBlokadaPodgladu}
                 onDotykZmiana={onDotykZmiana}
                 podzialkaM={projekt.podzialkaKilometrazuM ?? 50}
+                pikietazXfdf={kalibracjaAktywna && xfdfKm.length > 0
+                  ? { odM: xfdfKm[0].odM, doM: xfdfKm[xfdfKm.length - 1].doM }
+                  : null}
               />
               <View style={[karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border, gap: 8 }]}>
                 <Text style={{ color: theme.colors.text, fontWeight: '800', fontSize: 14 }}>Cały PZT – ciągłość trasy</Text>
@@ -720,7 +730,8 @@ export function SekcjaPzt({
                 ) : (
                   <Text style={{ color: theme.colors.textSecondary, fontSize: 12, lineHeight: 17 }}>
                     {Math.abs(sumaOsi.kmM - sumaOsi.xfdfM) > 0.5
-                      ? `Wymiar XFDF ${sumaOsi.xfdfM.toLocaleString('pl-PL', { maximumFractionDigits: 2 })} m → pikietaż PZT ${sumaOsi.kmM.toLocaleString('pl-PL', { maximumFractionDigits: 2 })} m (${sumaOsi.nArkuszy} ark.).`
+                      ? `k = ${sumaOsi.kmM.toLocaleString('pl-PL', { maximumFractionDigits: 2 })} / ${sumaOsi.xfdfM.toLocaleString('pl-PL', { maximumFractionDigits: 2 })} = ${sumaOsi.kalibracjaK.toLocaleString('pl-PL', { minimumFractionDigits: 6, maximumFractionDigits: 7 })} (${sumaOsi.nArkuszy} ark.).`
+                      : `Pikietaż z XFDF: ${sumaOsi.kmM.toLocaleString('pl-PL', { maximumFractionDigits: 2 })} m (${sumaOsi.nArkuszy} ark.).`}
                       : `Pikietaż z XFDF: ${sumaOsi.kmM.toLocaleString('pl-PL', { maximumFractionDigits: 2 })} m (${sumaOsi.nArkuszy} ark.).`}
                     {sumaOsi.lukaNumeracji ? ` ${sumaOsi.lukaNumeracji}` : ''}
                   </Text>
@@ -740,6 +751,9 @@ export function SekcjaPzt({
                 onBlokadaPodgladu={onBlokadaPodgladu}
                 onDotykZmiana={onDotykZmiana}
                 podzialkaM={projekt.podzialkaKilometrazuM ?? 50}
+                pikietazXfdf={kalibracjaAktywna
+                  ? (xfdfKm.find((x) => x.id === aktywny.id) ?? null)
+                  : null}
                 onTloZmiana={(patch) => {
                   if (!aktywny.tlo) return;
                   onZmien(ustawTloArkusza(projekt, aktywny.id, { ...aktywny.tlo, ...patch }));
