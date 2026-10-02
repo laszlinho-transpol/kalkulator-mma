@@ -8,6 +8,7 @@ import type { ArkuszPzt, ObszarObmiaru, Punkt2D } from '../types';
 import { round2 } from './calculations';
 import {
   dlugoscPolilinii,
+  dopasujGeometrieArkuszaDoDlugosci,
   dopasujGeometrieArkuszaDoEtykiety,
   iloczynWektorowyOsi,
   osMZorientowana,
@@ -15,7 +16,7 @@ import {
   stacjaNaOsi,
   stycznyNaOsi,
 } from './osPzt';
-import { dlugoscArkuszaM } from './projektBudowy';
+import { dlugoscDoPikietazuM } from './projektBudowy';
 
 export const CALY_PZT_ID = '__caly_pzt__';
 
@@ -305,14 +306,16 @@ export function transformZajeciaWezlow(src: WezlyCzola, dst: WezlyCzola): Transf
 export function scalPztDoArkusza(arkusze: ArkuszPzt[]): ArkuszPzt | null {
   if (arkusze.length === 0) return null;
   const kmOd = arkusze[0].kilometrazPoczatkowyM;
-  const pikietaz = round2(arkusze.reduce((s, a) => s + dlugoscArkuszaM(a), 0));
+  const pikietaz = round2(arkusze.reduce((s, a) => s + dlugoscDoPikietazuM(a), 0));
   const kmDo = round2(kmOd + pikietaz);
   let prevWezly: WezlyCzola | null = null;
   const osGlobal: Punkt2D[] = [];
   const obszary: ObszarObmiaru[] = [];
 
   for (const surowy of arkusze) {
-    const ark = dopasujGeometrieArkuszaDoEtykiety(surowy);
+    let ark = dopasujGeometrieArkuszaDoEtykiety(surowy);
+    const cel = dlugoscDoPikietazuM(ark);
+    if (cel > 80) ark = dopasujGeometrieArkuszaDoDlugosci(ark, cel);
     const os = osMZorientowana(ark);
     const wezly0 = wezlyCzola(ark, 'start');
     const wezly1 = wezlyCzola(ark, 'koniec');

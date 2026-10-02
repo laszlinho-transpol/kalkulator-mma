@@ -35,6 +35,7 @@ import {
   kluczArkuszaPzt,
   komunikatPoImporcieXfdf,
   numerArkuszaZNazwy,
+  przeliczProjektPoZmianieKm,
   zsynchronizujLegendeProjektu,
   sumaOsiTrasyM,
   podsumowanieOsiTrasy,
@@ -521,5 +522,75 @@ describe('projektBudowy', () => {
       id: '3', kolejnosc: 2, nazwa: 'Wiążąca', rodzajOpis: '', gruboscCm: 6, odsadzkaCm: 0,
       kategoria: 'wiazaca', mieszankaIds: [],
     }, []), GESTOSC_MMA_DOMYSLNA);
+  });
+
+  it('zadany 116+031 rozciąga XFDF; brak 2_9 (droga boczna) nie robi dziury na osi', () => {
+    const nrs = Array.from({ length: 22 }, (_, i) => i + 1).filter((n) => n !== 9);
+    assert.equal(nrs.length, 21);
+    const xfdfM = 9166.36;
+    const dl = xfdfM / 21;
+    const arkusze0: ArkuszPzt[] = nrs.map((n, i) => ({
+      id: `a${n}`,
+      nazwa: `Ark_2_${n}.xfdf`,
+      zrodloNazwa: `Ark_2_${n}.xfdf`,
+      kolejnosc: i + 1,
+      kontynuacjaPoprzedniego: i > 0,
+      kilometrazPoczatkowyM: 0,
+      kilometrazKoncowyM: 0,
+      obszary: [prostokat(`l${n}`, '#FFEE58', dl, 5, 'L')],
+      osTrasy: {
+        wierzcholkiPdf: [{ x: 0, y: 0 }, { x: 100, y: 0 }],
+        wierzcholkiM: [{ x: 0, y: 0 }, { x: dl, y: 0 }],
+        dlugoscM: dl,
+        dlugoscEtykietaM: dl,
+      },
+    }));
+    const bez = zastosujKilometrazArkuszy(arkusze0, 106850);
+    assert.equal(formatujKmM(bez[bez.length - 1].kilometrazKoncowyM), '116+016');
+    const zPzt = zastosujKilometrazArkuszy(arkusze0, 106850, 116031);
+    assert.equal(zPzt[zPzt.length - 1].kilometrazKoncowyM, 116031);
+    assert.equal(formatujKmM(zPzt[zPzt.length - 1].kilometrazKoncowyM), '116+031');
+    assert.equal(zPzt[0].kilometrazPoczatkowyM, 106850);
+    const i8 = zPzt.findIndex((a) => a.zrodloNazwa.includes('2_8'));
+    const i10 = zPzt.findIndex((a) => a.zrodloNazwa.includes('2_10'));
+    assert.ok(i8 >= 0 && i10 === i8 + 1);
+    assert.equal(zPzt[i10].kilometrazPoczatkowyM, zPzt[i8].kilometrazKoncowyM);
+    const projekt: ProjektBudowy = {
+      ...pustyProjektBudowy(106850),
+      kilometrazKoncowyZadanyM: 116031,
+      arkusze: zPzt,
+    };
+    const os = podsumowanieOsiTrasy(projekt);
+    assert.match(os.lukaNumeracji ?? '', /2_9/);
+    assert.match(os.lukaNumeracji ?? '', /boczn/);
+    assert.ok(Math.abs(os.xfdfM - xfdfM) < 0.3);
+    assert.ok(Math.abs(os.kmM - 9181) < 0.05);
+    const d0 = zPzt[0].osTrasy?.dlugoscM ?? 0;
+    assert.ok(Math.abs(d0 - (dl * 9181) / xfdfM) < 0.15, `oś arkusza ${d0}`);
+  });
+
+  it('przelicza projekt do pikiety końcowej PZT i pisze o rozciągnięciu XFDF', () => {
+    const xfdfKrotka = (etykieta: string) => `<?xml version="1.0"?><xfdf>
+<polygon interior-color="#FFEE58"><vertices>0,40;0,20;80,20;80,40</vertices></polygon>
+<polyline color="#000000" style="dash">
+<contents>${etykieta}</contents>
+<vertices>0,20;80,20</vertices>
+</polyline>
+</xfdf>`;
+    let projekt = dodajArkuszeDoProjektu(pustyProjektBudowy(106850), [
+      parsujXfdfTekst(xfdfKrotka('435,68 m'), 'Ark_2_1.xfdf'),
+      parsujXfdfTekst(xfdfKrotka('422,07 m'), 'Ark_2_2.xfdf'),
+    ]);
+    const sumaXfdf = 435.68 + 422.07;
+    assert.ok(Math.abs(projekt.arkusze[1].kilometrazKoncowyM - (106850 + sumaXfdf)) < 0.05);
+    projekt = przeliczProjektPoZmianieKm({ ...projekt, kilometrazKoncowyZadanyM: 107720 });
+    assert.equal(projekt.arkusze[1].kilometrazKoncowyM, 107720);
+    assert.equal(formatujKmM(projekt.arkusze[1].kilometrazKoncowyM), '107+720');
+    const os = podsumowanieOsiTrasy(projekt);
+    assert.ok(Math.abs(os.xfdfM - sumaXfdf) < 0.05);
+    assert.ok(Math.abs(os.kmM - (107720 - 106850)) < 0.05);
+    const msg = komunikatPoImporcieXfdf(pustyProjektBudowy(106850), projekt, ['Ark_2_1.xfdf', 'Ark_2_2.xfdf']);
+    assert.match(msg, /rozciągnięt/i);
+    assert.match(msg, /857[,.]75/);
   });
 });

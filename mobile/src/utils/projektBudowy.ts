@@ -27,6 +27,7 @@ import {
   dlugoscObszarowWzdluzOsiM,
   dlugoscPikietazuJezdniM,
   dlugoscPolilinii,
+  dopasujGeometrieArkuszaDoDlugosci,
   dopasujGeometrieArkuszaDoEtykiety,
   kierunekRosnacegoKm,
   orientujLancuchDoKm,
@@ -257,13 +258,27 @@ export function dlugoscArkuszaM(arkusz: ArkuszPzt): number {
   return round2(ds.reduce((s, d) => s + d, 0) / ds.length);
 }
 
-/** Suma długości osi (pikietaż) wszystkich arkuszy. */
+/** Suma pikietażu PZT (po rozciągnięciu do zadanej pikiety, jeśli jest). */
 export function sumaOsiTrasyM(projekt: ProjektBudowy): number {
+  const zKm = projekt.arkusze.reduce(
+    (s, a) => s + Math.max(0, a.kilometrazKoncowyM - a.kilometrazPoczatkowyM),
+    0,
+  );
+  if (zKm > 1) return round2(zKm);
   return round2(projekt.arkusze.reduce((s, a) => s + dlugoscArkuszaM(a), 0));
+}
+
+/** Długość arkusza do pikietażu: XFDF, albo już przypisany km gdy rozciągnięto do PZT (< ~1,2 %). */
+export function dlugoscDoPikietazuM(arkusz: ArkuszPzt): number {
+  const nat = dlugoscArkuszaM(arkusz);
+  const km = round2(Math.max(0, arkusz.kilometrazKoncowyM - arkusz.kilometrazPoczatkowyM));
+  if (nat > 80 && km > 80 && Math.abs(km - nat) <= nat * 0.012 + 2.5) return km;
+  return nat > 0.5 ? nat : km;
 }
 
 export function podsumowanieOsiTrasy(projekt: ProjektBudowy): {
   kmM: number;
+  xfdfM: number;
   etykietyM: number;
   nEtykiet: number;
   nArkuszy: number;
@@ -275,9 +290,12 @@ export function podsumowanieOsiTrasy(projekt: ProjektBudowy): {
   let nEtykiet = 0;
   let geomM = 0;
   const wymiary: number[] = [];
+  let xfdfM = 0;
   for (const a of projekt.arkusze) {
-    wymiary.push(dlugoscArkuszaM(a));
     const e = a.osTrasy?.dlugoscEtykietaM;
+    const native = (e && e > 80 && e < 2500) ? round2(e) : dlugoscArkuszaM(a);
+    wymiary.push(native);
+    xfdfM += native;
     if (e && e > 80 && e < 2500) {
       etykietyM += e;
       nEtykiet += 1;
@@ -290,6 +308,7 @@ export function podsumowanieOsiTrasy(projekt: ProjektBudowy): {
   }
   return {
     kmM: sumaOsiTrasyM(projekt),
+    xfdfM: round2(xfdfM),
     etykietyM: round2(etykietyM),
     nEtykiet,
     nArkuszy: projekt.arkusze.length,
@@ -326,7 +345,7 @@ function lukaNumeracjiArkuszy(projekt: ProjektBudowy): string | null {
     if (!nrs.includes(n)) brak.push(n);
   }
   if (brak.length > 0) {
-    return `W serii ${seria}_${min}…${seria}_${max} brakuje: ${brak.map((n) => `${seria}_${n}`).join(', ')}.`;
+    return `Pominięto ${brak.map((n) => `${seria}_${n}`).join(', ')} (np. droga boczna) — nie robi dziury na osi głównej; ${seria}_${min} styka się z następnym wgranym arkuszem.`;
   }
   return null;
 }
@@ -376,27 +395,47 @@ function ustawKmObszaru(obszar: ObszarObmiaru, startM: number, koniecM: number):
 /**
  * Uciągla kilometraż: pierwszy arkusz od km projektu,
  * kolejne z flagą kontynuacji startują na końcu poprzedniego.
+ * Gdy podano pikietę końcową PZT, długości XFDF są rozciągane proporcjonalnie
+ * (oś od pierwszej kreski do ostatniej, np. 106+850 → 116+031).
  */
 export function zastosujKilometrazArkuszy(
   arkusze: ArkuszPzt[],
   kilometrazPoczatkowyM: number,
+  kilometrazKoncowyZadanyM?: number,
 ): ArkuszPzt[] {
-  let biezacy = Math.max(0, kilometrazPoczatkowyM);
-  return arkusze.map((surowy, i) => {
-    const arkusz = dopasujGeometrieArkuszaDoEtykiety(surowy);
+  const przygotowane = arkusze.map((surowy) => dopasujGeometrieArkuszaDoEtykiety(surowy));
+  const raw = przygotowane.map((a) => dlugoscArkuszaM(a));
+  const rawSum = raw.reduce((s, d) => s + d, 0);
+  const start0 = Math.max(0, kilometrazPoczatkowyM);
+  const zadany = kilometrazKoncowyZadanyM != null && kilometrazKoncowyZadanyM > start0 + 1
+    ? kilometrazKoncowyZadanyM
+    : undefined;
+  const targetSpan = zadany != null ? round2(zadany - start0) : rawSum;
+  const skala = rawSum > 1 && targetSpan > 1 ? targetSpan / rawSum : 1;
+
+  let biezacy = start0;
+  const ciagOdStartu = przygotowane.every((a, j) => j === 0 || a.kontynuacjaPoprzedniego);
+  return przygotowane.map((arkusz, i) => {
     const start = i === 0 || arkusz.kontynuacjaPoprzedniego
       ? biezacy
       : arkusz.kilometrazPoczatkowyM;
-    const dlugosc = dlugoscArkuszaM(arkusz);
-    const koniec = round2(start + dlugosc);
+    let dlugosc = round2(raw[i] * skala);
+    let koniec = round2(start + dlugosc);
+    if (zadany != null && ciagOdStartu && i === przygotowane.length - 1) {
+      koniec = round2(zadany);
+      dlugosc = round2(Math.max(0.01, koniec - start));
+    }
     biezacy = koniec;
+    const zOsi = arkusz.osTrasy?.wierzcholkiM && arkusz.osTrasy.wierzcholkiM.length >= 2 && dlugosc > 80
+      ? dopasujGeometrieArkuszaDoDlugosci(arkusz, dlugosc)
+      : arkusz;
     return {
-      ...arkusz,
+      ...zOsi,
       kolejnosc: i + 1,
       kontynuacjaPoprzedniego: i > 0,
       kilometrazPoczatkowyM: start,
       kilometrazKoncowyM: koniec,
-      obszary: arkusz.obszary.map((o) => ustawKmObszaru(o, start, koniec)),
+      obszary: zOsi.obszary.map((o) => ustawKmObszaru(o, start, koniec)),
     };
   });
 }
@@ -538,7 +577,11 @@ export function dodajArkuszeDoProjektu(
   for (let i = 0; i < nowe.length; i++) {
     if (!uzyte.has(i)) scalone.push(nowe[i]);
   }
-  const arkusze = zastosujKilometrazArkuszy(scalone, projekt.kilometrazPoczatkowyM);
+  const arkusze = zastosujKilometrazArkuszy(
+    scalone,
+    projekt.kilometrazPoczatkowyM,
+    projekt.kilometrazKoncowyZadanyM,
+  );
   const legenda = zbierzLegendeZArkuszy(arkusze, projekt.legenda);
   return {
     ...projekt,
@@ -583,13 +626,22 @@ export function komunikatPoImporcieXfdf(
   if (os.nArkuszy > 0 && os.nEtykiet < os.nArkuszy) {
     czesci.push(`Wymiar osi tylko na ${os.nEtykiet}/${os.nArkuszy} ark. — reszta z rysunku (stąd bywa 116+016 zamiast 116+031).`);
   } else if (os.nEtykiet > 0) {
-    czesci.push(`Oś z wymiaru XFDF: ${os.kmM.toLocaleString('pl-PL', { maximumFractionDigits: 2 })} m (${os.nArkuszy} ark.).`);
+    const xfdf = os.xfdfM.toLocaleString('pl-PL', { maximumFractionDigits: 2 });
+    if (po.kilometrazKoncowyZadanyM != null && Math.abs(os.kmM - os.xfdfM) > 0.5) {
+      czesci.push(`Wymiar XFDF ${xfdf} m rozciągnięty do pikiet PZT ${dl} m (${os.nArkuszy} ark.).`);
+    } else {
+      czesci.push(`Oś z wymiaru XFDF: ${xfdf} m (${os.nArkuszy} ark.).`);
+    }
   }
   return czesci.join(' ');
 }
 
 export function przeliczProjektPoZmianieKm(projekt: ProjektBudowy): ProjektBudowy {
-  const arkusze = zastosujKilometrazArkuszy(projekt.arkusze, projekt.kilometrazPoczatkowyM);
+  const arkusze = zastosujKilometrazArkuszy(
+    projekt.arkusze,
+    projekt.kilometrazPoczatkowyM,
+    projekt.kilometrazKoncowyZadanyM,
+  );
   return { ...projekt, arkusze };
 }
 
@@ -965,6 +1017,7 @@ export function usunArkusz(projekt: ProjektBudowy, arkuszId: string): ProjektBud
       kontynuacjaPoprzedniego: i === 0 ? false : true,
     })),
     projekt.kilometrazPoczatkowyM,
+    projekt.kilometrazKoncowyZadanyM,
   );
   const legenda = zbierzLegendeZArkuszy(arkusze, projekt.legenda);
   return {
@@ -990,6 +1043,7 @@ export function przesunArkusz(projekt: ProjektBudowy, arkuszId: string, kierunek
       kontynuacjaPoprzedniego: i > 0,
     })),
     projekt.kilometrazPoczatkowyM,
+    projekt.kilometrazKoncowyZadanyM,
   );
   return { ...projekt, arkusze };
 }

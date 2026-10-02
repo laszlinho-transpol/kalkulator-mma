@@ -82,6 +82,14 @@ export function SekcjaPzt({
   );
   const [kmStr, setKmStr] = useState(startInit.km);
   const [mStr, setMStr] = useState(startInit.m);
+  const koniecZadanyInit = projekt.kilometrazKoncowyZadanyM != null
+    ? polaZKilometraza(
+      Z_METROW_BIEZACYCH(projekt.kilometrazKoncowyZadanyM).km,
+      Z_METROW_BIEZACYCH(projekt.kilometrazKoncowyZadanyM).m,
+    )
+    : { km: '', m: '' };
+  const [kmKoniecStr, setKmKoniecStr] = useState(koniecZadanyInit.km);
+  const [mKoniecStr, setMKoniecStr] = useState(koniecZadanyInit.m);
   const [podzStr, setPodzStr] = useState(String(projekt.podzialkaKilometrazuM ?? 50));
   const aktywny = projekt.arkusze.find((a) => a.id === arkuszId) ?? (
     arkuszId === CALY_PZT_ID ? undefined : projekt.arkusze[0]
@@ -96,7 +104,7 @@ export function SekcjaPzt({
   const sumaOsi = podsumowanieOsiTrasy(projekt);
   const dlAkt = aktywny ? podsumowanieDlugosciArkusza(aktywny) : null;
 
-  const kluczPikietazu = `${projekt.kilometrazPoczatkowyM}|${projekt.arkusze.length}|${sumaOsi.nEtykiet}|${sumaOsi.etykietyM}|${sumaOsi.kmM}`;
+  const kluczPikietazu = `${projekt.kilometrazPoczatkowyM}|${projekt.kilometrazKoncowyZadanyM ?? ''}|${projekt.arkusze.length}|${sumaOsi.nEtykiet}|${sumaOsi.etykietyM}|${sumaOsi.kmM}`;
   useEffect(() => {
     if (projekt.arkusze.length === 0) return;
     const next = przeliczProjektPoZmianieKm(projekt);
@@ -312,6 +320,34 @@ export function SekcjaPzt({
     }));
   };
 
+  const ustawKoniec = (kmN: string, mN: string) => {
+    setKmKoniecStr(kmN);
+    setMKoniecStr(mN);
+    if (kmN.trim() === '' && mN.trim() === '') {
+      if (projekt.kilometrazKoncowyZadanyM == null) return;
+      onZmien(przeliczProjektPoZmianieKm({
+        ...projekt,
+        kilometrazKoncowyZadanyM: undefined,
+      }));
+      return;
+    }
+    const { km, m } = parsujPolaKilometraza(kmN, mN);
+    const next = km * 1000 + m;
+    if (next <= projekt.kilometrazPoczatkowyM) {
+      if (projekt.kilometrazKoncowyZadanyM == null) return;
+      onZmien(przeliczProjektPoZmianieKm({
+        ...projekt,
+        kilometrazKoncowyZadanyM: undefined,
+      }));
+      return;
+    }
+    if (next === projekt.kilometrazKoncowyZadanyM) return;
+    onZmien(przeliczProjektPoZmianieKm({
+      ...projekt,
+      kilometrazKoncowyZadanyM: next,
+    }));
+  };
+
   const usunAktywny = () => {
     if (!aktywny) return;
     usunArkuszPoId(aktywny.id, aktywny.nazwa);
@@ -436,6 +472,24 @@ export function SekcjaPzt({
             {kmKoniecTrasy != null ? ` → ${formatujKmM(kmKoniecTrasy)}` : ''}
           </Text>
         </View>
+        <Text style={[styles.label, { color: theme.colors.text }]}>Kilometraż końcowy z PZT</Text>
+        <View style={styles.kmRzad}>
+          <PoleKilometraz
+            theme={theme}
+            compact
+            km={kmKoniecStr}
+            m={mKoniecStr}
+            onKm={(v) => ustawKoniec(v, mKoniecStr)}
+            onM={(v) => ustawKoniec(kmKoniecStr, v)}
+          />
+          <Text style={{ color: theme.colors.textSecondary, fontSize: 12, flex: 1 }}>
+            {projekt.kilometrazKoncowyZadanyM != null
+              ? `Wpisane ${formatujKmM(projekt.kilometrazKoncowyZadanyM)} — pikietaż terenu.`
+              : (kmKoniecTrasy != null
+                ? `Z XFDF: ${formatujKmM(kmKoniecTrasy)}. Wpisz ostatnią pikietę z PZT (np. 116+031).`
+                : 'Opcjonalnie: ostatnia pikieta osi z PZT.')}
+          </Text>
+        </View>
         {projekt.arkusze.length > 0 ? (
           <View style={{ gap: 4 }}>
             <Text style={{ color: theme.colors.text, fontSize: 12, fontWeight: '700' }}>
@@ -445,13 +499,15 @@ export function SekcjaPzt({
             </Text>
             <Text style={{ color: theme.colors.textSecondary, fontSize: 11, lineHeight: 16 }}>
               {sumaOsi.nEtykiet === sumaOsi.nArkuszy && sumaOsi.nEtykiet > 0
-                ? `Długość osi = pikietaż drogi (${sumaOsi.nArkuszy} ark. = ${sumaOsi.kmM.toLocaleString('pl-PL', { maximumFractionDigits: 2 })} m).`
+                ? Math.abs(sumaOsi.kmM - sumaOsi.xfdfM) > 0.5
+                  ? `Wymiar XFDF ${sumaOsi.xfdfM.toLocaleString('pl-PL', { maximumFractionDigits: 2 })} m → pikietaż PZT ${sumaOsi.kmM.toLocaleString('pl-PL', { maximumFractionDigits: 2 })} m (${sumaOsi.nArkuszy} ark.).`
+                  : `Długość osi = pikietaż drogi (${sumaOsi.nArkuszy} ark. = ${sumaOsi.kmM.toLocaleString('pl-PL', { maximumFractionDigits: 2 })} m).`
                 : sumaOsi.nEtykiet === 0
                   ? 'Nie odczytano wymiaru osi z XFDF (np. „422,07 m” na kresce). Wgraj te same XFDF ponownie — program podmieni arkusze w pamięci przeglądarki, zamiast doklejać stare 116+016.'
                   : `Wymiar osi odczytany na ${sumaOsi.nEtykiet}/${sumaOsi.nArkuszy} ark. Wgraj XFDF ponownie, żeby pikietaż był pełną długością osi.`}
             </Text>
             {sumaOsi.lukaNumeracji ? (
-              <Text style={{ color: theme.colors.danger, fontSize: 11, lineHeight: 16 }}>{sumaOsi.lukaNumeracji}</Text>
+              <Text style={{ color: theme.colors.textSecondary, fontSize: 11, lineHeight: 16 }}>{sumaOsi.lukaNumeracji}</Text>
             ) : null}
             {sumaOsi.wymiary.length > 1 ? (
               <Text style={{ color: theme.colors.textSecondary, fontSize: 11, lineHeight: 16 }}>
@@ -460,11 +516,10 @@ export function SekcjaPzt({
                 {`  (${sumaOsi.nArkuszy} ark.)`}
               </Text>
             ) : null}
-            {sumaOsi.nEtykiet > 0 && Math.abs(sumaOsi.geomM - sumaOsi.etykietyM) > 1 ? (
+            {sumaOsi.nEtykiet > 0 && Math.abs(sumaOsi.geomM - sumaOsi.kmM) > 1 ? (
               <Text style={{ color: theme.colors.textSecondary, fontSize: 11, lineHeight: 16 }}>
                 Rysunek 1:500 ≈ {sumaOsi.geomM.toLocaleString('pl-PL', { maximumFractionDigits: 2 })} m;
-                wymiar osi = {sumaOsi.etykietyM.toLocaleString('pl-PL', { maximumFractionDigits: 2 })} m.
-                Pikietaż = wymiar (nie kreska PDF).
+                pikietaż PZT = {sumaOsi.kmM.toLocaleString('pl-PL', { maximumFractionDigits: 2 })} m.
               </Text>
             ) : null}
           </View>
@@ -491,7 +546,7 @@ export function SekcjaPzt({
           <Text style={{ color: theme.colors.textSecondary, fontSize: 13 }}>m — kreska z pikietą co pełne {projekt.podzialkaKilometrazuM ?? 50} m od startu</Text>
         </View>
         <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>
-          Długość osi z XFDF = pikietaż drogi (np. 106+850 + 9 181 m = 116+031). Skala 1:{projekt.skala.mianownik} służy tylko do m² obszarów z PDF, nie do kilometrażu.
+          Oś od pierwszej pikiety do ostatniej (np. 106+850 → 116+031). Wymiar XFDF bywa o ~15 m krótszy od PZT (skala 1:500) — wpisany koniec rozciąga arkusze proporcjonalnie, żeby 110+600 w terenie = 110+600 w projekcie. Pominięty arkusz drogi bocznej (np. 2_9) nie robi dziury: 2_8 styka się z 2_10.
           Ponowne wgranie tego samego arkusza podmienia geometrię w pamięci przeglądarki (nie dokleja kopii).
         </Text>
         <Text style={{ color: theme.colors.textSecondary, fontSize: 10 }}>
@@ -664,8 +719,9 @@ export function SekcjaPzt({
                   </Text>
                 ) : (
                   <Text style={{ color: theme.colors.textSecondary, fontSize: 12, lineHeight: 17 }}>
-                    Pikietaż z XFDF: {sumaOsi.kmM.toLocaleString('pl-PL', { maximumFractionDigits: 2 })} m
-                    ({sumaOsi.nArkuszy} ark.).
+                    {Math.abs(sumaOsi.kmM - sumaOsi.xfdfM) > 0.5
+                      ? `Wymiar XFDF ${sumaOsi.xfdfM.toLocaleString('pl-PL', { maximumFractionDigits: 2 })} m → pikietaż PZT ${sumaOsi.kmM.toLocaleString('pl-PL', { maximumFractionDigits: 2 })} m (${sumaOsi.nArkuszy} ark.).`
+                      : `Pikietaż z XFDF: ${sumaOsi.kmM.toLocaleString('pl-PL', { maximumFractionDigits: 2 })} m (${sumaOsi.nArkuszy} ark.).`}
                     {sumaOsi.lukaNumeracji ? ` ${sumaOsi.lukaNumeracji}` : ''}
                   </Text>
                 )}
@@ -737,6 +793,7 @@ export function SekcjaPzt({
                       const arkusze = zastosujKilometrazArkuszy(
                         projekt.arkusze.map((a) => a.id === aktywny.id ? { ...a, kontynuacjaPoprzedniego: v } : a),
                         projekt.kilometrazPoczatkowyM,
+                        projekt.kilometrazKoncowyZadanyM,
                       );
                       onZmien({ ...projekt, arkusze });
                     }}
@@ -756,6 +813,7 @@ export function SekcjaPzt({
                         const arkusze = zastosujKilometrazArkuszy(
                           projekt.arkusze.map((a) => a.id === aktywny.id ? { ...a, kilometrazPoczatkowyM: km * 1000 + m } : a),
                           projekt.kilometrazPoczatkowyM,
+                          projekt.kilometrazKoncowyZadanyM,
                         );
                         onZmien({ ...projekt, arkusze });
                       }}
@@ -764,6 +822,7 @@ export function SekcjaPzt({
                         const arkusze = zastosujKilometrazArkuszy(
                           projekt.arkusze.map((a) => a.id === aktywny.id ? { ...a, kilometrazPoczatkowyM: km * 1000 + m } : a),
                           projekt.kilometrazPoczatkowyM,
+                          projekt.kilometrazKoncowyZadanyM,
                         );
                         onZmien({ ...projekt, arkusze });
                       }}

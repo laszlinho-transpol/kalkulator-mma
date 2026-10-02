@@ -217,29 +217,29 @@ export function przeniesPunktPrzyRozciagnieciuOsi(
 }
 
 /**
- * Geometria w metrach = wymiar osi z XFDF. PDF zostaje (tło 1:500).
- * Bez tego ploter/trasa jest o 0,5–2 m na arkusz krótsza niż pikietaż.
+ * Geometria w metrach = zadana długość osi. PDF zostaje (tło 1:500).
+ * `dlugoscEtykietaM` nie jest zmieniane (wymiar XFDF).
  */
-export function dopasujGeometrieArkuszaDoEtykiety(arkusz: ArkuszPzt): ArkuszPzt {
-  const etykieta = arkusz.osTrasy?.dlugoscEtykietaM;
+export function dopasujGeometrieArkuszaDoDlugosci(arkusz: ArkuszPzt, celM: number): ArkuszPzt {
   const os0 = arkusz.osTrasy?.wierzcholkiM;
-  if (!etykieta || etykieta < 80 || !os0 || os0.length < 2) return arkusz;
+  if (!celM || celM < 80 || !os0 || os0.length < 2) return arkusz;
   const osStara = osMZorientowana(arkusz);
   if (osStara.length < 2) return arkusz;
   const dl = dlugoscPolilinii(osStara);
-  if (Math.abs(dl - etykieta) < 0.02) {
-    return arkusz.osTrasy?.dlugoscM === etykieta
+  const cel = round2(celM);
+  if (Math.abs(dl - cel) < 0.02) {
+    return arkusz.osTrasy?.dlugoscM === cel
       ? arkusz
-      : { ...arkusz, osTrasy: { ...arkusz.osTrasy!, dlugoscM: round2(etykieta) } };
+      : { ...arkusz, osTrasy: { ...arkusz.osTrasy!, dlugoscM: cel } };
   }
-  const osNowa = rozciagnijLancuchDoDlugosci(osStara, etykieta);
+  const osNowa = rozciagnijLancuchDoDlugosci(osStara, cel);
   const mapuj = (pts: Punkt2D[]) => pts.map((p) => przeniesPunktPrzyRozciagnieciuOsi(p, osStara, osNowa));
   return {
     ...arkusz,
     osTrasy: {
       ...arkusz.osTrasy!,
       wierzcholkiM: osNowa,
-      dlugoscM: round2(etykieta),
+      dlugoscM: cel,
     },
     obszary: arkusz.obszary.map((o) => {
       const wierzcholkiM = mapuj(o.wierzcholkiM);
@@ -256,6 +256,33 @@ export function dopasujGeometrieArkuszaDoEtykiety(arkusz: ArkuszPzt): ArkuszPzt 
       };
     }),
   };
+}
+
+/**
+ * Geometria w metrach = wymiar osi z XFDF. PDF zostaje (tło 1:500).
+ * Bez tego ploter/trasa jest o 0,5–2 m na arkusz krótsza niż pikietaż.
+ */
+export function dopasujGeometrieArkuszaDoEtykiety(arkusz: ArkuszPzt): ArkuszPzt {
+  const etykieta = arkusz.osTrasy?.dlugoscEtykietaM;
+  if (!etykieta || etykieta < 80) return arkusz;
+  return dopasujGeometrieArkuszaDoDlugosci(arkusz, etykieta);
+}
+
+/** Stacje na osi [m geometrii] dla wycinka pikietażu PZT (ułamek arkusza, gdy XFDF ≠ pikiety). */
+export function stacjeLokalneNaOsiM(
+  arkusz: ArkuszPzt,
+  odM: number,
+  doM: number,
+): { s0: number; s1: number; dlOs: number } {
+  const km0 = arkusz.kilometrazPoczatkowyM;
+  const kmSpan = Math.max(0.01, arkusz.kilometrazKoncowyM - km0);
+  const osM = arkusz.osTrasy?.wierzcholkiM;
+  const dlOs = osM && osM.length >= 2
+    ? dlugoscPolilinii(osM)
+    : Math.max(0.01, arkusz.osTrasy?.dlugoscM ?? kmSpan);
+  const s0 = Math.max(0, ((Math.min(odM, doM) - km0) / kmSpan) * dlOs);
+  const s1 = Math.min(dlOs, ((Math.max(odM, doM) - km0) / kmSpan) * dlOs);
+  return { s0, s1, dlOs };
 }
 
 /** Rozpiętość jezdni wzdłuż osi [m] – bliższa pikiecie PZT niż kreska przerywana. */
@@ -423,10 +450,7 @@ export function arkuszWycinekDlaKm(
 ): ArkuszPzt {
   const osM = arkusz.osTrasy?.wierzcholkiM;
   const osPdf = arkusz.osTrasy?.wierzcholkiPdf;
-  const dlOs = arkusz.osTrasy?.dlugoscM
-    ?? Math.max(0.01, arkusz.kilometrazKoncowyM - arkusz.kilometrazPoczatkowyM);
-  const s0 = Math.max(0, Math.min(odM, doM) - arkusz.kilometrazPoczatkowyM);
-  const s1 = Math.min(dlOs, Math.max(odM, doM) - arkusz.kilometrazPoczatkowyM);
+  const { s0, s1 } = stacjeLokalneNaOsiM(arkusz, odM, doM);
   const skalaS = osPdf && osM && osM.length >= 2
     ? dlugoscPolilinii(osPdf) / Math.max(dlugoscPolilinii(osM), 1e-6)
     : 1;
@@ -459,8 +483,8 @@ export function arkuszWycinekDlaKm(
 
   return {
     ...arkusz,
-    kilometrazPoczatkowyM: arkusz.kilometrazPoczatkowyM + s0,
-    kilometrazKoncowyM: arkusz.kilometrazPoczatkowyM + s1,
+    kilometrazPoczatkowyM: Math.max(arkusz.kilometrazPoczatkowyM, Math.min(odM, doM)),
+    kilometrazKoncowyM: Math.min(arkusz.kilometrazKoncowyM, Math.max(odM, doM)),
     obszary,
     osTrasy,
   };

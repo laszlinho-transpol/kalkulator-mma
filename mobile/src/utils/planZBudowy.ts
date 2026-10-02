@@ -21,6 +21,7 @@ import {
   arkuszeNachodzaceNaKm,
   arkuszWycinekDlaKm,
   powierzchniaWycinkaM2,
+  stacjeLokalneNaOsiM,
 } from './osPzt';
 import {
   formatujKmM,
@@ -184,11 +185,7 @@ export function powierzchniaOdcinkaM2(
   for (const arkusz of arkuszeNachodzaceNaKm(projekt, lo, hi)) {
     const matching = arkusz.obszary.filter(pasuje);
     const osM = arkusz.osTrasy?.wierzcholkiM;
-    const s0 = Math.max(0, lo - arkusz.kilometrazPoczatkowyM);
-    const s1 = Math.min(
-      arkusz.osTrasy?.dlugoscM ?? (arkusz.kilometrazKoncowyM - arkusz.kilometrazPoczatkowyM),
-      hi - arkusz.kilometrazPoczatkowyM,
-    );
+    const { s0, s1 } = stacjeLokalneNaOsiM(arkusz, lo, hi);
     if (s1 <= s0 + 0.05) continue;
     if (osM && osM.length >= 2) {
       for (const o of matching) {
