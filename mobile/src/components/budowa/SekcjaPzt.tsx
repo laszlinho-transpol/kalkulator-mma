@@ -445,11 +445,21 @@ export function SekcjaPzt({
             </Text>
             <Text style={{ color: theme.colors.textSecondary, fontSize: 11, lineHeight: 16 }}>
               {sumaOsi.nEtykiet === sumaOsi.nArkuszy && sumaOsi.nEtykiet > 0
-                ? `Długość osi = pikietaż drogi (${sumaOsi.nEtykiet} ark. × wymiar z XFDF = ${sumaOsi.etykietyM.toLocaleString('pl-PL', { maximumFractionDigits: 2 })} m).`
+                ? `Długość osi = pikietaż drogi (${sumaOsi.nArkuszy} ark. = ${sumaOsi.kmM.toLocaleString('pl-PL', { maximumFractionDigits: 2 })} m).`
                 : sumaOsi.nEtykiet === 0
                   ? 'Nie odczytano wymiaru osi z XFDF (np. „422,07 m” na kresce). Wgraj te same XFDF ponownie — program podmieni arkusze w pamięci przeglądarki, zamiast doklejać stare 116+016.'
                   : `Wymiar osi odczytany na ${sumaOsi.nEtykiet}/${sumaOsi.nArkuszy} ark. Wgraj XFDF ponownie, żeby pikietaż był pełną długością osi.`}
             </Text>
+            {sumaOsi.lukaNumeracji ? (
+              <Text style={{ color: theme.colors.danger, fontSize: 11, lineHeight: 16 }}>{sumaOsi.lukaNumeracji}</Text>
+            ) : null}
+            {sumaOsi.wymiary.length > 1 ? (
+              <Text style={{ color: theme.colors.textSecondary, fontSize: 11, lineHeight: 16 }}>
+                Wymiary ark.: {sumaOsi.wymiary.slice(0, 4).map((n) => n.toLocaleString('pl-PL', { maximumFractionDigits: 2 })).join(' + ')}
+                {sumaOsi.wymiary.length > 4 ? ' + …' : ''}
+                {`  (${sumaOsi.nArkuszy} ark.)`}
+              </Text>
+            ) : null}
             {sumaOsi.nEtykiet > 0 && Math.abs(sumaOsi.geomM - sumaOsi.etykietyM) > 1 ? (
               <Text style={{ color: theme.colors.textSecondary, fontSize: 11, lineHeight: 16 }}>
                 Rysunek 1:500 ≈ {sumaOsi.geomM.toLocaleString('pl-PL', { maximumFractionDigits: 2 })} m;
@@ -650,12 +660,13 @@ export function SekcjaPzt({
                   <Text style={{ color: theme.colors.danger, fontSize: 12, lineHeight: 17 }}>
                     Wymiar osi odczytany na {sumaOsi.nEtykiet}/{sumaOsi.nArkuszy} arkuszach
                     (geometria 1:500 ≈ {sumaOsi.geomM.toLocaleString('pl-PL', { maximumFractionDigits: 2 })} m).
-                    116+016 to stary zapis bez etykiet. Wgraj XFDF ponownie — arkusze zostaną podmienione, nie zdublowane.
+                    Wgraj XFDF ponownie — arkusze zostaną podmienione, nie zdublowane.
                   </Text>
                 ) : (
                   <Text style={{ color: theme.colors.textSecondary, fontSize: 12, lineHeight: 17 }}>
-                    Długość osi = {sumaOsi.etykietyM.toLocaleString('pl-PL', { maximumFractionDigits: 2 })} m = pikietaż drogi
-                    ({sumaOsi.nEtykiet}/{sumaOsi.nArkuszy} ark.).
+                    Pikietaż z XFDF: {sumaOsi.kmM.toLocaleString('pl-PL', { maximumFractionDigits: 2 })} m
+                    ({sumaOsi.nArkuszy} ark.).
+                    {sumaOsi.lukaNumeracji ? ` ${sumaOsi.lukaNumeracji}` : ''}
                   </Text>
                 )}
                 <Text style={{ color: theme.colors.textSecondary, fontSize: 12, lineHeight: 17 }}>

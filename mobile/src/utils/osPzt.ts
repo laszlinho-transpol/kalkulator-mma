@@ -86,6 +86,29 @@ export function stacjaNaOsi(os: Punkt2D[], p: Punkt2D): number {
   return najlepsza;
 }
 
+/**
+ * Stacja z wysunięciem poza kreskę osi: czoła żółtego/różowego często wystają
+ * 0,3–1 m za ostatni wierzchołek przerywanej osi (stąd 9 166 zamiast 9 181).
+ */
+export function stacjaNaOsiZWysunieciem(os: Punkt2D[], p: Punkt2D, maxWysuniecieM = 4): number {
+  const s = stacjaNaOsi(os, p);
+  if (os.length < 2) return s;
+  const L = dlugoscPolilinii(os);
+  const t0 = stycznyNaOsi(os, 0);
+  const t1 = stycznyNaOsi(os, L);
+  if (!t0 || !t1) return s;
+  const a0 = os[0];
+  const a1 = os[os.length - 1];
+  const w0 = (p.x - a0.x) * t0.dx + (p.y - a0.y) * t0.dy;
+  const w1 = (p.x - a1.x) * t1.dx + (p.y - a1.y) * t1.dy;
+  const off0 = Math.abs((p.x - a0.x) * (-t0.dy) + (p.y - a0.y) * t0.dx);
+  const off1 = Math.abs((p.x - a1.x) * (-t1.dy) + (p.y - a1.y) * t1.dx);
+  const maxOff = 14;
+  if (w0 < -0.02 && -w0 <= maxWysuniecieM && off0 <= maxOff) return w0;
+  if (w1 > 0.02 && w1 <= maxWysuniecieM && off1 <= maxOff) return L + w1;
+  return s;
+}
+
 /** Styczny do osi w stacji s – (dx,dy) unormowane, w układzie PDF (Y w górę). */
 export function stycznyNaOsi(os: Punkt2D[], s: number): { punkt: Punkt2D; dx: number; dy: number } | null {
   const punkt = punktNaOsi(os, s);
@@ -244,6 +267,25 @@ export function dlugoscObszarowWzdluzOsiM(arkusz: ArkuszPzt): number {
     const st = o.wierzcholkiM.map((p) => stacjaNaOsi(os, p));
     return Math.max(...st) - Math.min(...st);
   }).filter((d) => d > 1);
+  if (ds.length === 0) return 0;
+  ds.sort((a, b) => a - b);
+  return round2(ds[Math.floor(ds.length / 2)]);
+}
+
+/**
+ * Pikietaż arkusza po czołach L/P (z wysunięciem za kreskę osi).
+ * Żółty/różowy dochodzą do styku arkuszy; wymiar PDF-XChange mierzy tylko narysowaną kreskę.
+ */
+export function dlugoscPikietazuJezdniM(arkusz: ArkuszPzt): number {
+  const os = osMZorientowana(arkusz);
+  if (os.length < 2 || arkusz.obszary.length === 0) return 0;
+  const jezdnie = arkusz.obszary.filter((o) => o.stronaTrasy === 'lewa' || o.stronaTrasy === 'prawa');
+  const pula = jezdnie.length > 0 ? jezdnie : arkusz.obszary;
+  const ds = pula.map((o) => {
+    if (o.wierzcholkiM.length < 2) return 0;
+    const st = o.wierzcholkiM.map((p) => stacjaNaOsiZWysunieciem(os, p));
+    return Math.max(...st) - Math.min(...st);
+  }).filter((d) => d > 80 && d < 2500);
   if (ds.length === 0) return 0;
   ds.sort((a, b) => a - b);
   return round2(ds[Math.floor(ds.length / 2)]);

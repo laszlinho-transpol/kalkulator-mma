@@ -25,6 +25,7 @@ import { obszaryZPolygony, stronaTrasyZKoloru, type WynikParsowaniaXfdf } from '
 import { skalujWierzcholki } from './obmiarGeometry';
 import {
   dlugoscObszarowWzdluzOsiM,
+  dlugoscPikietazuJezdniM,
   dlugoscPolilinii,
   dopasujGeometrieArkuszaDoEtykiety,
   kierunekRosnacegoKm,
@@ -196,7 +197,7 @@ export function arkuszZWynikuXfdf(
   const etykietaM = os?.dlugoscEtykietaM && os.dlugoscEtykietaM > 1
     ? round2(os.dlugoscEtykietaM)
     : undefined;
-  const osTrasy = os && os.wierzcholki.length >= 2
+  const osTrasy0 = os && os.wierzcholki.length >= 2
     ? {
       wierzcholkiPdf: os.wierzcholki,
       wierzcholkiM,
@@ -205,7 +206,7 @@ export function arkuszZWynikuXfdf(
       kolor: os.color,
     }
     : undefined;
-  return dopasujGeometrieArkuszaDoEtykiety({
+  const surowy: ArkuszPzt = {
     id: generujId(),
     nazwa,
     zrodloNazwa: wynik.zrodloNazwa,
@@ -215,22 +216,41 @@ export function arkuszZWynikuXfdf(
     kilometrazPoczatkowyM: 0,
     kilometrazKoncowyM: 0,
     obszary,
-    osTrasy,
-  });
+    osTrasy: osTrasy0,
+  };
+  const jezdnia = osTrasy0 ? dlugoscPikietazuJezdniM(surowy) : 0;
+  const e0 = etykietaM && etykietaM > 80 && etykietaM < 2500 ? etykietaM : 0;
+  const baza = e0 || (geomM > 80 ? geomM : 0);
+  let e = e0;
+  if (jezdnia > 80 && jezdnia < 2500) {
+    const cap = (baza || jezdnia) * 1.02 + 2.5;
+    if (jezdnia >= (baza || jezdnia) - 0.05 && jezdnia <= cap) e = round2(Math.max(e, jezdnia));
+  }
+  const osTrasy = osTrasy0 && e > 80
+    ? { ...osTrasy0, dlugoscEtykietaM: e, dlugoscM: e }
+    : osTrasy0;
+  return dopasujGeometrieArkuszaDoEtykiety({ ...surowy, osTrasy });
 }
 
-/** Długość arkusza = pikietaż drogi: wymiar czarnej osi z XFDF (np. 422,07 m). */
+/** Długość arkusza = pikietaż drogi (wymiar osi albo czoła L/P, nie krótsza kreska 1:500). */
 export function dlugoscArkuszaM(arkusz: ArkuszPzt): number {
   const etykieta = arkusz.osTrasy?.dlugoscEtykietaM;
-  if (etykieta && etykieta > 80 && etykieta < 2500) return round2(etykieta);
+  const e = etykieta && etykieta > 80 && etykieta < 2500 ? round2(etykieta) : 0;
+  const jezdnia = dlugoscPikietazuJezdniM(arkusz);
+  let geom = 0;
   if (arkusz.osTrasy) {
-    const geom = arkusz.osTrasy.wierzcholkiM.length >= 2
-      ? dlugoscPolilinii(arkusz.osTrasy.wierzcholkiM)
-      : arkusz.osTrasy.dlugoscM;
-    if (geom > 0.5) return round2(geom);
+    geom = arkusz.osTrasy.wierzcholkiM.length >= 2
+      ? round2(dlugoscPolilinii(arkusz.osTrasy.wierzcholkiM))
+      : round2(arkusz.osTrasy.dlugoscM);
   }
-  const jezdnia = dlugoscObszarowWzdluzOsiM(arkusz);
-  if (jezdnia > 0.5) return jezdnia;
+  const kandydaci = [e, jezdnia, geom].filter((n) => n > 80 && n < 2500);
+  if (kandydaci.length > 0) {
+    const baza = e || Math.max(...kandydaci);
+    const doPikietazu = kandydaci.filter((n) => n >= baza - 0.05 && n <= baza * 1.02 + 2.5);
+    return round2(Math.max(...(doPikietazu.length > 0 ? doPikietazu : [baza])));
+  }
+  const staraJezdnia = dlugoscObszarowWzdluzOsiM(arkusz);
+  if (staraJezdnia > 0.5) return staraJezdnia;
   if (arkusz.obszary.length === 0) return 0;
   const ds = arkusz.obszary.map((o) => dlugoscKilometrazaObszaru(o)).filter((d) => d > 0.5);
   if (ds.length === 0) return 0;
@@ -248,11 +268,15 @@ export function podsumowanieOsiTrasy(projekt: ProjektBudowy): {
   nEtykiet: number;
   nArkuszy: number;
   geomM: number;
+  wymiary: number[];
+  lukaNumeracji: string | null;
 } {
   let etykietyM = 0;
   let nEtykiet = 0;
   let geomM = 0;
+  const wymiary: number[] = [];
   for (const a of projekt.arkusze) {
+    wymiary.push(dlugoscArkuszaM(a));
     const e = a.osTrasy?.dlugoscEtykietaM;
     if (e && e > 80 && e < 2500) {
       etykietyM += e;
@@ -270,7 +294,41 @@ export function podsumowanieOsiTrasy(projekt: ProjektBudowy): {
     nEtykiet,
     nArkuszy: projekt.arkusze.length,
     geomM: round2(geomM),
+    wymiary,
+    lukaNumeracji: lukaNumeracjiArkuszy(projekt),
   };
+}
+
+export function numerArkuszaZNazwy(nazwa: string, zrodloNazwa?: string): { seria: number; nr: number } | null {
+  for (const kandydat of [zrodloNazwa, nazwa]) {
+    if (!kandydat) continue;
+    const e = etykietaZakladkiArkusza(kandydat);
+    const ark = e.match(/^Ark\.\s+(\d+)_(\d+)$/i);
+    if (ark) return { seria: Number(ark[1]), nr: Number(ark[2]) };
+    const konc = kandydat.replace(/\.(xfdf|xml|txt|pdf)$/i, '').match(/(\d+)[._-](\d+)$/);
+    if (konc) return { seria: Number(konc[1]), nr: Number(konc[2]) };
+  }
+  return null;
+}
+
+function lukaNumeracjiArkuszy(projekt: ProjektBudowy): string | null {
+  const pary = projekt.arkusze
+    .map((a) => numerArkuszaZNazwy(a.nazwa, a.zrodloNazwa))
+    .filter((p): p is { seria: number; nr: number } => !!p);
+  if (pary.length < 2) return null;
+  const seria = pary[0].seria;
+  if (!pary.every((p) => p.seria === seria)) return null;
+  const nrs = [...new Set(pary.map((p) => p.nr))].sort((a, b) => a - b);
+  const min = nrs[0];
+  const max = nrs[nrs.length - 1];
+  const brak: number[] = [];
+  for (let n = min; n <= max; n++) {
+    if (!nrs.includes(n)) brak.push(n);
+  }
+  if (brak.length > 0) {
+    return `W serii ${seria}_${min}…${seria}_${max} brakuje: ${brak.map((n) => `${seria}_${n}`).join(', ')}.`;
+  }
+  return null;
 }
 
 /** Średnia/max długość układania MMA (wyspy na krawędzi od osi wydłużają). */
@@ -521,10 +579,11 @@ export function komunikatPoImporcieXfdf(
     czesci.push(`Dodano ${zrodla.length} arkusz(y). Łącznie ${po.arkusze.length}.`);
   }
   czesci.push(`${start} + ${dl} m = ${koniec}.`);
+  if (os.lukaNumeracji) czesci.push(os.lukaNumeracji);
   if (os.nArkuszy > 0 && os.nEtykiet < os.nArkuszy) {
     czesci.push(`Wymiar osi tylko na ${os.nEtykiet}/${os.nArkuszy} ark. — reszta z rysunku (stąd bywa 116+016 zamiast 116+031).`);
   } else if (os.nEtykiet > 0) {
-    czesci.push(`Oś z wymiaru XFDF: ${os.etykietyM.toLocaleString('pl-PL', { maximumFractionDigits: 2 })} m.`);
+    czesci.push(`Oś z wymiaru XFDF: ${os.kmM.toLocaleString('pl-PL', { maximumFractionDigits: 2 })} m (${os.nArkuszy} ark.).`);
   }
   return czesci.join(' ');
 }

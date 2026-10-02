@@ -2,8 +2,8 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { parsujVertices, parsujXfdfTekst, obszaryZPolygony, parsujListeTekstowXfdf, scalLinieOsi, bazyWzdluzOsi } from './xfdfParser';
-import { dlugoscPolilinii, orientujLancuchDoKm, osPdfZorientowana, rozciagnijLancuchDoDlugosci, rozmiarPodzialkiOsi, stacjePodzialki, stronaWzgledemOsi } from './osPzt';
+import { parsujVertices, parsujXfdfTekst, obszaryZPolygony, parsujListeTekstowXfdf, scalLinieOsi, bazyWzdluzOsi, etykietaOsiZArkusza, pikietyZTekstu } from './xfdfParser';
+import { dlugoscPikietazuJezdniM, dlugoscPolilinii, orientujLancuchDoKm, osPdfZorientowana, rozciagnijLancuchDoDlugosci, rozmiarPodzialkiOsi, stacjePodzialki, stronaWzgledemOsi } from './osPzt';
 import {
   powierzchniaWielokata,
   skalujWierzcholki,
@@ -216,6 +216,35 @@ describe('obmiarGeometry / xfdfParser', () => {
 </xfdf>`;
     const w = parsujXfdfTekst(xfdf, 'ark.xfdf');
     assert.ok(Math.abs((w.osTrasy?.dlugoscEtykietaM ?? 0) - 435.68) < 0.01);
+  });
+
+  it('bierze dłuższy wymiar osi (435,68), nie krótszą kreskę 1:500 (415 m)', () => {
+    const xfdf = `<?xml version="1.0"?><xfdf>
+<polygon interior-color="#FFEE58"><vertices>0,40;0,20;400,20;400,40</vertices></polygon>
+<polyline color="#000000" style="dash">
+<contents>415,00 m</contents>
+<vertices>0,20;400,20</vertices>
+</polyline>
+<line color="#000000" start="0,28" end="400,28"><contents>435,68 m</contents></line>
+</xfdf>`;
+    const w = parsujXfdfTekst(xfdf, 'ark.xfdf');
+    assert.ok(Math.abs((w.osTrasy?.dlugoscEtykietaM ?? 0) - 435.68) < 0.01);
+    assert.equal(etykietaOsiZArkusza(415, xfdf, 415), 435.68);
+  });
+
+  it('pikiety 106+850 … 107+287 dają 437 m arkusza', () => {
+    assert.deepEqual(pikietyZTekstu('od 106+850 do 107+287'), [106850, 107287]);
+    const xfdf = `<?xml version="1.0"?><xfdf>
+<polygon interior-color="#FFEE58"><vertices>0,40;0,20;400,20;400,40</vertices></polygon>
+<polyline color="#000000" style="dash">
+<contents>436,36 m</contents>
+<vertices>0,20;400,20</vertices>
+</polyline>
+<contents>106+850</contents>
+<contents>107+287</contents>
+</xfdf>`;
+    const w = parsujXfdfTekst(xfdf, 'ark.xfdf');
+    assert.ok(Math.abs((w.osTrasy?.dlugoscEtykietaM ?? 0) - 437) < 0.02);
   });
 
   it('orientujLancuchDoKm idzie w kierunku arkusza, nie do punktu z innej strony PDF', () => {

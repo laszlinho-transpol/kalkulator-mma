@@ -34,6 +34,7 @@ import {
   etykietaZakladkiArkusza,
   kluczArkuszaPzt,
   komunikatPoImporcieXfdf,
+  numerArkuszaZNazwy,
   zsynchronizujLegendeProjektu,
   sumaOsiTrasyM,
   podsumowanieOsiTrasy,
@@ -365,6 +366,24 @@ describe('projektBudowy', () => {
     assert.match(msg, /Zastąpiono 2/);
     assert.match(msg, /857[,.]75/);
     assert.equal(kluczArkuszaPzt('Odcinek ręczny', 'DK25_Ark_2_1.xfdf'), 'ark. 2_1');
+    assert.deepEqual(numerArkuszaZNazwy('Mąkowarsko_2_1.xfdf'), { seria: 2, nr: 1 });
+  });
+
+  it('czoła L/P wystające za kreskę osi wydłużają pikietaż arkusza', () => {
+    const xfdf = `<?xml version="1.0"?><xfdf>
+<polygon interior-color="#FFEE58" subject="lewa"><vertices>-8,40;-8,20;2280,20;2280,40</vertices></polygon>
+<polygon interior-color="#FFC0CB" subject="prawa"><vertices>-8,20;-8,0;2280,0;2280,20</vertices></polygon>
+<polyline color="#000000" style="dash">
+<contents>400,00 m</contents>
+<vertices>0,20;2268,20</vertices>
+</polyline>
+</xfdf>`;
+    const projekt = dodajArkuszeDoProjektu(pustyProjektBudowy(106850), [
+      parsujXfdfTekst(xfdf, 'Mąkowarsko_2_1.xfdf'),
+    ]);
+    const d = dlugoscArkuszaM(projekt.arkusze[0]);
+    assert.ok(d > 400.4, `pikietaż ${d} ma być dłuższy niż kreska 400 m`);
+    assert.ok(d < 408, `pikietaż ${d} nie może brać wyspy/zjazdu`);
   });
 
   it('usuwa arkusz i przestawia kolejność z przeliczeniem km', () => {

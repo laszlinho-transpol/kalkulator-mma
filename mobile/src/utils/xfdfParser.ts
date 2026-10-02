@@ -120,25 +120,57 @@ function etykietaZAnnotacji(attrs: string, body: string): number | undefined {
   return undefined;
 }
 
-/** Gdy oś nie ma wymiaru na polilinii, bierzemy etykietę długości arkusza z XFDF (np. osobna linia wymiarowa). */
+/** Pikiety z opisu PZT, np. 106+850 … 107+287. */
+export function pikietyZTekstu(s: string): number[] {
+  const t = tekstBezTagow(s);
+  const out: number[] = [];
+  const re = /(\d{1,3})\+(\d{3})(?!\d)/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(t)) !== null) {
+    const km = parseInt(m[1], 10);
+    const met = parseInt(m[2], 10);
+    if (!Number.isFinite(km) || !Number.isFinite(met) || met > 999) continue;
+    const v = km * 1000 + met;
+    if (v >= 1000 && v <= 500000) out.push(v);
+  }
+  return out;
+}
+
+function dlugoscZPikietXml(xml: string): number | undefined {
+  const p = pikietyZTekstu(xml);
+  if (p.length < 2) return undefined;
+  const d = Math.max(...p) - Math.min(...p);
+  if (d >= 80 && d <= 2500) return round2(d);
+  return undefined;
+}
+
+/**
+ * Wymiar osi arkusza: najdłuższy wiarygodny opis (nie krótsza kreska 1:500 z PDF-XChange).
+ * Kreska na polilinii bywa o 0,5–1 m krótsza niż pikietaż / wymiar na linii.
+ */
 export function etykietaOsiZArkusza(
   osEtykietaM: number | undefined,
   xml: string,
   geomM?: number,
 ): number | undefined {
   const zOsi = osEtykietaM && osEtykietaM > 80 && osEtykietaM < 2500 ? osEtykietaM : undefined;
-  if (zOsi) return zOsi;
   const wszystkie = zbierzEtykietyMetrow(xml).filter((e) => e >= 80 && e <= 2500);
-  if (wszystkie.length === 0) return osEtykietaM && osEtykietaM > 1 ? osEtykietaM : undefined;
+  const zPikiet = dlugoscZPikietXml(xml);
+  const kandydaci = [...wszystkie];
+  if (zOsi) kandydaci.push(zOsi);
+  if (zPikiet) kandydaci.push(zPikiet);
+  if (kandydaci.length === 0) return osEtykietaM && osEtykietaM > 1 ? osEtykietaM : undefined;
+
+  const arkuszowe = kandydaci.filter((e) => e >= 200 && e <= 900);
+  const pula = arkuszowe.length > 0 ? arkuszowe : kandydaci;
+  const baza = zOsi ?? (geomM && geomM > 80 ? geomM : Math.max(...pula));
+  const doPikietazu = pula.filter((e) => e >= baza * 0.995 && e <= baza * 1.12);
+  if (doPikietazu.length > 0) return round2(Math.max(...doPikietazu));
   if (geomM && geomM > 1) {
-    const bliskie = wszystkie.filter((e) => Math.abs(e - geomM) / geomM <= 0.22);
-    if (bliskie.length > 0) {
-      return bliskie.reduce((a, b) => (Math.abs(a - geomM) <= Math.abs(b - geomM) ? a : b));
-    }
+    const bliskie = pula.filter((e) => e >= geomM * 0.98 && e <= geomM * 1.12);
+    if (bliskie.length > 0) return round2(Math.max(...bliskie));
   }
-  const arkuszowe = wszystkie.filter((e) => e >= 200 && e <= 900);
-  if (arkuszowe.length > 0) return Math.max(...arkuszowe);
-  return Math.max(...wszystkie);
+  return round2(zOsi ?? Math.max(...pula));
 }
 
 function distPunktOdcinek(p: Punkt2D, a: Punkt2D, b: Punkt2D): number {
