@@ -219,7 +219,7 @@ export function arkuszZWynikuXfdf(
   });
 }
 
-/** Długość arkusza w pikietażu: wymiar osi z XFDF, inaczej jezdnia wzdłuż osi, inaczej geometria kreski. */
+/** Długość arkusza = pikietaż drogi: wymiar czarnej osi z XFDF (np. 422,07 m). */
 export function dlugoscArkuszaM(arkusz: ArkuszPzt): number {
   const etykieta = arkusz.osTrasy?.dlugoscEtykietaM;
   if (etykieta && etykieta > 80 && etykieta < 2500) return round2(etykieta);

@@ -443,10 +443,10 @@ export function SekcjaPzt({
             </Text>
             <Text style={{ color: theme.colors.textSecondary, fontSize: 11, lineHeight: 16 }}>
               {sumaOsi.nEtykiet === sumaOsi.nArkuszy && sumaOsi.nEtykiet > 0
-                ? `Suma wymiarów czarnej osi z XFDF (${sumaOsi.nEtykiet} ark.).`
+                ? `Długość osi = pikietaż drogi (${sumaOsi.nEtykiet} ark. × wymiar z XFDF).`
                 : sumaOsi.nEtykiet === 0
-                  ? 'Brak wymiarów osi w zapisanym projekcie — pikietaż z kreski 1:500 (krótsza). Wgraj XFDF ponownie.'
-                  : `Wymiar osi tylko na ${sumaOsi.nEtykiet}/${sumaOsi.nArkuszy} ark. — reszta z kreski 1:500. Wgraj XFDF ponownie.`}
+                  ? 'Nie odczytano wymiaru osi z XFDF (np. „422,07 m” na kresce). Wgraj XFDF ponownie — pikietaż to ten wymiar, nie rysunek PDF.'
+                  : `Wymiar osi odczytany na ${sumaOsi.nEtykiet}/${sumaOsi.nArkuszy} ark. Wgraj XFDF ponownie, żeby pikietaż był pełną długością osi.`}
             </Text>
           </View>
         ) : null}
@@ -472,7 +472,7 @@ export function SekcjaPzt({
           <Text style={{ color: theme.colors.textSecondary, fontSize: 13 }}>m — kreska z pikietą co pełne {projekt.podzialkaKilometrazuM ?? 50} m od startu</Text>
         </View>
         <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>
-          Skala PZT 1:{projekt.skala.mianownik} ({projekt.skala.metryNaCm} m / cm). Pikietaż i długość trasy = suma wymiarów czarnej osi z XFDF (np. 106+850 + 9 181 m = 116+031), nie krótsza kreska 1:500. Długość odcinka = wzdłuż osi, szerokość = poprzeczka L–P.
+          Długość osi z XFDF = pikietaż drogi (np. 106+850 + 9 181 m = 116+031). Skala 1:{projekt.skala.mianownik} służy tylko do m² obszarów z PDF, nie do kilometrażu.
         </Text>
       </View>
 
@@ -634,18 +634,12 @@ export function SekcjaPzt({
                 </Text>
                 {sumaOsi.nEtykiet < sumaOsi.nArkuszy ? (
                   <Text style={{ color: theme.colors.danger, fontSize: 12, lineHeight: 17 }}>
-                    Wymiar osi XFDF jest na {sumaOsi.nEtykiet}/{sumaOsi.nArkuszy} arkuszach.
-                    Brakujące biorą kreskę 1:500 ({sumaOsi.geomM.toLocaleString('pl-PL', { maximumFractionDigits: 2 })} m), nie wymiar z XFDF.
-                    Wgraj XFDF ponownie.
-                  </Text>
-                ) : Math.abs(sumaOsi.geomM - sumaOsi.etykietyM) > 2 ? (
-                  <Text style={{ color: theme.colors.textSecondary, fontSize: 12, lineHeight: 17 }}>
-                    Etykiety XFDF: {sumaOsi.etykietyM.toLocaleString('pl-PL', { maximumFractionDigits: 2 })} m.
-                    Kreska 1:500 była o {(sumaOsi.etykietyM - sumaOsi.geomM).toLocaleString('pl-PL', { maximumFractionDigits: 2 })} m krótsza – geometria rozciągnięta do wymiaru.
+                    Wymiar osi odczytany na {sumaOsi.nEtykiet}/{sumaOsi.nArkuszy} arkuszach.
+                    Pikietaż to długość osi z XFDF — wgraj pliki ponownie.
                   </Text>
                 ) : (
                   <Text style={{ color: theme.colors.textSecondary, fontSize: 12, lineHeight: 17 }}>
-                    Suma wymiarów czarnej osi XFDF: {sumaOsi.etykietyM.toLocaleString('pl-PL', { maximumFractionDigits: 2 })} m.
+                    Długość osi = {sumaOsi.etykietyM.toLocaleString('pl-PL', { maximumFractionDigits: 2 })} m = pikietaż drogi.
                   </Text>
                 )}
                 <Text style={{ color: theme.colors.textSecondary, fontSize: 12, lineHeight: 17 }}>
