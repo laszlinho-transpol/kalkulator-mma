@@ -94,6 +94,7 @@ export function SekcjaPzt({
   const sumaOsi = podsumowanieOsiTrasy(projekt);
   const dlAkt = aktywny ? podsumowanieDlugosciArkusza(aktywny) : null;
 
+  const kluczPikietazu = `${projekt.kilometrazPoczatkowyM}|${projekt.arkusze.length}|${sumaOsi.nEtykiet}|${sumaOsi.etykietyM}|${sumaOsi.kmM}`;
   useEffect(() => {
     if (projekt.arkusze.length === 0) return;
     const next = przeliczProjektPoZmianieKm(projekt);
@@ -109,9 +110,9 @@ export function SekcjaPzt({
         || Math.abs(dlGeom(a) - dlGeom(stary)) > 0.05;
     });
     if (zmiana) onZmien(next);
-    // Przelicza pikietaż i rozciąga oś do etykiety XFDF.
+    // Przelicza pikietaż i rozciąga oś do etykiety XFDF (także przy starym zapisie 116+016).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projekt.arkusze.length, projekt.kilometrazPoczatkowyM]);
+  }, [kluczPikietazu]);
 
   useEffect(() => {
     let zyje = true;
@@ -628,12 +629,28 @@ export function SekcjaPzt({
               <View style={[karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border, gap: 8 }]}>
                 <Text style={{ color: theme.colors.text, fontWeight: '800', fontSize: 14 }}>Cały PZT – ciągłość trasy</Text>
                 <Text style={{ color: theme.colors.primary, fontWeight: '800', fontSize: 13 }}>
-                  {formatujKmM(calyArkusz.kilometrazPoczatkowyM)} → {formatujKmM(calyArkusz.kilometrazKoncowyM)}
-                  {`  ·  ${sumaOsi.kmM.toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m osi`}
+                  {formatujKmM(calyArkusz.kilometrazPoczatkowyM)} + {sumaOsi.kmM.toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m
+                  {`  =  ${formatujKmM(calyArkusz.kilometrazKoncowyM)}`}
                 </Text>
+                {sumaOsi.nEtykiet < sumaOsi.nArkuszy ? (
+                  <Text style={{ color: theme.colors.danger, fontSize: 12, lineHeight: 17 }}>
+                    Wymiar osi XFDF jest na {sumaOsi.nEtykiet}/{sumaOsi.nArkuszy} arkuszach.
+                    Brakujące biorą kreskę 1:500 ({sumaOsi.geomM.toLocaleString('pl-PL', { maximumFractionDigits: 2 })} m), nie wymiar z XFDF.
+                    Wgraj XFDF ponownie.
+                  </Text>
+                ) : Math.abs(sumaOsi.geomM - sumaOsi.etykietyM) > 2 ? (
+                  <Text style={{ color: theme.colors.textSecondary, fontSize: 12, lineHeight: 17 }}>
+                    Etykiety XFDF: {sumaOsi.etykietyM.toLocaleString('pl-PL', { maximumFractionDigits: 2 })} m.
+                    Kreska 1:500 była o {(sumaOsi.etykietyM - sumaOsi.geomM).toLocaleString('pl-PL', { maximumFractionDigits: 2 })} m krótsza – geometria rozciągnięta do wymiaru.
+                  </Text>
+                ) : (
+                  <Text style={{ color: theme.colors.textSecondary, fontSize: 12, lineHeight: 17 }}>
+                    Suma wymiarów czarnej osi XFDF: {sumaOsi.etykietyM.toLocaleString('pl-PL', { maximumFractionDigits: 2 })} m.
+                  </Text>
+                )}
                 <Text style={{ color: theme.colors.textSecondary, fontSize: 12, lineHeight: 17 }}>
-                  Baza: współrzędne XFDF. Ostatnie punkty L/P arkusza N stają się pierwszymi N+1,
-                  reszta z tych samych różnic (tyczenie wstecz). Zakładki stron – porównanie z PDF.
+                  Styk: ostatnie węzły żółtego (L) i różowego (P) arkusza N = pierwsze N+1
+                  (poprzeczka + tyczenie wstecz). Zakładki stron – porównanie z PDF.
                 </Text>
               </View>
             </>

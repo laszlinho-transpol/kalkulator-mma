@@ -223,14 +223,14 @@ export function arkuszZWynikuXfdf(
 export function dlugoscArkuszaM(arkusz: ArkuszPzt): number {
   const etykieta = arkusz.osTrasy?.dlugoscEtykietaM;
   if (etykieta && etykieta > 80 && etykieta < 2500) return round2(etykieta);
-  const jezdnia = dlugoscObszarowWzdluzOsiM(arkusz);
-  if (jezdnia > 0.5) return jezdnia;
   if (arkusz.osTrasy) {
     const geom = arkusz.osTrasy.wierzcholkiM.length >= 2
       ? dlugoscPolilinii(arkusz.osTrasy.wierzcholkiM)
       : arkusz.osTrasy.dlugoscM;
     if (geom > 0.5) return round2(geom);
   }
+  const jezdnia = dlugoscObszarowWzdluzOsiM(arkusz);
+  if (jezdnia > 0.5) return jezdnia;
   if (arkusz.obszary.length === 0) return 0;
   const ds = arkusz.obszary.map((o) => dlugoscKilometrazaObszaru(o)).filter((d) => d > 0.5);
   if (ds.length === 0) return 0;
