@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import type { DzialkaRobocza, FiguraProstokat } from '../types';
-import { obliczTabeleAutPlanuCiagla, budujFiguryPlanu, obliczMarkeryPlanuCiaglego, obliczPodsumowanieOdcinkaPlanu } from './planCiagly';
+import { obliczTabeleAutPlanuCiagla, budujFiguryPlanu, budujSegmentyPlanu, metryOdMasyPlanu, obliczMarkeryPlanuCiaglego, obliczPodsumowanieOdcinkaPlanu } from './planCiagly';
 import { znajdzAktywnaDzialke } from './liveProgress';
 import type { Plan, WpisLive, SesjaDzialkiLive } from '../types';
 
@@ -64,5 +64,33 @@ describe('planCiagly', () => {
     assert.equal(pod.metryDo, 75);
     assert.equal(pod.tonDo, 32);
     assert.equal(pod.pozostaloMetrow, 25);
+  });
+
+  it('Całość: 26 t z dokładnego m² – rozjazd krótszy niż stała szerokość', () => {
+    const dz: DzialkaRobocza = {
+      id: 'dzR',
+      nazwa: '114+020 – 113+605',
+      mieszankaId: 'm1',
+      grubosc: 4,
+      gruboscWbudowywania: 4,
+      kilometrazPoczatkowyKm: 114,
+      kilometrazPoczatkowyM: 20,
+      kierunekUkladania: 'malejacy',
+      figury: [{ ...baza, id: 'f1', typ: 'prostokat', szerokosc: 7.47, dlugosc: 415 } as FiguraProstokat],
+      profilSzerokosci: [
+        { dlugoscM: 15, szerokoscM: 20, powierzchniaM2: 300 },
+        { dlugoscM: 400, szerokoscM: 7, powierzchniaM2: 2800 },
+      ],
+    };
+    const tab = obliczTabeleAutPlanuCiagla([dz], [{ id: '1', numerRzutu: 1, iloscSamochodow: 20 }], 26, () => 2.45);
+    assert.ok(tab.calosc.length >= 2);
+    assert.ok(Math.abs(tab.calosc[0].metry - 13.27) < 0.05, `pierwsze auto na rozjeździe, jest ${tab.calosc[0].metry}`);
+    const autoWatskie = tab.calosc.find((w) => w.metryNarastajaco - w.metry >= 15);
+    assert.ok(autoWatskie && Math.abs(autoWatskie.metry - 37.9) < 0.15, `stała 7 m ≈ 37,9 m, jest ${autoWatskie?.metry}`);
+
+    const seg = budujSegmentyPlanu([dz], () => 2.45);
+    assert.equal(seg.length, 2);
+    assert.equal(seg[0].pow, 300);
+    assert.ok(Math.abs(metryOdMasyPlanu(seg, 26) - 13.27) < 0.05);
   });
 });

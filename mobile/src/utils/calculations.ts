@@ -88,9 +88,7 @@ export function obliczWynikiDzialki(
   ciezarObjetosciowy: number,
   tonazAuta: number = DOMYSLNY_TONAZ_AUTA,
 ): WynikiDzialki {
-  const lacznaPowierzchnia = round2(
-    dzialka.figury.reduce((sum, f) => sum + obliczPowierzchniFigury(f), 0),
-  );
+  const lacznaPowierzchnia = powierzchniaDzialkiM2(dzialka);
 
   const lacznaIloscMasy = round3(
     lacznaPowierzchnia * (dzialka.grubosc / 100) * ciezarObjetosciowy,
@@ -110,6 +108,44 @@ export function sredniaSzerokoscFigury(figura: Figura): number {
   return round2(obliczPowierzchniFigury(figura) / dl);
 }
 
+/** Dokładny obmiar działki [m²]: suma plasterków PZT, inaczej figury. */
+export function powierzchniaDzialkiM2(dzialka: DzialkaRobocza): number {
+  const zProfilu = (dzialka.profilSzerokosci ?? []).filter((p) => p.dlugoscM > 0);
+  if (zProfilu.length > 0) {
+    return round2(zProfilu.reduce(
+      (s, p) => s + (p.powierzchniaM2 ?? (p.szerokoscM ?? 0) * p.dlugoscM),
+      0,
+    ));
+  }
+  return round2(dzialka.figury.reduce((sum, f) => sum + obliczPowierzchniFigury(f), 0));
+}
+
+/** m² z tonażu: masa / (grubość [m] × gęstość). */
+export function powierzchniaZMasyMg(masaMg: number, gruboscCm: number, gestoscTm3: number): number {
+  const m3 = (Math.max(0, gruboscCm) / 100) * Math.max(0, gestoscTm3);
+  return m3 > 0 ? masaMg / m3 : 0;
+}
+
+export function plasterkiDoSegmentowMasy(
+  plasterki: Array<{ dlugoscM: number; szerokoscM?: number; powierzchniaM2?: number }>,
+  gruboscCm: number,
+  gestoscTm3: number,
+): Array<{ dl: number; pow: number; pozostaloPow: number; masaNaM: number }> {
+  const rhoH = (Math.max(0, gruboscCm) / 100) * Math.max(0, gestoscTm3);
+  return plasterki
+    .map((p) => {
+      const dl = Math.max(0, p.dlugoscM);
+      const pow = Math.max(0, p.powierzchniaM2 ?? (p.szerokoscM ?? 0) * dl);
+      return {
+        dl,
+        pow,
+        pozostaloPow: pow,
+        masaNaM: dl > 0 ? round3((pow / dl) * rhoH) : 0,
+      };
+    })
+    .filter((s) => s.dl > 0 && s.pow > 1e-6);
+}
+
 /**
  * Tabela aut z uwzględnieniem różnych szerokości pól (kolejność figur).
  * Każde auto zużywa masę proporcjonalnie do powierzchni kolejnych odcinków.
@@ -124,15 +160,17 @@ export function obliczTabeleAutDlaDzialki(
 ): WpisTabeliAut[] {
   const grubosc = dzialka.gruboscWbudowywania ?? dzialka.grubosc;
   const wyniki = obliczWynikiDzialki(dzialka, ciezarObjetosciowy, tonazAuta);
-  const zProfilu = (dzialka.profilSzerokosci ?? []).filter((p) => p.dlugoscM > 0 && p.szerokoscM > 0);
-  const segmenty = (zProfilu.length > 0
-    ? zProfilu.map((p) => ({ dl: p.dlugoscM, szer: p.szerokoscM }))
-    : dzialka.figury.map((f) => ({ dl: dlugoscFigury(f), szer: sredniaSzerokoscFigury(f) }))
-  ).map((p) => ({
-    dl: p.dl,
-    masaNaM: round3(p.szer * (grubosc / 100) * ciezarObjetosciowy),
-    pozostalo: p.dl,
-  }));
+  const zProfilu = (dzialka.profilSzerokosci ?? []).filter((p) => p.dlugoscM > 0);
+  const segmenty = plasterkiDoSegmentowMasy(
+    zProfilu.length > 0
+      ? zProfilu
+      : dzialka.figury.map((f) => ({
+        dlugoscM: dlugoscFigury(f),
+        powierzchniaM2: obliczPowierzchniFigury(f),
+      })),
+    grubosc,
+    ciezarObjetosciowy,
+  );
 
   const wynikiAut: WpisTabeliAut[] = [];
   let masaNarastajaco = narastajacoOd.masa;
@@ -141,23 +179,21 @@ export function obliczTabeleAutDlaDzialki(
   let segIdx = 0;
 
   const pobierzMetryDlaMasy = (masaMg: number): number => {
-    let masaPozost = masaMg;
+    let powPozost = powierzchniaZMasyMg(masaMg, grubosc, ciezarObjetosciowy);
     let metry = 0;
-    while (masaPozost > 0.0001 && segIdx < segmenty.length) {
+    while (powPozost > 1e-6 && segIdx < segmenty.length) {
       const seg = segmenty[segIdx];
-      if (seg.masaNaM <= 0 || seg.pozostalo <= 0) {
+      if (seg.pow <= 0 || seg.pozostaloPow <= 0) {
         segIdx++;
         continue;
       }
-      const maxM = seg.pozostalo * seg.masaNaM;
-      const zuzyj = Math.min(masaPozost, maxM);
-      const m = seg.masaNaM > 0 ? zuzyj / seg.masaNaM : 0;
-      metry = round2(metry + m);
-      seg.pozostalo = round2(seg.pozostalo - m);
-      masaPozost = round3(masaPozost - zuzyj);
-      if (seg.pozostalo <= 0.001) segIdx++;
+      const zjedz = Math.min(powPozost, seg.pozostaloPow);
+      metry += seg.pow > 0 ? (zjedz / seg.pow) * seg.dl : 0;
+      seg.pozostaloPow -= zjedz;
+      powPozost -= zjedz;
+      if (seg.pozostaloPow <= 1e-6) segIdx++;
     }
-    return metry;
+    return round2(metry);
   };
 
   for (const rzut of rzuty) {
@@ -361,17 +397,24 @@ export function obliczPowierzchnioweOdStartu(
 ): number {
   let powierzchniaCum = 0;
   let metryCum = 0;
+  const zProfilu = (dzialka.profilSzerokosci ?? []).filter((p) => p.dlugoscM > 0);
+  const odcinki = zProfilu.length > 0
+    ? zProfilu.map((p) => ({
+      dl: p.dlugoscM,
+      pow: p.powierzchniaM2 ?? (p.szerokoscM ?? 0) * p.dlugoscM,
+    }))
+    : dzialka.figury.map((f) => ({
+      dl: dlugoscFigury(f),
+      pow: obliczPowierzchniFigury(f),
+    }));
 
-  for (const figura of dzialka.figury) {
-    const dlugoscF = dlugoscFigury(figura);
-    const powierzchniaF = obliczPowierzchniFigury(figura);
-
-    if (metryCum + dlugoscF <= metryOdStartu) {
-      powierzchniaCum += powierzchniaF;
-      metryCum += dlugoscF;
+  for (const odc of odcinki) {
+    if (metryCum + odc.dl <= metryOdStartu) {
+      powierzchniaCum += odc.pow;
+      metryCum += odc.dl;
     } else {
-      const ulamek = dlugoscF > 0 ? (metryOdStartu - metryCum) / dlugoscF : 0;
-      powierzchniaCum += powierzchniaF * ulamek;
+      const ulamek = odc.dl > 0 ? (metryOdStartu - metryCum) / odc.dl : 0;
+      powierzchniaCum += odc.pow * ulamek;
       break;
     }
   }

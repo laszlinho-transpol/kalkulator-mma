@@ -14,8 +14,10 @@ import {
   policzOdcinkiPlanu,
   stronaKrawedznika,
   tytulPlanuBudowy,
+  uzupelnijProfilObmiaruDzialek,
   zbudujPlanZBudowy,
 } from './planZBudowy';
+import { obliczTabeleAutPlanu } from './calculations';
 import { pikietazPoMetrach } from './chainage';
 import { segmentyKonstrukcji } from './projektBudowy';
 
@@ -285,7 +287,12 @@ describe('planZBudowy / oś XFDF', () => {
     assert.equal(plan.dzialki[0].nazwa, '114+020 – 113+605');
     assert.equal(plan.dzialki[0].kilometrazPoczatkowyKm, 114);
     assert.equal(plan.dzialki[0].kilometrazPoczatkowyM, 20);
-    assert.ok((plan.dzialki[0].profilSzerokosci?.length ?? 0) >= 2);
+    const profil = plan.dzialki[0].profilSzerokosci ?? [];
+    assert.ok(profil.length >= 1);
+    const sumaDl = profil.reduce((s, p) => s + p.dlugoscM, 0);
+    const sumaPow = profil.reduce((s, p) => s + (p.powierzchniaM2 ?? 0), 0);
+    assert.ok(Math.abs(sumaDl - 415) < 0.2, `długość profilu ${sumaDl}`);
+    assert.ok(Math.abs(sumaPow - 415 * 7) < 8, `obmiar ${sumaPow}`);
     const plasterki = plasterkiSzerokosciOdcinka(projekt, {
       legendaId: 'legL',
       odM: 114020,
@@ -294,7 +301,67 @@ describe('planZBudowy / oś XFDF', () => {
       odsadzkaPrawaCm: 0,
       krokM: 10,
     });
-    assert.ok(plasterki.length >= 2);
+    assert.ok(plasterki.length >= 1);
     assert.ok(plasterki.every((p) => p.szerokoscM > 6 && p.szerokoscM < 8));
+    assert.ok(plasterki.every((p) => p.powierzchniaM2 > 0));
+  });
+
+  it('rozjazd 15 m na starcie: dokładne m², pierwsze 26 t krócej niż przy 7 m', () => {
+    const wiaz = nowaWarstwa({ nazwa: 'Wiążąca', kategoria: 'wiazaca', kolejnosc: 1, gruboscCm: 4, odsadzkaCm: 0 });
+    const obszar: ObszarObmiaru = {
+      id: 'l',
+      nazwa: 'Trasa L',
+      kolejnosc: 1,
+      wierzcholkiPdf: [
+        { x: 0, y: 7 }, { x: 0, y: 0 }, { x: 7155, y: 0 }, { x: 7170, y: 0 },
+        { x: 7170, y: 20 }, { x: 7155, y: 20 }, { x: 7155, y: 7 },
+      ],
+      wierzcholkiM: [
+        { x: 0, y: 7 }, { x: 0, y: 0 }, { x: 7155, y: 0 }, { x: 7170, y: 0 },
+        { x: 7170, y: 20 }, { x: 7155, y: 20 }, { x: 7155, y: 7 },
+      ],
+      powierzchniaM2: 7155 * 7 + 15 * 20,
+      obwodM: 1,
+      zrodloNazwa: 'test.xfdf',
+      kolorWypelnienia: '#FFEE58',
+      stronaTrasy: 'lewa',
+      createdAt: '2026-01-01T00:00:00.000Z',
+    };
+    const projekt = projektLewy(obszar, [wiaz]);
+    const plasterki = plasterkiSzerokosciOdcinka(projekt, {
+      legendaId: 'legL',
+      odM: 114020,
+      doM: 113605,
+      odsadzkaLewaCm: 0,
+      odsadzkaPrawaCm: 0,
+    });
+    assert.ok(plasterki.length >= 2, `oczekiwano osobnego rozjazdu, jest ${plasterki.length}`);
+    assert.ok(plasterki[0].szerokoscM > 15, `start rozjazdu ~20 m, jest ${plasterki[0].szerokoscM}`);
+    assert.ok(plasterki[plasterki.length - 1].szerokoscM < 9, `koniec ~7 m, jest ${plasterki[plasterki.length - 1].szerokoscM}`);
+
+    const plan = zbudujPlanZBudowy(projekt, {
+      budowaId: 'b1',
+      dataWbudowywania: '2026-10-03T06:00:00.000Z',
+      legendaId: 'legL',
+      obszarNazwa: 'Trasa główna strona lewa',
+      warstwaNazwa: 'Wiążąca',
+      warstwaKategoria: 'wiazaca',
+      kilometrazOdM: 114020,
+      kilometrazDoM: 113605,
+      odsadzkaLewaCm: 0,
+      odsadzkaPrawaCm: 0,
+      mieszankaId: 'mix1',
+      gestoscTm3: 2.45,
+      tonazAuta: 26,
+    });
+    const tab = obliczTabeleAutPlanu(plan.dzialki, plan.rzuty, 26, () => 2.45);
+    assert.ok(tab.calosc[0].metry < 20, `26 t na rozjeździe krócej niż 20 m, jest ${tab.calosc[0].metry}`);
+    const autoWatskie = tab.calosc.find((w) => w.metryNarastajaco > (plasterki[0].dlugoscM + 0.2));
+    assert.ok(autoWatskie && autoWatskie.metry > tab.calosc[0].metry + 10);
+
+    const bezProfilu = { ...plan, dzialki: plan.dzialki.map((d) => ({ ...d, profilSzerokosci: undefined })) };
+    const uzupelnione = uzupelnijProfilObmiaruDzialek(projekt, bezProfilu);
+    assert.ok((uzupelnione[0].profilSzerokosci?.length ?? 0) >= 2);
+    assert.ok((uzupelnione[0].profilSzerokosci?.[0].powierzchniaM2 ?? 0) > 0);
   });
 });

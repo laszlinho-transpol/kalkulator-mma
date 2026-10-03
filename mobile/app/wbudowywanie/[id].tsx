@@ -2,7 +2,7 @@
 // EKRAN: WBUDOWYWANIE – Live Tracker (Plan / Kontrola / Live)
 // ============================================================
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   TextInput, useColorScheme, Alert, KeyboardAvoidingView,
@@ -47,6 +47,7 @@ import {
   sortujWpisyPlanu,
 } from '../../src/utils/planCiagly';
 import { formatujDatePl, aktualnaGodzina } from '../../src/utils/dates';
+import { uzupelnijProfilObmiaruDzialek } from '../../src/utils/planZBudowy';
 import {
   znajdzAktywnaDzialke,
   rozdzielMetryNaDzialki,
@@ -112,6 +113,11 @@ export default function WbudowywanieDetailScreen() {
   const [mapaSzkicAktywna, setMapaSzkicAktywna] = useState(false);
   const sesjaObmiaru = useObmiarStore((s) => s.sesjaPoId(plan?.sesjaObmiaruId ?? ''));
   const ustawTloOpcje = useObmiarStore((s) => s.ustawTloOpcje);
+  const budowaPodglad = plan?.budowaId ? budowy.find((b) => b.id === plan.budowaId) : undefined;
+  const dzialkiObmiaru = useMemo(
+    () => uzupelnijProfilObmiaruDzialek(budowaPodglad?.projekt, plan),
+    [budowaPodglad?.projekt, plan],
+  );
 
   useEffect(() => {
     const p = usePlanyStore.getState().pobierzPlan(id ?? '');
@@ -141,29 +147,32 @@ export default function WbudowywanieDetailScreen() {
 
   const getMieszanka = (mId: string) => mieszanki.find((m) => m.id === mId);
   const ciezarPoMieszance = (mId: string) => mieszanki.find((m) => m.id === mId)?.ciezarObjetosciowy;
-  const budowa = plan.budowaId ? budowy.find((b) => b.id === plan.budowaId) : undefined;
+  const budowa = budowaPodglad;
   const zalacznikiPzt = budowa?.zalaczniki?.length
     ? budowa.zalaczniki
     : (plan.zalaczniki ?? []);
 
 
+  const planDoLiczenia = dzialkiObmiaru === plan.dzialki
+    ? plan
+    : { ...plan, dzialki: dzialkiObmiaru };
   const tabeleAutPlanu = obliczTabeleAutPlanu(
-    plan.dzialki,
+    dzialkiObmiaru,
     plan.rzuty,
     plan.tonazAuta,
     (mId) => ciezarPoMieszance(mId),
   );
-  const podsumowanieDnia = obliczPodsumowaniePlanuDnia(plan, ciezarPoMieszance, tabeleAutPlanu);
+  const podsumowanieDnia = obliczPodsumowaniePlanuDnia(planDoLiczenia, ciezarPoMieszance, tabeleAutPlanu);
   const aktywnaDzialka = znajdzAktywnaDzialke(plan, wpisyCalegoPlanu, sesje);
   const dzialkaDoWpisu = aktywnaDzialka?.dzialka ?? plan.dzialki[plan.dzialki.length - 1];
   const dzialkaZakonczonaWpisu = dzialkaDoWpisu ? czyDzialkaZakonczona(plan.id, dzialkaDoWpisu.id) : false;
   const kolejnyNumerAuta = nastepnyNumerAuta(wpisyCalegoPlanu);
   const bilansPlanu = obliczBilansLivePlanu(
-    plan,
+    planDoLiczenia,
     wpisyCalegoPlanu,
     ciezarPoMieszance,
   );
-  const segmentyPlanu = budujSegmentyPlanu(plan.dzialki, ciezarPoMieszance);
+  const segmentyPlanu = budujSegmentyPlanu(dzialkiObmiaru, ciezarPoMieszance);
   const figuryPlanu = budujFiguryPlanu(plan, ciezarPoMieszance);
   const markeryPlanu = obliczMarkeryPlanuCiaglego(plan, wpisyCalegoPlanu);
   const wpisyLivePosortowane = sortujWpisyPlanu(plan, wpisyCalegoPlanu);
@@ -213,7 +222,7 @@ export default function WbudowywanieDetailScreen() {
     ? metryOdMasyPlanu(segmentyPlanu, tonyK)
     : null;
   const wynikiKontroli = !isNaN(tonyK) && !isNaN(metryK) && tonyK > 0 && metryK > 0
-    ? obliczKontrolePlanu(plan, tonyK, metryK, ciezarPoMieszance)
+    ? obliczKontrolePlanu(planDoLiczenia, tonyK, metryK, ciezarPoMieszance)
     : null;
 
   const obliczWierszLive = (wpis: WpisLive) => {
@@ -957,7 +966,7 @@ export default function WbudowywanieDetailScreen() {
         if (!dzModal || !mieModal) return null;
         const grModal = gruboscWbudowywania(dzModal);
         const odcinekPlanu = obliczPodsumowanieOdcinkaPlanu(
-          plan,
+          planDoLiczenia,
           wpisyCalegoPlanu,
           wpis.numerAuta,
           ciezarPoMieszance,

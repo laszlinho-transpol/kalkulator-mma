@@ -28,7 +28,7 @@ import {
 } from '../../src/utils/calculations';
 import { gruboscWbudowywania, gruboscProjektowa, formatujTolerancje } from '../../src/utils/grubosc';
 import { formatujDatePl } from '../../src/utils/dates';
-import { komentarzPlanuBudowy, tytulPlanuBudowy } from '../../src/utils/planZBudowy';
+import { komentarzPlanuBudowy, tytulPlanuBudowy, uzupelnijProfilObmiaruDzialek } from '../../src/utils/planZBudowy';
 import { formatujPikietaz, pikietazPoMetrach } from '../../src/utils/chainage';
 import { eksportujJSON, generujInteraktywnyHTML } from '../../src/utils/htmlGenerator';
 import type { DzialkaRobocza, Rzut } from '../../src/types';
@@ -56,6 +56,12 @@ export default function PlanDetailScreen() {
   const [viewerZal, setViewerZal] = useState(false);
   const insets = useSafeAreaInsets();
 
+  const budowaPodglad = plan?.budowaId ? budowy.find((b) => b.id === plan.budowaId) : undefined;
+  const dzialkiObmiaru = useMemo(
+    () => uzupelnijProfilObmiaruDzialek(budowaPodglad?.projekt, plan),
+    [budowaPodglad?.projekt, plan],
+  );
+
   if (!plan) {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -79,12 +85,12 @@ export default function PlanDetailScreen() {
     }
     const rzuty = plan.rzuty.length > 0 ? plan.rzuty : generujDomyslneRzuty(sumaAut);
     return obliczTabeleAutPlanu(
-      plan.dzialki,
+      dzialkiObmiaru,
       rzuty,
       plan.tonazAuta,
       (mid) => getMieszanka(mid)?.ciezarObjetosciowy,
     );
-  }, [plan, mieszanki]);
+  }, [plan, mieszanki, dzialkiObmiaru]);
 
   const udostepnijJSON = async () => {
     try { await eksportujJSON(plan, mieszanki, wpisyLive); } catch { /* cancelled */ }
@@ -103,12 +109,16 @@ export default function PlanDetailScreen() {
       return;
     }
     try {
-      await generujInteraktywnyHTML(plan, mieszanki, { autor: autorNazwa.trim(), wpisyLive });
+      await generujInteraktywnyHTML(plan, mieszanki, {
+        autor: autorNazwa.trim(),
+        wpisyLive,
+        projekt: budowaPodglad?.projekt,
+      });
     } catch { /* cancelled */ }
     setAutorModal(false);
   };
 
-  const budowa = plan.budowaId ? budowy.find((b) => b.id === plan.budowaId) : undefined;
+  const budowa = budowaPodglad;
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -234,7 +244,7 @@ export default function PlanDetailScreen() {
             </ScrollView>
 
             {idxTabeliAut === -1 ? (() => {
-              const pierwsza = plan.dzialki[0];
+              const pierwsza = dzialkiObmiaru[0] ?? plan.dzialki[0];
               const m0 = pierwsza ? getMieszanka(pierwsza.mieszankaId) : undefined;
               if (!pierwsza || !m0) return null;
               const sumaMasy = tabeleAut.calosc.reduce((s, w) => s + w.masa, 0);
@@ -260,7 +270,7 @@ export default function PlanDetailScreen() {
             })() : (() => {
               const td = tabeleAut.dzialki[idxTabeliAut];
               if (!td) return null;
-              const dz = plan.dzialki.find((d) => d.id === td.dzialkaId);
+              const dz = dzialkiObmiaru.find((d) => d.id === td.dzialkaId) ?? plan.dzialki.find((d) => d.id === td.dzialkaId);
               const m = dz ? getMieszanka(dz.mieszankaId) : undefined;
               if (!dz || !m) return null;
               return (

@@ -17,7 +17,7 @@ import type {
   WarstwaKonstrukcji,
   WpisLegendy,
 } from '../types';
-import { round2, round3, generujDomyslneRzuty } from './calculations';
+import { round2, round3, generujDomyslneRzuty, obliczLacznaDlugosc } from './calculations';
 import { formatujDateKrotko } from './dates';
 import {
   arkuszeNachodzaceNaKm,
@@ -348,7 +348,28 @@ export function policzOdcinkiPlanu(
   });
 }
 
-const KROK_PROFILU_SZEROKOSCI_M = 10;
+const KROK_PROFILU_SZEROKOSCI_M = 1;
+const TOL_SCALANIA_SZER_M = 0.03;
+
+export type PlasterekObmiaru = { dlugoscM: number; szerokoscM: number; powierzchniaM2: number };
+
+/** Łączy sąsiednie plasterki o prawie tej samej szerokości (stała jezdnia = jeden odcinek). */
+export function scalPlasterkiObmiaru(plasterki: PlasterekObmiaru[]): PlasterekObmiaru[] {
+  const out: PlasterekObmiaru[] = [];
+  for (const p of plasterki) {
+    const ost = out[out.length - 1];
+    if (ost && Math.abs(ost.szerokoscM - p.szerokoscM) < TOL_SCALANIA_SZER_M) {
+      const dl = ost.dlugoscM + p.dlugoscM;
+      const pow = ost.powierzchniaM2 + p.powierzchniaM2;
+      ost.dlugoscM = round2(dl);
+      ost.powierzchniaM2 = round2(pow);
+      ost.szerokoscM = round2(dl > 0 ? pow / dl : 0);
+    } else {
+      out.push({ ...p });
+    }
+  }
+  return out;
+}
 
 export function plasterkiSzerokosciOdcinka(
   projekt: ProjektBudowy,
@@ -360,16 +381,16 @@ export function plasterkiSzerokosciOdcinka(
     odsadzkaPrawaCm: number;
     krokM?: number;
   },
-): Array<{ dlugoscM: number; szerokoscM: number; powierzchniaM2: number }> {
+): PlasterekObmiaru[] {
   const sign = opts.doM >= opts.odM ? 1 : -1;
   const total = Math.abs(opts.doM - opts.odM);
-  const krok = Math.max(2, opts.krokM ?? KROK_PROFILU_SZEROKOSCI_M);
+  const krok = Math.max(0.5, opts.krokM ?? KROK_PROFILU_SZEROKOSCI_M);
   if (total < 0.05) return [];
-  const out: Array<{ dlugoscM: number; szerokoscM: number; powierzchniaM2: number }> = [];
+  const out: PlasterekObmiaru[] = [];
   let t = 0;
   while (t < total - 0.02) {
     let dt = Math.min(krok, total - t);
-    if (total - t - dt < 3 && total - t > dt) dt = total - t;
+    if (total - t - dt < 0.75 && total - t > dt) dt = total - t;
     const a = opts.odM + sign * t;
     const b = opts.odM + sign * (t + dt);
     const pow = powierzchniaOdcinkaM2(
@@ -384,7 +405,7 @@ export function plasterkiSzerokosciOdcinka(
     out.push({ dlugoscM: round2(dt), szerokoscM: round2(Math.max(0, szer)), powierzchniaM2: pow });
     t += dt;
   }
-  return out;
+  return scalPlasterkiObmiaru(out);
 }
 
 function dzialkaZOdcinka(
@@ -394,7 +415,7 @@ function dzialkaZOdcinka(
     kierunek: 'rosnacy' | 'malejacy';
     warstwaNazwa: string;
     obszarNazwa: string;
-    profilSzerokosci?: Array<{ dlugoscM: number; szerokoscM: number }>;
+    profilSzerokosci?: PlasterekObmiaru[];
   },
 ): DzialkaRobocza {
   const start = opts.kierunek === 'malejacy' ? odc.doM : odc.odM;
@@ -503,6 +524,46 @@ export function zbudujPlanZBudowy(
     odsadzkaKorektaLewaCm: dane.odsadzkaLewaCm,
     odsadzkaKorektaPrawaCm: dane.odsadzkaPrawaCm,
   };
+}
+
+/** Przelicza plasterki obmiaru z PZT przy podglądzie – stare plany bez zapisu dostają dokładne m². */
+export function uzupelnijProfilObmiaruDzialek(
+  projekt: ProjektBudowy | undefined,
+  plan: Plan | null | undefined,
+): DzialkaRobocza[] {
+  if (!plan) return [];
+  if (
+    !projekt
+    || plan.zrodlo !== 'budowa'
+    || !plan.legendaId
+    || plan.kilometrazOdM == null
+    || plan.kilometrazDoM == null
+  ) {
+    return plan.dzialki;
+  }
+  const ods = odsadzkiWpisaneWPlanie(plan);
+  return plan.dzialki.map((dz) => {
+    const start = dz.kilometrazPoczatkowyKm * 1000 + dz.kilometrazPoczatkowyM;
+    const dl = obliczLacznaDlugosc(dz);
+    const koniec = dz.kierunekUkladania === 'malejacy' ? start - dl : start + dl;
+    const profil = plasterkiSzerokosciOdcinka(projekt, {
+      legendaId: plan.legendaId!,
+      odM: start,
+      doM: koniec,
+      odsadzkaLewaCm: ods.lewa,
+      odsadzkaPrawaCm: ods.prawa,
+    });
+    if (profil.length === 0) return dz;
+    return { ...dz, profilSzerokosci: profil };
+  });
+}
+
+export function planZProfilemObmiaru(
+  projekt: ProjektBudowy | undefined,
+  plan: Plan,
+): Plan {
+  const dzialki = uzupelnijProfilObmiaruDzialek(projekt, plan);
+  return dzialki === plan.dzialki ? plan : { ...plan, dzialki };
 }
 
 export function tytulPlanuBudowy(plan: Pick<Plan, 'warstwaNazwa' | 'dataWbudowywania' | 'dzialki'>): string {

@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.9';
+export const WERSJA_APLIKACJI = '1.8.10';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,16 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.10',
+    data: '2026-10-03',
+    tytul: 'Plan – dokładny obmiar m², nie średnia szerokość',
+    zmiany: [
+      '26 t → powierzchnia = masa / (grubość × gęstość), potem rzeczywista długość wzdłuż obrysu PZT',
+      'Rozjazd na pierwszych metrach: to samo auto kładzie krócej niż przy stałej równej szerokości',
+      'Profil obmiaru co 1 m (stała jezdnia scalana); stare plany przeliczane z projektu przy podglądzie',
+    ],
+  },
   {
     wersja: '1.8.9',
     data: '2026-10-03',

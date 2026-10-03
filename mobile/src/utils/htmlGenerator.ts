@@ -4,15 +4,17 @@
 
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
-import type { Plan, WpisLive } from '../types';
+import type { Plan, ProjektBudowy, WpisLive } from '../types';
 import { formatujDatePl } from './dates';
 import { formatLiczby, obliczTabeleAutPlanu } from './calculations';
 import { obliczPodsumowaniePlanuDnia, budujSegmentyPlanu } from './planCiagly';
+import { planZProfilemObmiaru } from './planZBudowy';
 import { HTML_LIVE_SCRIPT } from './htmlLiveScript';
 
 export interface OpcjeEksportuHTML {
   autor?: string;
   wpisyLive?: WpisLive[];
+  projekt?: ProjektBudowy;
 }
 
 function budujDaneEksportu(
@@ -34,9 +36,10 @@ function budujDaneEksportu(
   }));
 
   const ciezarPoMieszance = (mId: string) => mieszankiMap[mId]?.ciezarObjetosciowy;
-  const tabeleAut = obliczTabeleAutPlanu(plan.dzialki, plan.rzuty ?? [], plan.tonazAuta, ciezarPoMieszance);
-  const podsumowanieDnia = obliczPodsumowaniePlanuDnia(plan, ciezarPoMieszance, tabeleAut);
-  const segmentyPlanu = budujSegmentyPlanu(plan.dzialki, ciezarPoMieszance);
+  const planLicznik = planZProfilemObmiaru(opcje?.projekt, plan);
+  const tabeleAut = obliczTabeleAutPlanu(planLicznik.dzialki, planLicznik.rzuty ?? [], planLicznik.tonazAuta, ciezarPoMieszance);
+  const podsumowanieDnia = obliczPodsumowaniePlanuDnia(planLicznik, ciezarPoMieszance, tabeleAut);
+  const segmentyPlanu = budujSegmentyPlanu(planLicznik.dzialki, ciezarPoMieszance);
 
   return {
     wersja: '3.1',
@@ -56,7 +59,8 @@ export async function generujInteraktywnyHTML(
   mieszanki: Array<{ id: string; rodzaj: string; ciezarObjetosciowy: number; wytwórnia?: string }>,
   opcje?: OpcjeEksportuHTML,
 ): Promise<void> {
-  const dane = budujDaneEksportu(plan, mieszanki, opcje);
+  const planLicznik = planZProfilemObmiaru(opcje?.projekt, plan);
+  const dane = budujDaneEksportu(planLicznik, mieszanki, opcje);
   const daneJSON = JSON.stringify(dane).replace(/</g, '\\u003c');
 
   const html = `<!DOCTYPE html>
@@ -190,9 +194,9 @@ ${plan.dzialki.map((dz) => {
 <div id="tab-tabela" class="tab-content">
 ${(() => {
   const tabele = obliczTabeleAutPlanu(
-    plan.dzialki,
-    plan.rzuty ?? [],
-    plan.tonazAuta,
+    planLicznik.dzialki,
+    planLicznik.rzuty ?? [],
+    planLicznik.tonazAuta,
     (mId) => mieszanki.find((m) => m.id === mId)?.ciezarObjetosciowy,
   );
   let html = '<div class="card"><h2>Całość – ciągła numeracja aut</h2><table><thead><tr><th>#</th><th>Mg</th><th>∑ Mg</th><th>m</th><th>∑ m</th></tr></thead><tbody>';
@@ -375,14 +379,19 @@ function metryOdMasyPlanu(segmenty, masaMg) {
   let masaPozost = masaMg, metry = 0, i = 0;
   while (masaPozost > 0.0001 && i < seg.length) {
     const s = seg[i];
-    if (s.masaNaM <= 0 || s.pozostalo <= 0) { i++; continue; }
-    const maxM = s.pozostalo * s.masaNaM;
+    const rhoH = (s.grubosc / 100) * s.ciezar;
+    const pow = s.pow > 0 ? s.pow : (s.dl > 0 && rhoH > 0 ? (s.masaNaM / rhoH) * s.dl : 0);
+    const pozostaloPow = s.pozostaloPow != null ? s.pozostaloPow : (s.dl > 0 ? pow * (s.pozostalo / s.dl) : 0);
+    if (rhoH <= 0 || pozostaloPow <= 1e-6) { i++; continue; }
+    const maxM = pozostaloPow * rhoH;
     const zuzyj = Math.min(masaPozost, maxM);
-    const m = s.masaNaM > 0 ? zuzyj / s.masaNaM : 0;
+    const zjedzPow = zuzyj / rhoH;
+    const m = pow > 0 ? (zjedzPow / pow) * s.dl : 0;
     metry = round2(metry + m);
+    s.pozostaloPow = pozostaloPow - zjedzPow;
     s.pozostalo = round2(s.pozostalo - m);
     masaPozost = round3(masaPozost - zuzyj);
-    if (s.pozostalo <= 0.001) i++;
+    if ((s.pozostaloPow || 0) <= 1e-6) i++;
   }
   return metry;
 }
@@ -390,12 +399,13 @@ function metryOdMasyPlanu(segmenty, masaMg) {
 function powierzchniaOdMetrowPlanu(segmenty, metryGlobalne) {
   let pow = 0, metryCum = 0;
   for (const s of segmenty) {
+    const powSeg = s.pow > 0 ? s.pow : s.dl * (s.masaNaM / (s.ciezar * (s.grubosc / 100)));
     if (metryCum + s.dl <= metryGlobalne) {
-      pow += s.dl * (s.masaNaM / (s.ciezar * (s.grubosc / 100)));
+      pow += powSeg;
       metryCum += s.dl;
     } else {
       const ulamek = s.dl > 0 ? (metryGlobalne - metryCum) / s.dl : 0;
-      pow += s.dl * ulamek * (s.masaNaM / (s.ciezar * (s.grubosc / 100)));
+      pow += powSeg * ulamek;
       break;
     }
   }

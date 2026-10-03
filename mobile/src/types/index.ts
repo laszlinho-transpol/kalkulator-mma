@@ -130,8 +130,8 @@ export interface DzialkaRobocza {
   kilometrazPoczatkowyM: number;    // część m, np. 500
   kierunekUkladania: KierunekUkladania;
   figury: Figura[];
-  /** Szerokość wzdłuż układu (z PZT) – tabela aut liczy metry z tego, nie ze średniej. */
-  profilSzerokosci?: Array<{ dlugoscM: number; szerokoscM: number }>;
+  /** Obmiar wzdłuż układu: dokładne m² z PZT na odcinku (nie średnia szerokość). */
+  profilSzerokosci?: Array<{ dlugoscM: number; szerokoscM: number; powierzchniaM2?: number }>;
 }
 
 // --- Rzut (partia samochodów) ---
