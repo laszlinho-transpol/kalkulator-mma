@@ -298,19 +298,27 @@ export function obliczTabeleAutPlanuCiagla(
 
   const klucz = (n: number, dzId: string) => `${n}:${dzId}`;
   const mapa = new Map<string, WierszWew>();
+  let bezpiecznik = 0;
+  const limitKrokow = Math.max(2000, seg.length * 8);
 
-  while (segIdx < seg.length) {
+  while (segIdx < seg.length && bezpiecznik++ < limitKrokow) {
     const s = seg[segIdx];
     const rhoH = (s.grubosc / 100) * s.ciezar;
-    if (s.pozostaloPow <= 1e-6 || s.pow <= 0 || rhoH <= 0) { segIdx++; continue; }
+    if (s.pozostaloPow <= 1e-4 || s.pow <= 0 || rhoH <= 0) { segIdx++; continue; }
 
-    if (ladunekAuta <= 0.0001) {
+    if (ladunekAuta <= 0.0005) {
       numerAuta++;
       ladunekAuta = tonazAuta;
     }
 
     const masaNaSeg = s.pozostaloPow * rhoH;
     const doUzycia = round3(Math.min(ladunekAuta, masaNaSeg));
+    // Reszta poniżej 0,001 t po round3 = 0 i pętla nigdy nie schodzi z odcinka.
+    if (doUzycia <= 0) {
+      if (masaNaSeg <= ladunekAuta + 1e-9) segIdx++;
+      else ladunekAuta = 0;
+      continue;
+    }
     const zjedzPow = doUzycia / rhoH;
     const metrySeg = s.pow > 0 ? round2((zjedzPow / s.pow) * s.dl) : 0;
 

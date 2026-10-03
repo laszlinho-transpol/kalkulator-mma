@@ -93,4 +93,29 @@ describe('planCiagly', () => {
     assert.equal(seg[0].pow, 300);
     assert.ok(Math.abs(metryOdMasyPlanu(seg, 26) - 13.27) < 0.05);
   });
+
+  it('prostokąt 7×415 m kończy tabelę (reszta < 0,001 t nie wiesza)', () => {
+    const dz: DzialkaRobocza = {
+      id: 'dzH',
+      nazwa: 'zapisany',
+      mieszankaId: 'm1',
+      grubosc: 4,
+      kilometrazPoczatkowyKm: 114,
+      kilometrazPoczatkowyM: 20,
+      kierunekUkladania: 'malejacy',
+      figury: [{ ...baza, id: 'f1', typ: 'prostokat', szerokosc: 7, dlugosc: 415 } as FiguraProstokat],
+      profilSzerokosci: [
+        { dlugoscM: 10, szerokoscM: 7.13, powierzchniaM2: 71.3 },
+        { dlugoscM: 10, szerokoscM: 6.87, powierzchniaM2: 68.7 },
+        { dlugoscM: 395, szerokoscM: 7, powierzchniaM2: 2765 },
+      ],
+    };
+    const t0 = Date.now();
+    const tab = obliczTabeleAutPlanuCiagla([dz], [{ id: '1', numerRzutu: 1, iloscSamochodow: 40 }], 26, () => 2.45);
+    assert.ok(Date.now() - t0 < 500, 'tabela aut nie może wisieć');
+    assert.ok(tab.calosc.length >= 8 && tab.calosc.length < 40);
+    assert.ok(tab.calosc[0].metry > 0 && tab.calosc[0].metry < 50);
+    const sumaM = tab.calosc.reduce((s, w) => s + w.masa, 0);
+    assert.ok(Math.abs(sumaM - (71.3 + 68.7 + 2765) * 0.04 * 2.45) < 1);
+  });
 });

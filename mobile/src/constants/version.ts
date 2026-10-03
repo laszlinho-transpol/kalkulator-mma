@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.11';
+export const WERSJA_APLIKACJI = '1.8.12';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,14 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.12',
+    data: '2026-10-03',
+    tytul: 'Plan – tabela aut nie wiesza otwarcia',
+    zmiany: [
+      'Wejście w zapisany plan liczy tabelę aut do końca – reszta poniżej 0,001 t nie kręci pętli',
+    ],
+  },
   {
     wersja: '1.8.11',
     data: '2026-10-03',
