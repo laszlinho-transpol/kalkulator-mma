@@ -94,6 +94,8 @@ export function SzkicPlanuBudowy({
         liveAuta={metryCum}
         onPressAuto={onPressAuto}
         podzialkaM={projekt.podzialkaKilometrazuM ?? 50}
+        zakresStartM={od}
+        zakresKoniecM={doM}
         onTloZmiana={(patch) => setTloPatch((p) => ({ ...p, [arkusz.id]: { ...p[arkusz.id], ...patch } }))}
       />
     </View>

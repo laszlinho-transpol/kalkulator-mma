@@ -348,6 +348,45 @@ export function policzOdcinkiPlanu(
   });
 }
 
+const KROK_PROFILU_SZEROKOSCI_M = 10;
+
+export function plasterkiSzerokosciOdcinka(
+  projekt: ProjektBudowy,
+  opts: {
+    legendaId: string;
+    odM: number;
+    doM: number;
+    odsadzkaLewaCm: number;
+    odsadzkaPrawaCm: number;
+    krokM?: number;
+  },
+): Array<{ dlugoscM: number; szerokoscM: number; powierzchniaM2: number }> {
+  const sign = opts.doM >= opts.odM ? 1 : -1;
+  const total = Math.abs(opts.doM - opts.odM);
+  const krok = Math.max(2, opts.krokM ?? KROK_PROFILU_SZEROKOSCI_M);
+  if (total < 0.05) return [];
+  const out: Array<{ dlugoscM: number; szerokoscM: number; powierzchniaM2: number }> = [];
+  let t = 0;
+  while (t < total - 0.02) {
+    let dt = Math.min(krok, total - t);
+    if (total - t - dt < 3 && total - t > dt) dt = total - t;
+    const a = opts.odM + sign * t;
+    const b = opts.odM + sign * (t + dt);
+    const pow = powierzchniaOdcinkaM2(
+      projekt,
+      opts.legendaId,
+      a,
+      b,
+      opts.odsadzkaLewaCm,
+      opts.odsadzkaPrawaCm,
+    );
+    const szer = dt > 0 ? pow / dt : 0;
+    out.push({ dlugoscM: round2(dt), szerokoscM: round2(Math.max(0, szer)), powierzchniaM2: pow });
+    t += dt;
+  }
+  return out;
+}
+
 function dzialkaZOdcinka(
   odc: OdcinekPlanuPoliczony,
   opts: {
@@ -355,9 +394,11 @@ function dzialkaZOdcinka(
     kierunek: 'rosnacy' | 'malejacy';
     warstwaNazwa: string;
     obszarNazwa: string;
+    profilSzerokosci?: Array<{ dlugoscM: number; szerokoscM: number }>;
   },
 ): DzialkaRobocza {
   const start = opts.kierunek === 'malejacy' ? odc.doM : odc.odM;
+  const koniec = opts.kierunek === 'malejacy' ? odc.odM : odc.doM;
   const dl = Math.max(0.01, Math.abs(odc.doM - odc.odM));
   const szer = Math.max(0.01, odc.powierzchniaM2 / dl);
   const figura: FiguraProstokat = {
@@ -372,7 +413,7 @@ function dzialkaZOdcinka(
   const m = Math.round(start % 1000);
   return {
     id: generujId(),
-    nazwa: `${formatujKmM(odc.odM)} – ${formatujKmM(odc.doM)}`,
+    nazwa: `${formatujKmM(start)} – ${formatujKmM(koniec)}`,
     mieszankaId: opts.mieszankaId,
     grubosc: odc.gruboscWbudowywaniaCm,
     gruboscProjektowa: odc.gruboscProjektowaCm,
@@ -383,6 +424,7 @@ function dzialkaZOdcinka(
     kilometrazPoczatkowyM: m,
     kierunekUkladania: opts.kierunek,
     figury: [figura],
+    profilSzerokosci: opts.profilSzerokosci?.length ? opts.profilSzerokosci : undefined,
   };
 }
 
@@ -422,12 +464,24 @@ export function zbudujPlanZBudowy(
     grubosciCm: dane.grubosciCm,
   });
   const kierunek = dane.kilometrazOdM > dane.kilometrazDoM ? 'malejacy' : 'rosnacy';
-  const dzialki = odcinki.map((o) => dzialkaZOdcinka(o, {
-    mieszankaId: dane.mieszankaId,
-    kierunek,
-    warstwaNazwa: dane.warstwaNazwa,
-    obszarNazwa: dane.obszarNazwa,
-  }));
+  const dzialki = odcinki.map((o) => {
+    const start = kierunek === 'malejacy' ? o.doM : o.odM;
+    const koniec = kierunek === 'malejacy' ? o.odM : o.doM;
+    const profil = plasterkiSzerokosciOdcinka(projekt, {
+      legendaId: dane.legendaId,
+      odM: start,
+      doM: koniec,
+      odsadzkaLewaCm: dane.odsadzkaLewaCm,
+      odsadzkaPrawaCm: dane.odsadzkaPrawaCm,
+    });
+    return dzialkaZOdcinka(o, {
+      mieszankaId: dane.mieszankaId,
+      kierunek,
+      warstwaNazwa: dane.warstwaNazwa,
+      obszarNazwa: dane.obszarNazwa,
+      profilSzerokosci: profil,
+    });
+  });
   const sumaAut = odcinki.reduce((s, o) => s + o.auta, 0);
   return {
     dataWbudowywania: dane.dataWbudowywania,

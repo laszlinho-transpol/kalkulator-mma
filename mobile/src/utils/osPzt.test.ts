@@ -11,6 +11,7 @@ import {
   pdfDoSvgPodgladu,
   pomiarWzdlozOsiPdf,
   svgDoPdfPodgladu,
+  szerokoscPoprzecznaPdf,
 } from './osPzt';
 
 describe('pomiar osi PDF 1:500', () => {
@@ -69,5 +70,12 @@ describe('pomiar osi PDF 1:500', () => {
     const ocena = ocenaOdstempuPodzialkiM(w.metry1500);
     assert.equal(ocena.zgadzaSie, false);
     assert.match(ocena.tekst, /projektow/i);
+  });
+
+  it('szerokość poprzeczna na osi = szerokość prostokąta, nie długość', () => {
+    const os = [{ x: 0, y: 0 }, { x: 400, y: 0 }];
+    const obszar = { wierzcholkiPdf: [{ x: 0, y: 20 }, { x: 0, y: 0 }, { x: 400, y: 0 }, { x: 400, y: 20 }] };
+    const w = szerokoscPoprzecznaPdf([obszar], os, 200);
+    assert.ok(Math.abs(w - 20) < 0.2, `szer ${w}`);
   });
 });

@@ -5,8 +5,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { formatLiczby } from '../../utils/calculations';
-import { formatujPikietaz } from '../../utils/chainage';
-import { obliczPikietazFigur } from '../../utils/chainage';
+import { formatujPikietaz, obliczPikietazFigur, pikietazPoMetrach } from '../../utils/chainage';
 import type { DzialkaRobocza, WpisLive } from '../../types';
 import type { AppTheme } from '../../constants/theme';
 
@@ -37,7 +36,7 @@ export function TabelaLive({ dzialka, wpisy, theme }: TabelaLiveProps) {
       {posortowane.map((wp) => {
         cumTon += wp.tonazPrzywieziony;
         cumMetr += wp.przejechaneMetry;
-        const kmKoniec = kmStart + cumMetr;
+        const kmKoniec = pikietazPoMetrach(kmStart, cumMetr, dzialka.kierunekUkladania);
         return (
           <View key={wp.id} style={[styles.rzad, { backgroundColor: theme.colors.card, borderBottomColor: theme.colors.border }]}>
             <Text style={[styles.kom, { color: theme.colors.textSecondary }]}>{wp.numerAuta}</Text>
@@ -57,7 +56,7 @@ export function TabelaLive({ dzialka, wpisy, theme }: TabelaLiveProps) {
           <Text style={[styles.kom, {}]} />
           <Text style={[styles.kom, {}]} />
           <Text style={[styles.kom, { color: theme.colors.text, fontWeight: '700' }]}>{formatLiczby(cumMetr)}</Text>
-          <Text style={[styles.kom, { color: theme.colors.info, flex: 1.4, fontSize: 11 }]}>{formatujPikietaz(kmStart + cumMetr)}</Text>
+          <Text style={[styles.kom, { color: theme.colors.info, flex: 1.4, fontSize: 11 }]}>{formatujPikietaz(pikietazPoMetrach(kmStart, cumMetr, dzialka.kierunekUkladania))}</Text>
         </View>
       )}
     </View>

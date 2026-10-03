@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.8';
+export const WERSJA_APLIKACJI = '1.8.9';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,17 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.9',
+    data: '2026-10-03',
+    tytul: 'Plan – kierunek malejący, zmienna szerokość, szkic zakresu',
+    zmiany: [
+      'Start 114+020 → koniec 113+605: działka i tabela aut idą malejąco (nie 114+067 w górę)',
+      'Metry auta z szerokości PZT co 10 m – przy 26 t nie ma równych 46,68 m na zwężeniach i poszerzeniach',
+      'Szkic: poprzeczki jak szerokość jezdni, zielony START i czerwony KONIEC zakresu',
+      'Zmierz: punkty A/B skalują się z planem i przybliżeniem',
+    ],
+  },
   {
     wersja: '1.8.8',
     data: '2026-10-03',

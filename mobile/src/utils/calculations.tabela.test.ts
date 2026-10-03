@@ -27,4 +27,29 @@ describe('obliczTabeleAutDlaDzialki', () => {
     assert.ok(tabela.every((w) => w.masa > 0));
     assert.notEqual(tabela[0].metry, tabela[1].metry);
   });
+
+  it('profil szerokości z PZT: to samo 26 t daje różne metry', () => {
+    const dzialka: DzialkaRobocza = {
+      id: 'd1',
+      nazwa: '114+020 – 113+605',
+      mieszankaId: 'm1',
+      grubosc: 4,
+      gruboscWbudowywania: 4,
+      kilometrazPoczatkowyKm: 114,
+      kilometrazPoczatkowyM: 20,
+      kierunekUkladania: 'malejacy',
+      figury: [
+        { ...baza, typ: 'prostokat', szerokosc: 7, dlugosc: 415 } as FiguraProstokat,
+      ],
+      profilSzerokosci: [
+        { dlugoscM: 200, szerokoscM: 5 },
+        { dlugoscM: 215, szerokoscM: 9 },
+      ],
+    };
+    const rzuty = generujDomyslneRzuty(8);
+    const tabela = obliczTabeleAutDlaDzialki(dzialka, 2.45, rzuty, 26);
+    assert.ok(tabela.length >= 2);
+    const unikalne = new Set(tabela.map((w) => w.metry.toFixed(2)));
+    assert.ok(unikalne.size >= 2, `oczekiwano różnych metrów, jest ${[...unikalne]}`);
+  });
 });

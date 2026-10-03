@@ -36,6 +36,15 @@ export function formatujPikietaz(metry: number): string {
   return FORMAT_KILOMETRAZU(km, m);
 }
 
+/** Pikietaż po przejechaniu `metry` od startu w zadanym kierunku układania. */
+export function pikietazPoMetrach(
+  startM: number,
+  metry: number,
+  kierunek: 'rosnacy' | 'malejacy',
+): number {
+  return startM + (kierunek === 'malejacy' ? -metry : metry);
+}
+
 /** Oblicza domyślny pikietaż początku dla nowej figury (koniec ostatniej) */
 export function nastepnyPikietaz(dzialka: DzialkaRobocza): number {
   if (dzialka.figury.length === 0) {

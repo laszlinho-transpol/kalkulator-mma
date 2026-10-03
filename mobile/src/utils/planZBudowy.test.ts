@@ -10,11 +10,13 @@ import {
   odsadzkiBezKrawedznika,
   odsadzkiWpisaneWPlanie,
   parsujOdsadzkeCm,
+  plasterkiSzerokosciOdcinka,
   policzOdcinkiPlanu,
   stronaKrawedznika,
   tytulPlanuBudowy,
   zbudujPlanZBudowy,
 } from './planZBudowy';
+import { pikietazPoMetrach } from './chainage';
 import { segmentyKonstrukcji } from './projektBudowy';
 
 function warstwa(nazwa: string, kategoria: WarstwaKonstrukcji['kategoria'], cm: number): WarstwaKonstrukcji {
@@ -257,5 +259,42 @@ describe('planZBudowy / oś XFDF', () => {
       tonazAuta: 25.5,
     });
     assert.ok(Math.abs(licz[0].powierzchniaM2 - 7000) < 2, `przy krawężniku sam obrys, jest ${licz[0].powierzchniaM2}`);
+  });
+
+  it('malejący 114+020 → 113+605: nazwa, start i pikietaż w dół', () => {
+    assert.equal(pikietazPoMetrach(114020, 46.68, 'malejacy'), 113973.32);
+    assert.equal(pikietazPoMetrach(114020, 46.68, 'rosnacy'), 114066.68);
+    const wiaz = nowaWarstwa({ nazwa: 'Wiążąca', kategoria: 'wiazaca', kolejnosc: 1, gruboscCm: 8, odsadzkaCm: 0 });
+    const projekt = projektLewy(prostokatLewy(9200, 7), [wiaz]);
+    const plan = zbudujPlanZBudowy(projekt, {
+      budowaId: 'b1',
+      dataWbudowywania: '2026-10-03T06:00:00.000Z',
+      legendaId: 'legL',
+      obszarNazwa: 'Trasa główna strona lewa',
+      warstwaNazwa: 'Wiążąca',
+      warstwaKategoria: 'wiazaca',
+      kilometrazOdM: 114020,
+      kilometrazDoM: 113605,
+      odsadzkaLewaCm: 0,
+      odsadzkaPrawaCm: 0,
+      mieszankaId: 'mix1',
+      gestoscTm3: 2.45,
+      tonazAuta: 26,
+    });
+    assert.equal(plan.dzialki[0].kierunekUkladania, 'malejacy');
+    assert.equal(plan.dzialki[0].nazwa, '114+020 – 113+605');
+    assert.equal(plan.dzialki[0].kilometrazPoczatkowyKm, 114);
+    assert.equal(plan.dzialki[0].kilometrazPoczatkowyM, 20);
+    assert.ok((plan.dzialki[0].profilSzerokosci?.length ?? 0) >= 2);
+    const plasterki = plasterkiSzerokosciOdcinka(projekt, {
+      legendaId: 'legL',
+      odM: 114020,
+      doM: 113605,
+      odsadzkaLewaCm: 0,
+      odsadzkaPrawaCm: 0,
+      krokM: 10,
+    });
+    assert.ok(plasterki.length >= 2);
+    assert.ok(plasterki.every((p) => p.szerokoscM > 6 && p.szerokoscM < 8));
   });
 });

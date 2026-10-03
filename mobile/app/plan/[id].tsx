@@ -29,6 +29,7 @@ import {
 import { gruboscWbudowywania, gruboscProjektowa, formatujTolerancje } from '../../src/utils/grubosc';
 import { formatujDatePl } from '../../src/utils/dates';
 import { komentarzPlanuBudowy, tytulPlanuBudowy } from '../../src/utils/planZBudowy';
+import { formatujPikietaz, pikietazPoMetrach } from '../../src/utils/chainage';
 import { eksportujJSON, generujInteraktywnyHTML } from '../../src/utils/htmlGenerator';
 import type { DzialkaRobocza, Rzut } from '../../src/types';
 import type { AppTheme } from '../../src/constants/theme';
@@ -163,9 +164,13 @@ export default function PlanDetailScreen() {
               const mieszanka = getMieszanka(dz.mieszankaId);
               if (!mieszanka) return null;
               const wyniki = obliczWynikiDzialki(dz, mieszanka.ciezarObjetosciowy, plan.tonazAuta);
+              const km0 = dz.kilometrazPoczatkowyKm * 1000 + dz.kilometrazPoczatkowyM;
+              const km1 = pikietazPoMetrach(km0, obliczLacznaDlugosc(dz), dz.kierunekUkladania);
+              const zakres = `${formatujPikietaz(km0)} – ${formatujPikietaz(km1)}`;
               return (
                 <View key={dz.id} style={[styles.kartaDzialki, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-                  <Text style={[styles.kartaTytul, { color: theme.colors.primary }]}>{dz.nazwa}</Text>
+                  <Text style={[styles.kartaTytul, { color: theme.colors.primary }]}>{zakres}</Text>
+                  <InfoRow label="Kierunek" wartosc={dz.kierunekUkladania === 'malejacy' ? 'malejący ↓' : 'rosnący ↑'} theme={theme} />
                   <InfoRow label="Mieszanka" wartosc={`${mieszanka.rodzaj}  ρ=${mieszanka.ciezarObjetosciowy.toFixed(3)}`} theme={theme} />
                   <InfoRow label="Grubość projektowa" wartosc={`${gruboscProjektowa(dz)} cm`} theme={theme} />
                   <InfoRow label="Tolerancja" wartosc={formatujTolerancje(dz)} theme={theme} />

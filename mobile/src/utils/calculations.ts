@@ -124,11 +124,15 @@ export function obliczTabeleAutDlaDzialki(
 ): WpisTabeliAut[] {
   const grubosc = dzialka.gruboscWbudowywania ?? dzialka.grubosc;
   const wyniki = obliczWynikiDzialki(dzialka, ciezarObjetosciowy, tonazAuta);
-  const segmenty = dzialka.figury.map((f) => {
-    const dl = dlugoscFigury(f);
-    const masaNaM = round3(sredniaSzerokoscFigury(f) * (grubosc / 100) * ciezarObjetosciowy);
-    return { dl, masaNaM, pozostalo: dl };
-  });
+  const zProfilu = (dzialka.profilSzerokosci ?? []).filter((p) => p.dlugoscM > 0 && p.szerokoscM > 0);
+  const segmenty = (zProfilu.length > 0
+    ? zProfilu.map((p) => ({ dl: p.dlugoscM, szer: p.szerokoscM }))
+    : dzialka.figury.map((f) => ({ dl: dlugoscFigury(f), szer: sredniaSzerokoscFigury(f) }))
+  ).map((p) => ({
+    dl: p.dl,
+    masaNaM: round3(p.szer * (grubosc / 100) * ciezarObjetosciowy),
+    pozostalo: p.dl,
+  }));
 
   const wynikiAut: WpisTabeliAut[] = [];
   let masaNarastajaco = narastajacoOd.masa;

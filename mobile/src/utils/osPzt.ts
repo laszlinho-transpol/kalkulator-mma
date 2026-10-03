@@ -357,6 +357,46 @@ export function medianaSzerokosciObszarowPdf(
   return s[Math.floor(s.length / 2)];
 }
 
+function przecieciaProstejZKrawedziami(poly: Punkt2D[], p: Punkt2D, nx: number, ny: number): number[] {
+  const us: number[] = [];
+  if (poly.length < 2) return us;
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i];
+    const b = poly[(i + 1) % poly.length];
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const det = nx * dy - ny * dx;
+    if (Math.abs(det) < 1e-9) continue;
+    const t = ((a.x - p.x) * dy - (a.y - p.y) * dx) / det;
+    const s = ((a.x - p.x) * ny - (a.y - p.y) * nx) / det;
+    if (s >= -1e-6 && s <= 1 + 1e-6) us.push(t);
+  }
+  return us;
+}
+
+/** Szerokość obszaru w poprzek osi (punkty PDF) w stacji sPdf. */
+export function szerokoscPoprzecznaPdf(
+  obszary: Array<{ wierzcholkiPdf: Punkt2D[] }>,
+  osPdf: Punkt2D[],
+  sPdf: number,
+): number {
+  const t = stycznyNaOsi(osPdf, sPdf);
+  if (!t) return 0;
+  const plen = Math.hypot(t.dx, t.dy) || 1;
+  const nx = -t.dy / plen;
+  const ny = t.dx / plen;
+  let minU = Infinity;
+  let maxU = -Infinity;
+  for (const o of obszary) {
+    for (const u of przecieciaProstejZKrawedziami(o.wierzcholkiPdf, t.punkt, nx, ny)) {
+      if (u < minU) minU = u;
+      if (u > maxU) maxU = u;
+    }
+  }
+  if (!Number.isFinite(minU) || maxU <= minU) return 0;
+  return maxU - minU;
+}
+
 /** Poprzeczka i opis km: w punktach PDF, łącznie nie szersze niż obszar. */
 export function rozmiarPodzialkiOsi(szerokoscObszaruPdf: number): {
   halfPdf: number;
@@ -473,8 +513,10 @@ export function arkuszWycinekDlaKm(
     return {
       ...o,
       wierzcholkiM: clip,
-      wierzcholkiPdf: clipPdf.length >= 3 ? clipPdf : o.wierzcholkiPdf,
+      wierzcholkiPdf: clipPdf.length >= 3 ? clipPdf : [],
       powierzchniaM2: round2(powierzchniaWielokata(clip)),
+      bazaStart: undefined,
+      bazaKoniec: undefined,
     };
   }).filter((o) => o.wierzcholkiM.length >= 3 && o.powierzchniaM2 > 0.05);
 

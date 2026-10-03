@@ -25,6 +25,7 @@ import {
   stacjePodzialki,
   stycznyNaOsi,
   svgDoPdfPodgladu,
+  szerokoscPoprzecznaPdf,
   wycinekPolilinii,
 } from '../../utils/osPzt';
 import type { WynikPomiaruOsi } from '../../utils/osPzt';
@@ -111,6 +112,10 @@ interface Props {
   onPressAuto?: (id: string) => void;
   /** Co ile metrów kreska pikiety na osi (0 = wyłącz). */
   podzialkaM?: number;
+  /** Start zakresu planu (zielona kreska). */
+  zakresStartM?: number;
+  /** Koniec zakresu planu (czerwona kreska). */
+  zakresKoniecM?: number;
 }
 
 export function PztArkuszPodglad({
@@ -125,6 +130,8 @@ export function PztArkuszPodglad({
   liveAuta,
   onPressAuto,
   podzialkaM = 50,
+  zakresStartM,
+  zakresKoniecM,
 }: Props) {
   const [rozmiar, setRozmiar] = useState({ w: 320, h: wysokosc });
   const [skalaPct, setSkalaPct] = useState(100);
@@ -212,45 +219,60 @@ export function PztArkuszPodglad({
     const dlPdf = osPdf && osPdf.length >= 2 ? dlugoscPolilinii(osPdf) : 0;
     const krok = podzialkaM ?? 0;
     const szerPdf = medianaSzerokosciObszarowPdf(arkusz.obszary);
-    const podz = rozmiarPodzialkiOsi(szerPdf);
+    const kreskaNaStacji = (kmM: number, odM: number, span: number, skalaKreski: number) => {
+      if (!osPdf || osPdf.length < 2) return null;
+      const sPdf = ((kmM - odM) / span) * dlPdf;
+      const t = stycznyNaOsi(osPdf, sPdf);
+      if (!t) return null;
+      const lokalna = szerokoscPoprzecznaPdf(arkusz.obszary, osPdf, sPdf);
+      const podz = rozmiarPodzialkiOsi(lokalna > 2 ? lokalna : szerPdf);
+      const plen = Math.hypot(t.dx, t.dy) || 1;
+      const nx = -t.dy / plen;
+      const ny = t.dx / plen;
+      const half = podz.halfPdf * skalaKreski;
+      const p1 = toSvg({ x: t.punkt.x + nx * half, y: t.punkt.y + ny * half });
+      const p2 = toSvg({ x: t.punkt.x - nx * half, y: t.punkt.y - ny * half });
+      const mid = toSvg(t.punkt);
+      let tp = toSvg({
+        x: t.punkt.x + nx * podz.odstepTekstuPdf * skalaKreski,
+        y: t.punkt.y + ny * podz.odstepTekstuPdf * skalaKreski,
+      });
+      if (tp.y > mid.y) {
+        tp = toSvg({
+          x: t.punkt.x - nx * podz.odstepTekstuPdf * skalaKreski,
+          y: t.punkt.y - ny * podz.odstepTekstuPdf * skalaKreski,
+        });
+      }
+      return {
+        kmM,
+        etykieta: formatujKmM(kmM),
+        x1: p1.x,
+        y1: p1.y,
+        x2: p2.x,
+        y2: p2.y,
+        tx: tp.x,
+        ty: tp.y,
+        fontSvg: podz.fontPdf * skalaFit * (skalaKreski < 1 ? 0.92 : 1),
+        rMarkerSvg: Math.max(2.2, Math.min(4.5, podz.halfPdf * skalaFit * 0.28)),
+      };
+    };
     const kreski = (odM: number, doM: number, skalaKreski: number) => {
       if (krok < 1 || !osPdf || osPdf.length < 2) return [];
       const span = Math.max(0.01, doM - odM);
-      return stacjePodzialki(odM, doM, krok).map((kmM) => {
-        const sPdf = ((kmM - odM) / span) * dlPdf;
-        const t = stycznyNaOsi(osPdf, sPdf);
-        if (!t) return null;
-        const plen = Math.hypot(t.dx, t.dy) || 1;
-        const nx = -t.dy / plen;
-        const ny = t.dx / plen;
-        const half = podz.halfPdf * skalaKreski;
-        const p1 = toSvg({ x: t.punkt.x + nx * half, y: t.punkt.y + ny * half });
-        const p2 = toSvg({ x: t.punkt.x - nx * half, y: t.punkt.y - ny * half });
-        const mid = toSvg(t.punkt);
-        let tp = toSvg({
-          x: t.punkt.x + nx * podz.odstepTekstuPdf * skalaKreski,
-          y: t.punkt.y + ny * podz.odstepTekstuPdf * skalaKreski,
-        });
-        if (tp.y > mid.y) {
-          tp = toSvg({
-            x: t.punkt.x - nx * podz.odstepTekstuPdf * skalaKreski,
-            y: t.punkt.y - ny * podz.odstepTekstuPdf * skalaKreski,
-          });
-        }
-        return {
-          kmM,
-          etykieta: formatujKmM(kmM),
-          x1: p1.x,
-          y1: p1.y,
-          x2: p2.x,
-          y2: p2.y,
-          tx: tp.x,
-          ty: tp.y,
-          fontSvg: podz.fontPdf * skalaFit * (skalaKreski < 1 ? 0.92 : 1),
-        };
-      }).filter((x): x is NonNullable<typeof x> => !!x);
+      return stacjePodzialki(odM, doM, krok)
+        .map((kmM) => kreskaNaStacji(kmM, odM, span, skalaKreski))
+        .filter((x): x is NonNullable<typeof x> => !!x);
     };
-    const podzialki = kreski(arkusz.kilometrazPoczatkowyM, arkusz.kilometrazKoncowyM, 1);
+    const odKm = arkusz.kilometrazPoczatkowyM;
+    const doKm = arkusz.kilometrazKoncowyM;
+    const spanKm = Math.max(0.01, doKm - odKm);
+    const podzialki = kreski(odKm, doKm, 1);
+    const naArkuszu = (km?: number) => km != null && km >= odKm - 0.6 && km <= doKm + 0.6;
+    const zakresKreski: Array<NonNullable<ReturnType<typeof kreskaNaStacji>> & { kolor: string; rola: 'start' | 'koniec' }> = [];
+    const kStart = naArkuszu(zakresStartM) ? kreskaNaStacji(zakresStartM!, odKm, spanKm, 1.05) : null;
+    const kKoniec = naArkuszu(zakresKoniecM) ? kreskaNaStacji(zakresKoniecM!, odKm, spanKm, 1.05) : null;
+    if (kStart) zakresKreski.push({ ...kStart, kolor: '#16A34A', rola: 'start' });
+    if (kKoniec) zakresKreski.push({ ...kKoniec, kolor: '#DC2626', rola: 'koniec' });
     const mapaSvg = { w: rozmiar.w, h: rozmiar.h, cx, cy, skalaFit };
     const os1500M = osPdf && osPdf.length >= 2 ? dlugoscOsiPdf1500M(osPdf) : 0;
     const xfdfM = arkusz.osTrasy?.dlugoscEtykietaM;
@@ -268,8 +290,10 @@ export function PztArkuszPodglad({
       rozkladarka,
       auta,
       podzialki,
+      zakresKreski,
+      rMarkerSvg: podzialki[0]?.rMarkerSvg ?? Math.max(2.2, Math.min(4.5, 3.2 * skalaFit)),
     };
-  }, [arkusz, geometria, rozmiar.w, rozmiar.h, liveStacjaM, liveAuta, podzialkaM]);
+  }, [arkusz, geometria, rozmiar.w, rozmiar.h, liveStacjaM, liveAuta, podzialkaM, zakresStartM, zakresKoniecM]);
 
   const mapaRef = useRef(mapa);
   mapaRef.current = mapa;
@@ -537,6 +561,7 @@ export function PztArkuszPodglad({
   const gXform = `translate(${rozmiar.w / 2 + xform.tx},${rozmiar.h / 2 + xform.ty}) scale(${xform.s}) translate(${-rozmiar.w / 2},${-rozmiar.h / 2})`;
   const swEkran = 1.25;
   const dash = 5 / Math.max(xform.s, 0.12);
+  const rZnak = (mapa?.rMarkerSvg ?? 3.2) / Math.max(xform.s, 0.35);
   const tloMeta = arkusz.tlo;
   const tloWidoczne = !!(tloMeta && tloMeta.widoczne !== false);
   const buforTla = tloMeta
@@ -762,13 +787,38 @@ export function PztArkuszPodglad({
                             </SvgText>
                           </G>
                         ))}
+                        {mapa.zakresKreski.map((t) => (
+                          <G key={`zk-${t.rola}-${t.kmM}`}>
+                            <Line
+                              x1={t.x1}
+                              y1={t.y1}
+                              x2={t.x2}
+                              y2={t.y2}
+                              stroke={t.kolor}
+                              strokeWidth={swEkran * 1.55}
+                              strokeLinecap="butt"
+                              vectorEffect="non-scaling-stroke"
+                            />
+                            <SvgText
+                              x={t.tx}
+                              y={t.ty}
+                              fontSize={Math.max(t.fontSvg, 7)}
+                              fontWeight="800"
+                              fill={t.kolor}
+                              textAnchor="middle"
+                              alignmentBaseline="middle"
+                            >
+                              {t.rola === 'start' ? 'START' : 'KONIEC'}
+                            </SvgText>
+                          </G>
+                        ))}
                         {mapa.auta.map((a) => (
                           <G key={a.id} onPress={() => onPressAuto?.(a.id)}>
-                            <Circle cx={a.x} cy={a.y} r={7} fill="#F59E0B" stroke="#fff" strokeWidth={1.5} />
+                            <Circle cx={a.x} cy={a.y} r={rZnak} fill="#F59E0B" stroke="#fff" strokeWidth={1.2} />
                             <SvgText
                               x={a.x}
-                              y={a.y + 3.5}
-                              fontSize={8}
+                              y={a.y + rZnak * 0.35}
+                              fontSize={Math.max(6, rZnak * 1.15)}
                               fontWeight="700"
                               fill="#111827"
                               textAnchor="middle"
@@ -781,10 +831,10 @@ export function PztArkuszPodglad({
                           <Circle
                             cx={mapa.rozkladarka.x}
                             cy={mapa.rozkladarka.y}
-                            r={9}
+                            r={rZnak * 1.15}
                             fill="#16A34A"
                             stroke="#fff"
-                            strokeWidth={2}
+                            strokeWidth={1.4}
                           />
                         ) : null}
                         {rysunekPomiaru?.odcinek && rysunekPomiaru.odcinek.length >= 2 ? (
@@ -803,15 +853,15 @@ export function PztArkuszPodglad({
                             <Circle
                               cx={mk.x}
                               cy={mk.y}
-                              r={6}
+                              r={rZnak}
                               fill="#2563EB"
                               stroke="#fff"
-                              strokeWidth={1.5}
+                              strokeWidth={1.2}
                             />
                             <SvgText
                               x={mk.x}
-                              y={mk.y + 3.2}
-                              fontSize={8}
+                              y={mk.y + rZnak * 0.35}
+                              fontSize={Math.max(6, rZnak * 1.15)}
                               fontWeight="800"
                               fill="#fff"
                               textAnchor="middle"
