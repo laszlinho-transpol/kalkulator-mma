@@ -26,7 +26,9 @@ import { formatujKmM } from '../../utils/projektBudowy';
 import {
   gestoscZRecepty,
   komentarzPlanuBudowy,
+  korektaOdsadzkiZPlanu,
   opcjeWarstwWZakresie,
+  parsujOdsadzkeCm,
   policzOdcinkiPlanu,
   zakresKmObszaru,
   zbudujPlanZBudowy,
@@ -72,8 +74,15 @@ export function PlanZBudowyForm({ tytul, budowaId, initialPlan, onZapisz }: Prop
   const [doM, setDoM] = useState('000');
   const [warstwaNazwa, setWarstwaNazwa] = useState(initialPlan?.warstwaNazwa ?? '');
   const [warstwaKat, setWarstwaKat] = useState<KategoriaWarstwy | undefined>(initialPlan?.warstwaKategoria);
-  const [odsL, setOdsL] = useState(String(initialPlan?.odsadzkaLewaCm ?? 0));
-  const [odsP, setOdsP] = useState(String(initialPlan?.odsadzkaPrawaCm ?? 0));
+  const [odsL, setOdsL] = useState(
+    initialPlan?.odsadzkaKorektaLewaCm != null ? String(initialPlan.odsadzkaKorektaLewaCm) : '0',
+  );
+  const [odsP, setOdsP] = useState(
+    initialPlan?.odsadzkaKorektaPrawaCm != null ? String(initialPlan.odsadzkaKorektaPrawaCm) : '0',
+  );
+  const [korektaZPlanu, setKorektaZPlanu] = useState(
+    !initialPlan || initialPlan.odsadzkaKorektaLewaCm != null || initialPlan.odsadzkaKorektaPrawaCm != null,
+  );
   const [mieszankaId, setMieszankaId] = useState(initialPlan?.dzialki[0]?.mieszankaId ?? '');
   const [grubosci, setGrubosci] = useState<string[]>([]);
   const [tonazStr, setTonazStr] = useState(initialPlan ? String(initialPlan.tonazAuta) : '25.5');
@@ -120,10 +129,17 @@ export function PlanZBudowyForm({ tytul, budowaId, initialPlan, onZapisz }: Prop
     const pierwsza = opcjeWarstw[0];
     setWarstwaNazwa(pierwsza.nazwa);
     setWarstwaKat(pierwsza.kategoria);
-    setOdsL(String(pierwsza.odsadzkaLewaCm ?? pierwsza.odsadzkaCm));
-    setOdsP(String(pierwsza.odsadzkaPrawaCm ?? pierwsza.odsadzkaCm));
     if (pierwsza.mieszankaIds.length === 1) setMieszankaId(pierwsza.mieszankaIds[0]);
   }, [opcjeWarstw, warstwaNazwa]);
+
+  useEffect(() => {
+    if (korektaZPlanu || !initialPlan || opcjeWarstw.length === 0) return;
+    const w = opcjeWarstw.find((x) => x.nazwa === (initialPlan.warstwaNazwa ?? warstwaNazwa)) ?? opcjeWarstw[0];
+    const k = korektaOdsadzkiZPlanu(initialPlan, { lewa: w.odsadzkaLewaCm, prawa: w.odsadzkaPrawaCm });
+    setOdsL(String(k.lewa));
+    setOdsP(String(k.prawa));
+    setKorektaZPlanu(true);
+  }, [korektaZPlanu, initialPlan, opcjeWarstw, warstwaNazwa]);
 
   const warstwaOpcja = opcjeWarstw.find((w) => w.nazwa === warstwaNazwa);
   const gestosc = gestoscZRecepty(mieszankaId, mieszanki);
@@ -137,8 +153,8 @@ export function PlanZBudowyForm({ tytul, budowaId, initialPlan, onZapisz }: Prop
       doM: doMetry,
       warstwaNazwa,
       warstwaKategoria: warstwaKat,
-      odsadzkaLewaCm: parseFloat(odsL.replace(',', '.')) || 0,
-      odsadzkaPrawaCm: parseFloat(odsP.replace(',', '.')) || 0,
+      odsadzkaLewaCm: parsujOdsadzkeCm(odsL),
+      odsadzkaPrawaCm: parsujOdsadzkeCm(odsP),
       gestoscTm3: gestosc,
       tonazAuta,
       grubosciCm: grubosci.map((g) => parseFloat(g.replace(',', '.')) || 0),
@@ -183,8 +199,8 @@ export function PlanZBudowyForm({ tytul, budowaId, initialPlan, onZapisz }: Prop
       warstwaKategoria: warstwaKat,
       kilometrazOdM: odMetry,
       kilometrazDoM: doMetry,
-      odsadzkaLewaCm: parseFloat(odsL.replace(',', '.')) || 0,
-      odsadzkaPrawaCm: parseFloat(odsP.replace(',', '.')) || 0,
+      odsadzkaLewaCm: parsujOdsadzkeCm(odsL),
+      odsadzkaPrawaCm: parsujOdsadzkeCm(odsP),
       mieszankaId,
       gestoscTm3: gestosc,
       tonazAuta,
@@ -282,8 +298,6 @@ export function PlanZBudowyForm({ tytul, budowaId, initialPlan, onZapisz }: Prop
                   onPress={() => {
                     setWarstwaNazwa(w.nazwa);
                     setWarstwaKat(w.kategoria);
-                    setOdsL(String(w.odsadzkaLewaCm ?? w.odsadzkaCm));
-                    setOdsP(String(w.odsadzkaPrawaCm ?? w.odsadzkaCm));
                     setGrubosci([]);
                     if (w.mieszankaIds.length === 1) setMieszankaId(w.mieszankaIds[0]);
                   }}
@@ -295,12 +309,22 @@ export function PlanZBudowyForm({ tytul, budowaId, initialPlan, onZapisz }: Prop
           </Sekcja>
 
           <Sekcja tytul="Odsadzki i recepta" theme={theme}>
+            <Text style={[styl.hint, { color: theme.colors.textSecondary }]}>
+              Korekta względem konstrukcji. 0 cm = odsadzka z warstwy (np. podbudowa 15 cm L).
+              Dodatnia poszerza, ujemna zwęża — −10 cm = 10 cm węziej. Nie wpisuj ponownie 15, bo doliczy się drugi raz.
+            </Text>
+            {warstwaOpcja ? (
+              <Text style={[styl.hint, { color: theme.colors.text }]}>
+                Konstrukcja L {formatLiczby(warstwaOpcja.odsadzkaLewaCm, 1)} / P {formatLiczby(warstwaOpcja.odsadzkaPrawaCm, 1)} cm
+                {'  →  '}łącznie L {formatLiczby(warstwaOpcja.odsadzkaLewaCm + parsujOdsadzkeCm(odsL), 1)} / P {formatLiczby(warstwaOpcja.odsadzkaPrawaCm + parsujOdsadzkeCm(odsP), 1)} cm
+              </Text>
+            ) : null}
             <View style={styl.dwa}>
               <View style={{ flex: 1 }}>
-                <NumericInput label="Odsadzka lewa" value={odsL} onChangeText={setOdsL} unit="cm" decimals={1} />
+                <NumericInput label="Korekta lewa" value={odsL} onChangeText={setOdsL} unit="cm" decimals={1} allowNegative />
               </View>
               <View style={{ flex: 1 }}>
-                <NumericInput label="Odsadzka prawa" value={odsP} onChangeText={setOdsP} unit="cm" decimals={1} />
+                <NumericInput label="Korekta prawa" value={odsP} onChangeText={setOdsP} unit="cm" decimals={1} allowNegative />
               </View>
             </View>
             <Text style={[styl.etykieta, { color: theme.colors.textSecondary }]}>Recepta</Text>
@@ -334,6 +358,7 @@ export function PlanZBudowyForm({ tytul, budowaId, initialPlan, onZapisz }: Prop
                 />
                 <Text style={{ color: theme.colors.text, marginTop: 4 }}>
                   {formatLiczby(o.powierzchniaM2)} m²  ·  {formatLiczby(o.masaMg, 3)} Mg  ·  {o.auta} aut
+                  {'  ·  '}odsadzka L {formatLiczby(o.odsadzkaLewaCm, 1)} / P {formatLiczby(o.odsadzkaPrawaCm, 1)} cm
                 </Text>
               </View>
             ))}

@@ -630,8 +630,8 @@ export function powierzchniaWarstwyZOdsadzkami(
   odsadzkaLewaCm: number,
   odsadzkaPrawaCm: number,
 ): number {
-  const extra = Math.max(0, dlugoscM) * ((Math.max(0, odsadzkaLewaCm) + Math.max(0, odsadzkaPrawaCm)) / 100);
-  return round2(Math.max(0, powierzchniaObrysuM2) + extra);
+  const extra = Math.max(0, dlugoscM) * ((odsadzkaLewaCm + odsadzkaPrawaCm) / 100);
+  return round2(Math.max(0, powierzchniaObrysuM2 + extra));
 }
 
 export function tonyZPowierzchni(powierzchniaM2: number, gruboscCm: number, gestoscTm3: number): number {

@@ -303,6 +303,7 @@ describe('projektBudowy', () => {
     assert.deepEqual(odsadzkiWarstwy({ odsadzkaCm: 7 }), { lewa: 7, prawa: 0 });
     assert.deepEqual(odsadzkiWarstwy({ odsadzkaCm: 7, odsadzkaLewaCm: 7, odsadzkaPrawaCm: 7 }), { lewa: 7, prawa: 7 });
     assert.ok(Math.abs(powierzchniaWarstwyZOdsadzkami(2000, 400, 7, 7) - (2000 + 400 * 0.14)) < 0.02);
+    assert.ok(Math.abs(powierzchniaWarstwyZOdsadzkami(2000, 400, -10, 0) - (2000 - 40)) < 0.02);
   });
 
   it('dodaje kolejne XFDF jako kontynuację kilometrażu', () => {

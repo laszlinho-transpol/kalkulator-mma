@@ -194,7 +194,7 @@ export function powierzchniaOdcinkaM2(
     } else {
       const dlArk = Math.max(0.01, arkusz.kilometrazKoncowyM - arkusz.kilometrazPoczatkowyM);
       const udzial = Math.max(0, s1 - s0) / dlArk;
-      const extra = Math.abs(s1 - s0) * ((Math.max(0, odsadzkaLewaCm) + Math.max(0, odsadzkaPrawaCm)) / 100);
+      const extra = Math.abs(s1 - s0) * ((odsadzkaLewaCm + odsadzkaPrawaCm) / 100);
       for (const o of matching) {
         suma += o.powierzchniaM2 * udzial + extra / Math.max(matching.length, 1);
       }
@@ -208,6 +208,34 @@ export interface OdcinekPlanuPoliczony extends OdcinekKonstrukcjiPlanu {
   powierzchniaM2: number;
   masaMg: number;
   auta: number;
+  odsadzkaLewaCm: number;
+  odsadzkaPrawaCm: number;
+}
+
+export function parsujOdsadzkeCm(s: string): number {
+  const n = parseFloat(String(s).replace(',', '.'));
+  return Number.isFinite(n) ? n : 0;
+}
+
+/** Korekta planu vs konstrukcja. Stary zapis (bez pól korekty) to extra względem obrysu. */
+export function korektaOdsadzkiZPlanu(
+  plan: Pick<Plan, 'odsadzkaLewaCm' | 'odsadzkaPrawaCm' | 'odsadzkaKorektaLewaCm' | 'odsadzkaKorektaPrawaCm'>,
+  konstrukcja: { lewa: number; prawa: number },
+): { lewa: number; prawa: number } {
+  if (plan.odsadzkaKorektaLewaCm != null || plan.odsadzkaKorektaPrawaCm != null) {
+    return {
+      lewa: plan.odsadzkaKorektaLewaCm ?? 0,
+      prawa: plan.odsadzkaKorektaPrawaCm ?? 0,
+    };
+  }
+  return {
+    lewa: (plan.odsadzkaLewaCm ?? 0) - konstrukcja.lewa,
+    prawa: (plan.odsadzkaPrawaCm ?? 0) - konstrukcja.prawa,
+  };
+}
+
+export function odsadzkaEfektywnaCm(konstrukcjaCm: number, korektaCm: number): number {
+  return konstrukcjaCm + korektaCm;
 }
 
 export function policzOdcinkiPlanu(
@@ -218,6 +246,7 @@ export function policzOdcinkiPlanu(
     doM: number;
     warstwaNazwa: string;
     warstwaKategoria?: KategoriaWarstwy;
+    /** Korekta vs odsadzka warstwy w konstrukcji [cm]. 0 = konstrukcja, ujemna zwęża. */
     odsadzkaLewaCm: number;
     odsadzkaPrawaCm: number;
     gestoscTm3: number;
@@ -236,13 +265,16 @@ export function policzOdcinkiPlanu(
   const tonaz = Math.max(0.01, opts.tonazAuta);
   return baza.map((s, i) => {
     const grubosc = opts.grubosciCm?.[i] ?? s.gruboscProjektowaCm;
+    const konstrukcja = s.warstwa ? odsadzkiWarstwy(s.warstwa) : { lewa: 0, prawa: 0 };
+    const lewa = odsadzkaEfektywnaCm(konstrukcja.lewa, opts.odsadzkaLewaCm);
+    const prawa = odsadzkaEfektywnaCm(konstrukcja.prawa, opts.odsadzkaPrawaCm);
     const pow = powierzchniaOdcinkaM2(
       projekt,
       opts.legendaId,
       s.odM,
       s.doM,
-      opts.odsadzkaLewaCm,
-      opts.odsadzkaPrawaCm,
+      lewa,
+      prawa,
     );
     const masa = tonyZPowierzchni(pow, grubosc, opts.gestoscTm3);
     return {
@@ -251,6 +283,8 @@ export function policzOdcinkiPlanu(
       powierzchniaM2: pow,
       masaMg: masa,
       auta: Math.max(0, Math.ceil(masa / tonaz)),
+      odsadzkaLewaCm: lewa,
+      odsadzkaPrawaCm: prawa,
     };
   });
 }
@@ -302,6 +336,7 @@ export interface DanePlanuZBudowy {
   warstwaKategoria?: KategoriaWarstwy;
   kilometrazOdM: number;
   kilometrazDoM: number;
+  /** Korekta vs konstrukcja [cm]. */
   odsadzkaLewaCm: number;
   odsadzkaPrawaCm: number;
   mieszankaId: string;
@@ -352,6 +387,8 @@ export function zbudujPlanZBudowy(
     kilometrazDoM: dane.kilometrazDoM,
     odsadzkaLewaCm: dane.odsadzkaLewaCm,
     odsadzkaPrawaCm: dane.odsadzkaPrawaCm,
+    odsadzkaKorektaLewaCm: dane.odsadzkaLewaCm,
+    odsadzkaKorektaPrawaCm: dane.odsadzkaPrawaCm,
   };
 }
 

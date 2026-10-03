@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.6';
+export const WERSJA_APLIKACJI = '1.8.7';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,16 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.7',
+    data: '2026-10-03',
+    tytul: 'Zaplanuj masę – korekta odsadzki, także ujemna',
+    zmiany: [
+      'Odsadzki w planie to korekta względem konstrukcji: 0 cm = odsadzka z warstwy (np. podbudowa 15 cm L)',
+      'Ujemna korekta zwęża (np. −10 cm = 10 cm węziej niż konstrukcja); dodatnia poszerza i dolicza się drugi raz',
+      'Stare plany bez korekty przeliczają się jak wcześniej (wartość wobec obrysu PZT)',
+    ],
+  },
   {
     wersja: '1.8.6',
     data: '2026-09-08',

@@ -6,7 +6,9 @@ import { arkuszZWynikuXfdf, dlugoscArkuszaM, nowaWarstwa, pustyProjektBudowy, za
 import { DOMYSLNA_SKALA_PZT } from '../types';
 import {
   komentarzPlanuBudowy,
+  korektaOdsadzkiZPlanu,
   odcinkiKonstrukcjiDlaWarstwy,
+  parsujOdsadzkeCm,
   policzOdcinkiPlanu,
   tytulPlanuBudowy,
   zbudujPlanZBudowy,
@@ -143,5 +145,84 @@ describe('planZBudowy / oś XFDF', () => {
     assert.equal(plan.dzialki.length, 3);
     assert.equal(tytulPlanuBudowy(plan), 'Wiążąca 10.09.2026');
     assert.equal(komentarzPlanuBudowy(plan), '107+000 - 108+000 Trasa główna strona lewa');
+  });
+
+  it('korekta odsadzki: 0 = konstrukcja, −10 zwęża, +15 dubluje', () => {
+    assert.equal(parsujOdsadzkeCm('-10'), -10);
+    assert.equal(parsujOdsadzkeCm('-'), 0);
+    assert.equal(parsujOdsadzkeCm('0'), 0);
+    assert.deepEqual(korektaOdsadzkiZPlanu({ odsadzkaKorektaLewaCm: -10, odsadzkaKorektaPrawaCm: 0 }, { lewa: 15, prawa: 0 }), { lewa: -10, prawa: 0 });
+    assert.deepEqual(korektaOdsadzkiZPlanu({ odsadzkaLewaCm: 15, odsadzkaPrawaCm: 0 }, { lewa: 15, prawa: 0 }), { lewa: 0, prawa: 0 });
+    assert.deepEqual(korektaOdsadzkiZPlanu({ odsadzkaLewaCm: 0, odsadzkaPrawaCm: 0 }, { lewa: 15, prawa: 0 }), { lewa: -15, prawa: 0 });
+
+    const podb = nowaWarstwa({
+      nazwa: 'Podbudowa',
+      kategoria: 'podbudowa',
+      kolejnosc: 1,
+      gruboscCm: 10,
+      odsadzkaCm: 15,
+      odsadzkaLewaCm: 15,
+      odsadzkaPrawaCm: 0,
+    });
+    const projekt: ProjektBudowy = {
+      ...pustyProjektBudowy(106850),
+      arkusze: zastosujKilometrazArkuszy([{
+        id: 'a1',
+        nazwa: 'ark',
+        zrodloNazwa: 'a.xfdf',
+        kolejnosc: 1,
+        kontynuacjaPoprzedniego: false,
+        kilometrazPoczatkowyM: 0,
+        kilometrazKoncowyM: 0,
+        obszary: [prostokatLewy(9200, 7)],
+        osTrasy: {
+          wierzcholkiPdf: [{ x: 0, y: 0 }, { x: 9200, y: 0 }],
+          wierzcholkiM: [{ x: 0, y: 0 }, { x: 9200, y: 0 }],
+          dlugoscM: 9200,
+        },
+      } as ArkuszPzt], 106850),
+      legenda: [{ id: 'legL', kolor: '#FFEE58', typ: 'obszar', klucz: 'obszar|#FFEE58', nazwa: 'Trasa główna strona lewa' }],
+      konstrukcje: [{ legendaId: 'legL', warstwy: [podb], wyjatki: [] }],
+    };
+    const opts = {
+      legendaId: 'legL',
+      odM: 107000,
+      doM: 108000,
+      warstwaNazwa: 'Podbudowa',
+      warstwaKategoria: 'podbudowa' as const,
+      gestoscTm3: 2.45,
+      tonazAuta: 25.5,
+    };
+    const obrys = 7000;
+    const licz0 = policzOdcinkiPlanu(projekt, { ...opts, odsadzkaLewaCm: 0, odsadzkaPrawaCm: 0 });
+    assert.equal(licz0.length, 1);
+    assert.ok(Math.abs(licz0[0].powierzchniaM2 - (obrys + 150)) < 2, `0 = konstrukcja 15 cm, jest ${licz0[0].powierzchniaM2}`);
+    assert.equal(licz0[0].odsadzkaLewaCm, 15);
+
+    const licz15 = policzOdcinkiPlanu(projekt, { ...opts, odsadzkaLewaCm: 15, odsadzkaPrawaCm: 0 });
+    assert.ok(Math.abs(licz15[0].powierzchniaM2 - (obrys + 300)) < 2, `+15 dubluje do 30 cm, jest ${licz15[0].powierzchniaM2}`);
+    assert.equal(licz15[0].odsadzkaLewaCm, 30);
+
+    const liczNeg = policzOdcinkiPlanu(projekt, { ...opts, odsadzkaLewaCm: -10, odsadzkaPrawaCm: 0 });
+    assert.ok(Math.abs(liczNeg[0].powierzchniaM2 - (obrys + 50)) < 2, `−10 → 5 cm, jest ${liczNeg[0].powierzchniaM2}`);
+    assert.equal(liczNeg[0].odsadzkaLewaCm, 5);
+
+    const plan = zbudujPlanZBudowy(projekt, {
+      budowaId: 'b1',
+      dataWbudowywania: '2026-10-03T06:00:00.000Z',
+      legendaId: 'legL',
+      obszarNazwa: 'Trasa główna strona lewa',
+      warstwaNazwa: 'Podbudowa',
+      warstwaKategoria: 'podbudowa',
+      kilometrazOdM: 107000,
+      kilometrazDoM: 108000,
+      odsadzkaLewaCm: -10,
+      odsadzkaPrawaCm: 0,
+      mieszankaId: 'mix1',
+      gestoscTm3: 2.45,
+      tonazAuta: 25.5,
+    });
+    assert.equal(plan.odsadzkaKorektaLewaCm, -10);
+    assert.equal(plan.odsadzkaLewaCm, -10);
   });
 });

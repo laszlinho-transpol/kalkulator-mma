@@ -439,8 +439,8 @@ export function powierzchniaWycinkaM2(
   const clip = wycinekWielokataPoOsi(obszar.wierzcholkiM, osM, s0, s1);
   const baza = clip.length >= 3 ? powierzchniaWielokata(clip) : 0;
   const dl = Math.max(0, Math.abs(s1 - s0));
-  const extra = dl * ((Math.max(0, odsadzkaLewaCm) + Math.max(0, odsadzkaPrawaCm)) / 100);
-  return round2(Math.max(0, baza) + extra);
+  const extra = dl * ((odsadzkaLewaCm + odsadzkaPrawaCm) / 100);
+  return round2(Math.max(0, baza + extra));
 }
 
 export function arkuszeNachodzaceNaKm(projekt: ProjektBudowy, odM: number, doM: number): ArkuszPzt[] {
