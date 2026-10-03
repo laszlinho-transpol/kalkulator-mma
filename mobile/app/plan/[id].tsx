@@ -11,6 +11,8 @@ import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMieszankiStore } from '../../src/stores/mieszankiStore';
 import { useBudowyStore } from '../../src/stores/budowyStore';
+import { usePlanyStore } from '../../src/stores/planyStore';
+import { useLiveStore } from '../../src/stores/liveStore';
 import { useRouteId } from '../../src/hooks/useRouteId';
 import { usePlanPoId } from '../../src/hooks/usePlanPoId';
 import { useWpisyDlaPlanu } from '../../src/hooks/useWpisyDlaPlanu';
@@ -29,6 +31,7 @@ import {
 import { gruboscWbudowywania, gruboscProjektowa, formatujTolerancje } from '../../src/utils/grubosc';
 import { formatujDatePl } from '../../src/utils/dates';
 import { komentarzPlanuBudowy, tytulPlanuBudowy, uzupelnijProfilObmiaruDzialek } from '../../src/utils/planZBudowy';
+import { potwierdzAkcje } from '../../src/utils/dialog';
 import { formatujPikietaz, pikietazPoMetrach } from '../../src/utils/chainage';
 import { eksportujJSON, generujInteraktywnyHTML } from '../../src/utils/htmlGenerator';
 import type { DzialkaRobocza, Rzut } from '../../src/types';
@@ -44,6 +47,8 @@ export default function PlanDetailScreen() {
   const plan = usePlanPoId(id);
   const mieszanki = useMieszankiStore((s) => s.mieszanki);
   const budowy = useBudowyStore((s) => s.budowy);
+  const usunPlan = usePlanyStore((s) => s.usunPlan);
+  const wyczyścWpisyPlanu = useLiveStore((s) => s.wyczyścWpisyPlanu);
   const wpisyLive = useWpisyDlaPlanu(id);
 
   const [aktywnaZakladka, setZakladka] = useState<ZakladkaTyp>('plan');
@@ -120,6 +125,18 @@ export default function PlanDetailScreen() {
 
   const budowa = budowaPodglad;
 
+  const usunTenPlan = () => potwierdzAkcje(
+    'Usuń plan',
+    `Usunąć „${plan.zrodlo === 'budowa' ? tytulPlanuBudowy(plan) : formatujDatePl(plan.dataWbudowywania)}”?`,
+    () => {
+      void (async () => {
+        await wyczyścWpisyPlanu(plan.id);
+        await usunPlan(plan.id);
+        router.back();
+      })();
+    },
+  );
+
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <AppHeader
@@ -130,6 +147,7 @@ export default function PlanDetailScreen() {
         przyciski={plan.status === 'aktywny' ? [
           { tekst: '✏ Edytuj plan', onPress: () => router.push(`/plan/edytuj/${plan.id}` as any), kolor: theme.colors.warning },
           { tekst: '▶ Wbudowywanie', onPress: () => router.push(`/wbudowywanie/${plan.id}` as any), kolor: '#fff', tlo: theme.colors.success },
+          { tekst: 'Usuń', onPress: usunTenPlan, kolor: theme.colors.danger },
         ] : []}
       />
 

@@ -4,7 +4,7 @@
 
 import React, { useMemo } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, useColorScheme,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, useColorScheme,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,6 +17,7 @@ import { AppHeader } from '../../src/components/common/AppHeader';
 import { CollapsibleSection } from '../../src/components/common/CollapsibleSection';
 import { karta, tekstTytul, tekstPodtytul } from '../../src/constants/layout';
 import { komentarzPlanuBudowy, tytulPlanuBudowy } from '../../src/utils/planZBudowy';
+import { potwierdzAkcje } from '../../src/utils/dialog';
 import type { Plan, Budowa } from '../../src/types';
 
 export default function WbudowywanieScreen() {
@@ -67,20 +68,15 @@ export default function WbudowywanieScreen() {
     router.push(`/plan/edytuj/${plan.id}` as any);
   };
 
-  const potwierdzUsuniecie = (plan: Plan) => Alert.alert(
+  const potwierdzUsuniecie = (plan: Plan) => potwierdzAkcje(
     'Usuń plan',
     `Usunąć plan z ${formatujDate(plan.dataWbudowywania)}? Wpisane auta LIVE też znikną.`,
-    [
-      { text: 'Anuluj', style: 'cancel' },
-      {
-        text: 'Usuń',
-        style: 'destructive',
-        onPress: async () => {
-          await wyczyścWpisyPlanu(plan.id);
-          await usunPlan(plan.id);
-        },
-      },
-    ],
+    () => {
+      void (async () => {
+        await wyczyścWpisyPlanu(plan.id);
+        await usunPlan(plan.id);
+      })();
+    },
   );
 
   const renderujPlan = (item: Plan) => {

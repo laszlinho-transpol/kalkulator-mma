@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.10';
+export const WERSJA_APLIKACJI = '1.8.11';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,15 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.11',
+    data: '2026-10-03',
+    tytul: 'Plan – otwieranie i usuwanie bez zawieszenia',
+    zmiany: [
+      'Zapisany plan otwiera się od razu – bez przeliczania PZT co 1 m przy starcie',
+      'Usuń działa w przeglądarce (potwierdzenie + osobny przycisk, nie otwiera planu)',
+    ],
+  },
   {
     wersja: '1.8.10',
     data: '2026-10-03',

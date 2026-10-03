@@ -17,7 +17,7 @@ import type {
   WarstwaKonstrukcji,
   WpisLegendy,
 } from '../types';
-import { round2, round3, generujDomyslneRzuty, obliczLacznaDlugosc } from './calculations';
+import { round2, round3, generujDomyslneRzuty } from './calculations';
 import { formatujDateKrotko } from './dates';
 import {
   arkuszeNachodzaceNaKm,
@@ -348,7 +348,7 @@ export function policzOdcinkiPlanu(
   });
 }
 
-const KROK_PROFILU_SZEROKOSCI_M = 1;
+const KROK_PROFILU_SZEROKOSCI_M = 10;
 const TOL_SCALANIA_SZER_M = 0.03;
 
 export type PlasterekObmiaru = { dlugoscM: number; szerokoscM: number; powierzchniaM2: number };
@@ -384,13 +384,13 @@ export function plasterkiSzerokosciOdcinka(
 ): PlasterekObmiaru[] {
   const sign = opts.doM >= opts.odM ? 1 : -1;
   const total = Math.abs(opts.doM - opts.odM);
-  const krok = Math.max(0.5, opts.krokM ?? KROK_PROFILU_SZEROKOSCI_M);
+  const krok = Math.max(2, opts.krokM ?? KROK_PROFILU_SZEROKOSCI_M);
   if (total < 0.05) return [];
   const out: PlasterekObmiaru[] = [];
   let t = 0;
   while (t < total - 0.02) {
     let dt = Math.min(krok, total - t);
-    if (total - t - dt < 0.75 && total - t > dt) dt = total - t;
+    if (total - t - dt < 3 && total - t > dt) dt = total - t;
     const a = opts.odM + sign * t;
     const b = opts.odM + sign * (t + dt);
     const pow = powierzchniaOdcinkaM2(
@@ -526,36 +526,27 @@ export function zbudujPlanZBudowy(
   };
 }
 
-/** Przelicza plasterki obmiaru z PZT przy podglądzie – stare plany bez zapisu dostają dokładne m². */
+/** Uzupełnia brakujące m² w zapisanym profilu. Nie liczy PZT przy otwarciu (to wiesza UI). */
 export function uzupelnijProfilObmiaruDzialek(
-  projekt: ProjektBudowy | undefined,
+  _projekt: ProjektBudowy | undefined,
   plan: Plan | null | undefined,
 ): DzialkaRobocza[] {
   if (!plan) return [];
-  if (
-    !projekt
-    || plan.zrodlo !== 'budowa'
-    || !plan.legendaId
-    || plan.kilometrazOdM == null
-    || plan.kilometrazDoM == null
-  ) {
-    return plan.dzialki;
-  }
-  const ods = odsadzkiWpisaneWPlanie(plan);
-  return plan.dzialki.map((dz) => {
-    const start = dz.kilometrazPoczatkowyKm * 1000 + dz.kilometrazPoczatkowyM;
-    const dl = obliczLacznaDlugosc(dz);
-    const koniec = dz.kierunekUkladania === 'malejacy' ? start - dl : start + dl;
-    const profil = plasterkiSzerokosciOdcinka(projekt, {
-      legendaId: plan.legendaId!,
-      odM: start,
-      doM: koniec,
-      odsadzkaLewaCm: ods.lewa,
-      odsadzkaPrawaCm: ods.prawa,
+  let zmieniono = false;
+  const dzialki = plan.dzialki.map((dz) => {
+    const profil = dz.profilSzerokosci;
+    if (!profil?.length) return dz;
+    let braki = false;
+    const uzup = profil.map((p) => {
+      if (p.powierzchniaM2 != null) return p;
+      braki = true;
+      return { ...p, powierzchniaM2: round2((p.szerokoscM ?? 0) * p.dlugoscM) };
     });
-    if (profil.length === 0) return dz;
-    return { ...dz, profilSzerokosci: profil };
+    if (!braki) return dz;
+    zmieniono = true;
+    return { ...dz, profilSzerokosci: uzup };
   });
+  return zmieniono ? dzialki : plan.dzialki;
 }
 
 export function planZProfilemObmiaru(

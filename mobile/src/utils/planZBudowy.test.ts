@@ -356,12 +356,40 @@ describe('planZBudowy / oś XFDF', () => {
     });
     const tab = obliczTabeleAutPlanu(plan.dzialki, plan.rzuty, 26, () => 2.45);
     assert.ok(tab.calosc[0].metry < 20, `26 t na rozjeździe krócej niż 20 m, jest ${tab.calosc[0].metry}`);
-    const autoWatskie = tab.calosc.find((w) => w.metryNarastajaco > (plasterki[0].dlugoscM + 0.2));
-    assert.ok(autoWatskie && autoWatskie.metry > tab.calosc[0].metry + 10);
+    const autoWatskie = tab.calosc.find((w) => w.metryNarastajaco - w.metry >= 15);
+    assert.ok(autoWatskie && autoWatskie.metry > tab.calosc[0].metry + 5, `stała jezdnia dłuższa, jest ${autoWatskie?.metry}`);
 
-    const bezProfilu = { ...plan, dzialki: plan.dzialki.map((d) => ({ ...d, profilSzerokosci: undefined })) };
-    const uzupelnione = uzupelnijProfilObmiaruDzialek(projekt, bezProfilu);
-    assert.ok((uzupelnione[0].profilSzerokosci?.length ?? 0) >= 2);
+    const bezM2 = {
+      ...plan,
+      dzialki: plan.dzialki.map((d) => ({
+        ...d,
+        profilSzerokosci: (d.profilSzerokosci ?? []).map((p) => ({
+          dlugoscM: p.dlugoscM,
+          szerokoscM: p.szerokoscM,
+        })),
+      })),
+    };
+    const uzupelnione = uzupelnijProfilObmiaruDzialek(projekt, bezM2);
     assert.ok((uzupelnione[0].profilSzerokosci?.[0].powierzchniaM2 ?? 0) > 0);
+    const bezProfilu = { ...plan, dzialki: plan.dzialki.map((d) => ({ ...d, profilSzerokosci: undefined })) };
+    const bezPrzeliczenia = uzupelnijProfilObmiaruDzialek(projekt, bezProfilu);
+    assert.equal(bezPrzeliczenia[0].profilSzerokosci, undefined);
+  });
+
+  it('stała szerokość: jeden scalony plasterek', () => {
+    const wiaz = nowaWarstwa({ nazwa: 'Wiążąca', kategoria: 'wiazaca', kolejnosc: 1, gruboscCm: 4, odsadzkaCm: 0 });
+    const projekt = projektLewy(prostokatLewy(9200, 7), [wiaz]);
+    const t0 = Date.now();
+    const plasterki = plasterkiSzerokosciOdcinka(projekt, {
+      legendaId: 'legL',
+      odM: 114020,
+      doM: 113605,
+      odsadzkaLewaCm: 0,
+      odsadzkaPrawaCm: 0,
+    });
+    const ms = Date.now() - t0;
+    assert.equal(plasterki.length, 1);
+    assert.ok(Math.abs(plasterki[0].dlugoscM - 415) < 0.2);
+    assert.ok(ms < 400, `profil stałej jezdni za wolny: ${ms} ms`);
   });
 });
