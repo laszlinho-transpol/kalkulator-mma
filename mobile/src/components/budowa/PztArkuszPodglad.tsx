@@ -12,6 +12,7 @@ import Svg, { Circle, G, Image as SvgImage, Line, Polygon, Polyline, Rect, Text 
 import type { ArkuszPzt, Punkt2D, TloArkuszaPzt } from '../../types';
 import { bboxWielokata } from '../../utils/obmiarGeometry';
 import {
+  czoloObmiaruPdf,
   dlugoscOsiPdf1500M,
   dlugoscPolilinii,
   medianaSzerokosciObszarowPdf,
@@ -277,10 +278,20 @@ export function PztArkuszPodglad({
     const podzialki = kreski(odKm, doKm, 1);
     const naArkuszu = (km?: number) => km != null && km >= odKm - 0.6 && km <= doKm + 0.6;
     const zakresKreski: Array<NonNullable<ReturnType<typeof kreskaNaStacji>> & { kolor: string; rola: 'start' | 'koniec' }> = [];
+    const zCzolem = (k: NonNullable<ReturnType<typeof kreskaNaStacji>>, kmM: number) => {
+      if (!osPdf || osPdf.length < 2) return k;
+      const sPdf = ((kmM - odKm) / spanKm) * dlPdf;
+      const cz = czoloObmiaruPdf(arkusz.obszary, osPdf, sPdf);
+      if (!cz) return k;
+      const a = toSvg(cz.a);
+      const b = toSvg(cz.b);
+      const s = toSvg(cz.srodek);
+      return { ...k, x1: a.x, y1: a.y, x2: b.x, y2: b.y, mx: s.x, my: s.y };
+    };
     const kStart = naArkuszu(zakresStartM) ? kreskaNaStacji(zakresStartM!, odKm, spanKm, 1.05) : null;
     const kKoniec = naArkuszu(zakresKoniecM) ? kreskaNaStacji(zakresKoniecM!, odKm, spanKm, 1.05) : null;
-    if (kStart) zakresKreski.push({ ...kStart, kolor: '#16A34A', rola: 'start' });
-    if (kKoniec) zakresKreski.push({ ...kKoniec, kolor: '#DC2626', rola: 'koniec' });
+    if (kStart) zakresKreski.push({ ...zCzolem(kStart, zakresStartM!), kolor: '#16A34A', rola: 'start' });
+    if (kKoniec) zakresKreski.push({ ...zCzolem(kKoniec, zakresKoniecM!), kolor: '#DC2626', rola: 'koniec' });
     const mapaSvg = { w: rozmiar.w, h: rozmiar.h, cx, cy, skalaFit };
     const os1500M = osPdf && osPdf.length >= 2 ? dlugoscOsiPdf1500M(osPdf) : 0;
     const xfdfM = arkusz.osTrasy?.dlugoscEtykietaM;
@@ -806,7 +817,6 @@ export function PztArkuszPodglad({
                             rola: t.rola,
                             kilometrazMaleje: (zakresStartM ?? 0) > (zakresKoniecM ?? 0),
                             font,
-                            znakow: napis.length,
                           });
                           return (
                             <G key={`zk-${t.rola}-${t.kmM}`}>

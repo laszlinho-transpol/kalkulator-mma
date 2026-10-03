@@ -397,10 +397,41 @@ export function szerokoscPoprzecznaPdf(
   return maxU - minU;
 }
 
+/** Około 60 m w punktach PDF przy 1:500 – odcina dalekie cięcie łuku. */
+const ZASIEG_CZOLA_PDF = 360;
+
 /**
- * START / KONIEC wzdłuż osi, poza zakresem (układ SVG, Y w dół).
- * `ux, uy` – styczna w stronę rosnącego kilometraża.
- * Start stoi przed kreską (pod prąd układania), koniec za kreską.
+ * Czoło odcinka: odcinek od krawędzi do krawędzi obmiaru, prostopadle do osi.
+ * Nie jest to kreska pikiety na osi.
+ */
+export function czoloObmiaruPdf(
+  obszary: Array<{ wierzcholkiPdf: Punkt2D[] }>,
+  osPdf: Punkt2D[],
+  sPdf: number,
+): { a: Punkt2D; b: Punkt2D; srodek: Punkt2D } | null {
+  const t = stycznyNaOsi(osPdf, sPdf);
+  if (!t) return null;
+  const plen = Math.hypot(t.dx, t.dy) || 1;
+  const nx = -t.dy / plen;
+  const ny = t.dx / plen;
+  const us: number[] = [];
+  for (const o of obszary) {
+    for (const u of przecieciaProstejZKrawedziami(o.wierzcholkiPdf, t.punkt, nx, ny)) {
+      if (Math.abs(u) <= ZASIEG_CZOLA_PDF) us.push(u);
+    }
+  }
+  if (us.length < 2) return null;
+  const minU = Math.min(...us);
+  const maxU = Math.max(...us);
+  if (maxU - minU < 1) return null;
+  const a = { x: t.punkt.x + nx * minU, y: t.punkt.y + ny * minU };
+  const b = { x: t.punkt.x + nx * maxU, y: t.punkt.y + ny * maxU };
+  return { a, b, srodek: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } };
+}
+
+/**
+ * Napis START/KONIEC prostopadle do osi, tuż przed czołem startu i za czołem końca.
+ * `ux, uy` – styczna SVG w stronę rosnącego kilometraża.
  */
 export function napisZakresuWzdluzOsi(args: {
   mx: number;
@@ -410,16 +441,16 @@ export function napisZakresuWzdluzOsi(args: {
   rola: 'start' | 'koniec';
   kilometrazMaleje: boolean;
   font: number;
-  znakow: number;
 }): { x: number; y: number; rot: number } {
   const naZewnatrz = args.rola === 'start'
     ? (args.kilometrazMaleje ? 1 : -1)
     : (args.kilometrazMaleje ? -1 : 1);
-  const szer = Math.max(1, args.font) * Math.max(1, args.znakow) * 0.62;
-  const odstep = Math.max(1, args.font) * 1.15 + szer / 2;
+  const odstep = Math.max(1, args.font) * 1.05;
   const x = args.mx + args.ux * naZewnatrz * odstep;
   const y = args.my + args.uy * naZewnatrz * odstep;
-  let rot = Math.atan2(args.uy, args.ux) * (180 / Math.PI);
+  const px = Math.abs(args.uy) < 1e-12 ? 0 : -args.uy;
+  const py = Math.abs(args.ux) < 1e-12 ? 0 : args.ux;
+  let rot = Math.atan2(py, px) * (180 / Math.PI);
   if (rot > 90) rot -= 180;
   else if (rot < -90) rot += 180;
   return { x, y, rot };

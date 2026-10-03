@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.13';
+export const WERSJA_APLIKACJI = '1.8.14';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,15 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.14',
+    data: '2026-10-03',
+    tytul: 'Szkic – czoło odcinka, napis w poprzek osi',
+    zmiany: [
+      'Zielona i czerwona linia to szerokość obmiaru: początek i koniec odcinka, nie kreska na osi',
+      'Napis START i KONIEC stoi prostopadle do osi, tuż przed startem i tuż za końcem',
+    ],
+  },
   {
     wersja: '1.8.13',
     data: '2026-10-03',

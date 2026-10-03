@@ -11,6 +11,7 @@ import {
   pdfDoSvgPodgladu,
   pomiarWzdlozOsiPdf,
   svgDoPdfPodgladu,
+  czoloObmiaruPdf,
   napisZakresuWzdluzOsi,
   szerokoscPoprzecznaPdf,
 } from './osPzt';
@@ -81,32 +82,56 @@ describe('pomiar osi PDF 1:500', () => {
   });
 });
 
-describe('napis START/KONIEC wzdłuż osi', () => {
+describe('czoło obmiaru i napis START/KONIEC', () => {
+  it('linia idzie od krawędzi do krawędzi, nie jest kreską na osi', () => {
+    const os = [{ x: 0, y: 0 }, { x: 400, y: 0 }];
+    const obszar = { wierzcholkiPdf: [{ x: 0, y: 14 }, { x: 0, y: -6 }, { x: 400, y: -6 }, { x: 400, y: 14 }] };
+    const cz = czoloObmiaruPdf([obszar], os, 200);
+    assert.ok(cz);
+    assert.ok(Math.abs(cz.a.x - 200) < 0.2 && Math.abs(cz.b.x - 200) < 0.2);
+    const ys = [cz.a.y, cz.b.y].sort((a, b) => a - b);
+    assert.ok(Math.abs(ys[0] - (-6)) < 0.2, `dół ${ys[0]}`);
+    assert.ok(Math.abs(ys[1] - 14) < 0.2, `góra ${ys[1]}`);
+    assert.ok(Math.abs(cz.srodek.y - 4) < 0.2);
+  });
+
+  it('dwa pasy: czoło od zewnętrznej lewej do zewnętrznej prawej', () => {
+    const os = [{ x: 0, y: 0 }, { x: 400, y: 0 }];
+    const lewy = { wierzcholkiPdf: [{ x: 0, y: 18 }, { x: 0, y: 4 }, { x: 400, y: 4 }, { x: 400, y: 18 }] };
+    const prawy = { wierzcholkiPdf: [{ x: 0, y: -4 }, { x: 0, y: -16 }, { x: 400, y: -16 }, { x: 400, y: -4 }] };
+    const cz = czoloObmiaruPdf([lewy, prawy], os, 80);
+    assert.ok(cz);
+    const ys = [cz.a.y, cz.b.y].sort((a, b) => a - b);
+    assert.ok(Math.abs(ys[0] - (-16)) < 0.2);
+    assert.ok(Math.abs(ys[1] - 18) < 0.2);
+  });
+
   const font = 12;
   const osPrawo = { mx: 100, my: 40, ux: 1, uy: 0, font };
 
-  it('malejący kilometraż: START przed kreską (wyższy km), KONIEC za nią', () => {
-    const start = napisZakresuWzdluzOsi({ ...osPrawo, rola: 'start', kilometrazMaleje: true, znakow: 5 });
-    const koniec = napisZakresuWzdluzOsi({ ...osPrawo, rola: 'koniec', kilometrazMaleje: true, znakow: 6 });
-    assert.ok(start.x > osPrawo.mx + font, `start ${start.x}`);
-    assert.ok(koniec.x < osPrawo.mx - font, `koniec ${koniec.x}`);
+  it('napis jest prostopadle do osi: START przed czołem, KONIEC za czołem', () => {
+    const start = napisZakresuWzdluzOsi({ ...osPrawo, rola: 'start', kilometrazMaleje: true });
+    const koniec = napisZakresuWzdluzOsi({ ...osPrawo, rola: 'koniec', kilometrazMaleje: true });
+    assert.ok(start.x > osPrawo.mx + font * 0.5, `start ${start.x}`);
+    assert.ok(koniec.x < osPrawo.mx - font * 0.5, `koniec ${koniec.x}`);
     assert.equal(start.y, osPrawo.my);
-    assert.equal(start.rot, 0);
-    assert.equal(koniec.rot, 0);
+    assert.ok(Math.abs(Math.abs(start.rot) - 90) < 1e-6, `rot ${start.rot}`);
+    assert.ok(Math.abs(Math.abs(koniec.rot) - 90) < 1e-6);
   });
 
-  it('rosnący kilometraż: START pod prąd, KONIEC za kreską', () => {
-    const start = napisZakresuWzdluzOsi({ ...osPrawo, rola: 'start', kilometrazMaleje: false, znakow: 5 });
-    const koniec = napisZakresuWzdluzOsi({ ...osPrawo, rola: 'koniec', kilometrazMaleje: false, znakow: 6 });
-    assert.ok(start.x < osPrawo.mx - font);
-    assert.ok(koniec.x > osPrawo.mx + font);
+  it('rosnący kilometraż: START pod prąd, KONIEC za czołem', () => {
+    const start = napisZakresuWzdluzOsi({ ...osPrawo, rola: 'start', kilometrazMaleje: false });
+    const koniec = napisZakresuWzdluzOsi({ ...osPrawo, rola: 'koniec', kilometrazMaleje: false });
+    assert.ok(start.x < osPrawo.mx - font * 0.5);
+    assert.ok(koniec.x > osPrawo.mx + font * 0.5);
+    assert.ok(Math.abs(Math.abs(start.rot) - 90) < 1e-6);
   });
 
-  it('oś w lewo nie odwraca napisu do góry nogami', () => {
+  it('oś w lewo: napis dalej prostopadle, bez obrotu do góry nogami', () => {
     const start = napisZakresuWzdluzOsi({
-      mx: 10, my: 10, ux: -1, uy: 0, rola: 'start', kilometrazMaleje: true, font, znakow: 5,
+      mx: 10, my: 10, ux: -1, uy: 0, rola: 'start', kilometrazMaleje: true, font,
     });
     assert.ok(start.x < 10);
-    assert.ok(Math.abs(start.rot) < 1e-9);
+    assert.ok(Math.abs(Math.abs(start.rot) - 90) < 1e-6);
   });
 });
