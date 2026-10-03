@@ -90,7 +90,7 @@ export function SzkicPlanuBudowy({
         blokadaPodgladu={blokadaPodgladu}
         onBlokadaPodgladu={onBlokadaPodgladu}
         onDotykZmiana={onDotykZmiana}
-        liveStacjaM={stacjaRozkladarki}
+        liveStacjaM={acc > 0 ? stacjaRozkladarki : undefined}
         liveAuta={metryCum}
         onPressAuto={onPressAuto}
         podzialkaM={projekt.podzialkaKilometrazuM ?? 50}

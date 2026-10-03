@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.12';
+export const WERSJA_APLIKACJI = '1.8.13';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,15 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.13',
+    data: '2026-10-03',
+    tytul: 'Szkic – START i KONIEC nie zasłaniają rysunku',
+    zmiany: [
+      'Napis START leży wzdłuż osi przed kreską startu, KONIEC za kreską końca – stały, mały rozmiar przy zoomie',
+      'Biała kropka rozkładarki nie stoi na starcie, gdy nic jeszcze nie ułożono',
+    ],
+  },
   {
     wersja: '1.8.12',
     data: '2026-10-03',

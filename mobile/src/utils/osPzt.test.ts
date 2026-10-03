@@ -11,6 +11,7 @@ import {
   pdfDoSvgPodgladu,
   pomiarWzdlozOsiPdf,
   svgDoPdfPodgladu,
+  napisZakresuWzdluzOsi,
   szerokoscPoprzecznaPdf,
 } from './osPzt';
 
@@ -77,5 +78,35 @@ describe('pomiar osi PDF 1:500', () => {
     const obszar = { wierzcholkiPdf: [{ x: 0, y: 20 }, { x: 0, y: 0 }, { x: 400, y: 0 }, { x: 400, y: 20 }] };
     const w = szerokoscPoprzecznaPdf([obszar], os, 200);
     assert.ok(Math.abs(w - 20) < 0.2, `szer ${w}`);
+  });
+});
+
+describe('napis START/KONIEC wzdłuż osi', () => {
+  const font = 12;
+  const osPrawo = { mx: 100, my: 40, ux: 1, uy: 0, font };
+
+  it('malejący kilometraż: START przed kreską (wyższy km), KONIEC za nią', () => {
+    const start = napisZakresuWzdluzOsi({ ...osPrawo, rola: 'start', kilometrazMaleje: true, znakow: 5 });
+    const koniec = napisZakresuWzdluzOsi({ ...osPrawo, rola: 'koniec', kilometrazMaleje: true, znakow: 6 });
+    assert.ok(start.x > osPrawo.mx + font, `start ${start.x}`);
+    assert.ok(koniec.x < osPrawo.mx - font, `koniec ${koniec.x}`);
+    assert.equal(start.y, osPrawo.my);
+    assert.equal(start.rot, 0);
+    assert.equal(koniec.rot, 0);
+  });
+
+  it('rosnący kilometraż: START pod prąd, KONIEC za kreską', () => {
+    const start = napisZakresuWzdluzOsi({ ...osPrawo, rola: 'start', kilometrazMaleje: false, znakow: 5 });
+    const koniec = napisZakresuWzdluzOsi({ ...osPrawo, rola: 'koniec', kilometrazMaleje: false, znakow: 6 });
+    assert.ok(start.x < osPrawo.mx - font);
+    assert.ok(koniec.x > osPrawo.mx + font);
+  });
+
+  it('oś w lewo nie odwraca napisu do góry nogami', () => {
+    const start = napisZakresuWzdluzOsi({
+      mx: 10, my: 10, ux: -1, uy: 0, rola: 'start', kilometrazMaleje: true, font, znakow: 5,
+    });
+    assert.ok(start.x < 10);
+    assert.ok(Math.abs(start.rot) < 1e-9);
   });
 });

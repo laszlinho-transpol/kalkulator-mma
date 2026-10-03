@@ -15,6 +15,7 @@ import {
   dlugoscOsiPdf1500M,
   dlugoscPolilinii,
   medianaSzerokosciObszarowPdf,
+  napisZakresuWzdluzOsi,
   ocenaOdstempuPodzialkiM,
   osPdfZorientowana,
   pdfDoSvgPodgladu,
@@ -243,6 +244,9 @@ export function PztArkuszPodglad({
           y: t.punkt.y - ny * podz.odstepTekstuPdf * skalaKreski,
         });
       }
+      const sdx = t.dx * skalaFit;
+      const sdy = -t.dy * skalaFit;
+      const sl = Math.hypot(sdx, sdy) || 1;
       return {
         kmM,
         etykieta: formatujKmM(kmM),
@@ -252,6 +256,10 @@ export function PztArkuszPodglad({
         y2: p2.y,
         tx: tp.x,
         ty: tp.y,
+        mx: mid.x,
+        my: mid.y,
+        ux: sdx / sl,
+        uy: sdy / sl,
         fontSvg: podz.fontPdf * skalaFit * (skalaKreski < 1 ? 0.92 : 1),
         rMarkerSvg: Math.max(2.2, Math.min(4.5, podz.halfPdf * skalaFit * 0.28)),
       };
@@ -787,31 +795,47 @@ export function PztArkuszPodglad({
                             </SvgText>
                           </G>
                         ))}
-                        {mapa.zakresKreski.map((t) => (
-                          <G key={`zk-${t.rola}-${t.kmM}`}>
-                            <Line
-                              x1={t.x1}
-                              y1={t.y1}
-                              x2={t.x2}
-                              y2={t.y2}
-                              stroke={t.kolor}
-                              strokeWidth={swEkran * 1.55}
-                              strokeLinecap="butt"
-                              vectorEffect="non-scaling-stroke"
-                            />
-                            <SvgText
-                              x={t.tx}
-                              y={t.ty}
-                              fontSize={Math.max(t.fontSvg, 7)}
-                              fontWeight="800"
-                              fill={t.kolor}
-                              textAnchor="middle"
-                              alignmentBaseline="middle"
-                            >
-                              {t.rola === 'start' ? 'START' : 'KONIEC'}
-                            </SvgText>
-                          </G>
-                        ))}
+                        {mapa.zakresKreski.map((t) => {
+                          const napis = t.rola === 'start' ? 'START' : 'KONIEC';
+                          const font = 13 / Math.max(xform.s, 0.08);
+                          const polozenie = napisZakresuWzdluzOsi({
+                            mx: t.mx,
+                            my: t.my,
+                            ux: t.ux,
+                            uy: t.uy,
+                            rola: t.rola,
+                            kilometrazMaleje: (zakresStartM ?? 0) > (zakresKoniecM ?? 0),
+                            font,
+                            znakow: napis.length,
+                          });
+                          return (
+                            <G key={`zk-${t.rola}-${t.kmM}`}>
+                              <Line
+                                x1={t.x1}
+                                y1={t.y1}
+                                x2={t.x2}
+                                y2={t.y2}
+                                stroke={t.kolor}
+                                strokeWidth={swEkran * 1.55}
+                                strokeLinecap="butt"
+                                vectorEffect="non-scaling-stroke"
+                              />
+                              <G transform={`rotate(${polozenie.rot} ${polozenie.x} ${polozenie.y})`}>
+                                <SvgText
+                                  x={polozenie.x}
+                                  y={polozenie.y}
+                                  fontSize={font}
+                                  fontWeight="700"
+                                  fill={t.kolor}
+                                  textAnchor="middle"
+                                  alignmentBaseline="middle"
+                                >
+                                  {napis}
+                                </SvgText>
+                              </G>
+                            </G>
+                          );
+                        })}
                         {mapa.auta.map((a) => (
                           <G key={a.id} onPress={() => onPressAuto?.(a.id)}>
                             <Circle cx={a.x} cy={a.y} r={rZnak} fill="#F59E0B" stroke="#fff" strokeWidth={1.2} />

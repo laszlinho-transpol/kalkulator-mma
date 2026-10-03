@@ -397,6 +397,34 @@ export function szerokoscPoprzecznaPdf(
   return maxU - minU;
 }
 
+/**
+ * START / KONIEC wzdłuż osi, poza zakresem (układ SVG, Y w dół).
+ * `ux, uy` – styczna w stronę rosnącego kilometraża.
+ * Start stoi przed kreską (pod prąd układania), koniec za kreską.
+ */
+export function napisZakresuWzdluzOsi(args: {
+  mx: number;
+  my: number;
+  ux: number;
+  uy: number;
+  rola: 'start' | 'koniec';
+  kilometrazMaleje: boolean;
+  font: number;
+  znakow: number;
+}): { x: number; y: number; rot: number } {
+  const naZewnatrz = args.rola === 'start'
+    ? (args.kilometrazMaleje ? 1 : -1)
+    : (args.kilometrazMaleje ? -1 : 1);
+  const szer = Math.max(1, args.font) * Math.max(1, args.znakow) * 0.62;
+  const odstep = Math.max(1, args.font) * 1.15 + szer / 2;
+  const x = args.mx + args.ux * naZewnatrz * odstep;
+  const y = args.my + args.uy * naZewnatrz * odstep;
+  let rot = Math.atan2(args.uy, args.ux) * (180 / Math.PI);
+  if (rot > 90) rot -= 180;
+  else if (rot < -90) rot += 180;
+  return { x, y, rot };
+}
+
 /** Poprzeczka i opis km: w punktach PDF, łącznie nie szersze niż obszar. */
 export function rozmiarPodzialkiOsi(szerokoscObszaruPdf: number): {
   halfPdf: number;
