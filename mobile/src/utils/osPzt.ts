@@ -609,7 +609,7 @@ export function ocenaOdstempuPodzialkiM(metry1500: number): {
   const d = Math.abs(roznicaM).toLocaleString('pl-PL', { maximumFractionDigits: 2 });
   let tekst: string;
   if (zgadzaSie && krokM === 100) {
-    tekst = `Odstęp ${m} m ≈ 100 m na 1:500 — podziałka na PDF jest w skali. Jeśli kreski nie pokrywają nadruku, przesunięty jest start arkusza albo etykieta 116+031, nie sam odstęp 100 m.`;
+    tekst = `Odstęp ${m} m ≈ 100 m na 1:500 — podziałka na PDF jest w skali.`;
   } else if (zgadzaSie) {
     tekst = `Odstęp ${m} m ≈ ${krokM} m na 1:500 (nie 100 m między tymi dwoma punktami).`;
   } else {

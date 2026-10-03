@@ -25,9 +25,7 @@ import { obszaryZPolygony, stronaTrasyZKoloru, type WynikParsowaniaXfdf } from '
 import { skalujWierzcholki } from './obmiarGeometry';
 import {
   dlugoscObszarowWzdluzOsiM,
-  dlugoscPikietazuJezdniM,
   dlugoscPolilinii,
-  dopasujGeometrieArkuszaDoDlugosci,
   dopasujGeometrieArkuszaDoEtykiety,
   kierunekRosnacegoKm,
   orientujLancuchDoKm,
@@ -207,7 +205,7 @@ export function arkuszZWynikuXfdf(
       kolor: os.color,
     }
     : undefined;
-  const surowy: ArkuszPzt = {
+  return dopasujGeometrieArkuszaDoEtykiety({
     id: generujId(),
     nazwa,
     zrodloNazwa: wynik.zrodloNazwa,
@@ -218,38 +216,20 @@ export function arkuszZWynikuXfdf(
     kilometrazKoncowyM: 0,
     obszary,
     osTrasy: osTrasy0,
-  };
-  const jezdnia = osTrasy0 ? dlugoscPikietazuJezdniM(surowy) : 0;
-  const e0 = etykietaM && etykietaM > 80 && etykietaM < 2500 ? etykietaM : 0;
-  const baza = e0 || (geomM > 80 ? geomM : 0);
-  let e = e0;
-  if (jezdnia > 80 && jezdnia < 2500) {
-    const cap = (baza || jezdnia) * 1.02 + 2.5;
-    if (jezdnia >= (baza || jezdnia) - 0.05 && jezdnia <= cap) e = round2(Math.max(e, jezdnia));
-  }
-  const osTrasy = osTrasy0 && e > 80
-    ? { ...osTrasy0, dlugoscEtykietaM: e, dlugoscM: e }
-    : osTrasy0;
-  return dopasujGeometrieArkuszaDoEtykiety({ ...surowy, osTrasy });
+  });
 }
 
-/** Długość arkusza = pikietaż drogi (wymiar osi albo czoła L/P, nie krótsza kreska 1:500). */
+/** Długość arkusza = suma linii osi z XFDF (wymiar kreski, inaczej geometria osi). */
 export function dlugoscArkuszaM(arkusz: ArkuszPzt): number {
   const etykieta = arkusz.osTrasy?.dlugoscEtykietaM;
-  const e = etykieta && etykieta > 80 && etykieta < 2500 ? round2(etykieta) : 0;
-  const jezdnia = dlugoscPikietazuJezdniM(arkusz);
+  if (etykieta && etykieta > 80 && etykieta < 2500) return round2(etykieta);
   let geom = 0;
   if (arkusz.osTrasy) {
     geom = arkusz.osTrasy.wierzcholkiM.length >= 2
       ? round2(dlugoscPolilinii(arkusz.osTrasy.wierzcholkiM))
       : round2(arkusz.osTrasy.dlugoscM);
   }
-  const kandydaci = [e, jezdnia, geom].filter((n) => n > 80 && n < 2500);
-  if (kandydaci.length > 0) {
-    const baza = e || Math.max(...kandydaci);
-    const doPikietazu = kandydaci.filter((n) => n >= baza - 0.05 && n <= baza * 1.02 + 2.5);
-    return round2(Math.max(...(doPikietazu.length > 0 ? doPikietazu : [baza])));
-  }
+  if (geom > 0.5) return geom;
   const staraJezdnia = dlugoscObszarowWzdluzOsiM(arkusz);
   if (staraJezdnia > 0.5) return staraJezdnia;
   if (arkusz.obszary.length === 0) return 0;
@@ -258,22 +238,21 @@ export function dlugoscArkuszaM(arkusz: ArkuszPzt): number {
   return round2(ds.reduce((s, d) => s + d, 0) / ds.length);
 }
 
-/** Suma pikietażu PZT (po rozciągnięciu do zadanej pikiety, jeśli jest). */
+/** Suma pikietażu = suma długości osi XFDF. */
 export function sumaOsiTrasyM(projekt: ProjektBudowy): number {
-  const zKm = projekt.arkusze.reduce(
+  const zOsi = round2(projekt.arkusze.reduce((s, a) => s + dlugoscArkuszaM(a), 0));
+  if (zOsi > 1) return zOsi;
+  return round2(projekt.arkusze.reduce(
     (s, a) => s + Math.max(0, a.kilometrazKoncowyM - a.kilometrazPoczatkowyM),
     0,
-  );
-  if (zKm > 1) return round2(zKm);
-  return round2(projekt.arkusze.reduce((s, a) => s + dlugoscArkuszaM(a), 0));
+  ));
 }
 
-/** Długość arkusza do pikietażu: XFDF, albo już przypisany km gdy rozciągnięto do PZT (< ~1,2 %). */
+/** Długość arkusza do pikietażu: zawsze linia osi XFDF. */
 export function dlugoscDoPikietazuM(arkusz: ArkuszPzt): number {
   const nat = dlugoscArkuszaM(arkusz);
-  const km = round2(Math.max(0, arkusz.kilometrazKoncowyM - arkusz.kilometrazPoczatkowyM));
-  if (nat > 80 && km > 80 && Math.abs(km - nat) <= nat * 0.012 + 2.5) return km;
-  return nat > 0.5 ? nat : km;
+  if (nat > 0.5) return nat;
+  return round2(Math.max(0, arkusz.kilometrazKoncowyM - arkusz.kilometrazPoczatkowyM));
 }
 
 export function podsumowanieOsiTrasy(projekt: ProjektBudowy): {
@@ -285,7 +264,6 @@ export function podsumowanieOsiTrasy(projekt: ProjektBudowy): {
   geomM: number;
   wymiary: number[];
   lukaNumeracji: string | null;
-  kalibracjaK: number;
 } {
   let etykietyM = 0;
   let nEtykiet = 0;
@@ -318,33 +296,7 @@ export function podsumowanieOsiTrasy(projekt: ProjektBudowy): {
     geomM: round2(geomM),
     wymiary,
     lukaNumeracji: lukaNumeracjiArkuszy(projekt),
-    kalibracjaK: wspolczynnikKalibracjiPzt(xfdf, kmM),
   };
-}
-
-/** k = pikietaż PZT / wymiar XFDF, np. 9181 / 9166,36 ≈ 1,001636. */
-export function wspolczynnikKalibracjiPzt(xfdfM: number, pztM: number): number {
-  if (!(xfdfM > 1) || !(pztM > 1)) return 1;
-  return pztM / xfdfM;
-}
-
-/**
- * Surowy kilometraż z wymiarów XFDF (bez k) – do porównania kresek z tłem PDF.
- * Poligony zostają na PDF; k mnoży tylko długość w metrach.
- */
-export function kilometrazXfdfArkuszy(
-  arkusze: ArkuszPzt[],
-  kilometrazPoczatkowyM: number,
-): Array<{ id: string; odM: number; doM: number; xfdfM: number }> {
-  let biezacy = Math.max(0, kilometrazPoczatkowyM);
-  return arkusze.map((a) => {
-    const e = a.osTrasy?.dlugoscEtykietaM;
-    const xfdfM = round2(e && e > 80 && e < 2500 ? e : dlugoscArkuszaM(a));
-    const odM = biezacy;
-    const doM = round2(odM + xfdfM);
-    biezacy = doM;
-    return { id: a.id, odM, doM, xfdfM };
-  });
 }
 
 export function numerArkuszaZNazwy(nazwa: string, zrodloNazwa?: string): { seria: number; nr: number } | null {
@@ -424,47 +376,28 @@ function ustawKmObszaru(obszar: ObszarObmiaru, startM: number, koniecM: number):
 /**
  * Uciągla kilometraż: pierwszy arkusz od km projektu,
  * kolejne z flagą kontynuacji startują na końcu poprzedniego.
- * Gdy podano pikietę końcową PZT, k = (koniec−start) / suma XFDF
- * (np. 9181 / 9166,36 ≈ 1,001636). Każda długość arkusza × k; szerokość z PDF.
+ * Długość = linia osi z XFDF (wymiar kreski), bez korelacji do nadruku PZT.
  */
 export function zastosujKilometrazArkuszy(
   arkusze: ArkuszPzt[],
   kilometrazPoczatkowyM: number,
-  kilometrazKoncowyZadanyM?: number,
 ): ArkuszPzt[] {
   const przygotowane = arkusze.map((surowy) => dopasujGeometrieArkuszaDoEtykiety(surowy));
-  const raw = przygotowane.map((a) => dlugoscArkuszaM(a));
-  const rawSum = raw.reduce((s, d) => s + d, 0);
-  const start0 = Math.max(0, kilometrazPoczatkowyM);
-  const zadany = kilometrazKoncowyZadanyM != null && kilometrazKoncowyZadanyM > start0 + 1
-    ? kilometrazKoncowyZadanyM
-    : undefined;
-  const targetSpan = zadany != null ? round2(zadany - start0) : rawSum;
-  const skala = rawSum > 1 && targetSpan > 1 ? targetSpan / rawSum : 1;
-
-  let biezacy = start0;
-  const ciagOdStartu = przygotowane.every((a, j) => j === 0 || a.kontynuacjaPoprzedniego);
+  let biezacy = Math.max(0, kilometrazPoczatkowyM);
   return przygotowane.map((arkusz, i) => {
     const start = i === 0 || arkusz.kontynuacjaPoprzedniego
       ? biezacy
       : arkusz.kilometrazPoczatkowyM;
-    let dlugosc = round2(raw[i] * skala);
-    let koniec = round2(start + dlugosc);
-    if (zadany != null && ciagOdStartu && i === przygotowane.length - 1) {
-      koniec = round2(zadany);
-      dlugosc = round2(Math.max(0.01, koniec - start));
-    }
+    const dlugosc = dlugoscArkuszaM(arkusz);
+    const koniec = round2(start + dlugosc);
     biezacy = koniec;
-    const zOsi = arkusz.osTrasy?.wierzcholkiM && arkusz.osTrasy.wierzcholkiM.length >= 2 && dlugosc > 80
-      ? dopasujGeometrieArkuszaDoDlugosci(arkusz, dlugosc)
-      : arkusz;
     return {
-      ...zOsi,
+      ...arkusz,
       kolejnosc: i + 1,
       kontynuacjaPoprzedniego: i > 0,
       kilometrazPoczatkowyM: start,
       kilometrazKoncowyM: koniec,
-      obszary: zOsi.obszary.map((o) => ustawKmObszaru(o, start, koniec)),
+      obszary: arkusz.obszary.map((o) => ustawKmObszaru(o, start, koniec)),
     };
   });
 }
@@ -609,7 +542,6 @@ export function dodajArkuszeDoProjektu(
   const arkusze = zastosujKilometrazArkuszy(
     scalone,
     projekt.kilometrazPoczatkowyM,
-    projekt.kilometrazKoncowyZadanyM,
   );
   const legenda = zbierzLegendeZArkuszy(arkusze, projekt.legenda);
   return {
@@ -653,14 +585,10 @@ export function komunikatPoImporcieXfdf(
   czesci.push(`${start} + ${dl} m = ${koniec}.`);
   if (os.lukaNumeracji) czesci.push(os.lukaNumeracji);
   if (os.nArkuszy > 0 && os.nEtykiet < os.nArkuszy) {
-    czesci.push(`Wymiar osi tylko na ${os.nEtykiet}/${os.nArkuszy} ark. — reszta z rysunku (stąd bywa 116+016 zamiast 116+031).`);
+    czesci.push(`Wymiar osi tylko na ${os.nEtykiet}/${os.nArkuszy} ark. — reszta z długości linii osi na rysunku.`);
   } else if (os.nEtykiet > 0) {
     const xfdf = os.xfdfM.toLocaleString('pl-PL', { maximumFractionDigits: 2 });
-    if (po.kilometrazKoncowyZadanyM != null && Math.abs(os.kmM - os.xfdfM) > 0.5) {
-      czesci.push(`Wymiar XFDF ${xfdf} m rozciągnięty do pikiet PZT ${dl} m (${os.nArkuszy} ark.).`);
-    } else {
-      czesci.push(`Oś z wymiaru XFDF: ${xfdf} m (${os.nArkuszy} ark.).`);
-    }
+    czesci.push(`Oś z wymiaru XFDF: ${xfdf} m (${os.nArkuszy} ark.).`);
   }
   return czesci.join(' ');
 }
@@ -669,7 +597,6 @@ export function przeliczProjektPoZmianieKm(projekt: ProjektBudowy): ProjektBudow
   const arkusze = zastosujKilometrazArkuszy(
     projekt.arkusze,
     projekt.kilometrazPoczatkowyM,
-    projekt.kilometrazKoncowyZadanyM,
   );
   return { ...projekt, arkusze };
 }
@@ -1046,7 +973,6 @@ export function usunArkusz(projekt: ProjektBudowy, arkuszId: string): ProjektBud
       kontynuacjaPoprzedniego: i === 0 ? false : true,
     })),
     projekt.kilometrazPoczatkowyM,
-    projekt.kilometrazKoncowyZadanyM,
   );
   const legenda = zbierzLegendeZArkuszy(arkusze, projekt.legenda);
   return {
@@ -1072,7 +998,6 @@ export function przesunArkusz(projekt: ProjektBudowy, arkuszId: string, kierunek
       kontynuacjaPoprzedniego: i > 0,
     })),
     projekt.kilometrazPoczatkowyM,
-    projekt.kilometrazKoncowyZadanyM,
   );
   return { ...projekt, arkusze };
 }

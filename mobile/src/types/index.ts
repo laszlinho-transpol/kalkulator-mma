@@ -539,12 +539,6 @@ export interface WierszPrzedmiaruScalony {
 
 export interface ProjektBudowy {
   kilometrazPoczatkowyM: number;
-  /**
-   * Ostatnia pikieta osi z PZT (np. 116031 dla 116+031).
-   * Gdy jest, długości arkuszy z XFDF są proporcjonalnie rozciągane,
-   * żeby 110+600 w projekcie = 110+600 w terenie.
-   */
-  kilometrazKoncowyZadanyM?: number;
   /** Co ile metrów rysować podziałkę na osi PZT (0 = wyłącz). Domyślnie 50. */
   podzialkaKilometrazuM?: number;
   skala: SkalaPzt;

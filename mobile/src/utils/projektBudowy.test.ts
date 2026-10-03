@@ -40,10 +40,7 @@ import {
   sumaOsiTrasyM,
   podsumowanieOsiTrasy,
   odsadzkiWarstwy,
-  wspolczynnikKalibracjiPzt,
-  kilometrazXfdfArkuszy,
 } from './projektBudowy';
-import { udzialStacjiNaOsi } from './osPzt';
 
 function prostokat(id: string, kolor: string, dlugoscM: number, szerM: number, nazwa: string): ObszarObmiaru {
   return {
@@ -373,7 +370,7 @@ describe('projektBudowy', () => {
     assert.deepEqual(numerArkuszaZNazwy('Mąkowarsko_2_1.xfdf'), { seria: 2, nr: 1 });
   });
 
-  it('czoła L/P wystające za kreskę osi wydłużają pikietaż arkusza', () => {
+  it('czoła L/P wystające za kreskę osi nie zmieniają pikietażu — liczy się linia osi XFDF', () => {
     const xfdf = `<?xml version="1.0"?><xfdf>
 <polygon interior-color="#FFEE58" subject="lewa"><vertices>-8,40;-8,20;2280,20;2280,40</vertices></polygon>
 <polygon interior-color="#FFC0CB" subject="prawa"><vertices>-8,20;-8,0;2280,0;2280,20</vertices></polygon>
@@ -386,8 +383,7 @@ describe('projektBudowy', () => {
       parsujXfdfTekst(xfdf, 'Mąkowarsko_2_1.xfdf'),
     ]);
     const d = dlugoscArkuszaM(projekt.arkusze[0]);
-    assert.ok(d > 400.4, `pikietaż ${d} ma być dłuższy niż kreska 400 m`);
-    assert.ok(d < 408, `pikietaż ${d} nie może brać wyspy/zjazdu`);
+    assert.ok(Math.abs(d - 400) < 0.05, `pikietaż ${d} ma być wymiarem osi 400 m`);
   });
 
   it('usuwa arkusz i przestawia kolejność z przeliczeniem km', () => {
@@ -527,7 +523,7 @@ describe('projektBudowy', () => {
     }, []), GESTOSC_MMA_DOMYSLNA);
   });
 
-  it('zadany 116+031 rozciąga XFDF; brak 2_9 (droga boczna) nie robi dziury na osi', () => {
+  it('suma osi XFDF daje 116+016; brak 2_9 (droga boczna) nie robi dziury na osi', () => {
     const nrs = Array.from({ length: 22 }, (_, i) => i + 1).filter((n) => n !== 9);
     assert.equal(nrs.length, 21);
     const xfdfM = 9166.36;
@@ -548,42 +544,27 @@ describe('projektBudowy', () => {
         dlugoscEtykietaM: dl,
       },
     }));
-    const bez = zastosujKilometrazArkuszy(arkusze0, 106850);
-    assert.equal(formatujKmM(bez[bez.length - 1].kilometrazKoncowyM), '116+016');
-    const zPzt = zastosujKilometrazArkuszy(arkusze0, 106850, 116031);
-    assert.equal(zPzt[zPzt.length - 1].kilometrazKoncowyM, 116031);
-    assert.equal(formatujKmM(zPzt[zPzt.length - 1].kilometrazKoncowyM), '116+031');
-    assert.equal(zPzt[0].kilometrazPoczatkowyM, 106850);
-    const i8 = zPzt.findIndex((a) => a.zrodloNazwa.includes('2_8'));
-    const i10 = zPzt.findIndex((a) => a.zrodloNazwa.includes('2_10'));
+    const zXfdf = zastosujKilometrazArkuszy(arkusze0, 106850);
+    assert.equal(formatujKmM(zXfdf[zXfdf.length - 1].kilometrazKoncowyM), '116+016');
+    assert.equal(zXfdf[0].kilometrazPoczatkowyM, 106850);
+    const i8 = zXfdf.findIndex((a) => a.zrodloNazwa.includes('2_8'));
+    const i10 = zXfdf.findIndex((a) => a.zrodloNazwa.includes('2_10'));
     assert.ok(i8 >= 0 && i10 === i8 + 1);
-    assert.equal(zPzt[i10].kilometrazPoczatkowyM, zPzt[i8].kilometrazKoncowyM);
+    assert.equal(zXfdf[i10].kilometrazPoczatkowyM, zXfdf[i8].kilometrazKoncowyM);
     const projekt: ProjektBudowy = {
       ...pustyProjektBudowy(106850),
-      kilometrazKoncowyZadanyM: 116031,
-      arkusze: zPzt,
+      arkusze: zXfdf,
     };
     const os = podsumowanieOsiTrasy(projekt);
     assert.match(os.lukaNumeracji ?? '', /2_9/);
     assert.match(os.lukaNumeracji ?? '', /boczn/);
     assert.ok(Math.abs(os.xfdfM - xfdfM) < 0.3);
-    assert.ok(Math.abs(os.kmM - 9181) < 0.05);
-    assert.ok(Math.abs(os.kalibracjaK - 9181 / os.xfdfM) < 1e-9);
-    assert.ok(Math.abs(wspolczynnikKalibracjiPzt(9166.36, 9181) - 9181 / 9166.36) < 1e-12);
-    assert.ok(os.kalibracjaK > 1.0015 && os.kalibracjaK < 1.0017);
-    const d0 = zPzt[0].osTrasy?.dlugoscM ?? 0;
-    assert.ok(Math.abs(d0 - (dl * 9181) / xfdfM) < 0.15, `oś arkusza ${d0}`);
-    const xf = kilometrazXfdfArkuszy(zPzt, 106850);
-    const last = zPzt[zPzt.length - 1];
-    const lastXf = xf[xf.length - 1];
-    assert.equal(formatujKmM(lastXf.doM), '116+016');
-    const fPzt = udzialStacjiNaOsi(last.kilometrazPoczatkowyM, last.kilometrazKoncowyM, 116000);
-    const fXfdf = udzialStacjiNaOsi(lastXf.odM, lastXf.doM, 116000);
-    assert.ok(fPzt > 0 && fPzt < 1 && fXfdf > 0 && fXfdf < 1);
-    assert.ok(fPzt < fXfdf - 0.02, `116+000 PZT ${fPzt} ma być wcześniej na osi niż XFDF ${fXfdf}`);
+    assert.ok(Math.abs(os.kmM - xfdfM) < 0.3);
+    const d0 = zXfdf[0].osTrasy?.dlugoscM ?? 0;
+    assert.ok(Math.abs(d0 - dl) < 0.15, `oś arkusza ${d0}`);
   });
 
-  it('przelicza projekt do pikiety końcowej PZT i pisze o rozciągnięciu XFDF', () => {
+  it('przelicza pikietaż wyłącznie z sumy osi XFDF', () => {
     const xfdfKrotka = (etykieta: string) => `<?xml version="1.0"?><xfdf>
 <polygon interior-color="#FFEE58"><vertices>0,40;0,20;80,20;80,40</vertices></polygon>
 <polyline color="#000000" style="dash">
@@ -597,15 +578,15 @@ describe('projektBudowy', () => {
     ]);
     const sumaXfdf = 435.68 + 422.07;
     assert.ok(Math.abs(projekt.arkusze[1].kilometrazKoncowyM - (106850 + sumaXfdf)) < 0.05);
-    projekt = przeliczProjektPoZmianieKm({ ...projekt, kilometrazKoncowyZadanyM: 107720 });
-    assert.equal(projekt.arkusze[1].kilometrazKoncowyM, 107720);
-    assert.equal(formatujKmM(projekt.arkusze[1].kilometrazKoncowyM), '107+720');
+    projekt = przeliczProjektPoZmianieKm(projekt);
+    assert.ok(Math.abs(projekt.arkusze[1].kilometrazKoncowyM - (106850 + sumaXfdf)) < 0.05);
+    assert.equal(formatujKmM(projekt.arkusze[1].kilometrazKoncowyM), '107+708');
     const os = podsumowanieOsiTrasy(projekt);
     assert.ok(Math.abs(os.xfdfM - sumaXfdf) < 0.05);
-    assert.ok(Math.abs(os.kmM - (107720 - 106850)) < 0.05);
-    assert.ok(Math.abs(os.kalibracjaK - os.kmM / os.xfdfM) < 1e-9);
+    assert.ok(Math.abs(os.kmM - sumaXfdf) < 0.05);
     const msg = komunikatPoImporcieXfdf(pustyProjektBudowy(106850), projekt, ['Ark_2_1.xfdf', 'Ark_2_2.xfdf']);
-    assert.match(msg, /rozciągnięt/i);
+    assert.match(msg, /XFDF/);
     assert.match(msg, /857[,.]75/);
+    assert.doesNotMatch(msg, /rozciągnięt/i);
   });
 });

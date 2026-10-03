@@ -75,29 +75,21 @@ function kmAlboPuste(v: number | null | undefined): string {
 
 function tekstHintuPomiaru(n: number, metry: number | null): string {
   if (n === 0) {
-    return 'Zmierz: zaznacz „Ramka”, przybliż nadruk (np. 115+700) i tapnij kreskę na osi. Drugie tapnięcie = kolejna pikieta (115+800). Wynik w metrach 1:500, bez k.';
+    return 'Zmierz: zaznacz „Ramka”, przybliż nadruk (np. 115+700) i tapnij kreskę na osi. Drugie tapnięcie = kolejna pikieta (115+800). Wynik w metrach 1:500.';
   }
   if (n === 1) return 'Zmierz: tapnij drugą pikietę na osi (np. 115+800).';
   const m = (metry ?? 0).toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  return `Zmierz 1:500 (bez k): ${m} m. Trzecie tapnięcie zaczyna nowy odcinek.`;
+  return `Zmierz 1:500: ${m} m. Trzecie tapnięcie zaczyna nowy odcinek.`;
 }
 
 function tekstKmPunktow(w: WynikPomiaruOsi): string {
-  const xfdfRozne = w.kmXfdfA != null && w.kmPztA != null && Math.abs(w.kmXfdfA - w.kmPztA) > 0.4;
-  if (!xfdfRozne) {
-    return `A ${kmAlboPuste(w.kmPztA)} · B ${kmAlboPuste(w.kmPztB)}`;
-  }
-  return `A: XFDF ${kmAlboPuste(w.kmXfdfA)} / PZT ${kmAlboPuste(w.kmPztA)} · B: XFDF ${kmAlboPuste(w.kmXfdfB)} / PZT ${kmAlboPuste(w.kmPztB)}`;
+  return `A ${kmAlboPuste(w.kmPztA)} · B ${kmAlboPuste(w.kmPztB)}`;
 }
 
 function tekstOsi1500(os1500M: number, xfdfM: number | undefined, dlM: number): string {
   const a = os1500M.toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const pzt = dlM.toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  if (xfdfM && xfdfM > 1) {
-    const x = xfdfM.toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    return `Oś 1:500 = ${a} m · XFDF = ${x} m · PZT = ${pzt} m. Na 2_22 XFDF i 1:500 to to samo (422,07 m); 116+031 to +1 m na tym arkuszu i ~14 m z k na ark. 1–21.`;
-  }
-  return `Oś 1:500 = ${a} m · PZT = ${pzt} m.`;
+  const xfdf = (xfdfM && xfdfM > 1 ? xfdfM : dlM).toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return `Oś 1:500 = ${a} m · XFDF = ${xfdf} m.`;
 }
 
 interface LiveAutoPzt {
@@ -119,11 +111,6 @@ interface Props {
   onPressAuto?: (id: string) => void;
   /** Co ile metrów kreska pikiety na osi (0 = wyłącz). */
   podzialkaM?: number;
-  /**
-   * Surowy zakres XFDF tego arkusza (bez k). Na tle PDF: pomarańczowe kreski.
-   * Poligony zostają na wierzchołkach PDF; kalibracja nie przesuwa tła.
-   */
-  pikietazXfdf?: { odM: number; doM: number } | null;
 }
 
 export function PztArkuszPodglad({
@@ -138,7 +125,6 @@ export function PztArkuszPodglad({
   liveAuta,
   onPressAuto,
   podzialkaM = 50,
-  pikietazXfdf = null,
 }: Props) {
   const [rozmiar, setRozmiar] = useState({ w: 320, h: wysokosc });
   const [skalaPct, setSkalaPct] = useState(100);
@@ -265,11 +251,6 @@ export function PztArkuszPodglad({
       }).filter((x): x is NonNullable<typeof x> => !!x);
     };
     const podzialki = kreski(arkusz.kilometrazPoczatkowyM, arkusz.kilometrazKoncowyM, 1);
-    const xfdfRozne = !!(pikietazXfdf
-      && Math.abs((pikietazXfdf.doM - pikietazXfdf.odM) - dlM) > 0.4);
-    const podzialkiXfdf = xfdfRozne && pikietazXfdf
-      ? kreski(pikietazXfdf.odM, pikietazXfdf.doM, 0.72)
-      : [];
     const mapaSvg = { w: rozmiar.w, h: rozmiar.h, cx, cy, skalaFit };
     const os1500M = osPdf && osPdf.length >= 2 ? dlugoscOsiPdf1500M(osPdf) : 0;
     const xfdfM = arkusz.osTrasy?.dlugoscEtykietaM;
@@ -287,10 +268,8 @@ export function PztArkuszPodglad({
       rozkladarka,
       auta,
       podzialki,
-      podzialkiXfdf,
-      xfdfRozne,
     };
-  }, [arkusz, geometria, rozmiar.w, rozmiar.h, liveStacjaM, liveAuta, podzialkaM, pikietazXfdf]);
+  }, [arkusz, geometria, rozmiar.w, rozmiar.h, liveStacjaM, liveAuta, podzialkaM]);
 
   const mapaRef = useRef(mapa);
   mapaRef.current = mapa;
@@ -325,12 +304,9 @@ export function PztArkuszPodglad({
       a: punktyPomiaru[0],
       b: punktyPomiaru[1],
       kmPzt: { odM: arkusz.kilometrazPoczatkowyM, doM: arkusz.kilometrazKoncowyM },
-      kmXfdf: pikietazXfdf ?? {
-        odM: arkusz.kilometrazPoczatkowyM,
-        doM: arkusz.kilometrazKoncowyM,
-      },
+      kmXfdf: { odM: arkusz.kilometrazPoczatkowyM, doM: arkusz.kilometrazKoncowyM },
     });
-  }, [mapa, punktyPomiaru, arkusz.kilometrazPoczatkowyM, arkusz.kilometrazKoncowyM, pikietazXfdf]);
+  }, [mapa, punktyPomiaru, arkusz.kilometrazPoczatkowyM, arkusz.kilometrazKoncowyM]);
 
   const rysunekPomiaru = useMemo(() => {
     if (!mapa?.osPdf || punktyPomiaru.length === 0) return null;
@@ -761,32 +737,6 @@ export function PztArkuszPodglad({
                             vectorEffect="non-scaling-stroke"
                           />
                         ) : null}
-                        {mapa.podzialkiXfdf.map((t) => (
-                          <G key={`xf-${t.kmM}`}>
-                            <Line
-                              x1={t.x1}
-                              y1={t.y1}
-                              x2={t.x2}
-                              y2={t.y2}
-                              stroke="#EA580C"
-                              strokeWidth={swEkran * 0.85}
-                              strokeDasharray={`${dash * 0.5} ${dash * 0.45}`}
-                              strokeLinecap="butt"
-                              vectorEffect="non-scaling-stroke"
-                            />
-                            <SvgText
-                              x={t.tx}
-                              y={t.ty}
-                              fontSize={t.fontSvg}
-                              fontWeight="600"
-                              fill="#EA580C"
-                              textAnchor="middle"
-                              alignmentBaseline="middle"
-                            >
-                              {t.etykieta}
-                            </SvgText>
-                          </G>
-                        ))}
                         {mapa.podzialki.map((t) => (
                           <G key={`pk-${t.kmM}`}>
                             <Line
@@ -794,7 +744,7 @@ export function PztArkuszPodglad({
                               y1={t.y1}
                               x2={t.x2}
                               y2={t.y2}
-                              stroke="#0F766E"
+                              stroke="#374151"
                               strokeWidth={swEkran * 0.75}
                               strokeLinecap="butt"
                               vectorEffect="non-scaling-stroke"
@@ -804,7 +754,7 @@ export function PztArkuszPodglad({
                               y={t.ty}
                               fontSize={t.fontSvg}
                               fontWeight="600"
-                              fill="#0F766E"
+                              fill="#374151"
                               textAnchor="middle"
                               alignmentBaseline="middle"
                             >
@@ -917,14 +867,6 @@ export function PztArkuszPodglad({
           ? `Tło PDF: ${tloMeta.nazwa}${buforTla ? '' : ' — odtwarzanie z pamięci przeglądarki… Jeśli nie wraca, otwórz konfigurator teł.'}`
           : 'Żeby widać było pikiety, pobocza i budynki, wgraj oryginalny PDF arkusza („+ Tło PDF”). Nazwy nie muszą być identyczne z XFDF – wystarczy numer arkusza (Ark_2_1) albo jeden PDF na otwartą zakładkę.'}
       </Text>
-      {mapa.xfdfRozne ? (
-        <Text style={styl.hintPod}>
-          <Text style={{ color: '#0F766E', fontWeight: '800' }}>zielone</Text>
-          {' = pikiety PZT (po k). '}
-          <Text style={{ color: '#EA580C', fontWeight: '800' }}>pomarańczowe</Text>
-          {' = XFDF bez k — do 21. arkusza bliżej nadruku. Na ostatnim arkuszu zmierz podziałkę (Zmierz): 115+700 → 115+800 ma być ~100 m na 1:500.'}
-        </Text>
-      ) : null}
       <Text style={styl.hintPod}>
         {blokadaPodgladu
           ? 'Blokada ramki: przesuwanie i zoom w podglądzie (strona nie scrolluje). Odznacz „Ramka”, aby przewinąć w dół.'
