@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.7';
+export const WERSJA_APLIKACJI = '1.8.8';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,16 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.8',
+    data: '2026-10-03',
+    tytul: 'Zaplanuj masę – 0 cm = obrys, bez odsadzki przy krawężniku',
+    zmiany: [
+      '0 cm w planie to sam obrys PZT – odsadzka z konstrukcji (np. 15 cm) nie dodaje się sama',
+      'Dodatnia odsadzka poszerza tylko tam, gdzie nie ma krawężnika; przy krawężniku zostaje obrys',
+      'Ujemna nadal zwęża (np. −10 cm)',
+    ],
+  },
   {
     wersja: '1.8.7',
     data: '2026-10-03',

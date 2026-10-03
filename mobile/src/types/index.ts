@@ -163,15 +163,11 @@ export interface Plan {
   warstwaKategoria?: KategoriaWarstwy;
   kilometrazOdM?: number;
   kilometrazDoM?: number;
-  /**
-   * Korekta odsadzki L względem konstrukcji [cm] (nowe plany).
-   * Stare plany bez odsadzkaKorekta* — extra względem obrysu PZT.
-   */
+  /** Extra L vs obrys PZT [cm]. 0 = sam obrys. Ujemna zwęża. Przy krawężniku dodatnia = 0. */
   odsadzkaLewaCm?: number;
   odsadzkaPrawaCm?: number;
-  /** Korekta L vs konstrukcja [cm]. 0 = konstrukcja, ujemna zwęża. */
+  /** Alias zapisu z formularza (ta sama wartość co odsadzkaLewaCm). */
   odsadzkaKorektaLewaCm?: number;
-  /** Korekta P vs konstrukcja [cm]. 0 = konstrukcja, ujemna zwęża. */
   odsadzkaKorektaPrawaCm?: number;
   createdAt: string;
   updatedAt: string;

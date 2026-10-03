@@ -7,10 +7,12 @@ import type {
   DzialkaRobocza,
   FiguraProstokat,
   KategoriaWarstwy,
+  KrawedznikObmiaru,
   Mieszanka,
   Plan,
   ObszarObmiaru,
   ProjektBudowy,
+  Punkt2D,
   Rzut,
   WarstwaKonstrukcji,
   WpisLegendy,
@@ -21,6 +23,7 @@ import {
   arkuszeNachodzaceNaKm,
   arkuszWycinekDlaKm,
   powierzchniaWycinkaM2,
+  stacjaNaOsi,
   stacjeLokalneNaOsiM,
 } from './osPzt';
 import {
@@ -170,6 +173,66 @@ function pasujeObszarLegendy(projekt: ProjektBudowy, legendaId: string) {
     !!wpis && kluczLegendy('obszar', o.kolorWypelnienia) === wpis.klucz;
 }
 
+/** Krawężnik zewnętrzny L / od osi P na jezdni lewej; odwrotnie na prawej. */
+export function stronaKrawedznika(
+  obszar: Pick<ObszarObmiaru, 'stronaTrasy'>,
+  kr: Pick<KrawedznikObmiaru, 'polozenie'>,
+): 'lewa' | 'prawa' {
+  if (obszar.stronaTrasy === 'prawa') {
+    return kr.polozenie === 'zewnetrzna' ? 'prawa' : 'lewa';
+  }
+  return kr.polozenie === 'zewnetrzna' ? 'lewa' : 'prawa';
+}
+
+function zakresKrawedznikaNaOsi(kr: Pick<KrawedznikObmiaru, 'wierzcholkiM'>, osM: Punkt2D[]): { s0: number; s1: number } | null {
+  if (osM.length < 2 || kr.wierzcholkiM.length < 1) return null;
+  const stacje = kr.wierzcholkiM.map((p) => stacjaNaOsi(osM, p));
+  return { s0: Math.min(...stacje), s1: Math.max(...stacje) };
+}
+
+/** 0…1: jaka część wycinka [s0,s1] ma krawężnik na danej stronie. */
+export function udzialKrawedznikaNaStronie(
+  obszar: ObszarObmiaru,
+  osM: Punkt2D[] | undefined,
+  s0: number,
+  s1: number,
+  strona: 'lewa' | 'prawa',
+): number {
+  const dl = Math.max(0, s1 - s0);
+  const lista = (obszar.krawedzniki ?? []).filter((kr) => stronaKrawedznika(obszar, kr) === strona && kr.dlugoscM > 1);
+  if (lista.length === 0) return 0;
+  if (dl < 1e-6 || !osM || osM.length < 2) return 1;
+  let pokryte = 0;
+  for (const kr of lista) {
+    const z = zakresKrawedznikaNaOsi(kr, osM);
+    if (!z) {
+      pokryte += dl;
+      continue;
+    }
+    const a = Math.max(s0, Math.min(z.s0, z.s1));
+    const b = Math.min(s1, Math.max(z.s0, z.s1));
+    if (b > a) pokryte += b - a;
+  }
+  return Math.max(0, Math.min(1, pokryte / dl));
+}
+
+/** Dodatnia odsadzka tylko tam, gdzie nie ma krawężnika. Ujemna (zwężenie) zostaje. */
+export function odsadzkiBezKrawedznika(
+  obszar: ObszarObmiaru,
+  osM: Punkt2D[] | undefined,
+  s0: number,
+  s1: number,
+  odsadzkaLewaCm: number,
+  odsadzkaPrawaCm: number,
+): { lewa: number; prawa: number } {
+  const uL = odsadzkaLewaCm > 0 ? udzialKrawedznikaNaStronie(obszar, osM, s0, s1, 'lewa') : 0;
+  const uP = odsadzkaPrawaCm > 0 ? udzialKrawedznikaNaStronie(obszar, osM, s0, s1, 'prawa') : 0;
+  return {
+    lewa: odsadzkaLewaCm > 0 ? odsadzkaLewaCm * (1 - uL) : odsadzkaLewaCm,
+    prawa: odsadzkaPrawaCm > 0 ? odsadzkaPrawaCm * (1 - uP) : odsadzkaPrawaCm,
+  };
+}
+
 export function powierzchniaOdcinkaM2(
   projekt: ProjektBudowy,
   legendaId: string,
@@ -189,13 +252,15 @@ export function powierzchniaOdcinkaM2(
     if (s1 <= s0 + 0.05) continue;
     if (osM && osM.length >= 2) {
       for (const o of matching) {
-        suma += powierzchniaWycinkaM2(o, osM, s0, s1, odsadzkaLewaCm, odsadzkaPrawaCm);
+        const ods = odsadzkiBezKrawedznika(o, osM, s0, s1, odsadzkaLewaCm, odsadzkaPrawaCm);
+        suma += powierzchniaWycinkaM2(o, osM, s0, s1, ods.lewa, ods.prawa);
       }
     } else {
       const dlArk = Math.max(0.01, arkusz.kilometrazKoncowyM - arkusz.kilometrazPoczatkowyM);
       const udzial = Math.max(0, s1 - s0) / dlArk;
-      const extra = Math.abs(s1 - s0) * ((odsadzkaLewaCm + odsadzkaPrawaCm) / 100);
       for (const o of matching) {
+        const ods = odsadzkiBezKrawedznika(o, osM, s0, s1, odsadzkaLewaCm, odsadzkaPrawaCm);
+        const extra = Math.abs(s1 - s0) * ((ods.lewa + ods.prawa) / 100);
         suma += o.powierzchniaM2 * udzial + extra / Math.max(matching.length, 1);
       }
     }
@@ -217,10 +282,9 @@ export function parsujOdsadzkeCm(s: string): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-/** Korekta planu vs konstrukcja. Stary zapis (bez pól korekty) to extra względem obrysu. */
-export function korektaOdsadzkiZPlanu(
+/** Wartość wpisana w planie (extra vs obrys PZT). Konstrukcja nie jest doliczana. */
+export function odsadzkiWpisaneWPlanie(
   plan: Pick<Plan, 'odsadzkaLewaCm' | 'odsadzkaPrawaCm' | 'odsadzkaKorektaLewaCm' | 'odsadzkaKorektaPrawaCm'>,
-  konstrukcja: { lewa: number; prawa: number },
 ): { lewa: number; prawa: number } {
   if (plan.odsadzkaKorektaLewaCm != null || plan.odsadzkaKorektaPrawaCm != null) {
     return {
@@ -229,13 +293,9 @@ export function korektaOdsadzkiZPlanu(
     };
   }
   return {
-    lewa: (plan.odsadzkaLewaCm ?? 0) - konstrukcja.lewa,
-    prawa: (plan.odsadzkaPrawaCm ?? 0) - konstrukcja.prawa,
+    lewa: plan.odsadzkaLewaCm ?? 0,
+    prawa: plan.odsadzkaPrawaCm ?? 0,
   };
-}
-
-export function odsadzkaEfektywnaCm(konstrukcjaCm: number, korektaCm: number): number {
-  return konstrukcjaCm + korektaCm;
 }
 
 export function policzOdcinkiPlanu(
@@ -246,7 +306,7 @@ export function policzOdcinkiPlanu(
     doM: number;
     warstwaNazwa: string;
     warstwaKategoria?: KategoriaWarstwy;
-    /** Korekta vs odsadzka warstwy w konstrukcji [cm]. 0 = konstrukcja, ujemna zwęża. */
+    /** Extra vs obrys PZT [cm]. 0 = sam obrys. Ujemna zwęża. Przy krawężniku dodatnia = 0. */
     odsadzkaLewaCm: number;
     odsadzkaPrawaCm: number;
     gestoscTm3: number;
@@ -265,9 +325,8 @@ export function policzOdcinkiPlanu(
   const tonaz = Math.max(0.01, opts.tonazAuta);
   return baza.map((s, i) => {
     const grubosc = opts.grubosciCm?.[i] ?? s.gruboscProjektowaCm;
-    const konstrukcja = s.warstwa ? odsadzkiWarstwy(s.warstwa) : { lewa: 0, prawa: 0 };
-    const lewa = odsadzkaEfektywnaCm(konstrukcja.lewa, opts.odsadzkaLewaCm);
-    const prawa = odsadzkaEfektywnaCm(konstrukcja.prawa, opts.odsadzkaPrawaCm);
+    const lewa = opts.odsadzkaLewaCm;
+    const prawa = opts.odsadzkaPrawaCm;
     const pow = powierzchniaOdcinkaM2(
       projekt,
       opts.legendaId,
@@ -336,7 +395,7 @@ export interface DanePlanuZBudowy {
   warstwaKategoria?: KategoriaWarstwy;
   kilometrazOdM: number;
   kilometrazDoM: number;
-  /** Korekta vs konstrukcja [cm]. */
+  /** Extra vs obrys PZT [cm]. 0 = sam obrys. */
   odsadzkaLewaCm: number;
   odsadzkaPrawaCm: number;
   mieszankaId: string;

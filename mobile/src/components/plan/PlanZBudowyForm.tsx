@@ -26,7 +26,7 @@ import { formatujKmM } from '../../utils/projektBudowy';
 import {
   gestoscZRecepty,
   komentarzPlanuBudowy,
-  korektaOdsadzkiZPlanu,
+  odsadzkiWpisaneWPlanie,
   opcjeWarstwWZakresie,
   parsujOdsadzkeCm,
   policzOdcinkiPlanu,
@@ -74,15 +74,8 @@ export function PlanZBudowyForm({ tytul, budowaId, initialPlan, onZapisz }: Prop
   const [doM, setDoM] = useState('000');
   const [warstwaNazwa, setWarstwaNazwa] = useState(initialPlan?.warstwaNazwa ?? '');
   const [warstwaKat, setWarstwaKat] = useState<KategoriaWarstwy | undefined>(initialPlan?.warstwaKategoria);
-  const [odsL, setOdsL] = useState(
-    initialPlan?.odsadzkaKorektaLewaCm != null ? String(initialPlan.odsadzkaKorektaLewaCm) : '0',
-  );
-  const [odsP, setOdsP] = useState(
-    initialPlan?.odsadzkaKorektaPrawaCm != null ? String(initialPlan.odsadzkaKorektaPrawaCm) : '0',
-  );
-  const [korektaZPlanu, setKorektaZPlanu] = useState(
-    !initialPlan || initialPlan.odsadzkaKorektaLewaCm != null || initialPlan.odsadzkaKorektaPrawaCm != null,
-  );
+  const [odsL, setOdsL] = useState(() => String(odsadzkiWpisaneWPlanie(initialPlan ?? {}).lewa));
+  const [odsP, setOdsP] = useState(() => String(odsadzkiWpisaneWPlanie(initialPlan ?? {}).prawa));
   const [mieszankaId, setMieszankaId] = useState(initialPlan?.dzialki[0]?.mieszankaId ?? '');
   const [grubosci, setGrubosci] = useState<string[]>([]);
   const [tonazStr, setTonazStr] = useState(initialPlan ? String(initialPlan.tonazAuta) : '25.5');
@@ -131,15 +124,6 @@ export function PlanZBudowyForm({ tytul, budowaId, initialPlan, onZapisz }: Prop
     setWarstwaKat(pierwsza.kategoria);
     if (pierwsza.mieszankaIds.length === 1) setMieszankaId(pierwsza.mieszankaIds[0]);
   }, [opcjeWarstw, warstwaNazwa]);
-
-  useEffect(() => {
-    if (korektaZPlanu || !initialPlan || opcjeWarstw.length === 0) return;
-    const w = opcjeWarstw.find((x) => x.nazwa === (initialPlan.warstwaNazwa ?? warstwaNazwa)) ?? opcjeWarstw[0];
-    const k = korektaOdsadzkiZPlanu(initialPlan, { lewa: w.odsadzkaLewaCm, prawa: w.odsadzkaPrawaCm });
-    setOdsL(String(k.lewa));
-    setOdsP(String(k.prawa));
-    setKorektaZPlanu(true);
-  }, [korektaZPlanu, initialPlan, opcjeWarstw, warstwaNazwa]);
 
   const warstwaOpcja = opcjeWarstw.find((w) => w.nazwa === warstwaNazwa);
   const gestosc = gestoscZRecepty(mieszankaId, mieszanki);
@@ -310,21 +294,21 @@ export function PlanZBudowyForm({ tytul, budowaId, initialPlan, onZapisz }: Prop
 
           <Sekcja tytul="Odsadzki i recepta" theme={theme}>
             <Text style={[styl.hint, { color: theme.colors.textSecondary }]}>
-              Korekta względem konstrukcji. 0 cm = odsadzka z warstwy (np. podbudowa 15 cm L).
-              Dodatnia poszerza, ujemna zwęża — −10 cm = 10 cm węziej. Nie wpisuj ponownie 15, bo doliczy się drugi raz.
+              0 cm = sam obrys z PZT (konstrukcja, np. 15 cm, nie dodaje się sama).
+              Dodatnia poszerza tylko tam, gdzie nie ma krawężnika. Przy krawężniku zostaje obrys.
+              Ujemna zwęża, np. −10 cm.
             </Text>
             {warstwaOpcja ? (
               <Text style={[styl.hint, { color: theme.colors.text }]}>
-                Konstrukcja L {formatLiczby(warstwaOpcja.odsadzkaLewaCm, 1)} / P {formatLiczby(warstwaOpcja.odsadzkaPrawaCm, 1)} cm
-                {'  →  '}łącznie L {formatLiczby(warstwaOpcja.odsadzkaLewaCm + parsujOdsadzkeCm(odsL), 1)} / P {formatLiczby(warstwaOpcja.odsadzkaPrawaCm + parsujOdsadzkeCm(odsP), 1)} cm
+                W konstrukcji: L {formatLiczby(warstwaOpcja.odsadzkaLewaCm, 1)} / P {formatLiczby(warstwaOpcja.odsadzkaPrawaCm, 1)} cm (nie doliczane automatycznie)
               </Text>
             ) : null}
             <View style={styl.dwa}>
               <View style={{ flex: 1 }}>
-                <NumericInput label="Korekta lewa" value={odsL} onChangeText={setOdsL} unit="cm" decimals={1} allowNegative />
+                <NumericInput label="Odsadzka lewa" value={odsL} onChangeText={setOdsL} unit="cm" decimals={1} allowNegative />
               </View>
               <View style={{ flex: 1 }}>
-                <NumericInput label="Korekta prawa" value={odsP} onChangeText={setOdsP} unit="cm" decimals={1} allowNegative />
+                <NumericInput label="Odsadzka prawa" value={odsP} onChangeText={setOdsP} unit="cm" decimals={1} allowNegative />
               </View>
             </View>
             <Text style={[styl.etykieta, { color: theme.colors.textSecondary }]}>Recepta</Text>
