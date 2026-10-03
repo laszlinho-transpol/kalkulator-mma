@@ -19,10 +19,48 @@ interface DatePickerButtonProps {
   minimumDate?: Date;
 }
 
+function ymd(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 export function DatePickerButton({ label, value, onChange, minimumDate }: DatePickerButtonProps) {
   const colorScheme = useColorScheme();
   const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
   const [show, setShow] = useState(false);
+
+  if (Platform.OS === 'web') {
+    return (
+      <View style={styles.container}>
+        <Text style={[styles.label, { color: theme.colors.textSecondary }]}>{label}</Text>
+        <input
+          type="date"
+          value={ymd(value)}
+          min={minimumDate ? ymd(minimumDate) : undefined}
+          onChange={(e) => {
+            const v = (e.target as HTMLInputElement).value;
+            if (!v) return;
+            const d = new Date(`${v}T06:00:00`);
+            if (!Number.isNaN(d.getTime())) onChange(d);
+          }}
+          style={{
+            borderWidth: 1,
+            borderStyle: 'solid',
+            borderColor: theme.colors.border,
+            backgroundColor: theme.colors.inputBackground,
+            color: theme.colors.text,
+            borderRadius: 10,
+            padding: '12px 14px',
+            fontSize: 15,
+            width: '100%',
+            boxSizing: 'border-box',
+          }}
+        />
+      </View>
+    );
+  }
 
   const handleChange = (_event: any, selectedDate?: Date) => {
     if (Platform.OS === 'android') setShow(false);

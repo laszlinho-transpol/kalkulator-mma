@@ -201,7 +201,7 @@ export default function ArchiwumDetailScreen() {
                   {wpisyDz.length > 0 && (
                     <>
                       <IR label="Wbudowano" v={`${formatLiczby(sumaTonDz, 2)} Mg`} theme={theme} bold />
-                      <IR label="Metry" v={`${formatLiczby(sumaMetrDz)} m (${formatujPikietaz(kmStart)} – ${formatujPikietaz(kmStart + sumaMetrDz)})`} theme={theme} />
+                      <IR label="Metry" v={`${formatLiczby(sumaMetrDz)} m (${formatujPikietaz(kmStart)} – ${formatujPikietaz(dz.kierunekUkladania === 'malejacy' ? kmStart - sumaMetrDz : kmStart + sumaMetrDz)})`} theme={theme} />
                       <IR label="Aut" v={`${wpisyDz.length}`} theme={theme} />
                     </>
                   )}

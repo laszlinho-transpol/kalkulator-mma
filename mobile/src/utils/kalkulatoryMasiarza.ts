@@ -14,56 +14,104 @@ export function wydajnoscGrubosciowa(
   return (masaMg / (dlugoscM * szerokoscM * gestosc)) * 100;
 }
 
+export const MAX_POSZERZEN_STRONA = 4;
+export const DOMYSLNA_SZER_POSZERZENIA = 0.75;
+
+export function sumaPoszerzen(poszerzenia: number[]): number {
+  return poszerzenia.reduce((acc, w) => acc + (Number.isFinite(w) && w > 0 ? w : 0), 0);
+}
+
+export interface KonfiguracjaStolu {
+  poszL: number;
+  poszP: number;
+  stolPodstawowy: number;
+  szerMin: number;
+  szerMax: number;
+}
+
+export function konfiguracjaStolu(
+  wPodstawa: number,
+  wMaxStolu: number,
+  poszerzeniaL: number[],
+  poszerzeniaP: number[],
+): KonfiguracjaStolu {
+  const poszL = sumaPoszerzen(poszerzeniaL);
+  const poszP = sumaPoszerzen(poszerzeniaP);
+  return {
+    poszL,
+    poszP,
+    stolPodstawowy: wPodstawa,
+    szerMin: wPodstawa + poszL + poszP,
+    szerMax: wMaxStolu + poszL + poszP,
+  };
+}
+
 export interface WynikWskaznikaRozkladarki {
+  odOsiM: number;
+  odGasiennicyM: number;
+  odPlozyM: number;
   odOsiCm: number;
   odGasiennicyCm: number;
   odPlozyCm: number;
   sumaSzerokosciM: number;
+  szerMinM: number;
+  szerMaxM: number;
+  stolPodstawowyM: number;
   strona: 'Lewa' | 'Prawa';
 }
 
 export function obliczWskaznikRozkladarki(params: {
-  wBaza: number;
-  poszLeweIlosc: number;
-  poszLeweSzer: number;
-  poszPraweIlosc: number;
-  poszPraweSzer: number;
-  wDocelowaL: number;
-  wDocelowaP: number;
+  wPodstawa: number;
+  wMaxStolu: number;
+  poszerzeniaL: number[];
+  poszerzeniaP: number[];
+  wDocelowa: number;
   strona: 'lewa' | 'prawa';
   lLinka: number;
-}): { ok: true; wynik: WynikWskaznikaRozkladarki } | { ok: false; blad: string } {
+}): { ok: true; wynik: WynikWskaznikaRozkladarki } | { ok: false; blad: string; konfiguracja: KonfiguracjaStolu } {
   const {
-    wBaza, poszLeweIlosc, poszLeweSzer, poszPraweIlosc, poszPraweSzer,
-    wDocelowaL, wDocelowaP, strona, lLinka,
+    wPodstawa, wMaxStolu, poszerzeniaL, poszerzeniaP, wDocelowa, strona, lLinka,
   } = params;
+  const konfiguracja = konfiguracjaStolu(wPodstawa, wMaxStolu, poszerzeniaL, poszerzeniaP);
 
-  const poszL = poszLeweIlosc * poszLeweSzer;
-  const poszP = poszPraweIlosc * poszPraweSzer;
-  const minL = wBaza / 2 + poszL;
-  const maxL = wBaza + poszL;
-  const minP = wBaza / 2 + poszP;
-  const maxP = wBaza + poszP;
-
-  if (wDocelowaL < minL || wDocelowaL > maxL) {
-    return { ok: false, blad: `Lewa strona układa od ${minL.toFixed(2)} m do ${maxL.toFixed(2)} m` };
+  if (wPodstawa <= 0) {
+    return { ok: false, blad: 'Podstawa stołu musi być większa od 0', konfiguracja };
   }
-  if (wDocelowaP < minP || wDocelowaP > maxP) {
-    return { ok: false, blad: `Prawa strona układa od ${minP.toFixed(2)} m do ${maxP.toFixed(2)} m` };
+  if (wMaxStolu + 1e-9 < wPodstawa) {
+    return { ok: false, blad: 'Max. szerokość stołu nie może być mniejsza od podstawy', konfiguracja };
+  }
+  if (lLinka < 0) {
+    return { ok: false, blad: 'Odległość linki nie może być ujemna', konfiguracja };
+  }
+  if (wDocelowa <= 0) {
+    return { ok: false, blad: 'Docelowa szerokość układania musi być większa od 0', konfiguracja };
+  }
+  if (wDocelowa + 1e-9 < konfiguracja.szerMin || wDocelowa - 1e-9 > konfiguracja.szerMax) {
+    return {
+      ok: false,
+      blad: `Stół układa od ${konfiguracja.szerMin.toFixed(2)} m do ${konfiguracja.szerMax.toFixed(2)} m`,
+      konfiguracja,
+    };
   }
 
-  const wStrony = strona === 'lewa' ? wDocelowaL : wDocelowaP;
+  const wStrony = wDocelowa / 2;
   const odOsi = wStrony + lLinka;
-  const odGasiennicy = wStrony - wBaza / 2 + lLinka;
+  const odGasiennicy = wStrony - wPodstawa / 2 + lLinka;
   const odPlozy = lLinka;
 
   return {
     ok: true,
     wynik: {
+      odOsiM: Math.round(odOsi * 100) / 100,
+      odGasiennicyM: Math.round(odGasiennicy * 100) / 100,
+      odPlozyM: Math.round(odPlozy * 100) / 100,
       odOsiCm: Math.round(odOsi * 100),
       odGasiennicyCm: Math.round(odGasiennicy * 100),
       odPlozyCm: Math.round(odPlozy * 100),
-      sumaSzerokosciM: wDocelowaL + wDocelowaP,
+      sumaSzerokosciM: wDocelowa,
+      szerMinM: konfiguracja.szerMin,
+      szerMaxM: konfiguracja.szerMax,
+      stolPodstawowyM: konfiguracja.stolPodstawowy,
       strona: strona === 'lewa' ? 'Lewa' : 'Prawa',
     },
   };

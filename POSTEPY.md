@@ -710,3 +710,78 @@ Użytkownik wpisuje **auto + metry**, a program:
 **Weryfikacja**: `npm run verify` → **32/32 testów** ✅
 
 ---
+
+## ETAP 18 – LIVE scalony szkic, HTML v3.1, Wyczyść LIVE (1.5.8)
+**Data:** 2026-07-06
+**Status:** ✅ UKOŃCZONY
+**Branch:** `cursor/kalkulator-mma-live-progress-0a0b`
+**Wersja aplikacji:** 1.5.8 (versionCode 15)
+
+### Co zostało zrobione
+
+1. **`PlanCalySketch`** – jeden ciągły, przewijalny szkic planu dnia (skala live)
+2. **Modal auta** – odcinek 1→N na całym planie (`obliczPodsumowanieOdcinkaPlanu`)
+3. **Bilans LIVE** – „Do końca metrów” + pole „Gdzie powinniśmy dojechać” przy dodawaniu auta
+4. **Wyczyść LIVE** – przycisk w Zakończeniu dniówki (`wyczyścWpisyPlanu` + reset sesji)
+5. **Eksport HTML v3.1** – zsynchronizowany LIVE z aplikacją (szkic, tabela całości, modal, Wyczyść)
+
+**Weryfikacja**: `npm run verify` → **34/34 testów** ✅
+
+---
+
+## ETAP 19 – LIVE metry z auta / od startu, sumy Mg (1.5.9)
+**Data:** 2026-07-06
+**Status:** ✅ UKOŃCZONY
+**Branch:** `cursor/kalkulator-mma-live-progress-0a0b`
+**Wersja aplikacji:** 1.5.9 (versionCode 16)
+
+### Co zostało zrobione
+
+1. Formularz auta – przełącznik **metry z auta** / **od startu planu** z auto-przeliczaniem drugiego pola
+2. „Gdzie dojechać” – **od startu / z auta**
+3. Bilans – **do wbudowania (plan/śr.)** z sumą łączną w nawiasie
+4. HTML v3.1 – zsynchronizowany formularz i bilans
+
+---
+
+## ETAP 20 – Obmiar PZT: XFDF, kolejność, wiele PDF (1.6.0)
+**Data:** 2026-09-04
+**Status:** ✅ UKOŃCZONY (fundament)
+**Branch:** `cursor/kalkulator-mma-obmiar-xfdf-0a0b`
+**Wersja aplikacji:** 1.6.0 (versionCode 17)
+
+### Co zostało zrobione
+
+1. **Import XFDF** z PDF-XChange – automatyczne wyciąganie `<vertices>` (bez Excela)
+2. **Skala 1:500** (1 cm = 5 m) → powierzchnia i obwód w m²
+3. **Sesja dnia** z kolejnością obszarów (↑↓) – jak działki w LIVE
+4. **Wiele PDF** – kolejne importy XFDF do tej samej sesji (obszary z różnych plików)
+5. **Podgląd SVG** kształtu obszaru
+6. Wejście: ekran główny → Niezbędnik → **Obmiar PZT**
+
+### Następne (Etap B)
+- Oznaczenie START/KONIEC/LEWA/PRAWA + kilometraż
+- LIVE na wielokącie (tony, metry, rozkładarka, zamalowanie)
+
+---
+
+## ETAP 21 – Obmiar PZT: UX + LIVE na wielokącie (1.7.0)
+**Data:** 2026-09-05
+**Status:** ✅ UKOŃCZONY
+**Branch:** `cursor/kalkulator-mma-obmiar-xfdf-0a0b`
+**Wersja aplikacji:** 1.7.0 (versionCode 18)
+
+### UX (poprawki po teście APK)
+1. Tytuł wyrównany z „Wstecz” – usunięty zbędny podtytuł w nagłówku
+2. Usunięta niebieska ramka z wyjaśnieniem
+3. Przycisk **Nowy** na liście sesji
+4. Podgląd: pinch zoom, pan, obrót; pełne zacieniowanie pola; centrowanie po wyborze obszaru
+5. **Ustaw skalę** – presety + własny mianownik, przelicza m²
+6. Sesja dnia sumuje powierzchnię ze wszystkich XFDF
+
+### Etap B
+1. Role węzłów: START / KONIEC / LEWA / PRAWA (dotknięcie węzła na podglądzie)
+2. Kilometraż start/koniec
+3. LIVE: metry + tony → postęp %, zakryte m², pozostało m/m²/Mg, zielone zamalowanie od START
+
+---

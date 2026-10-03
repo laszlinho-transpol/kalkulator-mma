@@ -20,6 +20,7 @@ import { NumericInput } from '../common/NumericInput';
 import { MieszankaPicker } from '../common/MieszankaPicker';
 import { ShapeModal } from '../shapes/ShapeModal';
 import { InfoTooltip } from '../common/InfoTooltip';
+import { PoleKilometraz } from '../common/PoleKilometraz';
 import {
   obliczPowierzchniFigury, obliczWynikiDzialki, formatLiczby,
   parsujRzuty, walidujRzuty, generujDomyslneRzuty,
@@ -492,26 +493,13 @@ function KartaDzialki({ dz, dzIdx, theme, tonazAuta, pobierzMieszanke, updateDzi
         <Text style={[styles.etykieta, { color: theme.colors.textSecondary }]}>Kilometraż początkowy</Text>
         <InfoTooltip tresc="Pikietaż punktu startowego. Format: km+mmm, np. 105+500." />
       </View>
-      <View style={styles.pikietazWrap}>
-        <TextInput
-          style={[styles.inputKm, { backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.border, color: theme.colors.text }]}
-          value={dz.kmStr}
-          onChangeText={(v) => updateDzialka(dzIdx, 'kmStr', v.replace(/[^0-9]/g, ''))}
-          keyboardType="numeric"
-          placeholder="0"
-          placeholderTextColor={theme.colors.textSecondary}
-        />
-        <Text style={[styles.pikietazPlus, { color: theme.colors.textSecondary }]}>+</Text>
-        <TextInput
-          style={[styles.inputM, { backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.border, color: theme.colors.text }]}
-          value={dz.mStr}
-          onChangeText={(v) => updateDzialka(dzIdx, 'mStr', v.replace(/[^0-9]/g, '').slice(0, 3))}
-          keyboardType="numeric"
-          placeholder="000"
-          placeholderTextColor={theme.colors.textSecondary}
-          maxLength={3}
-        />
-      </View>
+      <PoleKilometraz
+        theme={theme}
+        km={dz.kmStr}
+        m={dz.mStr}
+        onKm={(v) => updateDzialka(dzIdx, 'kmStr', v)}
+        onM={(v) => updateDzialka(dzIdx, 'mStr', v)}
+      />
 
       {/* Kierunek */}
       <View style={styles.rzadEtykiety}>

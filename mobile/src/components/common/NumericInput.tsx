@@ -12,6 +12,8 @@ interface NumericInputProps extends Omit<TextInputProps, 'onChangeText' | 'value
   tooltip?: string;
   required?: boolean;
   decimals?: number;
+  /** Pozwala wpisać minus (np. korekta odsadzki −10 cm). */
+  allowNegative?: boolean;
 }
 
 export function NumericInput({
@@ -22,6 +24,7 @@ export function NumericInput({
   tooltip,
   required,
   decimals = 2,
+  allowNegative = false,
   placeholder,
   ...rest
 }: NumericInputProps) {
@@ -29,13 +32,17 @@ export function NumericInput({
   const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
 
   const handleChange = (text: string) => {
-    // Allow commas as decimal separator, strip other non-numeric chars
-    const cleaned = text.replace(',', '.').replace(/[^0-9.]/g, '');
-    // Only one decimal point
+    const raw = text.replace(',', '.');
+    if (allowNegative && (raw === '-' || raw === '-.')) {
+      onChangeText(raw);
+      return;
+    }
+    const ujemna = allowNegative && raw.startsWith('-');
+    const cleaned = raw.replace(/[^0-9.]/g, '');
     const parts = cleaned.split('.');
     if (parts.length > 2) return;
     if (parts[1] !== undefined && parts[1].length > decimals) return;
-    onChangeText(cleaned);
+    onChangeText((ujemna ? '-' : '') + cleaned);
   };
 
   return (
@@ -51,7 +58,7 @@ export function NumericInput({
         <TextInput
           value={value}
           onChangeText={handleChange}
-          keyboardType="decimal-pad"
+          keyboardType={allowNegative ? 'numbers-and-punctuation' : 'decimal-pad'}
           placeholder={placeholder}
           placeholderTextColor={theme.colors.textSecondary}
           style={[styles.input, { color: theme.colors.text }]}
