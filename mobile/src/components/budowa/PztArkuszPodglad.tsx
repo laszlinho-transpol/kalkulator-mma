@@ -118,6 +118,8 @@ interface Props {
   zakresStartM?: number;
   /** Koniec zakresu planu (czerwona kreska). */
   zakresKoniecM?: number;
+  /** Stuknięcie w podgląd zwraca punkt PDF (wybór kilometrażu na mapie). */
+  onWskazPdf?: (p: Punkt2D) => void;
 }
 
 export function PztArkuszPodglad({
@@ -134,6 +136,7 @@ export function PztArkuszPodglad({
   podzialkaM = 50,
   zakresStartM,
   zakresKoniecM,
+  onWskazPdf,
 }: Props) {
   const [rozmiar, setRozmiar] = useState({ w: 320, h: wysokosc });
   const [skalaPct, setSkalaPct] = useState(100);
@@ -318,14 +321,13 @@ export function PztArkuszPodglad({
   mapaRef.current = mapa;
   const zmierzRef = useRef(zmierz);
   zmierzRef.current = zmierz;
+  const wskazRef = useRef(onWskazPdf);
+  wskazRef.current = onWskazPdf;
   const lastTapMs = useRef(0);
 
-  const dodajPunktPomiaru = (ekranX: number, ekranY: number) => {
+  const pdfZEkranu = (ekranX: number, ekranY: number): Punkt2D | null => {
     const m = mapaRef.current;
-    if (!zmierzRef.current || !m?.osPdf || m.osPdf.length < 2) return;
-    const now = Date.now();
-    if (now - lastTapMs.current < 280) return;
-    lastTapMs.current = now;
+    if (!m?.mapaSvg) return null;
     const svg = punktSvgZEkranu({
       ekranX,
       ekranY,
@@ -336,8 +338,27 @@ export function PztArkuszPodglad({
       rot: 0,
       skala: bazaSkali.current,
     });
-    const pdf = svgDoPdfPodgladu(svg, m.mapaSvg);
-    setPunktyPomiaru((prev) => (prev.length >= 2 ? [pdf] : [...prev, pdf]));
+    return svgDoPdfPodgladu(svg, m.mapaSvg);
+  };
+
+  const dodajPunktPomiaru = (ekranX: number, ekranY: number) => {
+    const m = mapaRef.current;
+    if (!zmierzRef.current || !m?.osPdf || m.osPdf.length < 2) return;
+    const now = Date.now();
+    if (now - lastTapMs.current < 280) return;
+    lastTapMs.current = now;
+    const pdf = pdfZEkranu(ekranX, ekranY);
+    if (pdf) setPunktyPomiaru((prev) => (prev.length >= 2 ? [pdf] : [...prev, pdf]));
+  };
+
+  const wskazNaMapie = (ekranX: number, ekranY: number) => {
+    const cb = wskazRef.current;
+    if (!cb || zmierzRef.current) return;
+    const now = Date.now();
+    if (now - lastTapMs.current < 280) return;
+    lastTapMs.current = now;
+    const pdf = pdfZEkranu(ekranX, ekranY);
+    if (pdf) cb(pdf);
   };
 
   const wynikPomiaru = useMemo(() => {
@@ -538,21 +559,29 @@ export function PztArkuszPodglad({
     if (st === State.ACTIVE) onDotykZmiana?.(true);
     if (e.nativeEvent.oldState !== State.ACTIVE) {
       if (st === State.FAILED || st === State.CANCELLED || st === State.END) {
-        if (zmierzRef.current && tap) {
+        if (tap) {
           const x = e.nativeEvent.x as number | undefined;
           const y = e.nativeEvent.y as number | undefined;
-          if (x != null && y != null) dodajPunktPomiaru(x, y);
+          if (x != null && y != null) {
+            if (zmierzRef.current) dodajPunktPomiaru(x, y);
+            else wskazNaMapie(x, y);
+          }
         }
         onDotykZmiana?.(false);
       }
       return;
     }
-    if (zmierzRef.current && tap) {
+    if (tap) {
       const x = e.nativeEvent.x as number | undefined;
       const y = e.nativeEvent.y as number | undefined;
-      if (x != null && y != null) dodajPunktPomiaru(x, y);
-      onDotykZmiana?.(false);
-      return;
+      if (x != null && y != null) {
+        if (zmierzRef.current) dodajPunktPomiaru(x, y);
+        else wskazNaMapie(x, y);
+      }
+      if (zmierzRef.current || wskazRef.current) {
+        onDotykZmiana?.(false);
+        return;
+      }
     }
     if (e.nativeEvent.numberOfPointers > 1) {
       onDotykZmiana?.(false);
@@ -936,6 +965,11 @@ export function PztArkuszPodglad({
       {mapa.os1500M > 1 ? (
         <Text style={styl.hintPod}>{tekstOsi1500(mapa.os1500M, mapa.xfdfM, mapa.dlM)}</Text>
       ) : null}
+      {onWskazPdf ? (
+        <Text style={[styl.hintPod, { color: '#166534', fontWeight: '700' }]}>
+          Stuknij punkt na tle. Kreska połączy obie krawędzie wybranego obszaru i wpisze kilometraż.
+        </Text>
+      ) : null}
       {zmierz ? (
         <Text style={[styl.hintPod, { color: '#1D4ED8', fontWeight: '700' }]}>
           {tekstHintuPomiaru(punktyPomiaru.length, wynikPomiaru?.metry1500 ?? null)}
@@ -946,16 +980,20 @@ export function PztArkuszPodglad({
           {`${tekstKmPunktow(wynikPomiaru)}. ${ocenaOdstempuPodzialkiM(wynikPomiaru.metry1500).tekst}`}
         </Text>
       ) : null}
-      <Text style={styl.hintPod}>
-        {tloMeta
-          ? `Tło PDF: ${tloMeta.nazwa}${buforTla ? '' : ' — odtwarzanie z pamięci przeglądarki… Jeśli nie wraca, otwórz konfigurator teł.'}`
-          : 'Żeby widać było pikiety, pobocza i budynki, wgraj oryginalny PDF arkusza („+ Tło PDF”). Nazwy nie muszą być identyczne z XFDF – wystarczy numer arkusza (Ark_2_1) albo jeden PDF na otwartą zakładkę.'}
-      </Text>
-      <Text style={styl.hintPod}>
-        {blokadaPodgladu
-          ? 'Blokada ramki: przesuwanie i zoom w podglądzie (strona nie scrolluje). Odznacz „Ramka”, aby przewinąć w dół.'
-          : '1 palec / mysz: przesuń · 2 palce / kółko / lupka: zoom. Zaznacz „Ramka”, żeby nie scrollować strony.'}
-      </Text>
+      {onWskazPdf ? null : (
+        <>
+          <Text style={styl.hintPod}>
+            {tloMeta
+              ? `Tło PDF: ${tloMeta.nazwa}${buforTla ? '' : ' — odtwarzanie z pamięci przeglądarki… Jeśli nie wraca, otwórz konfigurator teł.'}`
+              : 'Żeby widać było pikiety, pobocza i budynki, wgraj oryginalny PDF arkusza („+ Tło PDF”). Nazwy nie muszą być identyczne z XFDF – wystarczy numer arkusza (Ark_2_1) albo jeden PDF na otwartą zakładkę.'}
+          </Text>
+          <Text style={styl.hintPod}>
+            {blokadaPodgladu
+              ? 'Blokada ramki: przesuwanie i zoom w podglądzie (strona nie scrolluje). Odznacz „Ramka”, aby przewinąć w dół.'
+              : '1 palec / mysz: przesuń · 2 palce / kółko / lupka: zoom. Zaznacz „Ramka”, żeby nie scrollować strony.'}
+          </Text>
+        </>
+      )}
     </View>
   );
 }

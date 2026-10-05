@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.14';
+export const WERSJA_APLIKACJI = '1.8.15';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,14 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.15',
+    data: '2026-10-05',
+    tytul: 'Plan – kilometraż z mapy',
+    zmiany: [
+      'Przy starcie i końcu planu jest „Zaznacz na mapie”: arkusz, tylko wybrany obszar, stuknięcie łączy obie krawędzie i wpisuje kilometraż',
+    ],
+  },
   {
     wersja: '1.8.14',
     data: '2026-10-03',

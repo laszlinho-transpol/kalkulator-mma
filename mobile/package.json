@@ -1,6 +1,6 @@
 {
   "name": "mobile",
-  "version": "1.8.14",
+  "version": "1.8.15",
   "main": "expo-router/entry",
   "dependencies": {
     "@expo/metro-runtime": "~56.0.0",

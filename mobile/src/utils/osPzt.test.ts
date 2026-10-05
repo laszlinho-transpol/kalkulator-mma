@@ -7,6 +7,7 @@ import { metryNaPunktPdf } from './obmiarGeometry';
 import { DOMYSLNA_SKALA_PZT } from '../types';
 import {
   dlugoscOsiPdf1500M,
+  kilometrazZPunktuPdf,
   ocenaOdstempuPodzialkiM,
   pdfDoSvgPodgladu,
   pomiarWzdlozOsiPdf,
@@ -79,6 +80,20 @@ describe('pomiar osi PDF 1:500', () => {
     const obszar = { wierzcholkiPdf: [{ x: 0, y: 20 }, { x: 0, y: 0 }, { x: 400, y: 0 }, { x: 400, y: 20 }] };
     const w = szerokoscPoprzecznaPdf([obszar], os, 200);
     assert.ok(Math.abs(w - 20) < 0.2, `szer ${w}`);
+  });
+});
+
+describe('kilometraż z punktu na mapie', () => {
+  it('rzut na oś daje kilometraż arkusza, także obok krawędzi', () => {
+    const arkusz = {
+      kilometrazPoczatkowyM: 110000,
+      kilometrazKoncowyM: 110200,
+      osTrasy: { wierzcholkiPdf: [{ x: 0, y: 0 }, { x: 100, y: 0 }] },
+    };
+    const km = kilometrazZPunktuPdf(arkusz, { x: 25, y: 40 });
+    assert.ok(km != null && Math.abs(km - 110050) < 0.05, `km ${km}`);
+    const poza = kilometrazZPunktuPdf(arkusz, { x: -30, y: 5 });
+    assert.ok(poza != null && Math.abs(poza - 110000) < 0.05);
   });
 });
 

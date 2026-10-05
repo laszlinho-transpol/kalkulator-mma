@@ -23,6 +23,7 @@ import {
   formatLiczby, parsujRzuty, walidujRzuty, generujDomyslneRzuty,
 } from '../../utils/calculations';
 import { formatujKmM } from '../../utils/projektBudowy';
+import { WyborKmNaMapie } from './WyborKmNaMapie';
 import {
   gestoscZRecepty,
   komentarzPlanuBudowy,
@@ -84,6 +85,7 @@ export function PlanZBudowyForm({ tytul, budowaId, initialPlan, onZapisz }: Prop
     return initialPlan.rzuty.map((r) => r.iloscSamochodow).join('+');
   });
   const [pickerMix, setPickerMix] = useState(false);
+  const [mapaKm, setMapaKm] = useState<'start' | 'koniec' | null>(null);
   const [inicjalizacjaKm, setInicjalizacjaKm] = useState(!initialPlan);
 
   useEffect(() => {
@@ -250,8 +252,20 @@ export function PlanZBudowyForm({ tytul, budowaId, initialPlan, onZapisz }: Prop
             </Text>
             <Text style={[styl.etykieta, { color: theme.colors.textSecondary }]}>Start</Text>
             <PoleKilometraz theme={theme} km={odKm} m={odM} onKm={setOdKm} onM={setOdM} />
+            <TouchableOpacity
+              style={[styl.btnMapa, { borderColor: theme.colors.primary, backgroundColor: `${theme.colors.primary}12` }]}
+              onPress={() => setMapaKm('start')}
+            >
+              <Text style={{ color: theme.colors.primary, fontWeight: '800' }}>Zaznacz na mapie</Text>
+            </TouchableOpacity>
             <Text style={[styl.etykieta, { color: theme.colors.textSecondary }]}>Koniec</Text>
             <PoleKilometraz theme={theme} km={doKm} m={doM} onKm={setDoKm} onM={setDoM} />
+            <TouchableOpacity
+              style={[styl.btnMapa, { borderColor: '#DC2626', backgroundColor: '#DC262612' }]}
+              onPress={() => setMapaKm('koniec')}
+            >
+              <Text style={{ color: '#DC2626', fontWeight: '800' }}>Zaznacz na mapie</Text>
+            </TouchableOpacity>
           </Sekcja>
 
           {odcinkiBaza.length > 1 && (
@@ -385,6 +399,24 @@ export function PlanZBudowyForm({ tytul, budowaId, initialPlan, onZapisz }: Prop
         </ScrollView>
       </KeyboardAvoidingView>
 
+      {mapaKm && projekt ? (
+        <WyborKmNaMapie
+          visible
+          rola={mapaKm}
+          projekt={projekt}
+          legendaId={legendaId}
+          kilometrazM={mapaKm === 'start' ? odMetry : doMetry}
+          drugiKmM={mapaKm === 'start' ? doMetry : odMetry}
+          theme={theme}
+          onClose={() => setMapaKm(null)}
+          onWybierz={(metry) => {
+            const pola = metryNaPola(metry);
+            if (mapaKm === 'start') { setOdKm(pola.km); setOdM(pola.mm); }
+            else { setDoKm(pola.km); setDoM(pola.mm); }
+          }}
+        />
+      ) : null}
+
       <MieszankaPicker
         visible={pickerMix}
         selectedId={mieszankaId}
@@ -425,6 +457,7 @@ const styl = StyleSheet.create({
   odcinek: { borderWidth: 1, borderRadius: 10, padding: 12, marginBottom: 8 },
   dwa: { flexDirection: 'row', gap: 10 },
   btnMix: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 13 },
+  btnMapa: { borderWidth: 1, borderRadius: 10, paddingVertical: 12, alignItems: 'center', marginTop: 8 },
   input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
   podsum: { borderWidth: 1, borderRadius: 14, padding: 16, marginBottom: 8 },
 });

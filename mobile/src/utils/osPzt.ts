@@ -87,6 +87,24 @@ export function stacjaNaOsi(os: Punkt2D[], p: Punkt2D): number {
   return najlepsza;
 }
 
+/** Kilometraż arkusza dla punktu PDF: rzut na oś, potem skala km arkusza. */
+export function kilometrazZPunktuPdf(
+  arkusz: {
+    kilometrazPoczatkowyM: number;
+    kilometrazKoncowyM: number;
+    osTrasy?: { wierzcholkiPdf?: Punkt2D[] };
+  },
+  punkt: Punkt2D,
+): number | null {
+  const os = arkusz.osTrasy?.wierzcholkiPdf;
+  if (!os || os.length < 2) return null;
+  const dl = dlugoscPolilinii(os);
+  if (dl < 1e-6) return null;
+  const s = Math.max(0, Math.min(dl, stacjaNaOsi(os, punkt)));
+  const od = arkusz.kilometrazPoczatkowyM;
+  return od + (s / dl) * (arkusz.kilometrazKoncowyM - od);
+}
+
 /**
  * Stacja z wysunięciem poza kreskę osi: czoła żółtego/różowego często wystają
  * 0,3–1 m za ostatni wierzchołek przerywanej osi (stąd 9 166 zamiast 9 181).
