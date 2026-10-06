@@ -42,11 +42,17 @@ export function SzkicPlanuBudowy({
   const maleje = od > doM;
   const metryCum: { id: string; numer: number; stacjaM: number }[] = [];
   let acc = 0;
+  const poNumerze = new Map<number, typeof wpisy>();
   for (const w of [...wpisy].sort((a, b) => a.numerAuta - b.numerAuta || a.createdAt.localeCompare(b.createdAt))) {
-    acc += w.przejechaneMetry;
+    const lista = poNumerze.get(w.numerAuta) ?? [];
+    lista.push(w);
+    poNumerze.set(w.numerAuta, lista);
+  }
+  for (const [numer, lista] of poNumerze) {
+    acc += lista.reduce((s, w) => s + w.przejechaneMetry, 0);
     metryCum.push({
-      id: w.id,
-      numer: w.numerAuta,
+      id: lista[lista.length - 1].id,
+      numer,
       stacjaM: maleje ? od - acc : od + acc,
     });
   }

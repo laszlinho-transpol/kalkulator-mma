@@ -4,29 +4,39 @@
 
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { formatLiczby } from '../../utils/calculations';
+import { formatLiczby, obliczPowierzchnioweOdStartu } from '../../utils/calculations';
 import { formatujPikietaz, obliczPikietazFigur, pikietazPoMetrach } from '../../utils/chainage';
+import { gruboscWbudowywania } from '../../utils/grubosc';
 import type { DzialkaRobocza, WpisLive } from '../../types';
 import type { AppTheme } from '../../constants/theme';
+
+const RZYM = ['I', 'II', 'III', 'IV', 'V'];
 
 interface TabelaLiveProps {
   dzialka: DzialkaRobocza;
   wpisy: WpisLive[];
   theme: AppTheme;
+  ciezarObjetosciowy?: number;
 }
 
-export function TabelaLive({ dzialka, wpisy, theme }: TabelaLiveProps) {
+export function TabelaLive({ dzialka, wpisy, theme, ciezarObjetosciowy }: TabelaLiveProps) {
   const posortowane = [...wpisy].sort((a, b) => a.numerAuta - b.numerAuta);
   const pikietaze = obliczPikietazFigur(dzialka);
   const kmStart = pikietaze.length > 0 ? pikietaze[0].poczatek : dzialka.kilometrazPoczatkowyKm * 1000 + dzialka.kilometrazPoczatkowyM;
+  const grPlan = gruboscWbudowywania(dzialka);
+  const metryRazem = posortowane.reduce((s, w) => s + w.przejechaneMetry, 0);
+  const kmKoniecWyk = pikietazPoMetrach(kmStart, metryRazem, dzialka.kierunekUkladania);
 
-  const kolumny = ['L.p.', 'Mg', '∑ Mg', 'm', '∑ m', 'km'];
+  const kolumny = ['L.p.', 'Mg', '∑ Mg', 'm', '∑ m', 'Gr.', 'km'];
 
   let cumTon = 0;
   let cumMetr = 0;
 
   return (
     <View>
+      <Text style={{ color: theme.colors.text, fontWeight: '700', fontSize: 14, marginBottom: 8 }}>
+        Wykonano {formatujPikietaz(kmStart)} – {formatujPikietaz(kmKoniecWyk)} ({formatLiczby(metryRazem, 2)} m)
+      </Text>
       <View style={[styles.rzad, styles.rzadNagl, { backgroundColor: `${theme.colors.primary}15` }]}>
         {kolumny.map((h) => (
           <Text key={h} style={[styles.komNagl, { color: theme.colors.textSecondary, flex: h === 'km' ? 1.4 : 1 }]}>{h}</Text>
@@ -37,13 +47,24 @@ export function TabelaLive({ dzialka, wpisy, theme }: TabelaLiveProps) {
         cumTon += wp.tonazPrzywieziony;
         cumMetr += wp.przejechaneMetry;
         const kmKoniec = pikietazPoMetrach(kmStart, cumMetr, dzialka.kierunekUkladania);
+        const pow = obliczPowierzchnioweOdStartu(dzialka, wp.przejechaneMetry);
+        const gr = pow > 0 && ciezarObjetosciowy
+          ? (wp.tonazPrzywieziony / (ciezarObjetosciowy * pow)) * 100
+          : 0;
+        const ponad = gr > grPlan + 0.2;
+        const ponizej = gr > 0 && gr < grPlan - 0.2;
+        const kolorGr = ponad ? theme.colors.danger : ponizej ? theme.colors.warning : theme.colors.success;
+        const rzut = RZYM[Math.min(5, Math.max(1, wp.numerRzutu ?? 1)) - 1];
         return (
           <View key={wp.id} style={[styles.rzad, { backgroundColor: theme.colors.card, borderBottomColor: theme.colors.border }]}>
-            <Text style={[styles.kom, { color: theme.colors.textSecondary }]}>{wp.numerAuta}</Text>
+            <Text style={[styles.kom, { color: theme.colors.textSecondary }]}>{wp.numerAuta} {rzut}</Text>
             <Text style={[styles.kom, { color: theme.colors.text }]}>{formatLiczby(wp.tonazPrzywieziony)}</Text>
             <Text style={[styles.kom, { color: theme.colors.text, fontWeight: '600' }]}>{formatLiczby(cumTon, 2)}</Text>
             <Text style={[styles.kom, { color: theme.colors.text }]}>{formatLiczby(wp.przejechaneMetry)}</Text>
             <Text style={[styles.kom, { color: theme.colors.text, fontWeight: '600' }]}>{formatLiczby(cumMetr)}</Text>
+            <Text style={[styles.kom, { color: kolorGr, fontWeight: '700' }]}>
+              {gr > 0 ? `${formatLiczby(gr)} ${ponad ? '▲' : ponizej ? '▼' : ''}` : '–'}
+            </Text>
             <Text style={[styles.kom, { color: theme.colors.info, flex: 1.4, fontSize: 11 }]}>{formatujPikietaz(kmKoniec)}</Text>
           </View>
         );
@@ -56,6 +77,7 @@ export function TabelaLive({ dzialka, wpisy, theme }: TabelaLiveProps) {
           <Text style={[styles.kom, {}]} />
           <Text style={[styles.kom, {}]} />
           <Text style={[styles.kom, { color: theme.colors.text, fontWeight: '700' }]}>{formatLiczby(cumMetr)}</Text>
+          <Text style={[styles.kom, {}]} />
           <Text style={[styles.kom, { color: theme.colors.info, flex: 1.4, fontSize: 11 }]}>{formatujPikietaz(pikietazPoMetrach(kmStart, cumMetr, dzialka.kierunekUkladania))}</Text>
         </View>
       )}

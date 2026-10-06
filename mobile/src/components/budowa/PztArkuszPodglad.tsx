@@ -42,8 +42,9 @@ import {
   punktSvgZEkranu,
 } from '../../utils/obmiarMapa';
 import { formatujKmM } from '../../utils/projektBudowy';
-import { buforTlaArkusza, podlaczBuforDoArkusza } from '../../utils/tloPdfPamiec';
+import { buforTlaArkusza, listaWgranychPdf, odtworzTlaZIdb, podlaczBuforDoArkusza, przypnijWgranyPdfDoArkusza } from '../../utils/tloPdfPamiec';
 import { PztTloPdfCanvas, type ObrazTlaPdf } from './PztTloPdfCanvas';
+import { katWektoraStopni, ZnakAuta, ZnakRozkladarki } from './ZnakiMaszyn';
 import type { AppTheme } from '../../constants/theme';
 
 function hostHtml(node: unknown): HTMLElement | null {
@@ -147,6 +148,26 @@ export function PztArkuszPodglad({
   const [punktyPomiaru, setPunktyPomiaru] = useState<Punkt2D[]>([]);
   const onObrazTla = useCallback((o: ObrazTlaPdf | null) => setTloObraz(o), []);
   const onBladTla = useCallback((m: string | null) => setBladTla(m), []);
+  const [tickTla, setTickTla] = useState(0);
+
+  useEffect(() => {
+    const tlo = arkusz.tlo;
+    if (!tlo || tlo.widoczne === false) return undefined;
+    if (buforTlaArkusza(arkusz.id) ?? (tlo.nazwa ? podlaczBuforDoArkusza(arkusz.id, tlo.nazwa) : undefined)) {
+      return undefined;
+    }
+    let zyje = true;
+    void odtworzTlaZIdb().then(() => {
+      if (!zyje) return;
+      if (tlo.nazwa) podlaczBuforDoArkusza(arkusz.id, tlo.nazwa);
+      if (!buforTlaArkusza(arkusz.id)) {
+        const lista = listaWgranychPdf();
+        if (lista.length === 1) przypnijWgranyPdfDoArkusza(arkusz.id, lista[0].nazwa);
+      }
+      setTickTla((n) => n + 1);
+    });
+    return () => { zyje = false; };
+  }, [arkusz.id, arkusz.tlo?.nazwa, arkusz.tlo?.widoczne]);
   const TAP_MAX = 12;
 
   const bazaSkali = useRef(1);
@@ -206,13 +227,18 @@ export function PztArkuszPodglad({
     const osPts = osPdf.map(toSvg);
     const osPunkty = osPts.map((p) => `${p.x},${p.y}`).join(' ');
     const dlM = Math.max(0.01, arkusz.kilometrazKoncowyM - arkusz.kilometrazPoczatkowyM);
-    const stacjaNaSvg = (stacjaM: number): Punkt2D | null => {
+    const stacjaNaSvg = (stacjaM: number): (Punkt2D & { ux: number; uy: number }) | null => {
       if (!osPdf || osPdf.length < 2) return null;
       const sM = stacjaM - arkusz.kilometrazPoczatkowyM;
       if (sM < -1 || sM > dlM + 1) return null;
       const sPdf = (sM / dlM) * dlugoscPolilinii(osPdf);
-      const p = punktNaOsi(osPdf, sPdf);
-      return p ? toSvg(p) : null;
+      const t = stycznyNaOsi(osPdf, sPdf);
+      if (!t) return null;
+      const p = toSvg(t.punkt);
+      const sdx = t.dx * skalaFit;
+      const sdy = -t.dy * skalaFit;
+      const sl = Math.hypot(sdx, sdy) || 1;
+      return { x: p.x, y: p.y, ux: sdx / sl, uy: sdy / sl };
     };
     const rozkladarka = liveStacjaM != null ? stacjaNaSvg(liveStacjaM) : null;
     const auta = (liveAuta ?? [])
@@ -220,7 +246,7 @@ export function PztArkuszPodglad({
         const p = stacjaNaSvg(a.stacjaM);
         return p ? { ...a, ...p } : null;
       })
-      .filter((x): x is LiveAutoPzt & Punkt2D => !!x);
+      .filter((x): x is LiveAutoPzt & Punkt2D & { ux: number; uy: number } => !!x);
     const dlPdf = osPdf && osPdf.length >= 2 ? dlugoscPolilinii(osPdf) : 0;
     const krok = podzialkaM ?? 0;
     const szerPdf = medianaSzerokosciObszarowPdf(arkusz.obszary);
@@ -612,7 +638,7 @@ export function PztArkuszPodglad({
   const rZnak = (mapa?.rMarkerSvg ?? 3.2) / Math.max(xform.s, 0.35);
   const tloMeta = arkusz.tlo;
   const tloWidoczne = !!(tloMeta && tloMeta.widoczne !== false);
-  const buforTla = tloMeta
+  const buforTla = tloMeta && tickTla >= 0
     ? (buforTlaArkusza(arkusz.id) ?? podlaczBuforDoArkusza(arkusz.id, tloMeta.nazwa) ?? null)
     : null;
 
@@ -875,30 +901,30 @@ export function PztArkuszPodglad({
                             </G>
                           );
                         })}
-                        {mapa.auta.map((a) => (
-                          <G key={a.id} onPress={() => onPressAuto?.(a.id)}>
-                            <Circle cx={a.x} cy={a.y} r={rZnak} fill="#F59E0B" stroke="#fff" strokeWidth={1.2} />
-                            <SvgText
-                              x={a.x}
-                              y={a.y + rZnak * 0.35}
-                              fontSize={Math.max(6, rZnak * 1.15)}
-                              fontWeight="700"
-                              fill="#111827"
-                              textAnchor="middle"
-                            >
-                              {String(a.numer)}
-                            </SvgText>
-                          </G>
-                        ))}
+                        {mapa.auta.map((a) => {
+                          const k = 1 / Math.max(xform.s, 0.08);
+                          return (
+                            <G key={a.id} onPress={() => onPressAuto?.(a.id)}>
+                              <G transform={`translate(${a.x} ${a.y}) rotate(${katWektoraStopni(a.ux, a.uy)}) scale(${k})`}>
+                                <ZnakAuta />
+                              </G>
+                              <SvgText
+                                x={a.x}
+                                y={a.y - 16 * k}
+                                fontSize={11 * k}
+                                fontWeight="700"
+                                fill="#111827"
+                                textAnchor="middle"
+                              >
+                                {String(a.numer)}
+                              </SvgText>
+                            </G>
+                          );
+                        })}
                         {mapa.rozkladarka ? (
-                          <Circle
-                            cx={mapa.rozkladarka.x}
-                            cy={mapa.rozkladarka.y}
-                            r={rZnak * 1.15}
-                            fill="#16A34A"
-                            stroke="#fff"
-                            strokeWidth={1.4}
-                          />
+                          <G transform={`translate(${mapa.rozkladarka.x} ${mapa.rozkladarka.y}) rotate(${katWektoraStopni(mapa.rozkladarka.ux, mapa.rozkladarka.uy)}) scale(${1 / Math.max(xform.s, 0.08)})`}>
+                            <ZnakRozkladarki />
+                          </G>
                         ) : null}
                         {rysunekPomiaru?.odcinek && rysunekPomiaru.odcinek.length >= 2 ? (
                           <Polyline

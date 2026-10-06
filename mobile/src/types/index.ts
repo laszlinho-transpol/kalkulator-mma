@@ -182,6 +182,8 @@ export interface WpisLive {
   planId: string;
   dzialkaId: string;
   numerAuta: number;
+  /** Rzut układania 1–5. Brak = I rzut (starsze wpisy). */
+  numerRzutu?: number;
   tonazPrzywieziony: number;    // [t]
   przejechaneMetry: number;     // [m]
   komentarz?: string;

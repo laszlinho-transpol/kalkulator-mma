@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.16';
+export const WERSJA_APLIKACJI = '1.8.17';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,19 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.17',
+    data: '2026-10-06',
+    tytul: 'Dniówka – tło, rzuty, bilans malejący',
+    zmiany: [
+      'Tło PDF wraca po ponownym wejściu w plan i wbudowywanie, gdy pole Tło jest zaznaczone',
+      'Przy aucie Live jest lista rzutu I–V; kolejny wpis dziedziczy ostatnio wybrany rzut',
+      'Bilans archiwum liczy kilometraż w kierunku układania (malejąco zostaje malejąco)',
+      'Tabela Live pokazuje wykonany kilometraż i grubość ze strzałką',
+      'Szkic archiwum to wycinek PZT z rozkładarką i wywrotkami',
+      'Zapisany plan można edytować – po zapisie nadal da się wysłać PDF',
+    ],
+  },
   {
     wersja: '1.8.16',
     data: '2026-10-06',

@@ -2,7 +2,7 @@
 // EKRAN: WBUDOWYWANIE – Live Tracker (Plan / Kontrola / Live)
 // ============================================================
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   TextInput, useColorScheme, Alert, KeyboardAvoidingView,
@@ -59,6 +59,8 @@ import type { DzialkaRobocza, WpisLive } from '../../src/types';
 
 type ZakladkaTyp = 'plan' | 'kontrola' | 'live' | 'pzt';
 
+const ETYKIETY_RZUTU = ['I rzut', 'II rzut', 'III rzut', 'IV rzut', 'V rzut'];
+
 const SCREEN_W = Dimensions.get('window').width;
 const SCREEN_H = Dimensions.get('window').height;
 /** Wysokość okna przewijania szkicu LIVE – ~42% ekranu, min 260 / max 520 px */
@@ -66,7 +68,7 @@ const VIEWPORT_SZKICU_LIVE = Math.min(Math.max(SCREEN_H * 0.42, 260), 520);
 
 // Kolumny tabeli Live (przewijane poziomo)
 const KOLUMNY = [
-  { id: 'auto', label: '#', width: 36 },
+  { id: 'auto', label: '#', width: 56 },
   { id: 'mg', label: 'Mg', width: 56 },
   { id: 'metry', label: 'm', width: 56 },
   { id: 'grubosc', label: 'Gr.', width: 56 },
@@ -109,6 +111,9 @@ export default function WbudowywanieDetailScreen() {
   const [viewerPzt, setViewerPzt] = useState(false);
   const [generujeRaport, setGenerujeRaport] = useState(false);
   const [potwierdzZakonczenie, setPotwierdzZakonczenie] = useState(false);
+  const [numerRzutu, setNumerRzutu] = useState(1);
+  const [rzutListaOtwarta, setRzutListaOtwarta] = useState(false);
+  const rzutReczny = useRef(false);
   const [szkicObszarId, setSzkicObszarId] = useState<string | null>(null);
   const [blokadaSzkicuPzt, setBlokadaSzkicuPzt] = useState(false);
   const [mapaSzkicAktywna, setMapaSzkicAktywna] = useState(false);
@@ -119,6 +124,13 @@ export default function WbudowywanieDetailScreen() {
     () => uzupelnijProfilObmiaruDzialek(budowaPodglad?.projekt, plan),
     [budowaPodglad?.projekt, plan],
   );
+
+  useEffect(() => {
+    if (rzutReczny.current || edytowanyWpisId) return;
+    const max = wpisyCalegoPlanu.reduce((m, w) => Math.max(m, w.numerAuta), 0);
+    const ostatni = wpisyCalegoPlanu.find((w) => w.numerAuta === max);
+    if (ostatni) setNumerRzutu(ostatni.numerRzutu ?? 1);
+  }, [wpisyCalegoPlanu, edytowanyWpisId]);
 
   useEffect(() => {
     const p = usePlanyStore.getState().pobierzPlan(id ?? '');
@@ -332,13 +344,28 @@ export default function WbudowywanieDetailScreen() {
       return;
     }
     if (edytowanyWpisId) {
+      const wpis = wpisyCalegoPlanu.find((w) => w.id === edytowanyWpisId);
       await edytujWpisAuta(edytowanyWpisId, {
         tonazPrzywieziony: ton,
         przejechaneMetry: met,
         komentarz: nowyKomentarz.trim() || undefined,
         godzinaWybudowania: nowyGodzina,
+        numerRzutu,
       });
+      if (wpis) {
+        for (const w of wpisyCalegoPlanu) {
+          if (w.numerAuta === wpis.numerAuta && w.id !== edytowanyWpisId) {
+            await edytujWpisAuta(w.id, { numerRzutu });
+          }
+        }
+        const max = wpisyCalegoPlanu.reduce((m, w) => Math.max(m, w.numerAuta), 0);
+        if (wpis.numerAuta !== max) {
+          const ostatni = wpisyCalegoPlanu.find((w) => w.numerAuta === max);
+          setNumerRzutu(ostatni?.numerRzutu ?? 1);
+        }
+      }
       setEdytowanyWpisId(null);
+      rzutReczny.current = true;
     } else {
       if (!aktywnaDzialka) {
         Alert.alert('Plan ukończony', 'Wszystkie działki są zakończone. Możesz zarchiwizować plan.');
@@ -354,6 +381,7 @@ export default function WbudowywanieDetailScreen() {
         {
           planId: plan.id,
           numerAuta: kolejnyNumerAuta,
+          numerRzutu,
           komentarz: nowyKomentarz.trim() || undefined,
           godzinaWybudowania: nowyGodzina,
         },
@@ -374,6 +402,7 @@ export default function WbudowywanieDetailScreen() {
     }
     setNowyTonaz(''); setNowyMetry(''); setNowyKomentarz(''); setNowyGodzina(aktualnaGodzina());
     setTrybMetrowLive('zAuta');
+    setRzutListaOtwarta(false);
   };
 
   const rozpocznijEdycjeWpisu = (wpis: WpisLive) => {
@@ -383,12 +412,17 @@ export default function WbudowywanieDetailScreen() {
     setNowyMetry(String(wpis.przejechaneMetry));
     setNowyKomentarz(wpis.komentarz ?? '');
     setNowyGodzina(wpis.godzinaWybudowania);
+    setNumerRzutu(wpis.numerRzutu ?? 1);
+    rzutReczny.current = true;
+    setRzutListaOtwarta(false);
   };
 
   const anulujEdycjeWpisu = () => {
     setEdytowanyWpisId(null);
     setTrybMetrowLive('zAuta');
     setNowyTonaz(''); setNowyMetry(''); setNowyKomentarz(''); setNowyGodzina(aktualnaGodzina());
+    rzutReczny.current = false;
+    setRzutListaOtwarta(false);
   };
 
   const wyczyscLive = () => {
@@ -765,7 +799,7 @@ export default function WbudowywanieDetailScreen() {
                           return (
                             <View key={wpis.id}>
                               <View style={[styles.tabelaRzad, { borderBottomColor: theme.colors.border }]}>
-                                <Text style={[styles.tabelaKom, { width: KOLUMNY[0].width, color: theme.colors.textSecondary }]}>{wpis.numerAuta}</Text>
+                                <Text style={[styles.tabelaKom, { width: KOLUMNY[0].width, color: theme.colors.textSecondary }]}>{wpis.numerAuta} {ETYKIETY_RZUTU[(wpis.numerRzutu ?? 1) - 1]?.replace(' rzut', '')}</Text>
                                 <Text style={[styles.tabelaKom, { width: KOLUMNY[1].width, color: theme.colors.text }]}>{formatLiczby(wpis.tonazPrzywieziony)}</Text>
                                 <Text style={[styles.tabelaKom, { width: KOLUMNY[2].width, color: theme.colors.text }]}>{formatLiczby(wpis.przejechaneMetry)}</Text>
                                 <Text style={[styles.tabelaKom, { width: KOLUMNY[3].width, color: przepal ? theme.colors.danger : niedomiar ? theme.colors.warning : theme.colors.success }]}>
@@ -801,11 +835,40 @@ export default function WbudowywanieDetailScreen() {
                 )}
 
                 <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: edytowanyWpisId ? theme.colors.warning : theme.colors.border }]}>
-                  <Text style={[styles.kartaTytul, { color: theme.colors.text }]}>
-                    {edytowanyWpisId
-                      ? `Edycja auta #${wpisyCalegoPlanu.find((w) => w.id === edytowanyWpisId)?.numerAuta ?? '?'}`
-                      : `Auto #${kolejnyNumerAuta}`}
-                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
+                    <Text style={[styles.kartaTytul, { color: theme.colors.text, marginBottom: 0, flex: 1 }]}>
+                      {edytowanyWpisId
+                        ? `Edycja auta #${wpisyCalegoPlanu.find((w) => w.id === edytowanyWpisId)?.numerAuta ?? '?'}`
+                        : `Auto #${kolejnyNumerAuta}`}
+                    </Text>
+                    <View style={{ minWidth: 120 }}>
+                      <TouchableOpacity
+                        onPress={() => setRzutListaOtwarta((o) => !o)}
+                        style={[styles.poleSzare, { backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.border, paddingVertical: 8 }]}
+                      >
+                        <Text style={{ color: theme.colors.text, fontWeight: '700' }}>
+                          {ETYKIETY_RZUTU[numerRzutu - 1] ?? 'I rzut'} {rzutListaOtwarta ? '▴' : '▾'}
+                        </Text>
+                      </TouchableOpacity>
+                      {rzutListaOtwarta && (
+                        <View style={{ borderWidth: 1, borderColor: theme.colors.border, borderRadius: 10, marginTop: 4, overflow: 'hidden', backgroundColor: theme.colors.card }}>
+                          {ETYKIETY_RZUTU.map((etykieta, i) => (
+                            <TouchableOpacity
+                              key={etykieta}
+                              onPress={() => {
+                                setNumerRzutu(i + 1);
+                                rzutReczny.current = true;
+                                setRzutListaOtwarta(false);
+                              }}
+                              style={{ paddingVertical: 10, paddingHorizontal: 12, backgroundColor: numerRzutu === i + 1 ? `${theme.colors.primary}18` : 'transparent' }}
+                            >
+                              <Text style={{ color: numerRzutu === i + 1 ? theme.colors.primary : theme.colors.text, fontWeight: '600' }}>{etykieta}</Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      )}
+                    </View>
+                  </View>
                   <Text style={[styles.opisMaly, { color: theme.colors.textSecondary, marginBottom: 8 }]}>
                     {edytowanyWpisId
                       ? 'Edycja istniejącego wpisu – metry nie są automatycznie rozdzielane.'

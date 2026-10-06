@@ -30,7 +30,7 @@ export default function EdytujPlanScreen() {
   }
 
   const handleZapisz = async (dane: Omit<Plan, 'id' | 'createdAt' | 'updatedAt'>) => {
-    await edytujPlan(id, dane);
+    await edytujPlan(id, { ...dane, status: plan.status });
     router.back();
   };
 
