@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.17';
+export const WERSJA_APLIKACJI = '1.8.18';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,16 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.18',
+    data: '2026-10-06',
+    tytul: 'Szkic – te same maszyny co w obmiarze',
+    zmiany: [
+      'Rozkładarka i wywrotka na Live, szkicu figur i wycinku PZT biorą jeden rysunek z obmiaru',
+      'Maszyny stoją w kierunku układania i na szerokość układanego pasa',
+      'Przejechany odcinek jest ciemnoszary',
+    ],
+  },
   {
     wersja: '1.8.17',
     data: '2026-10-06',

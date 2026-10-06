@@ -3,7 +3,10 @@ import assert from 'node:assert/strict';
 import {
   obliczWysokosciFigur,
   obliczWysokoscSzkicu,
+  SKETCH_BLOCK_W,
   SKETCH_SVG_W,
+  szerokoscMNaUlamku,
+  szerokoscObszaruSzkicuPx,
 } from './sketchLayout';
 import type { Figura } from '../types';
 
@@ -40,5 +43,15 @@ describe('sketchLayout', () => {
 
   it('szerokość SVG jest stała we wszystkich trybach', () => {
     assert.equal(SKETCH_SVG_W, 44 + 80 + 58);
+  });
+
+  it('szerokość pasa na szkicu zwęża trapez od szerokosc1 do szerokosc2', () => {
+    const trapez: Figura = {
+      id: 't', typ: 'trapez', szerokosc1: 8, szerokosc2: 4, dlugosc: 40, numeracja: 1, kilometrazPoczatkowy: 0,
+    };
+    assert.equal(szerokoscMNaUlamku(trapez, 0), 8);
+    assert.equal(szerokoscMNaUlamku(trapez, 1), 4);
+    assert.equal(szerokoscObszaruSzkicuPx([trapez], 0), SKETCH_BLOCK_W);
+    assert.equal(szerokoscObszaruSzkicuPx([trapez], 40), SKETCH_BLOCK_W / 2);
   });
 });

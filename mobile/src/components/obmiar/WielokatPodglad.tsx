@@ -12,6 +12,7 @@ import {
 import Svg, {
   Circle, G, Image as SvgImage, Line, Polygon, Polyline, Rect, Text as SvgText,
 } from 'react-native-svg';
+import { FILL_ULOZONE, MaszynaObmiaru } from '../sketch/MaszynyObmiaru';
 import type { ObszarObmiaru, Punkt2D, SkalaPzt, TloPztObmiaru, TrybWyboruWezla, WezelObmiaru } from '../../types';
 import { bboxWielokata, metryNaPunktPdf } from '../../utils/obmiarGeometry';
 import { lancuchKrotszy, osFigury, przekrojPoprzeczny, wezlyZKonfiguracji, wielokatUlozony } from '../../utils/obmiarFigura';
@@ -32,8 +33,6 @@ import {
 
 const PRIMARY = '#E8A020';
 const FILL_PLAN = 'rgba(232, 160, 32, 0.28)';
-/** Ułożony odcinek – ciemny szary (nie zielony) */
-const FILL_ULOZONE = 'rgba(55, 65, 81, 0.72)';
 const KOLOR_START = '#2563EB';
 const KOLOR_KONIEC = '#DC2626';
 const KOLOR_ODS = '#0F766E';
@@ -85,48 +84,6 @@ function kolorRoli(rola: WezelObmiaru['rola']): string {
   if (rola === 'koniecLewy' || rola === 'koniecPrawy' || rola === 'koniec') return KOLOR_KONIEC;
   if (rola === 'lewa' || rola === 'prawa') return KOLOR_ODS;
   return PRIMARY;
-}
-
-/** Widok z góry – +X = przód (kierunek układania). Szerokość = odległość L–P. */
-function SvgRozkladarka({ szer, dl }: { szer: number; dl: number }) {
-  const sx = Math.max(szer, 2);
-  const dx = Math.max(dl, 2);
-  const sw = Math.max(sx * 0.035, 0.4);
-  return (
-    <G pointerEvents="none">
-      <Rect x={-dx / 2} y={-sx / 2} width={dx} height={sx} rx={sx * 0.08} fill="#D4A017" stroke="#5C4A0A" strokeWidth={sw} />
-      <Rect x={-dx * 0.38} y={-sx * 0.32} width={dx * 0.55} height={sx * 0.64} rx={sx * 0.06} fill="#B8860B" />
-      <Rect x={-dx / 2 - dx * 0.05} y={-sx * 0.52} width={dx * 0.16} height={sx * 1.04} rx={sx * 0.04} fill="#6B5420" stroke="#3F3110" strokeWidth={sw} />
-      <Rect x={-dx * 0.32} y={-sx / 2} width={dx * 0.68} height={sx * 0.12} fill="#374151" />
-      <Rect x={-dx * 0.32} y={sx / 2 - sx * 0.12} width={dx * 0.68} height={sx * 0.12} fill="#374151" />
-    </G>
-  );
-}
-
-function SvgSamochod({ szer, dl, numer }: { szer: number; dl: number; numer?: number }) {
-  const sx = Math.max(szer, 2);
-  const dx = Math.max(dl, 2);
-  const sw = Math.max(sx * 0.035, 0.4);
-  return (
-    <G pointerEvents="none">
-      <Rect x={-dx / 2} y={-sx / 2} width={dx} height={sx} rx={sx * 0.1} fill="#E8B923" stroke="#5C4A0A" strokeWidth={sw} />
-      <Rect x={-dx / 2 + dx * 0.06} y={-sx * 0.36} width={dx * 0.55} height={sx * 0.72} fill="#C9A227" />
-      <Rect x={dx / 2 - dx * 0.32} y={-sx * 0.42} width={dx * 0.28} height={sx * 0.84} rx={sx * 0.08} fill="#8B6914" />
-      <Rect x={dx / 2 - dx * 0.22} y={-sx * 0.2} width={dx * 0.12} height={sx * 0.26} fill="#93C5FD" />
-      {numer != null ? (
-        <SvgText
-          x={-dx * 0.06}
-          y={sx * 0.14}
-          fill="#111827"
-          fontSize={sx * 0.42}
-          fontWeight="800"
-          textAnchor="middle"
-        >
-          {numer}
-        </SvgText>
-      ) : null}
-    </G>
-  );
 }
 
 export function WielokatPodglad({
@@ -323,8 +280,7 @@ export function WielokatPodglad({
       x: number;
       y: number;
       rotDeg: number;
-      szerPx: number;
-      dlPx: number;
+      szerObszaru: number;
       numer?: number;
       wpisId?: string;
     };
@@ -341,12 +297,11 @@ export function WielokatPodglad({
         if (!pos.ok) return;
         const s = toSvg(pos.punkt);
         const szerM = pr.ok ? Math.max(pr.szerokoscM, 2.2) : 4;
-        const szerPx = szerM * skalaFit * 0.88;
-        const dlPx = szerPx * (rodzaj === 'rozkladarka' ? 1.25 : 1.7);
         maszyny.push({
           rodzaj, x: s.x, y: s.y,
           rotDeg: headingDoSvgDeg(pos.headingRad),
-          szerPx, dlPx, ...extra,
+          szerObszaru: szerM * skalaFit,
+          ...extra,
         });
       };
       const lista = obszar.wpisyWz ?? [];
@@ -784,18 +739,20 @@ export function WielokatPodglad({
                               </G>
                             ))}
                             {mapa.maszyny.map((masz, i) => (
-                              <G
-                                key={`m-${masz.rodzaj}-${i}-${masz.numer ?? 0}`}
-                                transform={`translate(${masz.x},${masz.y}) rotate(${masz.rotDeg})`}
-                              >
-                                {masz.rodzaj === 'rozkladarka'
-                                  ? <SvgRozkladarka szer={masz.szerPx} dl={masz.dlPx} />
-                                  : <SvgSamochod szer={masz.szerPx} dl={masz.dlPx} numer={masz.numer} />}
+                              <G key={`m-${masz.rodzaj}-${i}-${masz.numer ?? 0}`}>
+                                <MaszynaObmiaru
+                                  x={masz.x}
+                                  y={masz.y}
+                                  rotDeg={masz.rotDeg}
+                                  szerObszaru={masz.szerObszaru}
+                                  rodzaj={masz.rodzaj}
+                                  numer={masz.numer}
+                                />
                                 {masz.wpisId && onPressAuto ? (
                                   <Circle
-                                    cx={0}
-                                    cy={0}
-                                    r={Math.max(masz.szerPx, masz.dlPx) * 0.55}
+                                    cx={masz.x}
+                                    cy={masz.y}
+                                    r={masz.szerObszaru * 0.7}
                                     fill="transparent"
                                     onPress={() => onPressAuto(masz.wpisId!)}
                                   />

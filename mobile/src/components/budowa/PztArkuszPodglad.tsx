@@ -29,6 +29,7 @@ import {
   svgDoPdfPodgladu,
   szerokoscPoprzecznaPdf,
   wycinekPolilinii,
+  wycinekWielokataPoOsi,
 } from '../../utils/osPzt';
 import type { WynikPomiaruOsi } from '../../utils/osPzt';
 import {
@@ -44,7 +45,7 @@ import {
 import { formatujKmM } from '../../utils/projektBudowy';
 import { buforTlaArkusza, listaWgranychPdf, odtworzTlaZIdb, podlaczBuforDoArkusza, przypnijWgranyPdfDoArkusza } from '../../utils/tloPdfPamiec';
 import { PztTloPdfCanvas, type ObrazTlaPdf } from './PztTloPdfCanvas';
-import { katWektoraStopni, ZnakAuta, ZnakRozkladarki } from './ZnakiMaszyn';
+import { FILL_ULOZONE, katWektoraStopni, MaszynaObmiaru } from '../sketch/MaszynyObmiaru';
 import type { AppTheme } from '../../constants/theme';
 
 function hostHtml(node: unknown): HTMLElement | null {
@@ -240,13 +241,6 @@ export function PztArkuszPodglad({
       const sl = Math.hypot(sdx, sdy) || 1;
       return { x: p.x, y: p.y, ux: sdx / sl, uy: sdy / sl };
     };
-    const rozkladarka = liveStacjaM != null ? stacjaNaSvg(liveStacjaM) : null;
-    const auta = (liveAuta ?? [])
-      .map((a) => {
-        const p = stacjaNaSvg(a.stacjaM);
-        return p ? { ...a, ...p } : null;
-      })
-      .filter((x): x is LiveAutoPzt & Punkt2D & { ux: number; uy: number } => !!x);
     const dlPdf = osPdf && osPdf.length >= 2 ? dlugoscPolilinii(osPdf) : 0;
     const krok = podzialkaM ?? 0;
     const szerPdf = medianaSzerokosciObszarowPdf(arkusz.obszary);
@@ -321,6 +315,73 @@ export function PztArkuszPodglad({
     const kKoniec = naArkuszu(zakresKoniecM) ? kreskaNaStacji(zakresKoniecM!, odKm, spanKm, 1.05) : null;
     if (kStart) zakresKreski.push({ ...zCzolem(kStart, zakresStartM!), kolor: '#16A34A', rola: 'start' });
     if (kKoniec) zakresKreski.push({ ...zCzolem(kKoniec, zakresKoniecM!), kolor: '#DC2626', rola: 'koniec' });
+    const kmRosnie = zakresStartM == null || zakresKoniecM == null || zakresKoniecM >= zakresStartM;
+    const maszynaNaStacji = (stacjaM: number) => {
+      const p = stacjaNaSvg(stacjaM);
+      if (!p || !osPdf || osPdf.length < 2 || dlPdf <= 0) return null;
+      const sPdf = ((stacjaM - odKm) / spanKm) * dlPdf;
+      const cz = czoloObmiaruPdf(arkusz.obszary, osPdf, sPdf);
+      let x = p.x;
+      let y = p.y;
+      let szerObszaru = Math.max(szerPdf, 8) * skalaFit;
+      if (cz) {
+        const a = toSvg(cz.a);
+        const b = toSvg(cz.b);
+        const s = toSvg(cz.srodek);
+        x = s.x;
+        y = s.y;
+        szerObszaru = Math.max(8, Math.hypot(b.x - a.x, b.y - a.y));
+      }
+      const znak = kmRosnie ? 1 : -1;
+      return { x, y, rotDeg: katWektoraStopni(p.ux * znak, p.uy * znak), szerObszaru };
+    };
+    const maszyny: Array<{
+      id: string;
+      rodzaj: 'rozkladarka' | 'auto';
+      x: number;
+      y: number;
+      rotDeg: number;
+      szerObszaru: number;
+      numer?: number;
+    }> = [];
+    for (const a of liveAuta ?? []) {
+      const m = maszynaNaStacji(a.stacjaM);
+      if (m) maszyny.push({ id: a.id, rodzaj: 'auto', numer: a.numer, ...m });
+    }
+    if (liveStacjaM != null) {
+      const m = maszynaNaStacji(liveStacjaM);
+      if (m) maszyny.push({ id: 'rozkladarka', rodzaj: 'rozkladarka', ...m });
+    }
+    const rozkladarka = maszyny.find((m) => m.rodzaj === 'rozkladarka');
+    if (rozkladarka) {
+      for (const auto of maszyny) {
+        if (auto.rodzaj !== 'auto') continue;
+        if (Math.hypot(auto.x - rozkladarka.x, auto.y - rozkladarka.y) > auto.szerObszaru * 0.45) continue;
+        const rad = (auto.rotDeg * Math.PI) / 180;
+        const cofnij = auto.szerObszaru * 1.2;
+        auto.x -= Math.cos(rad) * cofnij;
+        auto.y -= Math.sin(rad) * cofnij;
+      }
+    }
+    const ulozone: string[] = [];
+    if (liveStacjaM != null && zakresStartM != null && osPdf && osPdf.length >= 2 && dlPdf > 0) {
+      const clampS = (km: number) => {
+        const s = ((km - odKm) / spanKm) * dlPdf;
+        return Math.max(0, Math.min(dlPdf, s));
+      };
+      const sA = clampS(zakresStartM);
+      const sB = clampS(liveStacjaM);
+      if (Math.abs(sB - sA) > 0.4) {
+        for (const o of arkusz.obszary) {
+          const clip = wycinekWielokataPoOsi(o.wierzcholkiPdf, osPdf, sA, sB);
+          if (clip.length < 3) continue;
+          ulozone.push(clip.map((pt) => {
+            const s = toSvg(pt);
+            return `${s.x},${s.y}`;
+          }).join(' '));
+        }
+      }
+    }
     const mapaSvg = { w: rozmiar.w, h: rozmiar.h, cx, cy, skalaFit };
     const os1500M = osPdf && osPdf.length >= 2 ? dlugoscOsiPdf1500M(osPdf) : 0;
     const xfdfM = arkusz.osTrasy?.dlugoscEtykietaM;
@@ -335,8 +396,8 @@ export function PztArkuszPodglad({
       os1500M,
       xfdfM,
       dlM,
-      rozkladarka,
-      auta,
+      maszyny,
+      ulozone,
       podzialki,
       zakresKreski,
       rMarkerSvg: podzialki[0]?.rMarkerSvg ?? Math.max(2.2, Math.min(4.5, 3.2 * skalaFit)),
@@ -809,6 +870,9 @@ export function PztArkuszPodglad({
                             vectorEffect="non-scaling-stroke"
                           />
                         ))}
+                        {mapa.ulozone.map((pts, i) => (
+                          <Polygon key={`ulo-${i}`} points={pts} fill={FILL_ULOZONE} />
+                        ))}
                         {mapa.obszary.flatMap((o) =>
                           o.krawedzniki.map((k) => (
                             <Polyline
@@ -901,31 +965,18 @@ export function PztArkuszPodglad({
                             </G>
                           );
                         })}
-                        {mapa.auta.map((a) => {
-                          const k = 1 / Math.max(xform.s, 0.08);
-                          return (
-                            <G key={a.id} onPress={() => onPressAuto?.(a.id)}>
-                              <G transform={`translate(${a.x} ${a.y}) rotate(${katWektoraStopni(a.ux, a.uy)}) scale(${k})`}>
-                                <ZnakAuta />
-                              </G>
-                              <SvgText
-                                x={a.x}
-                                y={a.y - 16 * k}
-                                fontSize={11 * k}
-                                fontWeight="700"
-                                fill="#111827"
-                                textAnchor="middle"
-                              >
-                                {String(a.numer)}
-                              </SvgText>
-                            </G>
-                          );
-                        })}
-                        {mapa.rozkladarka ? (
-                          <G transform={`translate(${mapa.rozkladarka.x} ${mapa.rozkladarka.y}) rotate(${katWektoraStopni(mapa.rozkladarka.ux, mapa.rozkladarka.uy)}) scale(${1 / Math.max(xform.s, 0.08)})`}>
-                            <ZnakRozkladarki />
+                        {mapa.maszyny.map((m) => (
+                          <G key={m.id} onPress={m.rodzaj === 'auto' ? () => onPressAuto?.(m.id) : undefined}>
+                            <MaszynaObmiaru
+                              x={m.x}
+                              y={m.y}
+                              rotDeg={m.rotDeg}
+                              szerObszaru={m.szerObszaru}
+                              rodzaj={m.rodzaj}
+                              numer={m.numer}
+                            />
                           </G>
-                        ) : null}
+                        ))}
                         {rysunekPomiaru?.odcinek && rysunekPomiaru.odcinek.length >= 2 ? (
                           <Polyline
                             points={rysunekPomiaru.odcinek.map((p) => `${p.x},${p.y}`).join(' ')}

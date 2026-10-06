@@ -6,9 +6,10 @@ import React from 'react';
 import { View, Text, StyleSheet, useColorScheme } from 'react-native';
 import Svg, {
   Rect as SvgRect, Line as SvgLine, Text as SvgText,
-  G as SvgG, Circle as SvgCircle, Polygon as SvgPolygon, Path as SvgPath,
+  G as SvgG, Polygon as SvgPolygon, Path as SvgPath,
   Defs, ClipPath,
 } from 'react-native-svg';
+import { FILL_ULOZONE, MaszynaObmiaru } from './MaszynyObmiaru';
 import { lightTheme, darkTheme } from '../../constants/theme';
 import {
   obliczPowierzchniFigury, dlugoscFigury, sredniaSzerokoscFigury, formatLiczby,
@@ -20,42 +21,14 @@ import {
   SKETCH_PAD,
   obliczWysokosciFigur,
   metryDoY,
+  szerokoscObszaruSzkicuPx,
 } from '../../utils/sketchLayout';
 import type { FiguraWCiaguPlanu, MarkerPlanuCiaglego } from '../../utils/planCiagly';
 import type { Figura, WpisLive } from '../../types';
 
 const PAD_TOP = SKETCH_PAD.top;
 const PAD_BOT = SKETCH_PAD.bot;
-
-function PaverTopSVG({ x, y, szer }: { x: number; y: number; szer: number }) {
-  const W = szer * 0.85;
-  const CW = szer * 0.55;
-  const CL = 22;
-  return (
-    <SvgG transform={`translate(${x - CW / 2}, ${y - CL / 2})`}>
-      <SvgRect x={(CW - W) / 2} y={CL - 3} width={W} height={6} rx="2" fill="#E8A020" stroke="#c4860f" strokeWidth="1" />
-      <SvgRect x="0" y="3" width={CW} height={CL - 6} rx="3" fill="#d4900f" stroke="#c4860f" strokeWidth="1" />
-      <SvgRect x={CW * 0.2} y="5" width={CW * 0.6} height={CL - 12} rx="2" fill="#c4860f" />
-      <SvgPolygon points={`0,3 ${CW},3 ${CW / 2},0`} fill="#E8A020" stroke="#c4860f" strokeWidth="1" />
-      <SvgRect x={-5} y="2" width="5" height={CL - 4} rx="2" fill="#1a1a1a" />
-      <SvgRect x={CW} y="2" width="5" height={CL - 4} rx="2" fill="#1a1a1a" />
-    </SvgG>
-  );
-}
-
-function TruckTopSVG({ x, y, nrAuta }: { x: number; y: number; nrAuta: number }) {
-  return (
-    <SvgG transform={`translate(${x - 18}, ${y - 10})`}>
-      <SvgRect x="5" y="0" width="26" height="10" rx="2" fill="#c4860f" />
-      <SvgRect x="2" y="10" width="32" height="16" rx="2" fill="#E8A020" stroke="#c4860f" strokeWidth="1" />
-      <SvgText x="18" y="21" fontSize={nrAuta >= 10 ? '8' : '9'} fontWeight="900" fill="#1a1a1a" textAnchor="middle">{String(nrAuta)}</SvgText>
-      <SvgCircle cx="7" cy="10" r="4" fill="#1a1a1a" />
-      <SvgCircle cx="29" cy="10" r="4" fill="#1a1a1a" />
-      <SvgCircle cx="7" cy="26" r="4" fill="#1a1a1a" />
-      <SvgCircle cx="29" cy="26" r="4" fill="#1a1a1a" />
-    </SvgG>
-  );
-}
+const ROT_UKLADANIA = 90;
 
 function maxSzerokoscFigury(figura: Figura): number {
   switch (figura.typ) {
@@ -232,24 +205,31 @@ export function PlanCalySketch({
             const clipId = `clip-plan-${fp.dzialkaId}-${fp.figura.id}`;
             return (
               <SvgG key={`pass-${clipId}`} clipPath={`url(#${clipId})`}>
-                <FiguraKsztalt figura={fp.figura} yFig={yFig} hFig={hFig} maxSzer={maxSzer} fill="#000000" stroke="#000000" strokeW={0} />
+                <FiguraKsztalt figura={fp.figura} yFig={yFig} hFig={hFig} maxSzer={maxSzer} fill={FILL_ULOZONE} stroke="none" strokeW={0} />
               </SvgG>
             );
           })}
-          {paverY > PAD_TOP && (
-            <SvgLine x1={LEFT_MARGIN - 4} y1={paverY} x2={LEFT_MARGIN + SKETCH_W + 4} y2={paverY} stroke="#E8A020" strokeWidth="2" />
-          )}
-          {paverY > PAD_TOP + 14 && (
-            <PaverTopSVG x={LEFT_MARGIN + SKETCH_W / 2} y={paverY} szer={SKETCH_W - 4} />
+          {wykonaneMetryGlobalne > 0 && (
+            <MaszynaObmiaru
+              x={LEFT_MARGIN + SKETCH_W / 2}
+              y={paverY}
+              rotDeg={ROT_UKLADANIA}
+              szerObszaru={szerokoscObszaruSzkicuPx(figury, wykonaneMetryGlobalne)}
+              rodzaj="rozkladarka"
+            />
           )}
           {markery.map((marker) => {
             const markerY = metryDoY(figury, heights, marker.metryKumulatywne);
             return (
-              <SvgG key={marker.wpis.id}>
-                <SvgLine x1={LEFT_MARGIN - 6} y1={markerY} x2={LEFT_MARGIN + SKETCH_W} y2={markerY} stroke="rgba(255,255,255,0.5)" strokeWidth="1.2" strokeDasharray="4,3" />
-                <SvgG onPress={() => onTruckPress?.(marker.wpis, marker.idxGlobalny)}>
-                  <TruckTopSVG x={LEFT_MARGIN / 2} y={markerY} nrAuta={marker.wpis.numerAuta} />
-                </SvgG>
+              <SvgG key={marker.wpis.id} onPress={() => onTruckPress?.(marker.wpis, marker.idxGlobalny)}>
+                <MaszynaObmiaru
+                  x={LEFT_MARGIN + SKETCH_W / 2}
+                  y={markerY}
+                  rotDeg={ROT_UKLADANIA}
+                  szerObszaru={szerokoscObszaruSzkicuPx(figury, marker.metryKumulatywne)}
+                  rodzaj="auto"
+                  numer={marker.wpis.numerAuta}
+                />
               </SvgG>
             );
           })}
