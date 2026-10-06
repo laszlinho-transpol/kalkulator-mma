@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.15';
+export const WERSJA_APLIKACJI = '1.8.16';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,16 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.16',
+    data: '2026-10-06',
+    tytul: 'Live – zakończenie dnia i archiwum',
+    zmiany: [
+      'Zakończ zapisuje dniówkę do archiwum – przycisk działa w przeglądarce',
+      'Archiwum szuka daty lub zakresu i grupuje plany po budowach',
+      'Zapisany plan można przeglądać i wysłać jako PDF na e-mail',
+    ],
+  },
   {
     wersja: '1.8.15',
     data: '2026-10-05',

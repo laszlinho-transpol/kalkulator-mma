@@ -19,9 +19,8 @@ import { lightTheme, darkTheme } from '../../src/constants/theme';
 import { AnimatedTabBar } from '../../src/components/common/AnimatedTabBar';
 import { DzialkaSketch } from '../../src/components/sketch/DzialkaSketch';
 import { TabelaLive } from '../../src/components/plan/TabelaLive';
-import { generujRaportPDF } from '../../src/utils/pdfGenerator';
+import { generujRaportPDF, wyslijRaportDniaMailem } from '../../src/utils/pdfGenerator';
 import { eksportujJSON, generujInteraktywnyHTML } from '../../src/utils/htmlGenerator';
-import * as MailComposer from 'expo-mail-composer';
 import {
   obliczWynikiDzialki,
   formatLiczby,
@@ -68,20 +67,25 @@ export default function ArchiwumDetailScreen() {
   const wpisyLive = wpisyDlaPlanu(plan.id);
   const wybraDzialka = plan.dzialki[wybranaIdx];
 
+  const opcjeRaportu = {
+    plan,
+    wpisyLive,
+    mieszanki,
+    budowa: budowa ? { kodBudowy: budowa.kodBudowy, nazwaInwestycji: budowa.nazwaInwestycji } : undefined,
+  };
+
   const handleGenerujPDF = async () => {
     setGenerujePDF(true);
-    try { await generujRaportPDF({ plan, wpisyLive, mieszanki, budowa: budowa ? { kodBudowy: budowa.kodBudowy, nazwaInwestycji: budowa.nazwaInwestycji } : undefined }); }
+    try { await generujRaportPDF(opcjeRaportu); }
     catch { Alert.alert('Błąd', 'Nie udało się wygenerować PDF. Spróbuj ponownie.'); }
     finally { setGenerujePDF(false); }
   };
 
   const handleWyslijMail = async () => {
-    const dostepny = await MailComposer.isAvailableAsync();
-    if (!dostepny) { Alert.alert('Brak klienta e-mail', 'Na urządzeniu nie skonfigurowano konta e-mail.'); return; }
-    await MailComposer.composeAsync({
-      subject: `Raport MMA – ${formatujDatePl(plan.dataWbudowywania)}`,
-      body: `W załączniku znajdziesz raport dnia roboczego z ${formatujDatePl(plan.dataWbudowywania)}.\n\nWygenerowano: Kalkulator MMA`,
-    });
+    setGenerujePDF(true);
+    try { await wyslijRaportDniaMailem(opcjeRaportu); }
+    catch { Alert.alert('Błąd', 'Nie udało się przygotować wiadomości z PDF.'); }
+    finally { setGenerujePDF(false); }
   };
 
   // Statystyki sumaryczne
@@ -255,7 +259,7 @@ export default function ArchiwumDetailScreen() {
             </TouchableOpacity>
             <TouchableOpacity style={[uStyles.btn, { backgroundColor: `${theme.colors.danger}15`, borderColor: theme.colors.danger }]} onPress={async () => { setUdostepnijModal(false); handleWyslijMail(); }}>
               <Text style={uStyles.btnIkona}>✉️</Text>
-              <View><Text style={[uStyles.btnTytul, { color: theme.colors.text }]}>Wyślij e-mailem</Text><Text style={[uStyles.btnOpis, { color: theme.colors.textSecondary }]}>Otwórz klienta poczty z raportem</Text></View>
+              <View><Text style={[uStyles.btnTytul, { color: theme.colors.text }]}>Wyślij e-mailem</Text><Text style={[uStyles.btnOpis, { color: theme.colors.textSecondary }]}>PDF w załączniku. W przeglądarce zapisz PDF z okna drukowania i dołącz go do maila.</Text></View>
             </TouchableOpacity>
             <TouchableOpacity style={[uStyles.btn, { backgroundColor: `${theme.colors.info}15`, borderColor: theme.colors.info }]} onPress={async () => { setUdostepnijModal(false); try { await eksportujJSON(plan, mieszanki); } catch {} }}>
               <Text style={uStyles.btnIkona}>📦</Text>

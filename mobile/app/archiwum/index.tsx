@@ -2,8 +2,8 @@
 // EKRAN: ARCHIWUM – zakończone roboty i raporty WZ po budowach
 // ============================================================
 
-import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, useColorScheme } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, useColorScheme } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePlanyStore } from '../../src/stores/planyStore';
@@ -17,6 +17,8 @@ import { AppHeader } from '../../src/components/common/AppHeader';
 import { grupujPoKluczu } from '../../src/utils/grouping';
 import { karta, tekstTytul, tekstPodtytul } from '../../src/constants/layout';
 import { formatLiczby } from '../../src/utils/calculations';
+import { formatujKmM } from '../../src/utils/projektBudowy';
+import { dzienWZakresie, dzienZIso, parsujZakresDat } from '../../src/utils/zakresDat';
 import type { Plan, SesjaObmiaruDnia } from '../../src/types';
 
 type PozycjaArchiwum =
@@ -31,13 +33,14 @@ export default function ArchiwumScreen() {
   const { budowy } = useBudowyStore();
   const { wpisyDlaPlanu } = useLiveStore();
   const sesjeObmiaru = useObmiarStore((s) => s.sesje);
+  const [szukaj, setSzukaj] = useState('');
   const archiwalne = plany.filter((p) => p.status === 'archiwalny');
   const obmiarArchiwum = sesjeObmiaru.filter((s) => s.status === 'archiwalna');
 
   const formatujDate = (iso: string) =>
     new Date(iso).toLocaleDateString('pl-PL', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' });
 
-  const pozycje = useMemo<PozycjaArchiwum[]>(() => {
+  const wszystkie = useMemo<PozycjaArchiwum[]>(() => {
     const zPlanow: PozycjaArchiwum[] = archiwalne.map((p) => ({
       rodzaj: 'plan',
       id: p.id,
@@ -54,6 +57,17 @@ export default function ArchiwumScreen() {
     }));
     return [...zPlanow, ...zObmiaru].sort((a, b) => b.dataSort - a.dataSort);
   }, [archiwalne, obmiarArchiwum]);
+
+  const zakres = parsujZakresDat(szukaj);
+  const pozycje = useMemo(() => {
+    if (!zakres.ok || zakres.pusty) return wszystkie;
+    return wszystkie.filter((p) => {
+      const iso = p.rodzaj === 'plan'
+        ? p.plan.dataWbudowywania
+        : (p.sesja.zakonczonoAt ?? p.sesja.updatedAt ?? p.sesja.data);
+      return dzienWZakresie(dzienZIso(iso), zakres.od, zakres.do);
+    });
+  }, [wszystkie, zakres]);
 
   const grupy = useMemo(() => {
     const zKluczem = pozycje.map((p) => {
@@ -91,8 +105,8 @@ export default function ArchiwumScreen() {
             {wpisy.length} aut • {sumaTon.toFixed(1)} Mg • {sumaMetrow.toFixed(0)} m
           </Text>
         )}
-        <Text style={[tekstPodtytul, { color: theme.colors.textSecondary }]} numberOfLines={2}>
-          {item.dzialki.length} {item.dzialki.length === 1 ? 'działka' : 'działki'} • Dotknij, aby zobaczyć raport
+        <Text style={[tekstPodtytul, { color: theme.colors.textSecondary }]} numberOfLines={3}>
+          {opisPlanu(item)}
         </Text>
       </TouchableOpacity>
     );
@@ -130,11 +144,36 @@ export default function ArchiwumScreen() {
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <AppHeader tytul="Archiwum" lewy={{ tekst: '‹ Wstecz', onPress: () => router.back() }} />
 
-      {pozycje.length === 0 ? (
+      <View style={styles.szukajWrap}>
+        <TextInput
+          value={szukaj}
+          onChangeText={setSzukaj}
+          placeholder="Data lub zakres, np. 05.10.2026 albo 01.10.2026–10.10.2026"
+          placeholderTextColor={theme.colors.textSecondary}
+          autoCapitalize="none"
+          autoCorrect={false}
+          style={[styles.szukaj, { color: theme.colors.text, borderColor: theme.colors.border, backgroundColor: theme.colors.card }]}
+        />
+        {!zakres.ok && (
+          <Text style={[styles.szukajBlad, { color: theme.colors.danger }]}>
+            Nie rozpoznaję daty. Wpisz np. 05.10.2026 albo 01.10.2026–10.10.2026.
+          </Text>
+        )}
+      </View>
+
+      {wszystkie.length === 0 ? (
         <EmptyState
           ikona="📁"
           tytul="Archiwum jest puste"
-          opis="Po „Zakończ i archiwizuj” w wbudowywaniu lub w Obmiarze (WZ) raport trafi tutaj – PDF i wysyłka mailem."
+          opis="Po „Zakończ” w planie dnia dniówka trafi tutaj, pod swoją budowę. Stąd otworzysz plan i wyślesz PDF mailem."
+        />
+      ) : !zakres.ok ? (
+        <View style={{ flex: 1 }} />
+      ) : pozycje.length === 0 ? (
+        <EmptyState
+          ikona="📅"
+          tytul="Brak planów w tym zakresie"
+          opis="Zmień datę albo wyczyść pole, żeby zobaczyć wszystkie budowy."
         />
       ) : (
         <ScrollView contentContainerStyle={[styles.lista, { paddingBottom: insets.bottom + 16 }]} showsVerticalScrollIndicator={false}>
@@ -145,6 +184,7 @@ export default function ArchiwumScreen() {
               liczba={grupa.elementy.length}
               theme={theme}
               ikona="🏗️"
+              domyslnieRozwinieta
               plaski={grupa.bezPrzypisania}
             >
               {grupa.elementy.map((el) => (el.rodzaj === 'plan' ? renderujPlan(el.plan) : renderujObmiar(el.sesja)))}
@@ -156,8 +196,24 @@ export default function ArchiwumScreen() {
   );
 }
 
+function opisPlanu(plan: Plan): string {
+  const czesci: string[] = [];
+  if (plan.warstwaNazwa) czesci.push(plan.warstwaNazwa);
+  if (plan.obszarNazwa) czesci.push(plan.obszarNazwa);
+  if (plan.kilometrazOdM != null && plan.kilometrazDoM != null) {
+    czesci.push(`${formatujKmM(plan.kilometrazOdM)} – ${formatujKmM(plan.kilometrazDoM)}`);
+  }
+  const n = plan.dzialki.length;
+  czesci.push(`${n} ${n === 1 ? 'działka' : 'działki'}`);
+  czesci.push('Podgląd i PDF na maila');
+  return czesci.join(' · ');
+}
+
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  szukajWrap: { paddingHorizontal: 14, paddingTop: 12 },
+  szukaj: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
+  szukajBlad: { fontSize: 13, marginTop: 8, lineHeight: 18 },
   lista: { padding: 14 },
   kartaNaglowek: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, gap: 8 },
   znaczekZakonczone: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },

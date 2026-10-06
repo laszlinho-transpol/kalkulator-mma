@@ -108,6 +108,7 @@ export default function WbudowywanieDetailScreen() {
   const [autaModalZakladka, setAutaModalZakladka] = useState<'szczegoły' | 'odcinek'>('szczegoły');
   const [viewerPzt, setViewerPzt] = useState(false);
   const [generujeRaport, setGenerujeRaport] = useState(false);
+  const [potwierdzZakonczenie, setPotwierdzZakonczenie] = useState(false);
   const [szkicObszarId, setSzkicObszarId] = useState<string | null>(null);
   const [blokadaSzkicuPzt, setBlokadaSzkicuPzt] = useState(false);
   const [mapaSzkicAktywna, setMapaSzkicAktywna] = useState(false);
@@ -236,41 +237,35 @@ export default function WbudowywanieDetailScreen() {
     return { grubosc: gr, doKoncaM: doK, grPlan: gruboscWbudowywania(dz) };
   };
 
-  const zakonczIArchiwizuj = () => Alert.alert(
-    'Zakończ i archiwizuj',
-    'Plan zostanie przeniesiony do archiwum. Wygenerujemy raport PDF do wysłania.',
-    [
-      { text: 'Anuluj', style: 'cancel' },
-      {
-        text: 'Zakończ i wyślij raport',
-        style: 'destructive',
-        onPress: async () => {
-          setGenerujeRaport(true);
-          try {
-            await generujRaportPDF({
-              plan, wpisyLive: wpisyCalegoPlanu, mieszanki,
-              budowa: budowa ? { kodBudowy: budowa.kodBudowy, nazwaInwestycji: budowa.nazwaInwestycji } : undefined,
-            });
-            await archiwizujPlan(plan.id);
-            router.replace('/archiwum' as any);
-          } catch {
-            Alert.alert('Uwaga', 'Plan zarchiwizowany, ale nie udało się wygenerować raportu PDF.');
-            await archiwizujPlan(plan.id);
-            router.replace('/archiwum' as any);
-          } finally {
-            setGenerujeRaport(false);
-          }
-        },
-      },
-      {
-        text: 'Tylko archiwizuj',
-        onPress: async () => {
-          await archiwizujPlan(plan.id);
-          router.replace('/archiwum' as any);
-        },
-      },
-    ],
-  );
+  const opcjeRaportuDnia = () => ({
+    plan,
+    wpisyLive: wpisyCalegoPlanu,
+    mieszanki,
+    budowa: budowa
+      ? { kodBudowy: budowa.kodBudowy, nazwaInwestycji: budowa.nazwaInwestycji }
+      : undefined,
+  });
+
+  const zakonczIArchiwizuj = () => {
+    if (!generujeRaport) setPotwierdzZakonczenie(true);
+  };
+
+  const wykonajZakonczenie = async (zRaportem: boolean) => {
+    setGenerujeRaport(true);
+    try {
+      await archiwizujPlan(plan.id);
+    } catch {
+      Alert.alert('Błąd', 'Nie udało się zapisać dniówki do archiwum.');
+      setGenerujeRaport(false);
+      return;
+    }
+    if (zRaportem) {
+      try { await generujRaportPDF(opcjeRaportuDnia()); } catch { /* raport można zrobić z archiwum */ }
+    }
+    setPotwierdzZakonczenie(false);
+    setGenerujeRaport(false);
+    router.replace('/archiwum' as any);
+  };
 
   const ostatnieAuto = () => {
     const dz = aktywnaDzialka?.dzialka;
@@ -914,7 +909,7 @@ export default function WbudowywanieDetailScreen() {
                 <View style={[styles.karta, { backgroundColor: `${theme.colors.danger}08`, borderColor: theme.colors.danger }]}>
                   <Text style={[styles.kartaTytul, { color: theme.colors.danger }]}>Zakończenie dniówki</Text>
                   <Text style={[styles.opisMaly, { color: theme.colors.textSecondary, marginBottom: 12 }]}>
-                    Po zakończeniu plan trafi do archiwum. Wygenerujemy raport PDF z podsumowaniem Live do wysłania mailem.
+                    Po zakończeniu dniówka trafia do archiwum tej budowy. Raport PDF i e-mail są w archiwum.
                   </Text>
                   <TouchableOpacity
                     style={[styles.btnOstatnieAuto, { backgroundColor: `${theme.colors.textSecondary}15`, borderColor: theme.colors.border, marginBottom: 10 }]}
@@ -1044,6 +1039,38 @@ export default function WbudowywanieDetailScreen() {
       })()}
 
       <ZalacznikiViewer visible={viewerPzt} zalaczniki={zalacznikiPzt} theme={theme} onClose={() => setViewerPzt(false)} />
+
+      <Modal visible={potwierdzZakonczenie} transparent animationType="slide" onRequestClose={() => { if (!generujeRaport) setPotwierdzZakonczenie(false); }}>
+        <Pressable style={styles.modalTlo} onPress={() => { if (!generujeRaport) setPotwierdzZakonczenie(false); }}>
+          <Pressable style={[styles.modalKarta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]} onPress={() => {}}>
+            <Text style={[styles.modalTytul, { color: theme.colors.text, textAlign: 'center', marginBottom: 8 }]}>Zakończ układanie</Text>
+            <Text style={[styles.opisMaly, { color: theme.colors.textSecondary, textAlign: 'center', marginBottom: 16 }]}>
+              Dniówka zostanie zapisana w archiwum. Raport PDF możesz przygotować teraz albo później, przy przeglądaniu planu.
+            </Text>
+            <TouchableOpacity
+              style={[styles.btnDodajAuto, { backgroundColor: theme.colors.danger, marginBottom: 10 }]}
+              onPress={() => { void wykonajZakonczenie(true); }}
+              disabled={generujeRaport}
+            >
+              <Text style={styles.btnDodajAutoTekst}>{generujeRaport ? 'Zapisuję…' : 'Zakończ i przygotuj PDF'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.btnOstatnieAuto, { borderColor: theme.colors.border, marginBottom: 10 }]}
+              onPress={() => { void wykonajZakonczenie(false); }}
+              disabled={generujeRaport}
+            >
+              <Text style={{ color: theme.colors.text, fontWeight: '700', fontSize: 15 }}>Tylko zapisz do archiwum</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.btnOstatnieAuto, { borderColor: theme.colors.border }]}
+              onPress={() => setPotwierdzZakonczenie(false)}
+              disabled={generujeRaport}
+            >
+              <Text style={{ color: theme.colors.textSecondary, fontWeight: '600', fontSize: 15 }}>Anuluj</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }

@@ -2,8 +2,10 @@
 // GENERATOR PDF – Raport dnia roboczego (rozszerzone kolumny)
 // ============================================================
 
+import { Platform } from 'react-native';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
+import * as MailComposer from 'expo-mail-composer';
 import type { Plan, WpisLive, SesjaObmiaruDnia } from '../types';
 import { obliczWynikiDzialki, obliczPowierzchnioweOdStartu, formatLiczby } from './calculations';
 import { formatujDatePl } from './dates';
@@ -17,7 +19,7 @@ interface GenerujPDFOptions {
   budowa?: { kodBudowy: string; nazwaInwestycji: string };
 }
 
-export async function generujRaportPDF({ plan, wpisyLive, mieszanki, budowa }: GenerujPDFOptions): Promise<void> {
+export function htmlRaportuDnia({ plan, wpisyLive, mieszanki, budowa }: GenerujPDFOptions): string {
   const getMieszanka = (id: string) => mieszanki.find((m) => m.id === id);
 
   const stylePDF = `
@@ -148,8 +150,71 @@ export async function generujRaportPDF({ plan, wpisyLive, mieszanki, budowa }: G
 </body>
 </html>`;
 
+  return html;
+}
+
+function otworzMailto(temat: string, tresc: string) {
+  if (typeof document === 'undefined') return;
+  const a = document.createElement('a');
+  a.href = `mailto:?subject=${encodeURIComponent(temat)}&body=${encodeURIComponent(tresc)}`;
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+/** Na telefonie w przeglądarce expo-print drukuje całą aplikację. Raport idzie osobno. */
+function drukujHtmlWRamce(html: string) {
+  if (typeof document === 'undefined') return;
+  const iframe = document.createElement('iframe');
+  iframe.setAttribute('style', 'position:fixed;width:0;height:0;border:0;');
+  document.body.appendChild(iframe);
+  const doc = iframe.contentDocument ?? iframe.contentWindow?.document;
+  if (!doc) {
+    iframe.remove();
+    return;
+  }
+  doc.open();
+  doc.write(html);
+  doc.close();
+  setTimeout(() => {
+    iframe.contentWindow?.focus();
+    iframe.contentWindow?.print();
+    setTimeout(() => iframe.remove(), 1500);
+  }, 250);
+}
+
+async function udostepnijHtmlRaportu(html: string): Promise<void> {
+  if (Platform.OS === 'web') {
+    drukujHtmlWRamce(html);
+    return;
+  }
   const { uri } = await Print.printToFileAsync({ html, base64: false });
   await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'Udostępnij raport PDF' });
+}
+
+export async function generujRaportPDF(opcje: GenerujPDFOptions): Promise<void> {
+  await udostepnijHtmlRaportu(htmlRaportuDnia(opcje));
+}
+
+export async function wyslijRaportDniaMailem(opcje: GenerujPDFOptions): Promise<void> {
+  const temat = `Raport MMA – ${formatujDatePl(opcje.plan.dataWbudowywania)}`;
+  const tresc = `Raport dnia roboczego z ${formatujDatePl(opcje.plan.dataWbudowywania)}.\n\nKalkulator MMA`;
+  const html = htmlRaportuDnia(opcje);
+  if (Platform.OS === 'web') {
+    drukujHtmlWRamce(html);
+    setTimeout(() => {
+      otworzMailto(temat, `${tresc}\n\nZałącz plik PDF z okna drukowania (Zapisz jako PDF).`);
+    }, 600);
+    return;
+  }
+  const { uri } = await Print.printToFileAsync({ html, base64: false });
+  const dostepny = await MailComposer.isAvailableAsync();
+  if (!dostepny) {
+    await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'Udostępnij raport PDF' });
+    return;
+  }
+  await MailComposer.composeAsync({ subject: temat, body: tresc, attachments: [uri] });
 }
 
 function escapeHtml(s: string): string {
