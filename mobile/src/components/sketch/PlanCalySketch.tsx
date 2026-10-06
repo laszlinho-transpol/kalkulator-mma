@@ -220,13 +220,17 @@ export function PlanCalySketch({
           )}
           {markery.map((marker) => {
             const markerY = metryDoY(figury, heights, marker.metryKumulatywne);
+            const szerAuta = szerokoscObszaruSzkicuPx(figury, marker.metryKumulatywne);
+            const yAuta = wykonaneMetryGlobalne > 0 && Math.abs(markerY - paverY) < 8
+              ? Math.max(PAD_TOP + 4, markerY - 22)
+              : markerY;
             return (
               <SvgG key={marker.wpis.id} onPress={() => onTruckPress?.(marker.wpis, marker.idxGlobalny)}>
                 <MaszynaObmiaru
                   x={LEFT_MARGIN + SKETCH_W / 2}
-                  y={markerY}
+                  y={yAuta}
                   rotDeg={ROT_UKLADANIA}
-                  szerObszaru={szerokoscObszaruSzkicuPx(figury, marker.metryKumulatywne)}
+                  szerObszaru={szerAuta}
                   rodzaj="auto"
                   numer={marker.wpis.numerAuta}
                 />
