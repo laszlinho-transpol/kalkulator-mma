@@ -12,6 +12,7 @@ import { useWytwornieStore } from '../src/stores/wytwornieStore';
 import { useLiveStore } from '../src/stores/liveStore';
 import { useNotatnikStore } from '../src/stores/notatnikStore';
 import { useObmiarStore } from '../src/stores/obmiarStore';
+import { useGrafikaMaszynStore } from '../src/stores/grafikaMaszynStore';
 import { lightTheme, darkTheme } from '../src/constants/theme';
 import { LoadingScreen } from '../src/components/common/LoadingScreen';
 import { ErrorBoundary } from '../src/components/common/ErrorBoundary';
@@ -30,6 +31,7 @@ export default function RootLayout() {
   const zaladujWpisy = useLiveStore((s) => s.zaladujWpisy);
   const zaladujNotatnik = useNotatnikStore((s) => s.zaladuj);
   const zaladujObmiar = useObmiarStore((s) => s.zaladuj);
+  const zaladujGrafike = useGrafikaMaszynStore((s) => s.zaladuj);
 
   const [ladowanie, setLadowanie] = useState(true);
   const [loadingWidoczny, setLoadingWidoczny] = useState(true);
@@ -47,6 +49,7 @@ export default function RootLayout() {
           zaladujWytwornie(),
           zaladujNotatnik(),
           zaladujObmiar(),
+          zaladujGrafike(),
         ]);
         const onboardingComplete = await AsyncStorage.getItem(KLUCZ_ONBOARDING);
         if (!onboardingComplete) {

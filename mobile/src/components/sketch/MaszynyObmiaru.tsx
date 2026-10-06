@@ -1,7 +1,11 @@
-// Wspólne rysunki rozkładarki i wywrotki z obmiaru PZT.
+// Wspólne rysunki rozkładarki i wywrotki.
 // +X = przód (kierunek układania), Y = szerokość L–P. Środek (0,0) = pozycja na odcinku.
+// Wygląd bierze się z ustawień: obmiar, widok z boku albo własny plik SVG.
 import React from 'react';
-import { G, Rect, Text as SvgText } from 'react-native-svg';
+import { G, Rect, Text as SvgText, SvgXml } from 'react-native-svg';
+import { Rozkladarka } from '../../../assets/svg/Rozkladarka';
+import { Wywrotka } from '../../../assets/svg/Wywrotka';
+import { useGrafikaMaszynStore } from '../../stores/grafikaMaszynStore';
 
 /** Ułożony odcinek – ciemny szary. */
 export const FILL_ULOZONE = 'rgba(55, 65, 81, 0.72)';
@@ -59,6 +63,72 @@ export function SvgSamochod({ szer, dl, numer }: { szer: number; dl: number; num
   );
 }
 
+function NumerAuta({ dx, sx, numer }: { dx: number; sx: number; numer: number }) {
+  return (
+    <SvgText
+      x={-dx * 0.08}
+      y={sx * 0.16}
+      fill="#111827"
+      fontSize={Math.max(6, sx * 0.38)}
+      fontWeight="800"
+      textAnchor="middle"
+    >
+      {numer}
+    </SvgText>
+  );
+}
+
+/** Rysunek w układzie maszyny: środek 0,0, przód w +X, szerokość w osi Y. */
+export function RysunekMaszyny({
+  rodzaj, szer, dl, numer,
+}: {
+  rodzaj: 'rozkladarka' | 'auto';
+  szer: number;
+  dl: number;
+  numer?: number;
+}) {
+  const grafika = useGrafikaMaszynStore((s) => s.grafika);
+  const sx = Math.max(szer, 2);
+  const dx = Math.max(dl, 2);
+  const wlasny = rodzaj === 'rozkladarka' ? grafika.svgRozkladarki : grafika.svgAuta;
+  const obmiar = rodzaj === 'rozkladarka'
+    ? <SvgRozkladarka szer={sx} dl={dx} />
+    : <SvgSamochod szer={sx} dl={dx} numer={numer} />;
+
+  if (wlasny) {
+    return (
+      <G pointerEvents="none">
+        <SvgXml
+          xml={wlasny}
+          override={{ x: -dx / 2, y: -sx / 2, width: dx, height: sx }}
+          fallback={obmiar}
+        />
+        {rodzaj === 'auto' && numer != null ? <NumerAuta dx={dx} sx={sx} numer={numer} /> : null}
+      </G>
+    );
+  }
+
+  if (grafika.wyglad === 'bok') {
+    if (rodzaj === 'rozkladarka') {
+      return (
+        <G pointerEvents="none" transform={`translate(${-dx / 2},${-sx / 2})`}>
+          <Rozkladarka width={dx} height={sx} kierunek="rosnacy" />
+        </G>
+      );
+    }
+    return (
+      <G pointerEvents="none">
+        <G transform={`translate(${dx / 2},${-sx / 2}) scale(-1,1)`}>
+          <Wywrotka width={dx} height={sx} nrAuta={numer ?? 1} pokazNumer={false} />
+        </G>
+        {numer != null ? <NumerAuta dx={dx} sx={sx} numer={numer} /> : null}
+      </G>
+    );
+  }
+
+  return obmiar;
+}
+
 export function MaszynaObmiaru({
   x, y, rotDeg, szerObszaru, rodzaj, numer,
 }: {
@@ -72,9 +142,7 @@ export function MaszynaObmiaru({
   const { szer, dl } = wymiaryMaszyny(szerObszaru, rodzaj);
   return (
     <G transform={`translate(${x},${y}) rotate(${rotDeg})`}>
-      {rodzaj === 'rozkladarka'
-        ? <SvgRozkladarka szer={szer} dl={dl} />
-        : <SvgSamochod szer={szer} dl={dl} numer={numer} />}
+      <RysunekMaszyny rodzaj={rodzaj} szer={szer} dl={dl} numer={numer} />
     </G>
   );
 }

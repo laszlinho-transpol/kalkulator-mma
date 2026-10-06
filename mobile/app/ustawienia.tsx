@@ -12,31 +12,17 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { lightTheme, darkTheme, type AppTheme } from '../src/constants/theme';
 import { AnimatedCard } from '../src/components/common/AnimatedCard';
+import { GrafikaMaszynSekcja } from '../src/components/ustawienia/GrafikaMaszynSekcja';
 import { useMieszankiStore } from '../src/stores/mieszankiStore';
 import { usePlanyStore } from '../src/stores/planyStore';
 import { useLiveStore } from '../src/stores/liveStore';
 import { WERSJA_APLIKACJI, CHANGELOG } from '../src/constants/version';
+import { pobierzUstawienia, zapiszUstawienia } from '../src/utils/ustawieniaAplikacji';
 
 const KLUCZ_ONBOARDING = '@mma:onboardingComplete';
 const KLUCZ_USTAWIEN = '@mma:settings';
 
-interface Ustawienia {
-  tonazDomyslny: number;
-}
-
-const DOMYSLNE_USTAWIENIA: Ustawienia = { tonazDomyslny: 25.5 };
-
-export async function pobierzUstawienia(): Promise<Ustawienia> {
-  try {
-    const json = await AsyncStorage.getItem(KLUCZ_USTAWIEN);
-    if (json) return { ...DOMYSLNE_USTAWIENIA, ...JSON.parse(json) };
-  } catch {}
-  return DOMYSLNE_USTAWIENIA;
-}
-
-export async function zapiszUstawienia(u: Ustawienia): Promise<void> {
-  await AsyncStorage.setItem(KLUCZ_USTAWIEN, JSON.stringify(u));
-}
+export { pobierzUstawienia, zapiszUstawienia };
 
 export default function UstawieniaScreen() {
   const colorScheme = useColorScheme();
@@ -154,6 +140,7 @@ export default function UstawieniaScreen() {
                 <Text style={styles.btnZapiszTekst}>{zapisano ? '✓ Zapisano' : 'Zapisz'}</Text>
               </TouchableOpacity>
             </View>
+            <GrafikaMaszynSekcja theme={theme} />
           </View>
         </AnimatedCard>
 

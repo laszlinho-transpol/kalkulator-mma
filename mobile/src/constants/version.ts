@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.18';
+export const WERSJA_APLIKACJI = '1.8.19';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,16 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.19',
+    data: '2026-10-06',
+    tytul: 'Ustawienia – grafika maszyn',
+    zmiany: [
+      'Pod tonażem auta jest podgląd rozkładarki i wywrotki',
+      'Zmień grafikę: obmiar z góry, widok z boku albo własny plik SVG',
+      'Wybrany rysunek jest na szkicach w całej aplikacji',
+    ],
+  },
   {
     wersja: '1.8.18',
     data: '2026-10-06',

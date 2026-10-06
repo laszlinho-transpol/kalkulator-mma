@@ -13,9 +13,11 @@ interface WywrotkaProps {
   height?: number;
   /** Kolor skrzyni wywrotu */
   kolorSkrzyni?: string;
+  /** false gdy numer rysujemy osobno (odbicie lustrzane nie odwraca cyfr). */
+  pokazNumer?: boolean;
 }
 
-export function Wywrotka({ nrAuta, width = 56, height = 38, kolorSkrzyni = '#E8A020' }: WywrotkaProps) {
+export function Wywrotka({ nrAuta, width = 56, height = 38, kolorSkrzyni = '#E8A020', pokazNumer = true }: WywrotkaProps) {
   // Skrzynia lekko uniesiona (gotowa do wyburzenia)
   const skrzyniaKolor = kolorSkrzyni;
   const szkieletKolor = '#c4860f';
@@ -50,18 +52,19 @@ export function Wywrotka({ nrAuta, width = 56, height = 38, kolorSkrzyni = '#E8A
       {/* tylna klapa */}
       <Line x1="52" y1="8" x2="52" y2="23" stroke={szkieletKolor} strokeWidth="2" />
 
-      {/* === NUMER AUTA NA SKRZYNI === */}
-      <SvgText
-        x="37"
-        y="20"
-        fontSize={nrAuta >= 10 ? "10" : "12"}
-        fontWeight="900"
-        fill="#1a1a1a"
-        textAnchor="middle"
-        fontFamily="monospace"
-      >
-        {nrAuta}
-      </SvgText>
+      {pokazNumer ? (
+        <SvgText
+          x="37"
+          y="20"
+          fontSize={nrAuta >= 10 ? "10" : "12"}
+          fontWeight="900"
+          fill="#1a1a1a"
+          textAnchor="middle"
+          fontFamily="monospace"
+        >
+          {nrAuta}
+        </SvgText>
+      ) : null}
 
       {/* === TYLNY ZDERZAK / HITCH === */}
       <Rect x="51" y="25" width="3" height="4" rx="1" fill="#666" />
