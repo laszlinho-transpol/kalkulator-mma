@@ -14,6 +14,7 @@ import {
   svgDoPdfPodgladu,
   czoloObmiaruPdf,
   napisZakresuWzdluzOsi,
+  pasUkladaniaPdf,
   szerokoscPoprzecznaPdf,
 } from './osPzt';
 
@@ -80,6 +81,30 @@ describe('pomiar osi PDF 1:500', () => {
     const obszar = { wierzcholkiPdf: [{ x: 0, y: 20 }, { x: 0, y: 0 }, { x: 400, y: 0 }, { x: 400, y: 20 }] };
     const w = szerokoscPoprzecznaPdf([obszar], os, 200);
     assert.ok(Math.abs(w - 20) < 0.2, `szer ${w}`);
+  });
+
+  it('pas układania ignoruje daleki poligon i zostaje przy szerokości jezdni', () => {
+    const os = [{ x: 0, y: 0 }, { x: 400, y: 0 }];
+    const pas = { wierzcholkiPdf: [{ x: 0, y: 10 }, { x: 0, y: -10 }, { x: 400, y: -10 }, { x: 400, y: 10 }] };
+    const daleki = { wierzcholkiPdf: [{ x: 0, y: 200 }, { x: 0, y: 160 }, { x: 400, y: 160 }, { x: 400, y: 200 }] };
+    const r = pasUkladaniaPdf([pas, daleki], os, 200);
+    assert.ok(r);
+    assert.ok(Math.abs(r!.szer - 20) < 0.5, `szer ${r?.szer}`);
+    assert.ok(Math.abs(r!.srodek.y) < 1);
+  });
+
+  it('skos szerszy niż baza L–P jest obcięty do szerokości pasa', () => {
+    const os = [{ x: 0, y: 0 }, { x: 400, y: 0 }];
+    const o = {
+      wierzcholkiPdf: [
+        { x: 0, y: 10 }, { x: 0, y: -10 }, { x: 180, y: -10 }, { x: 200, y: -40 }, { x: 220, y: -10 },
+        { x: 400, y: -10 }, { x: 400, y: 10 }, { x: 220, y: 10 }, { x: 200, y: 40 }, { x: 180, y: 10 },
+      ],
+      bazaStart: { idxLewy: 0, idxPrawy: 1 },
+    };
+    const r = pasUkladaniaPdf([o], os, 200);
+    assert.ok(r);
+    assert.ok(Math.abs(r!.szer - 20) < 0.5, `szer ${r?.szer}`);
   });
 });
 

@@ -66,11 +66,12 @@ export function GrafikaMaszynSekcja({ theme }: { theme: AppTheme }) {
     await ustawSvg(rodzaj, r.xml);
   };
 
-  const nazwaWygladu = WYGLADY.find((w) => w.id === grafika.wyglad)?.nazwa ?? 'Obmiar z góry';
-  const wlasne = [
-    grafika.svgRozkladarki ? 'własna rozkładarka' : '',
-    grafika.svgAuta ? 'własne auto' : '',
-  ].filter(Boolean).join(', ');
+  const opisMaszyny = (rodzaj: 'rozkladarka' | 'auto') => {
+    const wyglad = rodzaj === 'rozkladarka' ? grafika.wygladRozkladarki : grafika.wygladAuta;
+    const wlasny = rodzaj === 'rozkladarka' ? grafika.svgRozkladarki : grafika.svgAuta;
+    const nazwa = WYGLADY.find((w) => w.id === wyglad)?.nazwa ?? 'Obmiar z góry';
+    return wlasny ? `${nazwa}, własny SVG` : nazwa;
+  };
 
   return (
     <View style={[styl.blok, { borderTopColor: theme.colors.border }]}>
@@ -89,7 +90,10 @@ export function GrafikaMaszynSekcja({ theme }: { theme: AppTheme }) {
         </View>
       </View>
       <Text style={[styl.aktualny, { color: theme.colors.textSecondary }]}>
-        {wlasne ? `${nazwaWygladu}, ${wlasne}` : nazwaWygladu}
+        Rozkładarka: {opisMaszyny('rozkladarka')}
+      </Text>
+      <Text style={[styl.aktualny, { color: theme.colors.textSecondary, marginTop: -6 }]}>
+        Auto: {opisMaszyny('auto')}
       </Text>
       <TouchableOpacity
         style={[styl.btn, { backgroundColor: theme.colors.primary }]}
@@ -103,35 +107,23 @@ export function GrafikaMaszynSekcja({ theme }: { theme: AppTheme }) {
           <Pressable style={[styl.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]} onPress={() => {}}>
             <Text style={[styl.kartaTytul, { color: theme.colors.text }]}>Zmień grafikę</Text>
             <Text style={[styl.opis, { color: theme.colors.textSecondary }]}>
-              Wybranie wyglądu usuwa własne pliki i dotyczy całej aplikacji. Własny plik SVG zastępuje wygląd tylko tej maszyny. Przód rysunku niech wskazuje w prawo.
+              Rozkładarka i auto mają osobny wygląd. Wbudowany rysunek usuwa tylko własny plik tej maszyny. Przód SVG niech wskazuje w prawo.
             </Text>
-            {WYGLADY.map((w) => {
-              const on = grafika.wyglad === w.id;
-              return (
-                <TouchableOpacity
-                  key={w.id}
-                  style={[styl.opcja, {
-                    borderColor: on ? theme.colors.primary : theme.colors.border,
-                    backgroundColor: on ? `${theme.colors.primary}18` : theme.colors.inputBackground,
-                  }]}
-                  onPress={() => { setBlad(''); void ustawWyglad(w.id); }}
-                >
-                  <Text style={[styl.opcjaNazwa, { color: theme.colors.text }]}>{w.nazwa}</Text>
-                  <Text style={[styl.opcjaOpis, { color: theme.colors.textSecondary }]}>{w.opis}</Text>
-                </TouchableOpacity>
-              );
-            })}
-            <PlikRzad
+            <MaszynaWybor
               etykieta="Rozkładarka"
+              wyglad={grafika.wygladRozkladarki}
               wlasny={!!grafika.svgRozkladarki}
               theme={theme}
+              onWyglad={(w) => { setBlad(''); void ustawWyglad('rozkladarka', w); }}
               onZalacz={() => { void zalacz('rozkladarka'); }}
               onUsun={() => { setBlad(''); void ustawSvg('rozkladarka', null); }}
             />
-            <PlikRzad
+            <MaszynaWybor
               etykieta="Auto"
+              wyglad={grafika.wygladAuta}
               wlasny={!!grafika.svgAuta}
               theme={theme}
+              onWyglad={(w) => { setBlad(''); void ustawWyglad('auto', w); }}
               onZalacz={() => { void zalacz('auto'); }}
               onUsun={() => { setBlad(''); void ustawSvg('auto', null); }}
             />
@@ -146,26 +138,47 @@ export function GrafikaMaszynSekcja({ theme }: { theme: AppTheme }) {
   );
 }
 
-function PlikRzad({
-  etykieta, wlasny, theme, onZalacz, onUsun,
+function MaszynaWybor({
+  etykieta, wyglad, wlasny, theme, onWyglad, onZalacz, onUsun,
 }: {
   etykieta: string;
+  wyglad: WygladMaszyny;
   wlasny: boolean;
   theme: AppTheme;
+  onWyglad: (w: WygladMaszyny) => void;
   onZalacz: () => void;
   onUsun: () => void;
 }) {
   return (
-    <View style={styl.plikRzad}>
-      <Text style={[styl.opcjaNazwa, { color: theme.colors.text, flex: 1 }]}>{etykieta}</Text>
-      <TouchableOpacity style={[styl.btnMaly, { borderColor: theme.colors.primary }]} onPress={onZalacz}>
-        <Text style={[styl.btnMalyTekst, { color: theme.colors.primary }]}>{wlasny ? 'Zmień SVG' : 'Załącz SVG'}</Text>
-      </TouchableOpacity>
-      {wlasny ? (
-        <TouchableOpacity onPress={onUsun}>
-          <Text style={[styl.usun, { color: theme.colors.danger }]}>Usuń</Text>
+    <View style={[styl.maszyna, { borderColor: theme.colors.border }]}>
+      <Text style={[styl.opcjaNazwa, { color: theme.colors.text }]}>{etykieta}</Text>
+      <View style={styl.chipRzad}>
+        {WYGLADY.map((w) => {
+          const on = wyglad === w.id && !wlasny;
+          return (
+            <TouchableOpacity
+              key={w.id}
+              style={[styl.chip, {
+                borderColor: on ? theme.colors.primary : theme.colors.border,
+                backgroundColor: on ? `${theme.colors.primary}18` : theme.colors.inputBackground,
+              }]}
+              onPress={() => onWyglad(w.id)}
+            >
+              <Text style={{ color: on ? theme.colors.primary : theme.colors.text, fontWeight: '700', fontSize: 13 }}>{w.nazwa}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+      <View style={styl.plikRzad}>
+        <TouchableOpacity style={[styl.btnMaly, { borderColor: theme.colors.primary }]} onPress={onZalacz}>
+          <Text style={[styl.btnMalyTekst, { color: theme.colors.primary }]}>{wlasny ? 'Zmień SVG' : 'Załącz SVG'}</Text>
         </TouchableOpacity>
-      ) : null}
+        {wlasny ? (
+          <TouchableOpacity onPress={onUsun}>
+            <Text style={[styl.usun, { color: theme.colors.danger }]}>Usuń</Text>
+          </TouchableOpacity>
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -186,6 +199,9 @@ const styl = StyleSheet.create({
   opcja: { borderWidth: 1, borderRadius: 10, padding: 12, marginBottom: 8 },
   opcjaNazwa: { fontSize: 15, fontWeight: '700' },
   opcjaOpis: { fontSize: 12, marginTop: 2 },
+  maszyna: { borderWidth: 1, borderRadius: 12, padding: 10, marginBottom: 10 },
+  chipRzad: { flexDirection: 'row', gap: 8, marginTop: 8 },
+  chip: { flex: 1, borderWidth: 1, borderRadius: 8, paddingVertical: 8, paddingHorizontal: 6, alignItems: 'center' },
   plikRzad: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8 },
   btnMaly: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
   btnMalyTekst: { fontSize: 13, fontWeight: '700' },

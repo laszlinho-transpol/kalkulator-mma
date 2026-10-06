@@ -102,7 +102,7 @@ export function PztTloPdfCanvas({
           y0: frag.pdf.y0,
           x1: frag.pdf.x1,
           y1: frag.pdf.y1,
-          pxNaPunkt: Math.max(sfit * dpr * 2, 2.5),
+          pxNaPunkt: Math.min(6, Math.max(sfit * dpr * 1.35, 1.6)),
           oc: sesja.oc,
         });
         if (anulowane || gen !== genRef.current) {

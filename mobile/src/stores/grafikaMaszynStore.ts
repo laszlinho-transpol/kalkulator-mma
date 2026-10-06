@@ -1,11 +1,11 @@
 import { create } from 'zustand';
-import { DOMYSLNA_GRAFIKA, type GrafikaMaszyn, type WygladMaszyny } from '../utils/grafikaMaszyn';
+import { DOMYSLNA_GRAFIKA, znormalizujGrafike, type GrafikaMaszyn, type WygladMaszyny } from '../utils/grafikaMaszyn';
 import { pobierzUstawienia, zapiszUstawienia } from '../utils/ustawieniaAplikacji';
 
 interface Stan {
   grafika: GrafikaMaszyn;
   zaladuj: () => Promise<void>;
-  ustawWyglad: (wyglad: WygladMaszyny) => Promise<void>;
+  ustawWyglad: (rodzaj: 'rozkladarka' | 'auto', wyglad: WygladMaszyny) => Promise<void>;
   ustawSvg: (rodzaj: 'rozkladarka' | 'auto', xml: string | null) => Promise<void>;
 }
 
@@ -21,8 +21,15 @@ export const useGrafikaMaszynStore = create<Stan>((set, get) => ({
     set({ grafika: u.grafikaMaszyn });
   },
 
-  ustawWyglad: async (wyglad) => {
-    const grafika: GrafikaMaszyn = { wyglad, svgRozkladarki: null, svgAuta: null };
+  ustawWyglad: async (rodzaj, wyglad) => {
+    const prev = znormalizujGrafike(get().grafika);
+    const grafika: GrafikaMaszyn = {
+      ...prev,
+      wygladRozkladarki: rodzaj === 'rozkladarka' ? wyglad : prev.wygladRozkladarki,
+      wygladAuta: rodzaj === 'auto' ? wyglad : prev.wygladAuta,
+      svgRozkladarki: rodzaj === 'rozkladarka' ? null : prev.svgRozkladarki,
+      svgAuta: rodzaj === 'auto' ? null : prev.svgAuta,
+    };
     set({ grafika });
     await zapisz(grafika);
   },

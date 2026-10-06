@@ -45,6 +45,19 @@ export function pikietazPoMetrach(
   return startM + (kierunek === 'malejacy' ? -metry : metry);
 }
 
+/** Kilometraż początku i końca jednego wbudowania (w kolejności układania). */
+export function zakresOdcinkaKm(
+  startM: number,
+  metryPrzed: number,
+  metryOdcinka: number,
+  kierunek: 'rosnacy' | 'malejacy',
+): { odM: number; doM: number } {
+  return {
+    odM: pikietazPoMetrach(startM, metryPrzed, kierunek),
+    doM: pikietazPoMetrach(startM, metryPrzed + metryOdcinka, kierunek),
+  };
+}
+
 /** Oblicza domyślny pikietaż początku dla nowej figury (koniec ostatniej) */
 export function nastepnyPikietaz(dzialka: DzialkaRobocza): number {
   if (dzialka.figury.length === 0) {

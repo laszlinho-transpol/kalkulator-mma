@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { DOMYSLNA_GRAFIKA, type GrafikaMaszyn } from './grafikaMaszyn';
+import { DOMYSLNA_GRAFIKA, znormalizujGrafike, type GrafikaMaszyn } from './grafikaMaszyn';
 
 const KLUCZ_USTAWIEN = '@mma:settings';
 
@@ -21,7 +21,7 @@ export async function pobierzUstawienia(): Promise<Ustawienia> {
       return {
         ...DOMYSLNE_USTAWIENIA,
         ...z,
-        grafikaMaszyn: { ...DOMYSLNA_GRAFIKA, ...z.grafikaMaszyn },
+        grafikaMaszyn: znormalizujGrafike(z.grafikaMaszyn),
       };
     }
   } catch {

@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.19';
+export const WERSJA_APLIKACJI = '1.8.20';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,20 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.20',
+    data: '2026-10-06',
+    tytul: 'Szkic PZT – maszyny w pasie i szczegóły auta',
+    zmiany: [
+      'Rozkładarka i auta mieszczą się w szerokości układanego pasa i skalują się ze zoomem',
+      'Numer auta zostaje czytelny także przy układaniu z prawej do lewej',
+      'Stuknięcie w auto otwiera tonaż, metry z kilometrażem, powierzchnię, grubość i bilans',
+      'W planie z budowy nie ma już starego schematu pod tabelą',
+      'Live pokazuje te same rysunki rozkładarki i aut',
+      'W ustawieniach wygląd rozkładarki i auta zmienia się osobno',
+      'Wstecz z planu wraca do menu, także gdy historia nawigacji jest pusta',
+    ],
+  },
   {
     wersja: '1.8.19',
     data: '2026-10-06',

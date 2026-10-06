@@ -14,9 +14,9 @@ export function katWektoraStopni(ux: number, uy: number): number {
   return (Math.atan2(uy, ux) * 180) / Math.PI;
 }
 
-/** Szerokość rysunku = 88% szerokości obszaru, długość jak w obmiarze PZT. */
+/** Szerokość rysunku = 88% szerokości obszaru, długość jak w obmiarze PZT. Bez stałego minimum w pikselach – ma rosnąć razem ze zoomem. */
 export function wymiaryMaszyny(szerObszaruPx: number, rodzaj: 'rozkladarka' | 'auto'): { szer: number; dl: number } {
-  const szer = Math.max(szerObszaruPx * 0.88, 2);
+  const szer = Math.max(szerObszaruPx * 0.88, 0.35);
   const dl = szer * (rodzaj === 'rozkladarka' ? 1.25 : 1.7);
   return { szer, dl };
 }
@@ -63,18 +63,22 @@ export function SvgSamochod({ szer, dl, numer }: { szer: number; dl: number; num
   );
 }
 
-function NumerAuta({ dx, sx, numer }: { dx: number; sx: number; numer: number }) {
+/** Numer w osi ekranu. Rodzic jest już obrócony w kierunku układania – ten obrót to cofa. */
+function NumerPionowo({ numer, rozmiar, rotDeg }: { numer: number; rozmiar: number; rotDeg: number }) {
+  const font = Math.max(rozmiar, 0.45);
   return (
-    <SvgText
-      x={-dx * 0.08}
-      y={sx * 0.16}
-      fill="#111827"
-      fontSize={Math.max(6, sx * 0.38)}
-      fontWeight="800"
-      textAnchor="middle"
-    >
-      {numer}
-    </SvgText>
+    <G transform={`translate(${-rozmiar * 0.15},0) rotate(${-rotDeg})`}>
+      <SvgText
+        x={0}
+        y={font * 0.35}
+        fill="#111827"
+        fontSize={font}
+        fontWeight="800"
+        textAnchor="middle"
+      >
+        {numer}
+      </SvgText>
+    </G>
   );
 }
 
@@ -88,12 +92,13 @@ export function RysunekMaszyny({
   numer?: number;
 }) {
   const grafika = useGrafikaMaszynStore((s) => s.grafika);
-  const sx = Math.max(szer, 2);
-  const dx = Math.max(dl, 2);
+  const sx = Math.max(szer, 0.35);
+  const dx = Math.max(dl, 0.35);
   const wlasny = rodzaj === 'rozkladarka' ? grafika.svgRozkladarki : grafika.svgAuta;
+  const wyglad = rodzaj === 'rozkladarka' ? grafika.wygladRozkladarki : grafika.wygladAuta;
   const obmiar = rodzaj === 'rozkladarka'
     ? <SvgRozkladarka szer={sx} dl={dx} />
-    : <SvgSamochod szer={sx} dl={dx} numer={numer} />;
+    : <SvgSamochod szer={sx} dl={dx} />;
 
   if (wlasny) {
     return (
@@ -103,12 +108,11 @@ export function RysunekMaszyny({
           override={{ x: -dx / 2, y: -sx / 2, width: dx, height: sx }}
           fallback={obmiar}
         />
-        {rodzaj === 'auto' && numer != null ? <NumerAuta dx={dx} sx={sx} numer={numer} /> : null}
       </G>
     );
   }
 
-  if (grafika.wyglad === 'bok') {
+  if (wyglad === 'bok') {
     if (rodzaj === 'rozkladarka') {
       return (
         <G pointerEvents="none" transform={`translate(${-dx / 2},${-sx / 2})`}>
@@ -121,7 +125,6 @@ export function RysunekMaszyny({
         <G transform={`translate(${dx / 2},${-sx / 2}) scale(-1,1)`}>
           <Wywrotka width={dx} height={sx} nrAuta={numer ?? 1} pokazNumer={false} />
         </G>
-        {numer != null ? <NumerAuta dx={dx} sx={sx} numer={numer} /> : null}
       </G>
     );
   }
@@ -143,6 +146,9 @@ export function MaszynaObmiaru({
   return (
     <G transform={`translate(${x},${y}) rotate(${rotDeg})`}>
       <RysunekMaszyny rodzaj={rodzaj} szer={szer} dl={dl} numer={numer} />
+      {rodzaj === 'auto' && numer != null ? (
+        <NumerPionowo numer={numer} rozmiar={szer * 0.42} rotDeg={rotDeg} />
+      ) : null}
     </G>
   );
 }

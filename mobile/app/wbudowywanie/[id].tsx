@@ -47,6 +47,8 @@ import {
   sortujWpisyPlanu,
 } from '../../src/utils/planCiagly';
 import { formatujDatePl, aktualnaGodzina } from '../../src/utils/dates';
+import { zakresOdcinkaKm } from '../../src/utils/chainage';
+import { formatujKmM } from '../../src/utils/projektBudowy';
 import { uzupelnijProfilObmiaruDzialek } from '../../src/utils/planZBudowy';
 import {
   znajdzAktywnaDzialke,
@@ -65,6 +67,25 @@ const SCREEN_W = Dimensions.get('window').width;
 const SCREEN_H = Dimensions.get('window').height;
 /** Wysokość okna przewijania szkicu LIVE – ~42% ekranu, min 260 / max 520 px */
 const VIEWPORT_SZKICU_LIVE = Math.min(Math.max(SCREEN_H * 0.42, 260), 520);
+
+/** Wstecz z historii, a gdy historia jest pusta albo nic się nie dzieje – menu główne. */
+function wracajZPlanu() {
+  const przed = typeof window !== 'undefined' ? window.location.href : '';
+  try {
+    if (router.canGoBack()) router.back();
+    else {
+      router.replace('/');
+      return;
+    }
+  } catch {
+    router.replace('/');
+    return;
+  }
+  if (!przed || typeof window === 'undefined') return;
+  window.setTimeout(() => {
+    if (window.location.href === przed) router.replace('/');
+  }, 500);
+}
 
 // Kolumny tabeli Live (przewijane poziomo)
 const KOLUMNY = [
@@ -142,7 +163,7 @@ export default function WbudowywanieDetailScreen() {
   if (!plan) {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-        <AppHeader tytul="Wbudowywanie" lewy={{ tekst: '‹ Wstecz', onPress: () => router.back() }} />
+        <AppHeader tytul="Wbudowywanie" lewy={{ tekst: '‹ Wstecz', onPress: wracajZPlanu }} />
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
           <Text style={{ color: theme.colors.danger, fontSize: 16 }}>Plan nie znaleziony.</Text>
         </View>
@@ -454,7 +475,7 @@ export default function WbudowywanieDetailScreen() {
       <AppHeader
         tytul={formatujDatePl(plan.dataWbudowywania).split(',')[0]}
         podtytul={plan.dzialki.length > 1 ? `Całość dnia · ${plan.dzialki.length} działki` : plan.dzialki[0]?.nazwa}
-        lewy={{ tekst: '‹ Wstecz', onPress: () => router.back() }}
+        lewy={{ tekst: '‹ Wstecz', onPress: wracajZPlanu }}
         prawy={{ tekst: generujeRaport ? '…' : 'Zakończ', onPress: zakonczIArchiwizuj, kolor: '#fff', tlo: theme.colors.danger }}
       />
 
@@ -547,6 +568,7 @@ export default function WbudowywanieDetailScreen() {
                     } : undefined}
                   />
                 </View>
+                {plan.zrodlo === 'budowa' ? null : (
                 <View style={{ marginTop: 12 }}>
                   {plan.zrodlo === 'obmiar' && sesjaObmiaru ? (() => {
                     const obszar = sesjaObmiaru.obszary.find((o) => o.id === dz.id);
@@ -592,6 +614,7 @@ export default function WbudowywanieDetailScreen() {
                     />
                   )}
                 </View>
+                )}
               </View>
             );
           })}
@@ -1032,6 +1055,21 @@ export default function WbudowywanieDetailScreen() {
         const powAuta = obliczPowierzchnioweOdStartu(dzModal, wpis.przejechaneMetry);
         const grAuta = powAuta > 0 ? (wpis.tonazPrzywieziony / (mieModal.ciezarObjetosciowy * powAuta)) * 100 : 0;
         const bilansAuta = wpis.tonazPrzywieziony - powAuta * (grModal / 100) * mieModal.ciezarObjetosciowy;
+        const startKm = plan.kilometrazOdM;
+        const maleje = startKm != null && (plan.kilometrazDoM ?? startKm) < startKm;
+        let metryPrzed = 0;
+        if (startKm != null) {
+          for (const w of sortujWpisyPlanu(plan, wpisyCalegoPlanu)) {
+            if (w.id === wpis.id) break;
+            metryPrzed += w.przejechaneMetry;
+          }
+        }
+        const zakresKm = startKm != null
+          ? zakresOdcinkaKm(startKm, metryPrzed, wpis.przejechaneMetry, maleje ? 'malejacy' : 'rosnacy')
+          : null;
+        const metryAuta = zakresKm
+          ? `${formatLiczby(wpis.przejechaneMetry)} m (${formatujKmM(zakresKm.odM)} - ${formatujKmM(zakresKm.doM)})`
+          : `${formatLiczby(wpis.przejechaneMetry)} m`;
 
         return (
           <SafeModal
@@ -1057,7 +1095,7 @@ export default function WbudowywanieDetailScreen() {
               {autaModalZakladka === 'szczegoły' && (
                 <>
                   <ModalRow label="Tonaż przywieziony" v={`${formatLiczby(wpis.tonazPrzywieziony)} Mg`} theme={theme} />
-                  <ModalRow label="Przejechane metry" v={`${formatLiczby(wpis.przejechaneMetry)} m`} theme={theme} />
+                  <ModalRow label="Przejechane metry" v={metryAuta} theme={theme} />
                   <ModalRow label="Zakryta powierzchnia" v={`${formatLiczby(powAuta)} m²`} theme={theme} />
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 5 }}>
                     <Text style={{ color: theme.colors.textSecondary, fontSize: 14 }}>Uzyskana grubość</Text>
@@ -1162,7 +1200,7 @@ function ModalRow({ label, v, theme }: { label: string; v: string; theme: AppThe
   return (
     <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 5 }}>
       <Text style={{ color: theme.colors.textSecondary, fontSize: 14 }}>{label}</Text>
-      <Text style={{ color: theme.colors.text, fontSize: 14, fontWeight: '600' }}>{v}</Text>
+      <Text style={{ color: theme.colors.text, fontSize: 14, fontWeight: '600', flex: 1, textAlign: 'right', marginLeft: 8 }}>{v}</Text>
     </View>
   );
 }

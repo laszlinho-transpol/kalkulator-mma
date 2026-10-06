@@ -27,6 +27,7 @@ import {
   stacjePodzialki,
   stycznyNaOsi,
   svgDoPdfPodgladu,
+  pasUkladaniaPdf,
   szerokoscPoprzecznaPdf,
   wycinekPolilinii,
   wycinekWielokataPoOsi,
@@ -45,7 +46,7 @@ import {
 import { formatujKmM } from '../../utils/projektBudowy';
 import { buforTlaArkusza, listaWgranychPdf, odtworzTlaZIdb, podlaczBuforDoArkusza, przypnijWgranyPdfDoArkusza } from '../../utils/tloPdfPamiec';
 import { PztTloPdfCanvas, type ObrazTlaPdf } from './PztTloPdfCanvas';
-import { FILL_ULOZONE, katWektoraStopni, MaszynaObmiaru } from '../sketch/MaszynyObmiaru';
+import { FILL_ULOZONE, katWektoraStopni, MaszynaObmiaru, wymiaryMaszyny } from '../sketch/MaszynyObmiaru';
 import type { AppTheme } from '../../constants/theme';
 
 function hostHtml(node: unknown): HTMLElement | null {
@@ -72,6 +73,27 @@ function srodek(pts: Punkt2D[]): Punkt2D {
     y += p.y;
   }
   return { x: x / pts.length, y: y / pts.length };
+}
+
+function idAutaPodPunktem(
+  maszyny: Array<{ id: string; rodzaj: 'rozkladarka' | 'auto'; x: number; y: number; rotDeg: number; szerObszaru: number }>,
+  x: number,
+  y: number,
+): string | null {
+  let best: { id: string; d2: number } | null = null;
+  for (const m of maszyny) {
+    if (m.rodzaj !== 'auto') continue;
+    const { szer, dl } = wymiaryMaszyny(m.szerObszaru, 'auto');
+    const rad = (-m.rotDeg * Math.PI) / 180;
+    const dx = x - m.x;
+    const dy = y - m.y;
+    const lx = dx * Math.cos(rad) - dy * Math.sin(rad);
+    const ly = dx * Math.sin(rad) + dy * Math.cos(rad);
+    if (Math.abs(lx) > dl / 2 || Math.abs(ly) > szer / 2) continue;
+    const d2 = lx * lx + ly * ly;
+    if (!best || d2 < best.d2) best = { id: m.id, d2 };
+  }
+  return best?.id ?? null;
 }
 
 function kmAlboPuste(v: number | null | undefined): string {
@@ -317,20 +339,22 @@ export function PztArkuszPodglad({
     if (kKoniec) zakresKreski.push({ ...zCzolem(kKoniec, zakresKoniecM!), kolor: '#DC2626', rola: 'koniec' });
     const kmRosnie = zakresStartM == null || zakresKoniecM == null || zakresKoniecM >= zakresStartM;
     const maszynaNaStacji = (stacjaM: number) => {
-      const p = stacjaNaSvg(stacjaM);
-      if (!p || !osPdf || osPdf.length < 2 || dlPdf <= 0) return null;
-      const sPdf = ((stacjaM - odKm) / spanKm) * dlPdf;
-      const cz = czoloObmiaruPdf(arkusz.obszary, osPdf, sPdf);
+      if (!osPdf || osPdf.length < 2 || dlPdf <= 0) return null;
+      const margines = 12;
+      if (stacjaM < odKm - margines || stacjaM > doKm + margines) return null;
+      const stacja = Math.max(odKm, Math.min(doKm, stacjaM));
+      const p = stacjaNaSvg(stacja);
+      if (!p) return null;
+      const sPdf = ((stacja - odKm) / spanKm) * dlPdf;
+      const pas = pasUkladaniaPdf(arkusz.obszary, osPdf, sPdf);
       let x = p.x;
       let y = p.y;
-      let szerObszaru = Math.max(szerPdf, 8) * skalaFit;
-      if (cz) {
-        const a = toSvg(cz.a);
-        const b = toSvg(cz.b);
-        const s = toSvg(cz.srodek);
+      let szerObszaru = Math.max(szerPdf, 0.5) * skalaFit;
+      if (pas && pas.szer > 0.4) {
+        const s = toSvg(pas.srodek);
         x = s.x;
         y = s.y;
-        szerObszaru = Math.max(8, Math.hypot(b.x - a.x, b.y - a.y));
+        szerObszaru = pas.szer * skalaFit;
       }
       const znak = kmRosnie ? 1 : -1;
       return { x, y, rotDeg: katWektoraStopni(p.ux * znak, p.uy * znak), szerObszaru };
@@ -358,7 +382,7 @@ export function PztArkuszPodglad({
         if (auto.rodzaj !== 'auto') continue;
         if (Math.hypot(auto.x - rozkladarka.x, auto.y - rozkladarka.y) > auto.szerObszaru * 0.45) continue;
         const rad = (auto.rotDeg * Math.PI) / 180;
-        const cofnij = auto.szerObszaru * 1.2;
+        const cofnij = (wymiaryMaszyny(rozkladarka.szerObszaru, 'rozkladarka').dl + wymiaryMaszyny(auto.szerObszaru, 'auto').dl) * 0.55;
         auto.x -= Math.cos(rad) * cofnij;
         auto.y -= Math.sin(rad) * cofnij;
       }
@@ -410,6 +434,8 @@ export function PztArkuszPodglad({
   zmierzRef.current = zmierz;
   const wskazRef = useRef(onWskazPdf);
   wskazRef.current = onWskazPdf;
+  const onPressAutoRef = useRef(onPressAuto);
+  onPressAutoRef.current = onPressAuto;
   const lastTapMs = useRef(0);
 
   const pdfZEkranu = (ekranX: number, ekranY: number): Punkt2D | null => {
@@ -426,6 +452,32 @@ export function PztArkuszPodglad({
       skala: bazaSkali.current,
     });
     return svgDoPdfPodgladu(svg, m.mapaSvg);
+  };
+
+  const obsluzTapMapy = (ekranX: number, ekranY: number) => {
+    if (zmierzRef.current) {
+      dodajPunktPomiaru(ekranX, ekranY);
+      return;
+    }
+    const m = mapaRef.current;
+    if (m?.maszyny && onPressAutoRef.current) {
+      const svg = punktSvgZEkranu({
+        ekranX,
+        ekranY,
+        szer: rozmiarRef.current.w,
+        wys: rozmiarRef.current.h,
+        tx: bazaX.current,
+        ty: bazaY.current,
+        rot: 0,
+        skala: bazaSkali.current,
+      });
+      const id = idAutaPodPunktem(m.maszyny, svg.x, svg.y);
+      if (id) {
+        onPressAutoRef.current(id);
+        return;
+      }
+    }
+    wskazNaMapie(ekranX, ekranY);
   };
 
   const dodajPunktPomiaru = (ekranX: number, ekranY: number) => {
@@ -563,8 +615,12 @@ export function PztArkuszPodglad({
   useEffect(() => () => odpinWheel.current?.(), []);
 
   const onLayout = (e: LayoutChangeEvent) => {
-    const { width, height } = e.nativeEvent.layout;
-    if (width > 0 && height > 0) setRozmiar({ w: width, h: height });
+    const w = Math.round(e.nativeEvent.layout.width);
+    const h = Math.round(e.nativeEvent.layout.height);
+    if (w <= 0 || h <= 0) return;
+    const cur = rozmiarRef.current;
+    if (w === cur.w && h === cur.h) return;
+    setRozmiar({ w, h });
   };
 
   const ognisko = (e: { focalX?: number; focalY?: number; x?: number; y?: number }) => ({
@@ -649,10 +705,7 @@ export function PztArkuszPodglad({
         if (tap) {
           const x = e.nativeEvent.x as number | undefined;
           const y = e.nativeEvent.y as number | undefined;
-          if (x != null && y != null) {
-            if (zmierzRef.current) dodajPunktPomiaru(x, y);
-            else wskazNaMapie(x, y);
-          }
+          if (x != null && y != null) obsluzTapMapy(x, y);
         }
         onDotykZmiana?.(false);
       }
@@ -661,10 +714,7 @@ export function PztArkuszPodglad({
     if (tap) {
       const x = e.nativeEvent.x as number | undefined;
       const y = e.nativeEvent.y as number | undefined;
-      if (x != null && y != null) {
-        if (zmierzRef.current) dodajPunktPomiaru(x, y);
-        else wskazNaMapie(x, y);
-      }
+      if (x != null && y != null) obsluzTapMapy(x, y);
       if (zmierzRef.current || wskazRef.current) {
         onDotykZmiana?.(false);
         return;
@@ -827,11 +877,10 @@ export function PztArkuszPodglad({
                       height={rozmiar.h}
                       style={{ backgroundColor: 'transparent' }}
                       onPress={(e) => {
-                        if (!zmierzRef.current) return;
                         const ne = e.nativeEvent as { locationX?: number; x?: number; locationY?: number; y?: number };
                         const x = ne.locationX ?? ne.x;
                         const y = ne.locationY ?? ne.y;
-                        if (x != null && y != null) dodajPunktPomiaru(x, y);
+                        if (x != null && y != null) obsluzTapMapy(x, y);
                       }}
                     >
                       <Rect

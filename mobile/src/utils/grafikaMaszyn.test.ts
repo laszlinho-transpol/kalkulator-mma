@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { oczyscSvg } from './grafikaMaszyn';
+import { oczyscSvg, znormalizujGrafike } from './grafikaMaszyn';
 
 describe('oczyscSvg', () => {
   it('przyjmuje prosty plik SVG', () => {
@@ -11,6 +11,21 @@ describe('oczyscSvg', () => {
   it('odrzuca skrypt i plik bez svg', () => {
     assert.equal(oczyscSvg('<svg><script>alert(1)</script></svg>').ok, false);
     assert.equal(oczyscSvg('nie svg').ok, false);
+  });
+
+  it('stare jedno pole wyglad rozdziela na obie maszyny', () => {
+    const g = znormalizujGrafike({ wyglad: 'bok', svgAuta: '<svg></svg>' });
+    assert.equal(g.wygladRozkladarki, 'bok');
+    assert.equal(g.wygladAuta, 'bok');
+    assert.equal(g.svgAuta, '<svg></svg>');
+    assert.equal(g.svgRozkladarki, null);
+  });
+
+  it('osobny wygląd rozkładarki nie zmienia auta', () => {
+    const g = znormalizujGrafike({ wygladRozkladarki: 'bok', wygladAuta: 'obmiar', svgRozkladarki: '<svg id="r"/>' });
+    assert.equal(g.wygladRozkladarki, 'bok');
+    assert.equal(g.wygladAuta, 'obmiar');
+    assert.equal(g.svgRozkladarki, '<svg id="r"/>');
   });
 
   it('odrzuca zbyt duży plik', () => {

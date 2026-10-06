@@ -18,7 +18,7 @@ import {
   zbudujPlanZBudowy,
 } from './planZBudowy';
 import { obliczTabeleAutPlanu } from './calculations';
-import { pikietazPoMetrach } from './chainage';
+import { pikietazPoMetrach, zakresOdcinkaKm } from './chainage';
 import { segmentyKonstrukcji } from './projektBudowy';
 
 function warstwa(nazwa: string, kategoria: WarstwaKonstrukcji['kategoria'], cm: number): WarstwaKonstrukcji {
@@ -264,6 +264,7 @@ describe('planZBudowy / oś XFDF', () => {
   });
 
   it('malejący 114+020 → 113+605: nazwa, start i pikietaż w dół', () => {
+    assert.deepEqual(zakresOdcinkaKm(114020, 0, 45, 'malejacy'), { odM: 114020, doM: 113975 });
     assert.equal(pikietazPoMetrach(114020, 46.68, 'malejacy'), 113973.32);
     assert.equal(pikietazPoMetrach(114020, 46.68, 'rosnacy'), 114066.68);
     const wiaz = nowaWarstwa({ nazwa: 'Wiążąca', kategoria: 'wiazaca', kolejnosc: 1, gruboscCm: 8, odsadzkaCm: 0 });

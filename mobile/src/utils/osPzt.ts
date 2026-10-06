@@ -415,6 +415,69 @@ export function szerokoscPoprzecznaPdf(
   return maxU - minU;
 }
 
+/**
+ * Pas układania w punktach PDF: spójne przecięcia przy osi.
+ * Daleki poligon (pobocze, sąsiedni obszar) nie poszerza maszyny do szerokości arkusza.
+ */
+export function pasUkladaniaPdf(
+  obszary: Array<{
+    wierzcholkiPdf: Punkt2D[];
+    bazaStart?: { idxLewy?: number; idxPrawy?: number };
+    bazaKoniec?: { idxLewy?: number; idxPrawy?: number };
+  }>,
+  osPdf: Punkt2D[],
+  sPdf: number,
+): { szer: number; srodek: Punkt2D } | null {
+  const t = stycznyNaOsi(osPdf, sPdf);
+  if (!t) return null;
+  const plen = Math.hypot(t.dx, t.dy) || 1;
+  const nx = -t.dy / plen;
+  const ny = t.dx / plen;
+  type Span = { minU: number; maxU: number };
+  const spany: Span[] = [];
+  for (const o of obszary) {
+    const us = przecieciaProstejZKrawedziami(o.wierzcholkiPdf, t.punkt, nx, ny)
+      .filter((u) => Math.abs(u) <= ZASIEG_CZOLA_PDF);
+    if (us.length < 2) continue;
+    let minU = Math.min(...us);
+    let maxU = Math.max(...us);
+    const projekt = szerokoscObszaruPdf(o);
+    if (projekt > 1 && maxU - minU > projekt * 1.8) {
+      const pol = projekt / 2;
+      const c = minU <= 0 && maxU >= 0 ? 0 : (Math.abs(minU) < Math.abs(maxU) ? minU : maxU);
+      minU = c - pol;
+      maxU = c + pol;
+    }
+    if (maxU - minU < 1) continue;
+    spany.push({ minU, maxU });
+  }
+  if (!spany.length) return null;
+  spany.sort((a, b) => a.minU - b.minU);
+  const merged: Span[] = [];
+  for (const s of spany) {
+    const last = merged[merged.length - 1];
+    const gap = last ? s.minU - last.maxU : Infinity;
+    const typowa = Math.max(last ? last.maxU - last.minU : 0, s.maxU - s.minU);
+    if (last && gap <= Math.max(8, typowa * 0.35)) {
+      last.minU = Math.min(last.minU, s.minU);
+      last.maxU = Math.max(last.maxU, s.maxU);
+    } else {
+      merged.push({ minU: s.minU, maxU: s.maxU });
+    }
+  }
+  const zawiera = merged.find((s) => s.minU <= 0.5 && s.maxU >= -0.5);
+  const wybrany = zawiera ?? merged.reduce((best, s) => {
+    const odl = s.maxU < 0 ? -s.maxU : s.minU > 0 ? s.minU : 0;
+    const odlBest = best.maxU < 0 ? -best.maxU : best.minU > 0 ? best.minU : 0;
+    return odl < odlBest ? s : best;
+  });
+  const u = (wybrany.minU + wybrany.maxU) / 2;
+  return {
+    szer: wybrany.maxU - wybrany.minU,
+    srodek: { x: t.punkt.x + nx * u, y: t.punkt.y + ny * u },
+  };
+}
+
 /** Około 60 m w punktach PDF przy 1:500 – odcina dalekie cięcie łuku. */
 const ZASIEG_CZOLA_PDF = 360;
 

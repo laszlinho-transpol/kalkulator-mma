@@ -2,16 +2,33 @@
 export type WygladMaszyny = 'obmiar' | 'bok';
 
 export interface GrafikaMaszyn {
-  wyglad: WygladMaszyny;
+  wygladRozkladarki: WygladMaszyny;
+  wygladAuta: WygladMaszyny;
   svgRozkladarki: string | null;
   svgAuta: string | null;
 }
 
 export const DOMYSLNA_GRAFIKA: GrafikaMaszyn = {
-  wyglad: 'obmiar',
+  wygladRozkladarki: 'obmiar',
+  wygladAuta: 'obmiar',
   svgRozkladarki: null,
   svgAuta: null,
 };
+
+/** Stary zapis miał jedno pole `wyglad` dla obu maszyn. */
+export function znormalizujGrafike(
+  g?: (Partial<GrafikaMaszyn> & { wyglad?: WygladMaszyny }) | null,
+): GrafikaMaszyn {
+  const stary = g?.wyglad;
+  const roz = g?.wygladRozkladarki ?? stary ?? 'obmiar';
+  const aut = g?.wygladAuta ?? stary ?? 'obmiar';
+  return {
+    wygladRozkladarki: roz === 'bok' ? 'bok' : 'obmiar',
+    wygladAuta: aut === 'bok' ? 'bok' : 'obmiar',
+    svgRozkladarki: typeof g?.svgRozkladarki === 'string' ? g.svgRozkladarki : null,
+    svgAuta: typeof g?.svgAuta === 'string' ? g.svgAuta : null,
+  };
+}
 
 const MAX_SVG = 180_000;
 

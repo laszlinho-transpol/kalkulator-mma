@@ -40,7 +40,7 @@ export function AppHeader({ tytul, podtytul, przyciski, lewy, prawy }: AppHeader
     <View
       style={[
         styles.container,
-        { backgroundColor: theme.colors.card, borderBottomColor: theme.colors.border, paddingTop: insets.top + 6 },
+        { backgroundColor: theme.colors.card, borderBottomColor: theme.colors.border, paddingTop: insets.top + 6, zIndex: 20 },
       ]}
     >
       {/* Wiersz 1: nawigacja lewo + tytuł + prawo */}
