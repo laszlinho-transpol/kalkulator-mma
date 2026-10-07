@@ -13,6 +13,7 @@ import Svg, {
   Circle, G, Image as SvgImage, Line, Polygon, Polyline, Rect, Text as SvgText,
 } from 'react-native-svg';
 import { FILL_ULOZONE, MaszynaObmiaru } from '../sketch/MaszynyObmiaru';
+import { InfoTooltip } from '../common/InfoTooltip';
 import type { ObszarObmiaru, Punkt2D, SkalaPzt, TloPztObmiaru, TrybWyboruWezla, WezelObmiaru } from '../../types';
 import { bboxWielokata, metryNaPunktPdf } from '../../utils/obmiarGeometry';
 import { lancuchKrotszy, osFigury, przekrojPoprzeczny, wezlyZKonfiguracji, wielokatUlozony } from '../../utils/obmiarFigura';
@@ -790,11 +791,9 @@ export function WielokatPodglad({
           );
         })}
       </ScrollView>
-      <Text style={styl.hintPod}>
-        {blokadaPodgladu
-          ? 'Blokada ramki: przesuwanie i zoom w podglądzie (strona nie scrolluje). Odznacz „Ramka”, aby przewinąć w dół.'
-          : '1 palec: przesuń · 2 palce / lupka: zoom. Zaznacz „Ramka”, żeby nie scrollować strony.'}
-      </Text>
+      <View style={{ alignItems: 'flex-end', marginTop: 4 }}>
+        <InfoTooltip tresc="Ramka blokuje przewijanie strony: jeden palec przesuwa rysunek, dwa palce albo lupka przybliżają. Odznacz Ramkę, żeby przewinąć stronę w dół." />
+      </View>
     </View>
   );
 }

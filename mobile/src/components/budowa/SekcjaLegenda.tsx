@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TextInput } from 'react-native';
 import type { AppTheme } from '../../constants/theme';
 import type { ProjektBudowy } from '../../types';
 import { karta } from '../../constants/layout';
+import { InfoTooltip } from '../common/InfoTooltip';
 import { uzupelnijKonstrukcjeDlaLegendy } from '../../utils/projektBudowy';
 
 interface Props {
@@ -83,9 +84,10 @@ export function SekcjaLegenda({ projekt, theme, onZmien }: Props) {
 
   return (
     <View style={{ gap: 10 }}>
-      <Text style={{ color: theme.colors.textSecondary, fontSize: 13, lineHeight: 18 }}>
-        Każdy nowy kolor z XFDF wpada tu sam — tak samo jak do przedmiaru. Żółty / różowy to trasa główna L/P, czerwona linia — krawężnik, czarna przerywana — oś. Inne kolory (zjazdy, drogi boczne) nazwij ręcznie; konstrukcja i przedmiar dopiszą się po nazwie.
-      </Text>
+      <View style={styles.nag}>
+        <Text style={{ color: theme.colors.text, fontWeight: '800' }}>Kolory z PZT</Text>
+        <InfoTooltip tresc="Każdy nowy kolor z XFDF wpada tu sam — tak samo jak do przedmiaru. Żółty i różowy to trasa główna L/P, czerwona linia to krawężnik, czarna przerywana to oś. Inne kolory (zjazdy, drogi boczne) nazwij ręcznie; konstrukcja i przedmiar dopiszą się po nazwie." />
+      </View>
       {obszary.length > 0 && (
         <Text style={[styles.sek, { color: theme.colors.primary }]}>Obszary</Text>
       )}

@@ -12,6 +12,8 @@ import {
   dodajArkuszeDoProjektu,
   domyslneWarstwyKonstrukcji,
   formatujKmM,
+  opisWyjatkuZKilometrazem,
+  segmentyKonstrukcji,
   gestoscWarstwy,
   kluczLegendy,
   normalizujKolorHex,
@@ -589,5 +591,22 @@ describe('projektBudowy', () => {
     assert.match(msg, /XFDF/);
     assert.match(msg, /857[,.]75/);
     assert.doesNotMatch(msg, /rozciągnięt/i);
+  });
+
+  it('wyjątek dzieli całą trasę na odcinki z kilometrażem w opisie', () => {
+    const seg = segmentyKonstrukcji({
+      legendaId: 'prawa',
+      warstwy: [],
+      wyjatki: [{
+        id: 'w1',
+        kmOdM: 115000,
+        kmDoM: 116020,
+        warstwy: [],
+      }],
+    }, 112300, 116020);
+    assert.deepEqual(seg.map((s) => [s.od, s.do]), [[112300, 115000], [115000, 116020]]);
+    assert.equal(opisWyjatkuZKilometrazem('zatoka', 115000, 116020), 'zatoka (115+000 - 116+020)');
+    assert.equal(opisWyjatkuZKilometrazem('zatoka (112+000 - 113+000)', 115000, 116020), 'zatoka (115+000 - 116+020)');
+    assert.equal(opisWyjatkuZKilometrazem(undefined, 112300, 115000), '112+300 - 115+000');
   });
 });

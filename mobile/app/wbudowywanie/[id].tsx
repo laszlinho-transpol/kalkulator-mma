@@ -25,6 +25,7 @@ import { useObmiarStore } from '../../src/stores/obmiarStore';
 import { obszarZWpisamiLive } from '../../src/utils/obmiarDoPlanu';
 import { PlanCalySketch } from '../../src/components/sketch/PlanCalySketch';
 import { AppHeader } from '../../src/components/common/AppHeader';
+import { InfoTooltip } from '../../src/components/common/InfoTooltip';
 import { AnimatedTabBar } from '../../src/components/common/AnimatedTabBar';
 import { SafeModal } from '../../src/components/common/SafeModal';
 import { ZalacznikiViewer } from '../../src/components/common/ZalacznikiViewer';
@@ -624,10 +625,10 @@ export default function WbudowywanieDetailScreen() {
           {/* ======== KONTROLA ======== */}
           {aktywnaZakladka === 'kontrola' && (
             <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-              <Text style={[styles.kartaTytul, { color: theme.colors.text }]}>Kontrola całego dnia</Text>
-              <Text style={[styles.opisMaly, { color: theme.colors.textSecondary }]}>
-                Wpisz łączne tony i metry od startu pierwszej działki – program pokaże pozycję na całym odcinku.
-              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={[styles.kartaTytul, { color: theme.colors.text, flex: 1 }]}>Kontrola całego dnia</Text>
+                <InfoTooltip tresc="Wpisz łączne tony i metry od startu pierwszej działki – program pokaże pozycję na całym odcinku." />
+              </View>
               <NumInput label="Wbudowane tony [Mg]" value={wbudowaneTonyStr} onChange={setWbudowaneTony} theme={theme} />
               <View style={{ marginBottom: 10 }}>
                 <Text style={{ color: theme.colors.textSecondary, fontSize: 13, fontWeight: '600', marginBottom: 5 }}>Gdzie powinniśmy dojechać</Text>
@@ -774,9 +775,10 @@ export default function WbudowywanieDetailScreen() {
                     </>
                   ) : (
                     <>
-                      <Text style={[styles.opisMaly, { color: theme.colors.textSecondary, marginBottom: 8 }]}>
-                        Jeden ciągły odcinek – przewiń w pionie, aby przejrzeć cały plan.
-                      </Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                        <Text style={{ color: theme.colors.text, fontWeight: '800', flex: 1 }}>Szkic dnia</Text>
+                        <InfoTooltip tresc="Jeden ciągły odcinek – przewiń w pionie, aby przejrzeć cały plan." />
+                      </View>
                       <View style={styles.szkicRow}>
                         <View style={[styles.szkicLewy, { maxHeight: VIEWPORT_SZKICU_LIVE, borderColor: theme.colors.border, backgroundColor: theme.colors.background }]}>
                           <ScrollView nestedScrollEnabled showsVerticalScrollIndicator bounces={false} contentContainerStyle={{ paddingVertical: 4 }}>
@@ -993,10 +995,10 @@ export default function WbudowywanieDetailScreen() {
                 </View>
 
                 <View style={[styles.karta, { backgroundColor: `${theme.colors.danger}08`, borderColor: theme.colors.danger }]}>
-                  <Text style={[styles.kartaTytul, { color: theme.colors.danger }]}>Zakończenie dniówki</Text>
-                  <Text style={[styles.opisMaly, { color: theme.colors.textSecondary, marginBottom: 12 }]}>
-                    Po zakończeniu dniówka trafia do archiwum tej budowy. Raport PDF i e-mail są w archiwum.
-                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Text style={[styles.kartaTytul, { color: theme.colors.danger, flex: 1 }]}>Zakończenie dniówki</Text>
+                    <InfoTooltip tresc="Po zakończeniu dniówka trafia do archiwum tej budowy. Raport PDF i e-mail są w archiwum." />
+                  </View>
                   <TouchableOpacity
                     style={[styles.btnOstatnieAuto, { backgroundColor: `${theme.colors.textSecondary}15`, borderColor: theme.colors.border, marginBottom: 10 }]}
                     onPress={wyczyscLive}
@@ -1020,9 +1022,12 @@ export default function WbudowywanieDetailScreen() {
                 </Text>
               ) : (
                 <>
-                  <Text style={[styles.opisMaly, { color: theme.colors.textSecondary, marginBottom: 12 }]}>
-                    {zalacznikiPzt.length} plik(ów) – podgląd z przybliżaniem i obracaniem.
-                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                    <Text style={[styles.opisMaly, { color: theme.colors.textSecondary, flex: 1 }]}>
+                      {zalacznikiPzt.length} plik(ów)
+                    </Text>
+                    <InfoTooltip tresc="Podgląd załączników z przybliżaniem i obracaniem." />
+                  </View>
                   {zalacznikiPzt.map((z) => (
                     <Text key={z.id} style={{ color: theme.colors.text, marginBottom: 4 }}>📎 {z.nazwa}</Text>
                   ))}
@@ -1113,9 +1118,12 @@ export default function WbudowywanieDetailScreen() {
               )}
               {autaModalZakladka === 'odcinek' && (
                 <>
-                  <Text style={[styles.opisMaly, { color: theme.colors.textSecondary, marginBottom: 8 }]}>
-                    Podsumowanie całego planu dnia od auta #1 do #{wpis.numerAuta}
-                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                    <Text style={[styles.opisMaly, { color: theme.colors.text, fontWeight: '700', flex: 1 }]}>
+                      Odcinek 1→{wpis.numerAuta}
+                    </Text>
+                    <InfoTooltip tresc={`Podsumowanie całego planu dnia od auta #1 do #${wpis.numerAuta}.`} />
+                  </View>
                   <ModalRow label="Łączny tonaż" v={`${formatLiczby(odcinekPlanu.tonDo, 2)} Mg`} theme={theme} />
                   <ModalRow label="Łącznie metrów (od startu)" v={`${formatLiczby(odcinekPlanu.metryDo)} m`} theme={theme} />
                   <ModalRow label="Zakryta powierzchnia" v={`${formatLiczby(odcinekPlanu.powDo)} m²`} theme={theme} />

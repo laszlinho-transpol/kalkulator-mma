@@ -28,6 +28,7 @@ import { Z_METROW_BIEZACYCH } from '../../constants';
 import type { WynikParsowaniaXfdf } from '../../utils/xfdfParser';
 import type { TloArkuszaPzt } from '../../types';
 import { SafeModal } from '../common/SafeModal';
+import { InfoTooltip } from '../common/InfoTooltip';
 import {
   dopasujPdfDoArkuszy,
   listaWgranychPdf,
@@ -425,10 +426,6 @@ export function SekcjaPzt({
 
   return (
     <View style={{ gap: 10 }}>
-      <Text style={[styles.opis, { color: theme.colors.textSecondary }]}>
-        Wgraj arkusze XFDF (możesz zaznaczyć też PDF tła). Zakładki to odcinki trasy z kilometrażem od–do. Kolejność zmienisz dopiero po otwarciu kłódki.
-      </Text>
-
       <View style={[karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border, gap: 8 }]}>
         <Text style={[styles.label, { color: theme.colors.text }]}>Kilometraż początkowy trasy</Text>
         <View style={styles.kmRzad}>
@@ -473,7 +470,10 @@ export function SekcjaPzt({
             ) : null}
           </View>
         ) : null}
-        <Text style={[styles.label, { color: theme.colors.text }]}>Podziałka kilometrażu osi</Text>
+        <View style={styles.rzad}>
+          <Text style={[styles.label, { color: theme.colors.text }]}>Podziałka kilometrażu osi</Text>
+          <InfoTooltip tresc={`Kreska z pikietą co pełne ${projekt.podzialkaKilometrazuM ?? 50} m od startu. Oś i kilometraż biorą się z XFDF: suma długości linii osi (np. „422,07 m” na kresce). Pominięty arkusz drogi bocznej (np. 2_9) nie robi dziury: 2_8 styka się z 2_10. Ponowne wgranie tego samego arkusza podmienia geometrię w pamięci przeglądarki.`} />
+        </View>
         <View style={styles.kmRzad}>
           <TextInput
             value={podzStr}
@@ -492,45 +492,41 @@ export function SekcjaPzt({
               { width: 88, color: theme.colors.text, borderColor: theme.colors.border, backgroundColor: theme.colors.inputBackground },
             ]}
           />
-          <Text style={{ color: theme.colors.textSecondary, fontSize: 13 }}>m — kreska z pikietą co pełne {projekt.podzialkaKilometrazuM ?? 50} m od startu</Text>
+          <Text style={{ color: theme.colors.textSecondary, fontSize: 13 }}>m</Text>
         </View>
-        <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>
-          Oś i kilometraż z XFDF: suma długości linii osi (np. „422,07 m” na kresce). Pominięty arkusz drogi bocznej (np. 2_9) nie robi dziury: 2_8 styka się z 2_10.
-          Ponowne wgranie tego samego arkusza podmienia geometrię w pamięci przeglądarki (nie dokleja kopii).
-        </Text>
         <Text style={{ color: theme.colors.textSecondary, fontSize: 10 }}>
           Wdrożenie {MMA_WEB_BUILD === 'dev' ? 'dev' : MMA_WEB_BUILD.slice(0, 7)}
           {MMA_WEB_BUILD === 'dev' ? '' : ' — jeśli po odświeżeniu widać inną wartość, to stara kopia strony.'}
         </Text>
       </View>
 
-      <PrzyciskImportuXfdf
-        etykieta={busy ? 'Wczytywanie…' : '+ Dodaj arkusze XFDF / PDF'}
-        kolorTla={theme.colors.primary}
-        disabled={busy}
-        onPressNative={importujNative}
-        onWebFiles={(files) => { void importujWeb(files); }}
-      />
+      <View style={styles.rzad}>
+        <View style={{ flex: 1 }}>
+          <PrzyciskImportuXfdf
+            etykieta={busy ? 'Wczytywanie…' : '+ Dodaj arkusze XFDF / PDF'}
+            kolorTla={theme.colors.primary}
+            disabled={busy}
+            onPressNative={importujNative}
+            onWebFiles={(files) => { void importujWeb(files); }}
+          />
+        </View>
+        <InfoTooltip tresc="Wgraj arkusze XFDF (możesz zaznaczyć też PDF tła). W oknie plików zaznacz kilka arkuszy naraz (Shift / Ctrl). Zakładki to odcinki trasy z kilometrażem od–do. Kolejność zmienisz dopiero po otwarciu kłódki. PDF nie musi mieć tej samej nazwy co XFDF – dopasowanie idzie po numerze arkusza (np. Ark_2_1); jeden PDF przy otwartej zakładce trafia na nią." />
+      </View>
       {projekt.arkusze.length > 0 || wgranePdf.length > 0 ? (
-        <TouchableOpacity
-          onPress={() => setKonfiguratorTla(true)}
-          style={[styles.btnKonfigurator, { borderColor: theme.colors.secondary, backgroundColor: `${theme.colors.secondary}14` }]}
-        >
-          <Text style={{ color: theme.colors.secondary, fontWeight: '800', fontSize: 14 }}>
-            {`Tła PDF${wgranePdf.length ? ` (${wgranePdf.length})` : ''} — konfigurator`}
-          </Text>
-          <Text style={{ color: theme.colors.textSecondary, fontSize: 12, marginTop: 2 }}>
-            Przypisz, zmień albo usuń oryginały arkuszy. Zapisują się w przeglądarce – po odświeżeniu nie trzeba wgrywać ponownie.
-          </Text>
-        </TouchableOpacity>
+        <View style={styles.rzad}>
+          <TouchableOpacity
+            onPress={() => setKonfiguratorTla(true)}
+            style={[styles.btnKonfigurator, { borderColor: theme.colors.secondary, backgroundColor: `${theme.colors.secondary}14`, flex: 1 }]}
+          >
+            <Text style={{ color: theme.colors.secondary, fontWeight: '800', fontSize: 14 }}>
+              {`Tła PDF${wgranePdf.length ? ` (${wgranePdf.length})` : ''} — konfigurator`}
+            </Text>
+          </TouchableOpacity>
+          <InfoTooltip tresc="Przypisz, zmień albo usuń oryginały arkuszy. Pliki zostają w przeglądarce po odświeżeniu strony. Nazwy nie muszą być identyczne z XFDF – wystarczy numer arkusza albo jeden PDF na otwartą zakładkę." />
+        </View>
       ) : null}
       {blad ? <Text style={{ color: theme.colors.danger, fontSize: 12 }}>{blad}</Text> : null}
       {info ? <Text style={{ color: theme.colors.success, fontSize: 12 }}>{info}</Text> : null}
-      {!blad && !info ? (
-        <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>
-          W oknie plików zaznacz kilka arkuszy naraz (Shift / Ctrl). PDF nie musi mieć tej samej nazwy co XFDF – dopasowujemy po numerze arkusza (np. Ark_2_1); jeden PDF przy otwartej zakładce trafia na nią.
-        </Text>
-      ) : null}
 
       {projekt.arkusze.length === 0 ? (
         <Text style={{ color: theme.colors.textSecondary, fontSize: 13 }}>
@@ -655,7 +651,10 @@ export function SekcjaPzt({
                 podzialkaM={projekt.podzialkaKilometrazuM ?? 50}
               />
               <View style={[karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border, gap: 8 }]}>
-                <Text style={{ color: theme.colors.text, fontWeight: '800', fontSize: 14 }}>Cały PZT – ciągłość trasy</Text>
+                <View style={styles.rzad}>
+                  <Text style={{ color: theme.colors.text, fontWeight: '800', fontSize: 14, flex: 1 }}>Cały PZT – ciągłość trasy</Text>
+                  <InfoTooltip tresc="Styk: ostatnie węzły żółtego (L) i różowego (P) arkusza N są pierwsze na arkuszu N+1 (poprzeczka i tyczenie wstecz). Zakładki stron służą do porównania z PDF." />
+                </View>
                 <Text style={{ color: theme.colors.primary, fontWeight: '800', fontSize: 13 }}>
                   {formatujKmM(calyArkusz.kilometrazPoczatkowyM)} + {sumaOsi.kmM.toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m
                   {`  =  ${formatujKmM(calyArkusz.kilometrazKoncowyM)}`}
@@ -672,10 +671,6 @@ export function SekcjaPzt({
                     {sumaOsi.lukaNumeracji ? ` ${sumaOsi.lukaNumeracji}` : ''}
                   </Text>
                 )}
-                <Text style={{ color: theme.colors.textSecondary, fontSize: 12, lineHeight: 17 }}>
-                  Styk: ostatnie węzły żółtego (L) i różowego (P) arkusza N = pierwsze N+1
-                  (poprzeczka + tyczenie wstecz). Zakładki stron – porównanie z PDF.
-                </Text>
               </View>
             </>
           ) : aktywny ? (
@@ -806,9 +801,6 @@ export function SekcjaPzt({
         prawy={{ tekst: 'Gotowe', onPress: () => setKonfiguratorTla(false), kolor: theme.colors.primary }}
       >
         <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 32 }}>
-          <Text style={{ color: theme.colors.textSecondary, fontSize: 13, lineHeight: 18 }}>
-            Przypisz oryginał PDF do arkusza XFDF. Pliki zostają w przeglądarce po odświeżeniu strony. Po „Gotowe” wracasz do planu PZT.
-          </Text>
           <PrzyciskImportuXfdf
             etykieta={busy ? 'Wczytywanie…' : '+ Wgraj PDF tła'}
             kolorTla={theme.colors.secondary}

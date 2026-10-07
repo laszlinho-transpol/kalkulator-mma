@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.20';
+export const WERSJA_APLIKACJI = '1.8.21';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,17 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.21',
+    data: '2026-10-07',
+    tytul: 'Archiwum, menu budowy i odcinki konstrukcji',
+    zmiany: [
+      'Archiwum otwiera się na dzisiejszej dacie; kalendarz zaznacza jeden dzień albo zakres i po OK pokazuje dniówki chronologicznie',
+      'W budowie zamiast rozwijanych list są przyciski Projekt (PZT, Legenda, Konstrukcje, Przedmiar) i Wykonanie (Raporty, Liniówka, Zaawansowanie) — zostają u góry przy przewijaniu',
+      'Opisy sposobu działania są pod przyciskiem „i” przy danej opcji',
+      'Wyjątek konstrukcji dzieli trasę na przyciski z kilometrażem; wybrany pokazuje schemat i listę warstw',
+    ],
+  },
   {
     wersja: '1.8.20',
     data: '2026-10-06',

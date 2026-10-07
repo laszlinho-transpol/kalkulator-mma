@@ -2,13 +2,12 @@
 // SZABLON BUDOWY – PROJEKT + WYKONANIE
 // ============================================================
 
-import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, useColorScheme } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, useColorScheme } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppHeader } from '../../src/components/common/AppHeader';
-import { CollapsibleSection } from '../../src/components/common/CollapsibleSection';
-import { lightTheme, darkTheme } from '../../src/constants/theme';
+import { lightTheme, darkTheme, type AppTheme } from '../../src/constants/theme';
 import { useBudowyStore } from '../../src/stores/budowyStore';
 import { SekcjaPzt } from '../../src/components/budowa/SekcjaPzt';
 import { SekcjaLegenda } from '../../src/components/budowa/SekcjaLegenda';
@@ -16,6 +15,21 @@ import { SekcjaKonstrukcje } from '../../src/components/budowa/SekcjaKonstrukcje
 import { SekcjaPrzedmiar } from '../../src/components/budowa/SekcjaPrzedmiar';
 import { pustyProjektBudowy, zsynchronizujLegendeProjektu } from '../../src/utils/projektBudowy';
 import type { ProjektBudowy } from '../../src/types';
+
+const PROJEKT = [
+  { id: 'pzt', nazwa: 'PZT' },
+  { id: 'legenda', nazwa: 'Legenda' },
+  { id: 'konstrukcje', nazwa: 'Konstrukcje' },
+  { id: 'przedmiar', nazwa: 'Przedmiar' },
+] as const;
+
+const WYKONANIE = [
+  { id: 'raporty', nazwa: 'Raporty' },
+  { id: 'liniowka', nazwa: 'Liniówka' },
+  { id: 'zaawansowanie', nazwa: 'Zaawansowanie' },
+] as const;
+
+const KOLEJNOSC = [...PROJEKT, ...WYKONANIE].map((p) => p.id);
 
 export default function BudowaSzablonScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -26,6 +40,10 @@ export default function BudowaSzablonScreen() {
   const zapiszProjekt = useBudowyStore((s) => s.zapiszProjekt);
   const [mapaAktywna, setMapaAktywna] = useState(false);
   const [blokadaPodgladu, setBlokadaPodgladu] = useState(false);
+  const [aktywna, setAktywna] = useState<string>('pzt');
+  const scrollRef = useRef<ScrollView>(null);
+  const pozycje = useRef<Record<string, number>>({});
+  const przewija = useRef(false);
 
   useEffect(() => {
     if (budowa && !budowa.projekt) {
@@ -45,6 +63,18 @@ export default function BudowaSzablonScreen() {
     () => budowa?.projekt ?? pustyProjektBudowy(),
     [budowa?.projekt],
   );
+
+  const idz = (sekcja: string) => {
+    setAktywna(sekcja);
+    przewija.current = true;
+    const y = Math.max(0, (pozycje.current[sekcja] ?? 0) - 8);
+    scrollRef.current?.scrollTo({ y, animated: true });
+    setTimeout(() => { przewija.current = false; }, 450);
+  };
+
+  const zapamietaj = (sekcja: string, y: number) => {
+    pozycje.current[sekcja] = y;
+  };
 
   if (!budowa) {
     return (
@@ -66,100 +96,167 @@ export default function BudowaSzablonScreen() {
         podtytul={budowa.nazwaInwestycji}
         lewy={{ tekst: '‹ Wstecz', onPress: () => router.back() }}
       />
+      <View style={[styles.menu, { backgroundColor: theme.colors.background, borderBottomColor: theme.colors.border }]}>
+        <Text style={[styles.grupa, { color: theme.colors.textSecondary }]}>Projekt</Text>
+        <RzadPrzyciskow pozycje={PROJEKT} aktywna={aktywna} theme={theme} onPress={idz} />
+        <Text style={[styles.grupa, { color: theme.colors.textSecondary }]}>Wykonanie</Text>
+        <RzadPrzyciskow pozycje={WYKONANIE} aktywna={aktywna} theme={theme} onPress={idz} />
+      </View>
       <ScrollView
-        contentContainerStyle={{ padding: 14, paddingBottom: insets.bottom + 24, gap: 4 }}
+        ref={scrollRef}
+        contentContainerStyle={{ padding: 14, paddingBottom: insets.bottom + 24 }}
         keyboardShouldPersistTaps="handled"
         nestedScrollEnabled
         scrollEnabled={!blokadaPodgladu && !mapaAktywna}
+        scrollEventThrottle={32}
+        onScroll={(e) => {
+          if (przewija.current) return;
+          const y = e.nativeEvent.contentOffset.y + 28;
+          let biezaca = KOLEJNOSC[0];
+          for (const sekcja of KOLEJNOSC) {
+            if ((pozycje.current[sekcja] ?? 0) <= y) biezaca = sekcja;
+          }
+          setAktywna((prev) => (prev === biezaca ? prev : biezaca));
+        }}
       >
-        <CollapsibleSection
-          tytul="1. PROJEKT"
-          liczba={projekt.arkusze.length}
-          theme={theme}
-          ikona="📐"
-          domyslnieRozwinieta
-        >
-          <CollapsibleSection
-            tytul="1.1 PZT"
-            liczba={projekt.arkusze.length}
+        <SekcjaEkranu idSekcji="pzt" tytul="PZT" theme={theme} onLayout={zapamietaj}>
+          <SekcjaPzt
+            projekt={projekt}
             theme={theme}
-            ikona="🗺️"
-            domyslnieRozwinieta
-          >
-            <SekcjaPzt
-              projekt={projekt}
-              theme={theme}
-              onZmien={onZmien}
-              blokadaPodgladu={blokadaPodgladu}
-              onBlokadaPodgladu={setBlokadaPodgladu}
-              onDotykZmiana={setMapaAktywna}
-            />
-          </CollapsibleSection>
-          <CollapsibleSection
-            tytul="1.2 Legenda"
-            liczba={projekt.legenda.length}
+            onZmien={onZmien}
+            blokadaPodgladu={blokadaPodgladu}
+            onBlokadaPodgladu={setBlokadaPodgladu}
+            onDotykZmiana={setMapaAktywna}
+          />
+        </SekcjaEkranu>
+        <SekcjaEkranu idSekcji="legenda" tytul="Legenda" theme={theme} onLayout={zapamietaj}>
+          <SekcjaLegenda projekt={projekt} theme={theme} onZmien={onZmien} />
+        </SekcjaEkranu>
+        <SekcjaEkranu idSekcji="konstrukcje" tytul="Konstrukcje" theme={theme} onLayout={zapamietaj}>
+          <SekcjaKonstrukcje projekt={projekt} theme={theme} onZmien={onZmien} />
+        </SekcjaEkranu>
+        <SekcjaEkranu idSekcji="przedmiar" tytul="Przedmiar" theme={theme} onLayout={zapamietaj}>
+          <SekcjaPrzedmiar
+            projekt={projekt}
             theme={theme}
-            ikona="🎨"
-          >
-            <SekcjaLegenda projekt={projekt} theme={theme} onZmien={onZmien} />
-          </CollapsibleSection>
-          <CollapsibleSection
-            tytul="1.3 Konstrukcje"
-            liczba={projekt.konstrukcje.length}
-            theme={theme}
-            ikona="🧱"
-          >
-            <SekcjaKonstrukcje projekt={projekt} theme={theme} onZmien={onZmien} />
-          </CollapsibleSection>
-          <CollapsibleSection
-            tytul="1.4 Przedmiar"
-            liczba={projekt.konstrukcje.length}
-            theme={theme}
-            ikona="📊"
-          >
-            <SekcjaPrzedmiar
-              projekt={projekt}
-              theme={theme}
-              kodBudowy={budowa.kodBudowy}
-              onZmien={onZmien}
-            />
-          </CollapsibleSection>
-        </CollapsibleSection>
-
-        <CollapsibleSection
-          tytul="2. WYKONANIE"
-          liczba={3}
-          theme={theme}
-          ikona="🚧"
-        >
-          <Placeholder nr="2.1" tytul="Raporty dzienne" />
-          <Placeholder nr="2.2" tytul="Liniówka" />
-          <Placeholder nr="2.3" tytul="Zaawansowanie" />
-        </CollapsibleSection>
+            kodBudowy={budowa.kodBudowy}
+            onZmien={onZmien}
+          />
+        </SekcjaEkranu>
+        <SekcjaEkranu idSekcji="raporty" tytul="Raporty" theme={theme} onLayout={zapamietaj}>
+          <Placeholder />
+        </SekcjaEkranu>
+        <SekcjaEkranu idSekcji="liniowka" tytul="Liniówka" theme={theme} onLayout={zapamietaj}>
+          <Placeholder />
+        </SekcjaEkranu>
+        <SekcjaEkranu idSekcji="zaawansowanie" tytul="Zaawansowanie" theme={theme} onLayout={zapamietaj}>
+          <Placeholder />
+        </SekcjaEkranu>
       </ScrollView>
     </View>
   );
 }
 
-function Placeholder({ nr, tytul }: { nr: string; tytul: string }) {
+function RzadPrzyciskow({
+  pozycje,
+  aktywna,
+  theme,
+  onPress,
+}: {
+  pozycje: readonly { id: string; nazwa: string }[];
+  aktywna: string;
+  theme: AppTheme;
+  onPress: (id: string) => void;
+}) {
+  return (
+    <View style={styles.rzad}>
+      {pozycje.map((p) => {
+        const on = aktywna === p.id;
+        return (
+          <TouchableOpacity
+            key={p.id}
+            onPress={() => onPress(p.id)}
+            accessibilityLabel={p.nazwa}
+            style={[
+              styles.guzik,
+              {
+                backgroundColor: on ? theme.colors.primary : theme.colors.card,
+                borderColor: on ? theme.colors.primary : theme.colors.border,
+              },
+            ]}
+          >
+            <Text style={{ color: on ? '#1A1A1A' : theme.colors.text, fontWeight: '800', textAlign: 'center' }}>
+              {p.nazwa}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+}
+
+function SekcjaEkranu({
+  idSekcji,
+  tytul,
+  theme,
+  onLayout,
+  children,
+}: {
+  idSekcji: string;
+  tytul: string;
+  theme: AppTheme;
+  onLayout: (id: string, y: number) => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <View
+      onLayout={(e) => onLayout(idSekcji, e.nativeEvent.layout.y)}
+      style={styles.sekcja}
+    >
+      <Text style={[styles.sekcjaTytul, { color: theme.colors.text }]}>{tytul}</Text>
+      {children}
+    </View>
+  );
+}
+
+function Placeholder() {
   const colorScheme = useColorScheme();
   const t = colorScheme === 'dark' ? darkTheme : lightTheme;
   return (
     <View style={[styles.placeholder, { borderColor: t.colors.border, backgroundColor: t.colors.card }]}>
-      <Text style={{ color: t.colors.text, fontWeight: '800' }}>{nr} {tytul}</Text>
-      <Text style={{ color: t.colors.textSecondary, fontSize: 12, marginTop: 4 }}>
-        Szczegóły w następnym etapie.
-      </Text>
+      <Text style={{ color: t.colors.textSecondary, fontSize: 13 }}>W przygotowaniu.</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  menu: {
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    gap: 6,
+    zIndex: 10,
+  },
+  grupa: { fontSize: 11, fontWeight: '800', letterSpacing: 0.4, textTransform: 'uppercase', marginTop: 2 },
+  rzad: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  guzik: {
+    flexGrow: 1,
+    flexBasis: '22%',
+    minWidth: 96,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sekcja: { marginBottom: 22 },
+  sekcjaTytul: { fontSize: 18, fontWeight: '800', marginBottom: 8 },
   placeholder: {
     borderWidth: 1,
     borderRadius: 12,
     padding: 14,
-    marginBottom: 8,
   },
 });

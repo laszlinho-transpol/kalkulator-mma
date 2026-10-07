@@ -13,6 +13,7 @@ import { useBudowyStore } from '../../src/stores/budowyStore';
 import { lightTheme, darkTheme } from '../../src/constants/theme';
 import { EmptyState } from '../../src/components/common/EmptyState';
 import { AppHeader } from '../../src/components/common/AppHeader';
+import { InfoTooltip } from '../../src/components/common/InfoTooltip';
 import { karta, tekstTytul, tekstPodtytul } from '../../src/constants/layout';
 
 export default function PlanListaScreen() {
@@ -41,9 +42,10 @@ export default function PlanListaScreen() {
         />
       ) : (
         <ScrollView contentContainerStyle={[styles.lista, { paddingBottom: insets.bottom + 16 }]} showsVerticalScrollIndicator={false}>
-          <Text style={{ color: theme.colors.textSecondary, fontSize: 13, marginBottom: 10, paddingHorizontal: 4 }}>
-            Wybierz budowę, aby dodać nowy plan albo otworzyć zapisane.
-          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10, paddingHorizontal: 4 }}>
+            <Text style={{ color: theme.colors.text, fontWeight: '800', flex: 1 }}>Budowy</Text>
+            <InfoTooltip tresc="Wybierz budowę, aby dodać nowy plan albo otworzyć zapisane." />
+          </View>
           {budowyAktywne.map((b) => {
             const n = aktywne.filter((p) => p.budowaId === b.id).length;
             const ark = b.projekt?.arkusze.length ?? 0;

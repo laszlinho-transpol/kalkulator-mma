@@ -62,3 +62,27 @@ export function dzienZIso(iso: string): string {
 export function dzienWZakresie(dzien: string, od: string, doDnia: string): boolean {
   return dzien >= od && dzien <= doDnia;
 }
+
+export type FazaKalendarza = 'gotowy' | 'poczatek';
+
+/**
+ * Pierwsze stuknięcie zaznacza jeden dzień.
+ * Drugie zaznacza okres od pierwszego do drugiego (kolejność dowolna).
+ * Kolejne zaczyna wybór od nowa.
+ */
+export function wyborDnia(
+  faza: FazaKalendarza,
+  od: string,
+  dzien: string,
+): { faza: FazaKalendarza; od: string; do: string } {
+  if (faza !== 'poczatek') {
+    return { faza: 'poczatek', od: dzien, do: dzien };
+  }
+  return dzien >= od
+    ? { faza: 'gotowy', od, do: dzien }
+    : { faza: 'gotowy', od: dzien, do: od };
+}
+
+export function dzisIso(teraz: Date = new Date()): string {
+  return `${teraz.getFullYear()}-${pad(teraz.getMonth() + 1)}-${pad(teraz.getDate())}`;
+}

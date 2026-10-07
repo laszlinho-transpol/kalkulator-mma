@@ -8,6 +8,7 @@ import {
 import { dlugoscUkladaniaObszaru } from '../../utils/obmiarLive';
 import { formatLiczby } from '../../utils/calculations';
 import { PoleKilometraz, parsujPolaKilometraza, polaZKilometraza } from '../common/PoleKilometraz';
+import { InfoTooltip } from '../common/InfoTooltip';
 
 interface Props {
   obszar: ObszarObmiaru;
@@ -499,7 +500,10 @@ export function ObmiarKonfiguracja({
 
       {pokazOds && (
         <>
-          <Text style={{ color: theme.colors.text, fontWeight: '800', fontSize: 13 }}>Zaznacz na mapie</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Text style={{ color: theme.colors.text, fontWeight: '800', fontSize: 13, flex: 1 }}>Zaznacz na mapie</Text>
+            <InfoTooltip tresc="P1 i K1 to początek i koniec odcinka odsadzki. Po wybraniu przewiń do podglądu i stuknij węzeł." />
+          </View>
           <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <Chip
               label="P1"
@@ -519,8 +523,8 @@ export function ObmiarKonfiguracja({
             />
           </View>
           {(trybWyboru === 'odsadzkaP' || trybWyboru === 'odsadzkaK') && (
-            <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>
-              Przewiń do podglądu i stuknij węzeł.
+            <Text style={{ color: theme.colors.info, fontSize: 12, fontWeight: '700' }}>
+              Wybierz węzeł
             </Text>
           )}
           {mapaOds.map((o) => (

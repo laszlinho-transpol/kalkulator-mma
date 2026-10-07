@@ -612,6 +612,16 @@ export function formatujKmM(metry: number): string {
   return FORMAT_KILOMETRAZU(km, m);
 }
 
+/** Opis wyjątku zawiera kilometraż, np. „zatoka (115+000 - 116+020)”. */
+export function opisWyjatkuZKilometrazem(opis: string | undefined, odM: number, doM: number): string {
+  const km = `${formatujKmM(Math.min(odM, doM))} - ${formatujKmM(Math.max(odM, doM))}`;
+  const bez = (opis ?? '')
+    .replace(/\s*\(\d+\+\d{3}\s*-\s*\d+\+\d{3}\)\s*$/u, '')
+    .replace(/^\d+\+\d{3}\s*-\s*\d+\+\d{3}$/u, '')
+    .trim();
+  return bez ? `${bez} (${km})` : km;
+}
+
 export function parsujKmNaMetry(km: number, m: number): number {
   return DO_METROW_BIEZACYCH(km, m);
 }

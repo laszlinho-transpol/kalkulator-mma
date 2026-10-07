@@ -9,6 +9,7 @@ import {
   State,
 } from 'react-native-gesture-handler';
 import Svg, { Circle, G, Image as SvgImage, Line, Polygon, Polyline, Rect, Text as SvgText } from 'react-native-svg';
+import { InfoTooltip } from '../common/InfoTooltip';
 import type { ArkuszPzt, Punkt2D, TloArkuszaPzt } from '../../types';
 import { bboxWielokata } from '../../utils/obmiarGeometry';
 import {
@@ -98,15 +99,6 @@ function idAutaPodPunktem(
 
 function kmAlboPuste(v: number | null | undefined): string {
   return v == null ? '—' : formatujKmM(v);
-}
-
-function tekstHintuPomiaru(n: number, metry: number | null): string {
-  if (n === 0) {
-    return 'Zmierz: zaznacz „Ramka”, przybliż nadruk (np. 115+700) i tapnij kreskę na osi. Drugie tapnięcie = kolejna pikieta (115+800). Wynik w metrach 1:500.';
-  }
-  if (n === 1) return 'Zmierz: tapnij drugą pikietę na osi (np. 115+800).';
-  const m = (metry ?? 0).toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  return `Zmierz 1:500: ${m} m. Trzecie tapnięcie zaczyna nowy odcinek.`;
 }
 
 function tekstKmPunktow(w: WynikPomiaruOsi): string {
@@ -1088,38 +1080,28 @@ export function PztArkuszPodglad({
           );
         })}
       </ScrollView>
-      {mapa.os1500M > 1 ? (
-        <Text style={styl.hintPod}>{tekstOsi1500(mapa.os1500M, mapa.xfdfM, mapa.dlM)}</Text>
-      ) : null}
-      {onWskazPdf ? (
-        <Text style={[styl.hintPod, { color: '#166534', fontWeight: '700' }]}>
-          Stuknij punkt na tle. Kreska połączy obie krawędzie wybranego obszaru i wpisze kilometraż.
-        </Text>
-      ) : null}
-      {zmierz ? (
-        <Text style={[styl.hintPod, { color: '#1D4ED8', fontWeight: '700' }]}>
-          {tekstHintuPomiaru(punktyPomiaru.length, wynikPomiaru?.metry1500 ?? null)}
-        </Text>
-      ) : null}
-      {wynikPomiaru ? (
-        <Text style={[styl.hintPod, { color: '#1E3A8A' }]}>
-          {`${tekstKmPunktow(wynikPomiaru)}. ${ocenaOdstempuPodzialkiM(wynikPomiaru.metry1500).tekst}`}
-        </Text>
-      ) : null}
-      {onWskazPdf ? null : (
-        <>
-          <Text style={styl.hintPod}>
-            {tloMeta
-              ? `Tło PDF: ${tloMeta.nazwa}${buforTla ? '' : ' — odtwarzanie z pamięci przeglądarki… Jeśli nie wraca, otwórz konfigurator teł.'}`
-              : 'Żeby widać było pikiety, pobocza i budynki, wgraj oryginalny PDF arkusza („+ Tło PDF”). Nazwy nie muszą być identyczne z XFDF – wystarczy numer arkusza (Ark_2_1) albo jeden PDF na otwartą zakładkę.'}
-          </Text>
-          <Text style={styl.hintPod}>
-            {blokadaPodgladu
-              ? 'Blokada ramki: przesuwanie i zoom w podglądzie (strona nie scrolluje). Odznacz „Ramka”, aby przewinąć w dół.'
-              : '1 palec / mysz: przesuń · 2 palce / kółko / lupka: zoom. Zaznacz „Ramka”, żeby nie scrollować strony.'}
-          </Text>
-        </>
-      )}
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 4 }}>
+        <View style={{ flex: 1 }}>
+          {mapa.os1500M > 1 ? (
+            <Text style={styl.hintPod}>{tekstOsi1500(mapa.os1500M, mapa.xfdfM, mapa.dlM)}</Text>
+          ) : null}
+          {wynikPomiaru ? (
+            <Text style={[styl.hintPod, { color: '#1E3A8A' }]}>
+              {`${tekstKmPunktow(wynikPomiaru)}. ${ocenaOdstempuPodzialkiM(wynikPomiaru.metry1500).tekst}`}
+            </Text>
+          ) : null}
+          {tloMeta && !buforTla ? (
+            <Text style={styl.hintPod}>Odtwarzanie tła z pamięci przeglądarki…</Text>
+          ) : null}
+          {onWskazPdf ? (
+            <Text style={[styl.hintPod, { color: '#166534', fontWeight: '700' }]}>Wskaż punkt na mapie</Text>
+          ) : null}
+          {zmierz && punktyPomiaru.length === 1 ? (
+            <Text style={[styl.hintPod, { color: '#1D4ED8', fontWeight: '700' }]}>Wybierz drugą pikietę</Text>
+          ) : null}
+        </View>
+        <InfoTooltip tresc="Ramka blokuje przewijanie strony: jeden palec albo mysz przesuwa rysunek, dwa palce, kółko albo lupka przybliżają. Żeby widać było pikiety, pobocza i budynki, wgraj oryginalny PDF arkusza. Zmierz: zaznacz Ramkę, przybliż pikietę i stuknij oś dwa razy — wynik jest w metrach skali 1:500, trzecie stuknięcie zaczyna nowy odcinek. W trybie zaznaczenia na mapie stuknięcie łączy obie krawędzie wybranego obszaru i wpisuje kilometraż." />
+      </View>
     </View>
   );
 }

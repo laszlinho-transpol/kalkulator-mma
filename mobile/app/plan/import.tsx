@@ -16,6 +16,7 @@ import { useMieszankiStore } from '../../src/stores/mieszankiStore';
 import { formatujDatePl } from '../../src/utils/dates';
 import { AnimatedCard } from '../../src/components/common/AnimatedCard';
 import { AppHeader } from '../../src/components/common/AppHeader';
+import { InfoTooltip } from '../../src/components/common/InfoTooltip';
 
 export default function ImportPlanScreen() {
   const colorScheme = useColorScheme();
@@ -101,12 +102,12 @@ export default function ImportPlanScreen() {
         <AnimatedCard delay={0}>
           <View style={[styles.strefaImportu, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
             <Text style={styles.ikonaImportu}>📦</Text>
-            <Text style={[styles.tytulImportu, { color: theme.colors.text }]}>
-              Importuj plan z pliku JSON
-            </Text>
-            <Text style={[styles.opisImportu, { color: theme.colors.textSecondary }]}>
-              Wybierz plik .json wyeksportowany z Kalkulatora MMA na innym urządzeniu.
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={[styles.tytulImportu, { color: theme.colors.text }]}>
+                Importuj plan z pliku JSON
+              </Text>
+              <InfoTooltip tresc="Wybierz plik .json wyeksportowany z Kalkulatora MMA na innym urządzeniu." />
+            </View>
             <TouchableOpacity
               style={[styles.btnWybierz, { backgroundColor: theme.colors.primary }]}
               onPress={wybierzPlik}

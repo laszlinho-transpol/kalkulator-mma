@@ -3,19 +3,24 @@ import {
   View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView,
 } from 'react-native';
 import type { AppTheme } from '../../constants/theme';
-import type { KategoriaWarstwy, KonstrukcjaObszaru, ProjektBudowy, WarstwaKonstrukcji } from '../../types';
+import type { KategoriaWarstwy, KonstrukcjaObszaru, ProjektBudowy, WarstwaKonstrukcji, WyjatekKonstrukcji } from '../../types';
 import { PrzekrojKonstrukcji } from './PrzekrojKonstrukcji';
 import { SafeModal } from '../common/SafeModal';
+import { InfoTooltip } from '../common/InfoTooltip';
 import { PoleKilometraz, parsujPolaKilometraza, polaZKilometraza } from '../common/PoleKilometraz';
 import { karta } from '../../constants/layout';
 import { useMieszankiStore } from '../../stores/mieszankiStore';
 import { useWytwornieStore } from '../../stores/wytwornieStore';
 import {
   czyLegendaUzupelniona,
+  formatujKmM,
   nowaWarstwa,
   odsadzkiWarstwy,
+  opisWyjatkuZKilometrazem,
+  segmentyKonstrukcji,
   sklonujWarstwy,
 } from '../../utils/projektBudowy';
+import { zakresKmObszaru } from '../../utils/planZBudowy';
 import { Z_METROW_BIEZACYCH } from '../../constants';
 
 interface Props {
@@ -36,6 +41,25 @@ function nadajKolejnosc(warstwy: WarstwaKonstrukcji[]): WarstwaKonstrukcji[] {
   return warstwy.map((w, i) => ({ ...w, kolejnosc: i + 1 }));
 }
 
+function wyjatekNaSrodku(k: KonstrukcjaObszaru, od: number, doM: number): WyjatekKonstrukcji | undefined {
+  const srodek = (od + doM) / 2;
+  return k.wyjatki.find((w) => {
+    const a = Math.min(w.kmOdM, w.kmDoM);
+    const b = Math.max(w.kmOdM, w.kmDoM);
+    return srodek >= a && srodek <= b;
+  });
+}
+
+function zakresTrasy(projekt: ProjektBudowy, legendaId: string): { odM: number; doM: number } {
+  const z = zakresKmObszaru(projekt, legendaId);
+  if (z && z.doM > z.odM) return z;
+  const start = projekt.kilometrazPoczatkowyM;
+  const koniec = projekt.arkusze.length
+    ? Math.max(...projekt.arkusze.map((a) => a.kilometrazKoncowyM))
+    : start;
+  return { odM: Math.min(start, koniec), doM: Math.max(start, koniec) };
+}
+
 export function SekcjaKonstrukcje({ projekt, theme, onZmien }: Props) {
   const mieszanki = useMieszankiStore((s) => s.mieszanki);
   const wytwornie = useWytwornieStore((s) => s.wytwornie);
@@ -46,7 +70,8 @@ export function SekcjaKonstrukcje({ projekt, theme, onZmien }: Props) {
   const [wyjatekDoKm, setWyjatekDoKm] = useState('0');
   const [wyjatekDoM, setWyjatekDoM] = useState('200');
   const [wyjatekOpis, setWyjatekOpis] = useState('');
-  const [otwarte, setOtwarte] = useState<Record<string, boolean>>({});
+  const [wybrany, setWybrany] = useState<Record<string, string>>({});
+  const [warstwyOtwarte, setWarstwyOtwarte] = useState<Record<string, boolean>>({});
 
   const obszary = projekt.legenda.filter((w) => w.typ === 'obszar' && w.nazwa.trim());
   const etykietaWytworni = (id?: string) => wytwornie.find((w) => w.id === id)?.nazwa;
@@ -232,98 +257,128 @@ export function SekcjaKonstrukcje({ projekt, theme, onZmien }: Props) {
     </View>
   );
 
+  const ustawKmWyjatku = (legendaId: string, wyjatekId: string, kmOdM: number, kmDoM: number) => {
+    patchKonstrukcja(legendaId, (kk) => ({
+      ...kk,
+      wyjatki: kk.wyjatki.map((x) => (x.id === wyjatekId
+        ? { ...x, kmOdM, kmDoM, opis: opisWyjatkuZKilometrazem(x.opis, kmOdM, kmDoM) }
+        : x)),
+    }));
+  };
+
   return (
     <View style={{ gap: 12 }}>
-      <Text style={{ color: theme.colors.textSecondary, fontSize: 13, lineHeight: 18 }}>
-        Widać schemat przekroju. Każda warstwa ma odsadzkę lewą i prawą (patrząc zgodnie z rosnącym kilometrażem). Kliknij przekrój, żeby rozwinąć warstwy.
-      </Text>
+      <View style={styles.rzad}>
+        <Text style={{ color: theme.colors.text, fontWeight: '800' }}>Odcinki</Text>
+        <InfoTooltip tresc="Bez wyjątku trasa główna (strona prawa) to jeden odcinek. Po dodaniu wyjątku pojawiają się przyciski z kilometrażem, np. 112+300 - 115+000. Wybrany przycisk pokazuje schemat i listę warstw. Odsadzka lewa i prawa jest patrząc zgodnie z rosnącym kilometrażem." />
+      </View>
       {obszary.map((wpis) => {
         const k = projekt.konstrukcje.find((x) => x.legendaId === wpis.id);
         if (!k) return null;
-        const rozwinieta = !!otwarte[wpis.id];
+        const zakres = zakresTrasy(projekt, wpis.id);
+        const segmenty = segmentyKonstrukcji(k, zakres.odM, zakres.doM);
+        const odcinki = segmenty.length > 0
+          ? segmenty
+          : [{ od: zakres.odM, do: zakres.doM, warstwy: k.warstwy }];
+        const klucz = (od: number, doM: number) => `${od}|${doM}`;
+        const wybranyKlucz = odcinki.some((s) => klucz(s.od, s.do) === wybrany[wpis.id])
+          ? wybrany[wpis.id]
+          : klucz(odcinki[0].od, odcinki[0].do);
+        const sel = odcinki.find((s) => klucz(s.od, s.do) === wybranyKlucz) ?? odcinki[0];
+        const wy = wyjatekNaSrodku(k, sel.od, sel.do);
+        const listaOtwarta = !!warstwyOtwarte[`${wpis.id}|${wybranyKlucz}`];
+        const odPola = wy ? polaZKilometraza(Z_METROW_BIEZACYCH(wy.kmOdM).km, Z_METROW_BIEZACYCH(wy.kmOdM).m) : null;
+        const doPola = wy ? polaZKilometraza(Z_METROW_BIEZACYCH(wy.kmDoM).km, Z_METROW_BIEZACYCH(wy.kmDoM).m) : null;
         return (
           <View key={wpis.id} style={[karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border, gap: 10 }]}>
+            <View style={styles.rzad}>
+              <View style={[styles.probka, { backgroundColor: wpis.kolor }]} />
+              <Text style={{ color: theme.colors.text, fontWeight: '800', flex: 1, fontSize: 16 }}>{wpis.nazwa}</Text>
+            </View>
+            <View style={styles.odcinki}>
+              {odcinki.map((s) => {
+                const on = klucz(s.od, s.do) === wybranyKlucz;
+                const etykieta = `${formatujKmM(s.od)} - ${formatujKmM(s.do)}`;
+                return (
+                  <TouchableOpacity
+                    key={klucz(s.od, s.do)}
+                    onPress={() => setWybrany((prev) => ({ ...prev, [wpis.id]: klucz(s.od, s.do) }))}
+                    accessibilityLabel={etykieta}
+                    style={[
+                      styles.odcinekBtn,
+                      {
+                        backgroundColor: on ? theme.colors.primary : theme.colors.inputBackground,
+                        borderColor: on ? theme.colors.primary : theme.colors.border,
+                      },
+                    ]}
+                  >
+                    <Text style={{ color: on ? '#1A1A1A' : theme.colors.text, fontWeight: '800', textAlign: 'center' }}>
+                      {etykieta}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            <PrzekrojKonstrukcji warstwy={sel.warstwy} theme={theme} />
             <TouchableOpacity
-              onPress={() => setOtwarte((prev) => ({ ...prev, [wpis.id]: !prev[wpis.id] }))}
-              style={{ gap: 8 }}
-              accessibilityLabel={rozwinieta ? 'Zwiń konstrukcję' : 'Rozwiń konstrukcję'}
+              onPress={() => setWarstwyOtwarte((prev) => ({ ...prev, [`${wpis.id}|${wybranyKlucz}`]: !listaOtwarta }))}
+              accessibilityLabel={listaOtwarta ? 'Zwiń warstwy' : 'Rozwiń warstwy'}
+              style={styles.rzad}
             >
-              <View style={styles.rzad}>
-                <View style={[styles.probka, { backgroundColor: wpis.kolor }]} />
-                <Text style={{ color: theme.colors.text, fontWeight: '800', flex: 1, fontSize: 16 }}>{wpis.nazwa}</Text>
-                <Text style={{ color: theme.colors.primary, fontWeight: '800' }}>{rozwinieta ? '▼' : '▶'}</Text>
-              </View>
-              <PrzekrojKonstrukcji warstwy={k.warstwy} theme={theme} />
-              {!rozwinieta ? (
-                <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>
-                  Kliknij schemat, aby edytować warstwy
-                </Text>
+              <Text style={{ color: theme.colors.primary, fontWeight: '800', flex: 1 }}>
+                Warstwy {listaOtwarta ? '▼' : '▶'}
+              </Text>
+              {wy?.opis ? (
+                <Text style={{ color: theme.colors.textSecondary, fontSize: 12, flexShrink: 1 }} numberOfLines={1}>{wy.opis}</Text>
               ) : null}
             </TouchableOpacity>
-            {rozwinieta ? (
-              <>
-            {edytorWarstw(k, k.warstwy)}
-            <Text style={{ color: theme.colors.primary, fontWeight: '800', fontSize: 12, marginTop: 4 }}>WYJĄTKI KM</Text>
-            {k.wyjatki.map((wy) => {
-              const od = polaZKilometraza(Z_METROW_BIEZACYCH(wy.kmOdM).km, Z_METROW_BIEZACYCH(wy.kmOdM).m);
-              const dos = polaZKilometraza(Z_METROW_BIEZACYCH(wy.kmDoM).km, Z_METROW_BIEZACYCH(wy.kmDoM).m);
-              return (
-                <View key={wy.id} style={[styles.wyjatek, { borderColor: theme.colors.border }]}>
-                  <View style={styles.rzad}>
-                    <Text style={{ color: theme.colors.text, fontWeight: '700', flex: 1 }}>{wy.opis || 'Zmiana konstrukcji'}</Text>
-                    <TouchableOpacity onPress={() => patchKonstrukcja(k.legendaId, (kk) => ({ ...kk, wyjatki: kk.wyjatki.filter((x) => x.id !== wy.id) }))}>
-                      <Text style={{ color: theme.colors.danger, fontWeight: '700' }}>Usuń</Text>
-                    </TouchableOpacity>
+            {listaOtwarta ? (
+              <View style={{ gap: 8 }}>
+                {wy && odPola && doPola ? (
+                  <View style={[styles.wyjatek, { borderColor: theme.colors.border }]}>
+                    <View style={styles.rzad}>
+                      <Text style={{ color: theme.colors.text, fontWeight: '700', flex: 1 }}>{wy.opis || 'Zmiana konstrukcji'}</Text>
+                      <TouchableOpacity onPress={() => patchKonstrukcja(k.legendaId, (kk) => ({ ...kk, wyjatki: kk.wyjatki.filter((x) => x.id !== wy.id) }))}>
+                        <Text style={{ color: theme.colors.danger, fontWeight: '700' }}>Usuń</Text>
+                      </TouchableOpacity>
+                    </View>
+                    <View style={[styles.rzad, { flexWrap: 'wrap' }]}>
+                      <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>od</Text>
+                      <PoleKilometraz
+                        theme={theme}
+                        mini
+                        km={odPola.km}
+                        m={odPola.m}
+                        onKm={(v) => {
+                          const { km, m } = parsujPolaKilometraza(v, odPola.m);
+                          ustawKmWyjatku(k.legendaId, wy.id, km * 1000 + m, wy.kmDoM);
+                        }}
+                        onM={(v) => {
+                          const { km, m } = parsujPolaKilometraza(odPola.km, v);
+                          ustawKmWyjatku(k.legendaId, wy.id, km * 1000 + m, wy.kmDoM);
+                        }}
+                      />
+                      <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>do</Text>
+                      <PoleKilometraz
+                        theme={theme}
+                        mini
+                        km={doPola.km}
+                        m={doPola.m}
+                        onKm={(v) => {
+                          const { km, m } = parsujPolaKilometraza(v, doPola.m);
+                          ustawKmWyjatku(k.legendaId, wy.id, wy.kmOdM, km * 1000 + m);
+                        }}
+                        onM={(v) => {
+                          const { km, m } = parsujPolaKilometraza(doPola.km, v);
+                          ustawKmWyjatku(k.legendaId, wy.id, wy.kmOdM, km * 1000 + m);
+                        }}
+                      />
+                    </View>
                   </View>
-                  <View style={[styles.rzad, { flexWrap: 'wrap' }]}>
-                    <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>od</Text>
-                    <PoleKilometraz
-                      theme={theme}
-                      mini
-                      km={od.km}
-                      m={od.m}
-                      onKm={(v) => {
-                        const { km, m } = parsujPolaKilometraza(v, od.m);
-                        patchKonstrukcja(k.legendaId, (kk) => ({
-                          ...kk,
-                          wyjatki: kk.wyjatki.map((x) => x.id === wy.id ? { ...x, kmOdM: km * 1000 + m } : x),
-                        }));
-                      }}
-                      onM={(v) => {
-                        const { km, m } = parsujPolaKilometraza(od.km, v);
-                        patchKonstrukcja(k.legendaId, (kk) => ({
-                          ...kk,
-                          wyjatki: kk.wyjatki.map((x) => x.id === wy.id ? { ...x, kmOdM: km * 1000 + m } : x),
-                        }));
-                      }}
-                    />
-                    <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>do</Text>
-                    <PoleKilometraz
-                      theme={theme}
-                      mini
-                      km={dos.km}
-                      m={dos.m}
-                      onKm={(v) => {
-                        const { km, m } = parsujPolaKilometraza(v, dos.m);
-                        patchKonstrukcja(k.legendaId, (kk) => ({
-                          ...kk,
-                          wyjatki: kk.wyjatki.map((x) => x.id === wy.id ? { ...x, kmDoM: km * 1000 + m } : x),
-                        }));
-                      }}
-                      onM={(v) => {
-                        const { km, m } = parsujPolaKilometraza(dos.km, v);
-                        patchKonstrukcja(k.legendaId, (kk) => ({
-                          ...kk,
-                          wyjatki: kk.wyjatki.map((x) => x.id === wy.id ? { ...x, kmDoM: km * 1000 + m } : x),
-                        }));
-                      }}
-                    />
-                  </View>
-                  <PrzekrojKonstrukcji warstwy={wy.warstwy} theme={theme} szerokoscSzkicu={112} />
-                  {edytorWarstw(k, wy.warstwy, wy.id)}
-                </View>
-              );
-            })}
+                ) : null}
+                {edytorWarstw(k, wy ? wy.warstwy : k.warstwy, wy?.id)}
+              </View>
+            ) : null}
             <TouchableOpacity onPress={() => {
               setWyjatekDla(k.legendaId);
               const start = projekt.kilometrazPoczatkowyM;
@@ -337,8 +392,6 @@ export function SekcjaKonstrukcje({ projekt, theme, onZmien }: Props) {
             }}>
               <Text style={{ color: theme.colors.info, fontWeight: '700' }}>+ Wyjątek od–do</Text>
             </TouchableOpacity>
-              </>
-            ) : null}
           </View>
         );
       })}
@@ -354,18 +407,25 @@ export function SekcjaKonstrukcje({ projekt, theme, onZmien }: Props) {
             if (!wyjatekDla) return;
             const od = parsujPolaKilometraza(wyjatekOdKm, wyjatekOdM);
             const dos = parsujPolaKilometraza(wyjatekDoKm, wyjatekDoM);
+            const kmOdM = od.km * 1000 + od.m;
+            const kmDoM = dos.km * 1000 + dos.m;
             const k = projekt.konstrukcje.find((x) => x.legendaId === wyjatekDla);
             if (!k) return;
+            const zakres = zakresTrasy(projekt, wyjatekDla);
+            const lo = Math.max(zakres.odM, Math.min(kmOdM, kmDoM));
+            const hi = Math.min(zakres.doM > zakres.odM ? zakres.doM : Math.max(kmOdM, kmDoM), Math.max(kmOdM, kmDoM));
             patchKonstrukcja(wyjatekDla, (kk) => ({
               ...kk,
               wyjatki: [...kk.wyjatki, {
                 id: Date.now().toString(36) + Math.random().toString(36).slice(2, 8),
-                opis: wyjatekOpis.trim() || undefined,
-                kmOdM: od.km * 1000 + od.m,
-                kmDoM: dos.km * 1000 + dos.m,
+                opis: opisWyjatkuZKilometrazem(wyjatekOpis, kmOdM, kmDoM),
+                kmOdM,
+                kmDoM,
                 warstwy: sklonujWarstwy(k.warstwy),
               }],
             }));
+            setWybrany((prev) => ({ ...prev, [wyjatekDla]: `${lo}|${hi}` }));
+            setWarstwyOtwarte((prev) => ({ ...prev, [`${wyjatekDla}|${lo}|${hi}`]: true }));
             setWyjatekDla(null);
           },
           kolor: theme.colors.primary,
@@ -438,4 +498,14 @@ const styles = StyleSheet.create({
   miniLabel: { fontSize: 11, fontWeight: '700', marginBottom: 4, color: '#6B7280' },
   chip: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 6 },
   wyjatek: { borderWidth: 1, borderRadius: 10, padding: 10, gap: 8 },
+  odcinki: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  odcinekBtn: {
+    flexGrow: 1,
+    flexBasis: '40%',
+    minWidth: 148,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+  },
 });

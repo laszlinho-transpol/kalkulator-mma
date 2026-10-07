@@ -3,7 +3,7 @@
 // ============================================================
 
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, useColorScheme } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, useColorScheme } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePlanyStore } from '../../src/stores/planyStore';
@@ -12,13 +12,12 @@ import { useLiveStore } from '../../src/stores/liveStore';
 import { useObmiarStore } from '../../src/stores/obmiarStore';
 import { lightTheme, darkTheme } from '../../src/constants/theme';
 import { EmptyState } from '../../src/components/common/EmptyState';
-import { CollapsibleSection } from '../../src/components/common/CollapsibleSection';
 import { AppHeader } from '../../src/components/common/AppHeader';
-import { grupujPoKluczu } from '../../src/utils/grouping';
+import { KalendarzZakresu } from '../../src/components/common/KalendarzZakresu';
 import { karta, tekstTytul, tekstPodtytul } from '../../src/constants/layout';
 import { formatLiczby } from '../../src/utils/calculations';
 import { formatujKmM } from '../../src/utils/projektBudowy';
-import { dzienWZakresie, dzienZIso, parsujZakresDat } from '../../src/utils/zakresDat';
+import { dzienWZakresie, dzienZIso, dzisIso } from '../../src/utils/zakresDat';
 import type { Plan, SesjaObmiaruDnia } from '../../src/types';
 
 type PozycjaArchiwum =
@@ -33,7 +32,9 @@ export default function ArchiwumScreen() {
   const { budowy } = useBudowyStore();
   const { wpisyDlaPlanu } = useLiveStore();
   const sesjeObmiaru = useObmiarStore((s) => s.sesje);
-  const [szukaj, setSzukaj] = useState('');
+  const dzisiaj = dzisIso();
+  const [zakresOd, setZakresOd] = useState(dzisiaj);
+  const [zakresDo, setZakresDo] = useState(dzisiaj);
   const archiwalne = plany.filter((p) => p.status === 'archiwalny');
   const obmiarArchiwum = sesjeObmiaru.filter((s) => s.status === 'archiwalna');
 
@@ -55,31 +56,20 @@ export default function ArchiwumScreen() {
       budowaId: s.budowaId,
       sesja: s,
     }));
-    return [...zPlanow, ...zObmiaru].sort((a, b) => b.dataSort - a.dataSort);
+    return [...zPlanow, ...zObmiaru].sort((a, b) => a.dataSort - b.dataSort);
   }, [archiwalne, obmiarArchiwum]);
 
-  const zakres = parsujZakresDat(szukaj);
-  const pozycje = useMemo(() => {
-    if (!zakres.ok || zakres.pusty) return wszystkie;
-    return wszystkie.filter((p) => {
-      const iso = p.rodzaj === 'plan'
-        ? p.plan.dataWbudowywania
-        : (p.sesja.zakonczonoAt ?? p.sesja.updatedAt ?? p.sesja.data);
-      return dzienWZakresie(dzienZIso(iso), zakres.od, zakres.do);
-    });
-  }, [wszystkie, zakres]);
+  const pozycje = useMemo(() => wszystkie.filter((p) => {
+    const iso = p.rodzaj === 'plan'
+      ? p.plan.dataWbudowywania
+      : (p.sesja.zakonczonoAt ?? p.sesja.updatedAt ?? p.sesja.data);
+    return dzienWZakresie(dzienZIso(iso), zakresOd, zakresDo);
+  }), [wszystkie, zakresOd, zakresDo]);
 
-  const grupy = useMemo(() => {
-    const zKluczem = pozycje.map((p) => {
-      const b = p.budowaId ? budowy.find((x) => x.id === p.budowaId) : undefined;
-      const klucz = b ? `${b.kodBudowy} – ${b.nazwaInwestycji}` : undefined;
-      return { pozycja: p, kluczGrupy: klucz };
-    });
-    return grupujPoKluczu(zKluczem, (x) => x.kluczGrupy, 'Archiwum bez budowy').map((g) => ({
-      ...g,
-      elementy: g.elementy.map((x) => x.pozycja),
-    }));
-  }, [pozycje, budowy]);
+  const nazwaBudowy = (budowaId?: string) => {
+    const b = budowaId ? budowy.find((x) => x.id === budowaId) : undefined;
+    return b ? `${b.kodBudowy} – ${b.nazwaInwestycji}` : 'Archiwum bez budowy';
+  };
 
   const renderujPlan = (item: Plan) => {
     const wpisy = wpisyDlaPlanu(item.id);
@@ -105,6 +95,9 @@ export default function ArchiwumScreen() {
             {wpisy.length} aut • {sumaTon.toFixed(1)} Mg • {sumaMetrow.toFixed(0)} m
           </Text>
         )}
+        <Text style={[tekstPodtytul, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+          {nazwaBudowy(item.budowaId)}
+        </Text>
         <Text style={[tekstPodtytul, { color: theme.colors.textSecondary }]} numberOfLines={3}>
           {opisPlanu(item)}
         </Text>
@@ -134,7 +127,7 @@ export default function ArchiwumScreen() {
           {wpisy.length} aut • {formatLiczby(sumaTon, 1)} Mg • {formatLiczby(sumaPow)} m²
         </Text>
         <Text style={[tekstPodtytul, { color: theme.colors.textSecondary }]} numberOfLines={2}>
-          {formatujDate(sesja.data)} • {sesja.obszary.length} obszar(ów) • PDF i e-mail
+          {nazwaBudowy(sesja.budowaId)} • {formatujDate(sesja.data)} • {sesja.obszary.length} obszar(ów)
         </Text>
       </TouchableOpacity>
     );
@@ -145,51 +138,29 @@ export default function ArchiwumScreen() {
       <AppHeader tytul="Archiwum" lewy={{ tekst: '‹ Wstecz', onPress: () => router.back() }} />
 
       <View style={styles.szukajWrap}>
-        <TextInput
-          value={szukaj}
-          onChangeText={setSzukaj}
-          placeholder="Data lub zakres, np. 05.10.2026 albo 01.10.2026–10.10.2026"
-          placeholderTextColor={theme.colors.textSecondary}
-          autoCapitalize="none"
-          autoCorrect={false}
-          style={[styles.szukaj, { color: theme.colors.text, borderColor: theme.colors.border, backgroundColor: theme.colors.card }]}
+        <KalendarzZakresu
+          od={zakresOd}
+          doDnia={zakresDo}
+          theme={theme}
+          onZatwierdz={(od, doDnia) => { setZakresOd(od); setZakresDo(doDnia); }}
         />
-        {!zakres.ok && (
-          <Text style={[styles.szukajBlad, { color: theme.colors.danger }]}>
-            Nie rozpoznaję daty. Wpisz np. 05.10.2026 albo 01.10.2026–10.10.2026.
-          </Text>
-        )}
       </View>
 
       {wszystkie.length === 0 ? (
         <EmptyState
           ikona="📁"
           tytul="Archiwum jest puste"
-          opis="Po „Zakończ” w planie dnia dniówka trafi tutaj, pod swoją budowę. Stąd otworzysz plan i wyślesz PDF mailem."
+          opis="Po „Zakończ” w planie dnia dniówka trafi tutaj. Stąd otworzysz plan i wyślesz PDF mailem."
         />
-      ) : !zakres.ok ? (
-        <View style={{ flex: 1 }} />
       ) : pozycje.length === 0 ? (
         <EmptyState
           ikona="📅"
-          tytul="Brak planów w tym zakresie"
-          opis="Zmień datę albo wyczyść pole, żeby zobaczyć wszystkie budowy."
+          tytul="Brak raportów w wybranym okresie"
+          opis={zakresOd === zakresDo ? 'W tym dniu nie ma zakończonych dniówek.' : 'W tym zakresie dat nie ma zakończonych dniówek.'}
         />
       ) : (
         <ScrollView contentContainerStyle={[styles.lista, { paddingBottom: insets.bottom + 16 }]} showsVerticalScrollIndicator={false}>
-          {grupy.map((grupa) => (
-            <CollapsibleSection
-              key={grupa.klucz}
-              tytul={grupa.tytul}
-              liczba={grupa.elementy.length}
-              theme={theme}
-              ikona="🏗️"
-              domyslnieRozwinieta
-              plaski={grupa.bezPrzypisania}
-            >
-              {grupa.elementy.map((el) => (el.rodzaj === 'plan' ? renderujPlan(el.plan) : renderujObmiar(el.sesja)))}
-            </CollapsibleSection>
-          ))}
+          {pozycje.map((el) => (el.rodzaj === 'plan' ? renderujPlan(el.plan) : renderujObmiar(el.sesja)))}
         </ScrollView>
       )}
     </View>
@@ -212,8 +183,6 @@ function opisPlanu(plan: Plan): string {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   szukajWrap: { paddingHorizontal: 14, paddingTop: 12 },
-  szukaj: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
-  szukajBlad: { fontSize: 13, marginTop: 8, lineHeight: 18 },
   lista: { padding: 14 },
   kartaNaglowek: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, gap: 8 },
   znaczekZakonczone: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },

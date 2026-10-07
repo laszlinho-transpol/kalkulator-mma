@@ -7,6 +7,7 @@ import * as Sharing from 'expo-sharing';
 import type { AppTheme } from '../../constants/theme';
 import type { ProjektBudowy } from '../../types';
 import { karta } from '../../constants/layout';
+import { InfoTooltip } from '../common/InfoTooltip';
 import { useMieszankiStore } from '../../stores/mieszankiStore';
 import { useWytwornieStore } from '../../stores/wytwornieStore';
 import {
@@ -93,9 +94,10 @@ export function SekcjaPrzedmiar({ projekt, theme, kodBudowy, onZmien }: Props) {
 
   return (
     <View style={{ gap: 12 }}>
-      <Text style={{ color: theme.colors.textSecondary, fontSize: 13, lineHeight: 18 }}>
-        Powierzchnie z obrysów PZT, tony z grubości i gęstości recepty (albo 2,45 t/m³ MMA / 2,0 t/m³ KŁSM). Odsadzka powiększa m² warstwy.
-      </Text>
+      <View style={styles.rzad}>
+        <Text style={{ color: theme.colors.text, fontWeight: '800', flex: 1 }}>Zestawienie</Text>
+        <InfoTooltip tresc="Powierzchnie biorą się z obrysów PZT, tony z grubości i gęstości recepty (albo 2,45 t/m³ MMA / 2,0 t/m³ KŁSM). Odsadzka powiększa m² warstwy." />
+      </View>
       <View style={styles.rzad}>
         <View style={styles.rzad}>
           <Text style={{ color: theme.colors.text, fontWeight: '700' }}>Edycja / scalanie</Text>

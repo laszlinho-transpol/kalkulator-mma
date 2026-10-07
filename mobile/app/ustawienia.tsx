@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { lightTheme, darkTheme, type AppTheme } from '../src/constants/theme';
 import { AnimatedCard } from '../src/components/common/AnimatedCard';
+import { InfoTooltip } from '../src/components/common/InfoTooltip';
 import { GrafikaMaszynSekcja } from '../src/components/ustawienia/GrafikaMaszynSekcja';
 import { useMieszankiStore } from '../src/stores/mieszankiStore';
 import { usePlanyStore } from '../src/stores/planyStore';
@@ -119,10 +120,10 @@ export default function UstawieniaScreen() {
         {/* Domyślny tonaż */}
         <AnimatedCard delay={80}>
           <View style={[styles.sekcja, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-            <Text style={[styles.sekcjaTytul, { color: theme.colors.textSecondary }]}>DOMYŚLNY TONAŻ AUTA</Text>
-            <Text style={[styles.opisSekcji, { color: theme.colors.textSecondary }]}>
-              Tonaż wstępnie wpisywany w każdym nowym planie. Możesz go zmienić przy tworzeniu planu.
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Text style={[styles.sekcjaTytul, { color: theme.colors.textSecondary, flex: 1 }]}>DOMYŚLNY TONAŻ AUTA</Text>
+              <InfoTooltip tresc="Tonaż wstępnie wpisywany w każdym nowym planie. Możesz go zmienić przy tworzeniu planu." />
+            </View>
             <View style={styles.tonazRow}>
               <TextInput
                 style={[styles.tonazInput, { backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.border, color: theme.colors.text }]}

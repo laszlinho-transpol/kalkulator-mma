@@ -10,6 +10,7 @@ import {
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppHeader } from '../common/AppHeader';
+import { InfoTooltip } from '../common/InfoTooltip';
 import { DatePickerButton } from '../common/DatePickerButton';
 import { NumericInput } from '../common/NumericInput';
 import { PoleKilometraz } from '../common/PoleKilometraz';
@@ -246,9 +247,13 @@ export function PlanZBudowyForm({ tytul, budowaId, initialPlan, onZapisz }: Prop
             })}
           </Sekcja>
 
-          <Sekcja tytul="Kilometraż" theme={theme}>
-            <Text style={[styl.hint, { color: theme.colors.textSecondary }]}>
-              Start i koniec określają kierunek układania. Teraz: {kierunek === 'rosnacy' ? 'rosnący ↑' : 'malejący ↓'}
+          <Sekcja
+            tytul="Kilometraż"
+            theme={theme}
+            info="Start i koniec określają kierunek układania. „Zaznacz na mapie” stawia obie krawędzie wybranego obszaru i wpisuje kilometraż."
+          >
+            <Text style={[styl.hint, { color: theme.colors.text, fontWeight: '700' }]}>
+              Kierunek: {kierunek === 'rosnacy' ? 'rosnący ↑' : 'malejący ↓'}
             </Text>
             <Text style={[styl.etykieta, { color: theme.colors.textSecondary }]}>Start</Text>
             <PoleKilometraz theme={theme} km={odKm} m={odM} onKm={setOdKm} onM={setOdM} />
@@ -306,12 +311,11 @@ export function PlanZBudowyForm({ tytul, budowaId, initialPlan, onZapisz }: Prop
             })}
           </Sekcja>
 
-          <Sekcja tytul="Odsadzki i recepta" theme={theme}>
-            <Text style={[styl.hint, { color: theme.colors.textSecondary }]}>
-              0 cm = sam obrys z PZT (konstrukcja, np. 15 cm, nie dodaje się sama).
-              Dodatnia poszerza tylko tam, gdzie nie ma krawężnika. Przy krawężniku zostaje obrys.
-              Ujemna zwęża, np. −10 cm.
-            </Text>
+          <Sekcja
+            tytul="Odsadzki i recepta"
+            theme={theme}
+            info="0 cm to sam obrys z PZT (odsadzka z konstrukcji, np. 15 cm, nie dodaje się sama). Dodatnia poszerza tylko tam, gdzie nie ma krawężnika. Przy krawężniku zostaje obrys. Ujemna zwęża, np. −10 cm."
+          >
             {warstwaOpcja ? (
               <Text style={[styl.hint, { color: theme.colors.text }]}>
                 W konstrukcji: L {formatLiczby(warstwaOpcja.odsadzkaLewaCm, 1)} / P {formatLiczby(warstwaOpcja.odsadzkaPrawaCm, 1)} cm (nie doliczane automatycznie)
@@ -364,7 +368,10 @@ export function PlanZBudowyForm({ tytul, budowaId, initialPlan, onZapisz }: Prop
 
           <Sekcja tytul="Auta" theme={theme}>
             <NumericInput label="Tonaż auta" value={tonazStr} onChangeText={setTonazStr} unit="t" decimals={1} placeholder="25.5" />
-            <Text style={[styl.etykieta, { color: theme.colors.textSecondary }]}>Podział na rzuty (opcjonalnie)</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Text style={[styl.etykieta, { color: theme.colors.textSecondary, flex: 1 }]}>Podział na rzuty (opcjonalnie)</Text>
+              <InfoTooltip tresc="Wpisz podział samochodów na partie, np. 6+6+4. Suma musi wynosić liczbę aut. Puste pole oznacza jeden rzut." />
+            </View>
             <TextInput
               style={[styl.input, {
                 backgroundColor: theme.colors.inputBackground,
@@ -436,10 +443,13 @@ function roundSum3(xs: number[]): number {
   return Math.round(xs.reduce((a, b) => a + b, 0) * 1000) / 1000;
 }
 
-function Sekcja({ tytul, children, theme }: { tytul: string; children: React.ReactNode; theme: AppTheme }) {
+function Sekcja({ tytul, info, children, theme }: { tytul: string; info?: string; children: React.ReactNode; theme: AppTheme }) {
   return (
     <View style={[styl.sekcja, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-      <Text style={[styl.sekcjaTytul, { color: theme.colors.textSecondary }]}>{tytul.toUpperCase()}</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <Text style={[styl.sekcjaTytul, { color: theme.colors.textSecondary, flex: 1 }]}>{tytul.toUpperCase()}</Text>
+        {info ? <InfoTooltip tresc={info} /> : null}
+      </View>
       {children}
     </View>
   );

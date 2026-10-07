@@ -13,6 +13,7 @@ import { usePlanyStore } from '../../../src/stores/planyStore';
 import { useBudowyStore } from '../../../src/stores/budowyStore';
 import { lightTheme, darkTheme } from '../../../src/constants/theme';
 import { AppHeader } from '../../../src/components/common/AppHeader';
+import { InfoTooltip } from '../../../src/components/common/InfoTooltip';
 import { EmptyState } from '../../../src/components/common/EmptyState';
 import { karta, tekstTytul, tekstPodtytul } from '../../../src/constants/layout';
 import { komentarzPlanuBudowy, tytulPlanuBudowy } from '../../../src/utils/planZBudowy';
@@ -56,15 +57,15 @@ export default function PlanBudowaScreen() {
         lewy={{ tekst: '‹ Wstecz', onPress: () => router.back() }}
       />
       <ScrollView contentContainerStyle={[styles.lista, { paddingBottom: insets.bottom + 16 }]}>
-        <TouchableOpacity
-          style={[karta, { backgroundColor: `${theme.colors.primary}14`, borderColor: theme.colors.primary }]}
-          onPress={() => router.push({ pathname: '/plan/nowy', params: { budowaId: budowa.id } } as any)}
-        >
-          <Text style={[tekstTytul, { color: theme.colors.primary }]}>Dodaj nowy plan</Text>
-          <Text style={[tekstPodtytul, { color: theme.colors.textSecondary, marginTop: 4 }]}>
-            Data, obszar, kilometraż, warstwa i recepta z projektu budowy.
-          </Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <TouchableOpacity
+            style={[karta, { backgroundColor: `${theme.colors.primary}14`, borderColor: theme.colors.primary, flex: 1 }]}
+            onPress={() => router.push({ pathname: '/plan/nowy', params: { budowaId: budowa.id } } as any)}
+          >
+            <Text style={[tekstTytul, { color: theme.colors.primary }]}>Dodaj nowy plan</Text>
+          </TouchableOpacity>
+          <InfoTooltip tresc="Data, obszar, kilometraż, warstwa i recepta z projektu budowy." />
+        </View>
 
         <Text style={[styles.sekcja, { color: theme.colors.textSecondary }]}>
           Zapisane ({zapisane.length})

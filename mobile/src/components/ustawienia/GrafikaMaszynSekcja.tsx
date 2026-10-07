@@ -6,6 +6,7 @@ import { useGrafikaMaszynStore } from '../../stores/grafikaMaszynStore';
 import * as DocumentPicker from 'expo-document-picker';
 import { oczyscSvg, type WygladMaszyny } from '../../utils/grafikaMaszyn';
 import { RysunekMaszyny, wymiaryMaszyny } from '../sketch/MaszynyObmiaru';
+import { InfoTooltip } from '../common/InfoTooltip';
 
 const WYGLADY: { id: WygladMaszyny; nazwa: string; opis: string }[] = [
   { id: 'obmiar', nazwa: 'Obmiar z góry', opis: 'Uproszczony rysunek z obmiaru PZT' },
@@ -75,10 +76,10 @@ export function GrafikaMaszynSekcja({ theme }: { theme: AppTheme }) {
 
   return (
     <View style={[styl.blok, { borderTopColor: theme.colors.border }]}>
-      <Text style={[styl.tytul, { color: theme.colors.textSecondary }]}>GRAFIKA NA SZKICU</Text>
-      <Text style={[styl.opis, { color: theme.colors.textSecondary }]}>
-        Przód maszyny jest w prawo. Na szkicu obraca się zgodnie z kierunkiem układania i staje na szerokość pasa.
-      </Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <Text style={[styl.tytul, { color: theme.colors.textSecondary, flex: 1 }]}>GRAFIKA NA SZKICU</Text>
+        <InfoTooltip tresc="Przód maszyny jest w prawo. Na szkicu obraca się zgodnie z kierunkiem układania i staje na szerokość pasa. Rozkładarka i auto mają osobny wygląd. Własny plik SVG zastępuje wbudowany rysunek tylko tej maszyny." />
+      </View>
       <View style={styl.podgladRzad}>
         <View style={styl.podgladKarta}>
           <Podglad rodzaj="rozkladarka" />
@@ -105,10 +106,10 @@ export function GrafikaMaszynSekcja({ theme }: { theme: AppTheme }) {
       <Modal visible={otwarte} transparent animationType="fade" onRequestClose={() => setOtwarte(false)}>
         <Pressable style={styl.tlo} onPress={() => setOtwarte(false)}>
           <Pressable style={[styl.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]} onPress={() => {}}>
-            <Text style={[styl.kartaTytul, { color: theme.colors.text }]}>Zmień grafikę</Text>
-            <Text style={[styl.opis, { color: theme.colors.textSecondary }]}>
-              Rozkładarka i auto mają osobny wygląd. Wbudowany rysunek usuwa tylko własny plik tej maszyny. Przód SVG niech wskazuje w prawo.
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+              <Text style={[styl.kartaTytul, { color: theme.colors.text, flex: 1 }]}>Zmień grafikę</Text>
+              <InfoTooltip tresc="Rozkładarka i auto mają osobny wygląd. Wybór wbudowanego rysunku usuwa tylko własny plik tej maszyny. Przód SVG niech wskazuje w prawo." />
+            </View>
             <MaszynaWybor
               etykieta="Rozkładarka"
               wyglad={grafika.wygladRozkladarki}
@@ -156,16 +157,18 @@ function MaszynaWybor({
         {WYGLADY.map((w) => {
           const on = wyglad === w.id && !wlasny;
           return (
-            <TouchableOpacity
-              key={w.id}
-              style={[styl.chip, {
-                borderColor: on ? theme.colors.primary : theme.colors.border,
-                backgroundColor: on ? `${theme.colors.primary}18` : theme.colors.inputBackground,
-              }]}
-              onPress={() => onWyglad(w.id)}
-            >
-              <Text style={{ color: on ? theme.colors.primary : theme.colors.text, fontWeight: '700', fontSize: 13 }}>{w.nazwa}</Text>
-            </TouchableOpacity>
+            <View key={w.id} style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <TouchableOpacity
+                style={[styl.chip, {
+                  borderColor: on ? theme.colors.primary : theme.colors.border,
+                  backgroundColor: on ? `${theme.colors.primary}18` : theme.colors.inputBackground,
+                }]}
+                onPress={() => onWyglad(w.id)}
+              >
+                <Text style={{ color: on ? theme.colors.primary : theme.colors.text, fontWeight: '700', fontSize: 13 }}>{w.nazwa}</Text>
+              </TouchableOpacity>
+              <InfoTooltip tresc={w.opis} />
+            </View>
           );
         })}
       </View>
