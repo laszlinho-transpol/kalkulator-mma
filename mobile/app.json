@@ -2,7 +2,7 @@
   "expo": {
     "name": "Kalkulator MMA",
     "slug": "kalkulator-mma",
-    "version": "1.8.21",
+    "version": "1.8.22",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",

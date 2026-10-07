@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.21';
+export const WERSJA_APLIKACJI = '1.8.22';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,17 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.22',
+    data: '2026-10-07',
+    tytul: 'Plan – działki robocze',
+    zmiany: [
+      'Pod datą układania jest liczba działek roboczych, domyślnie 1',
+      'Kolejna działka otwiera zakładkę z tymi samymi polami: obszar, kilometraż, warstwa, odsadzka i recepta, odcinki i grubość',
+      'Zakładki można przełączać i zmieniać kolejność zakrywania',
+      'Jedno okienko aut i podsumowania liczy wszystkie działki: tonaż z ustawień, rzuty, obszar, kilometraż, mieszankę, powierzchnię i tony',
+    ],
+  },
   {
     wersja: '1.8.21',
     data: '2026-10-07',

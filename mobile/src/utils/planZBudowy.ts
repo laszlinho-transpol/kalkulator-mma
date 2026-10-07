@@ -12,6 +12,7 @@ import type {
   Plan,
   ObszarObmiaru,
   ProjektBudowy,
+  ZakladkaPlanuBudowy,
   Punkt2D,
   Rzut,
   WarstwaKonstrukcji,
@@ -526,6 +527,74 @@ export function zbudujPlanZBudowy(
   };
 }
 
+export type ZakladkaDoZbudowania = ZakladkaPlanuBudowy & { gestoscTm3: number };
+
+function unikalneNazwy(nazwy: Array<string | undefined>): string {
+  const out: string[] = [];
+  for (const n of nazwy) {
+    const t = n?.trim();
+    if (t && !out.includes(t)) out.push(t);
+  }
+  return out.join(', ');
+}
+
+/** Składa plan z zakładek działek roboczych. Kolejność zakładek = kolejność zakrywania. */
+export function zbudujPlanZZakladek(
+  projekt: ProjektBudowy,
+  dane: {
+    budowaId: string;
+    dataWbudowywania: string;
+    tonazAuta: number;
+    rzuty?: Rzut[];
+    zakladki: ZakladkaDoZbudowania[];
+  },
+): Omit<Plan, 'id' | 'createdAt' | 'updatedAt'> {
+  const czesci = dane.zakladki.map((z) => zbudujPlanZBudowy(projekt, {
+    budowaId: dane.budowaId,
+    dataWbudowywania: dane.dataWbudowywania,
+    legendaId: z.legendaId,
+    obszarNazwa: z.obszarNazwa ?? '',
+    warstwaNazwa: z.warstwaNazwa,
+    warstwaKategoria: z.warstwaKategoria,
+    kilometrazOdM: z.kilometrazOdM,
+    kilometrazDoM: z.kilometrazDoM,
+    odsadzkaLewaCm: z.odsadzkaLewaCm,
+    odsadzkaPrawaCm: z.odsadzkaPrawaCm,
+    mieszankaId: z.mieszankaId,
+    gestoscTm3: z.gestoscTm3,
+    tonazAuta: dane.tonazAuta,
+    grubosciCm: z.grubosciCm,
+  }));
+  const pierwsza = czesci[0];
+  const dzialki = czesci.flatMap((c) => c.dzialki);
+  const sumaAut = czesci.reduce((s, c) => (
+    c.dzialki.length > 0 ? s + c.rzuty.reduce((a, r) => a + r.iloscSamochodow, 0) : s
+  ), 0);
+  const zakladkiBudowy: ZakladkaPlanuBudowy[] = dane.zakladki.map((z) => ({
+    id: z.id,
+    legendaId: z.legendaId,
+    obszarNazwa: z.obszarNazwa,
+    warstwaNazwa: z.warstwaNazwa,
+    warstwaKategoria: z.warstwaKategoria,
+    kilometrazOdM: z.kilometrazOdM,
+    kilometrazDoM: z.kilometrazDoM,
+    odsadzkaLewaCm: z.odsadzkaLewaCm,
+    odsadzkaPrawaCm: z.odsadzkaPrawaCm,
+    mieszankaId: z.mieszankaId,
+    grubosciCm: z.grubosciCm ?? [],
+  }));
+  return {
+    ...pierwsza,
+    iloscDzialek: dzialki.length,
+    dzialki,
+    tonazAuta: dane.tonazAuta,
+    rzuty: dane.rzuty?.length ? dane.rzuty : generujDomyslneRzuty(Math.max(1, sumaAut)),
+    obszarNazwa: unikalneNazwy(dane.zakladki.map((z) => z.obszarNazwa)) || pierwsza.obszarNazwa,
+    warstwaNazwa: unikalneNazwy(dane.zakladki.map((z) => z.warstwaNazwa)) || pierwsza.warstwaNazwa,
+    zakladkiBudowy,
+  };
+}
+
 /** Uzupełnia brakujące m² w zapisanym profilu. Nie liczy PZT przy otwarciu (to wiesza UI). */
 export function uzupelnijProfilObmiaruDzialek(
   _projekt: ProjektBudowy | undefined,
@@ -566,7 +635,17 @@ export function tytulPlanuBudowy(plan: Pick<Plan, 'warstwaNazwa' | 'dataWbudowyw
   return pierwsza ? `${pierwsza} ${data}` : data;
 }
 
-export function komentarzPlanuBudowy(plan: Pick<Plan, 'kilometrazOdM' | 'kilometrazDoM' | 'obszarNazwa'>): string {
+export function komentarzPlanuBudowy(
+  plan: Pick<Plan, 'kilometrazOdM' | 'kilometrazDoM' | 'obszarNazwa' | 'zakladkiBudowy'>,
+): string {
+  const zak = plan.zakladkiBudowy;
+  if (zak && zak.length > 1) {
+    return zak.map((z) => {
+      const km = `${formatujKmM(z.kilometrazOdM)} - ${formatujKmM(z.kilometrazDoM)}`;
+      const obszar = z.obszarNazwa?.trim() ?? '';
+      return [km, obszar].filter(Boolean).join(' ');
+    }).join(' · ');
+  }
   const od = plan.kilometrazOdM;
   const doM = plan.kilometrazDoM;
   const km = od != null && doM != null ? `${formatujKmM(od)} - ${formatujKmM(doM)}` : '';

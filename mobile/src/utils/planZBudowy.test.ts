@@ -16,6 +16,7 @@ import {
   tytulPlanuBudowy,
   uzupelnijProfilObmiaruDzialek,
   zbudujPlanZBudowy,
+  zbudujPlanZZakladek,
 } from './planZBudowy';
 import { obliczTabeleAutPlanu } from './calculations';
 import { pikietazPoMetrach, zakresOdcinkaKm } from './chainage';
@@ -392,5 +393,75 @@ describe('planZBudowy / oś XFDF', () => {
     assert.equal(plasterki.length, 1);
     assert.ok(Math.abs(plasterki[0].dlugoscM - 415) < 0.2);
     assert.ok(ms < 400, `profil stałej jezdni za wolny: ${ms} ms`);
+  });
+
+  it('zakładki działek roboczych układają się po kolei i sumują auta', () => {
+    const wiaz = warstwa('Wiążąca', 'wiazaca', 8);
+    const sma = warstwa('SMA', 'sma', 4);
+    const projekt = projektLewy(prostokatLewy(9200, 7), [sma, wiaz]);
+    const wspolne = {
+      legendaId: 'legL',
+      obszarNazwa: 'Trasa główna strona lewa',
+      odsadzkaLewaCm: 0,
+      odsadzkaPrawaCm: 0,
+      gestoscTm3: 2.45,
+    };
+    const z1 = {
+      ...wspolne,
+      id: 'z1',
+      warstwaNazwa: 'Wiążąca',
+      warstwaKategoria: 'wiazaca' as const,
+      kilometrazOdM: 107000,
+      kilometrazDoM: 107500,
+      mieszankaId: 'mix-w',
+      grubosciCm: [8],
+    };
+    const z2 = {
+      ...wspolne,
+      id: 'z2',
+      warstwaNazwa: 'SMA',
+      warstwaKategoria: 'sma' as const,
+      kilometrazOdM: 107500,
+      kilometrazDoM: 108000,
+      mieszankaId: 'mix-s',
+      grubosciCm: [4],
+    };
+    const rzuty = [{ id: 'r1', numerRzutu: 1, iloscSamochodow: 10 }, { id: 'r2', numerRzutu: 2, iloscSamochodow: 8 }];
+    const plan = zbudujPlanZZakladek(projekt, {
+      budowaId: 'b1',
+      dataWbudowywania: '2026-10-07T06:00:00.000Z',
+      tonazAuta: 25.5,
+      rzuty,
+      zakladki: [z1, z2],
+    });
+    assert.equal(plan.dzialki.length, 2);
+    assert.equal(plan.iloscDzialek, 2);
+    assert.equal(plan.dzialki[0].nazwa, '107+000 – 107+500');
+    assert.equal(plan.dzialki[0].mieszankaId, 'mix-w');
+    assert.equal(plan.dzialki[1].nazwa, '107+500 – 108+000');
+    assert.equal(plan.dzialki[1].mieszankaId, 'mix-s');
+    assert.equal(plan.warstwaNazwa, 'Wiążąca, SMA');
+    assert.equal(plan.obszarNazwa, 'Trasa główna strona lewa');
+    assert.deepEqual(plan.rzuty, rzuty);
+    assert.equal(plan.zakladkiBudowy?.length, 2);
+    assert.equal(plan.zakladkiBudowy?.[0].id, 'z1');
+    assert.equal(plan.zakladkiBudowy?.[1].grubosciCm[0], 4);
+    assert.equal(
+      komentarzPlanuBudowy(plan),
+      '107+000 - 107+500 Trasa główna strona lewa · 107+500 - 108+000 Trasa główna strona lewa',
+    );
+    assert.equal(tytulPlanuBudowy(plan), 'Wiążąca, SMA 07.10.2026');
+
+    const odwrotnie = zbudujPlanZZakladek(projekt, {
+      budowaId: 'b1',
+      dataWbudowywania: '2026-10-07T06:00:00.000Z',
+      tonazAuta: 25.5,
+      zakladki: [z2, z1],
+    });
+    assert.equal(odwrotnie.dzialki[0].nazwa, '107+500 – 108+000');
+    assert.equal(odwrotnie.dzialki[1].nazwa, '107+000 – 107+500');
+    assert.equal(odwrotnie.dzialki[0].mieszankaId, 'mix-s');
+    const auta = odwrotnie.rzuty.reduce((s, r) => s + r.iloscSamochodow, 0);
+    assert.ok(auta > 1, `oczekiwano sumy aut z obu zakładek, jest ${auta}`);
   });
 });

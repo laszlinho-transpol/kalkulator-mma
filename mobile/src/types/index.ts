@@ -146,6 +146,22 @@ export interface Rzut {
 
 export type StatusPlanu = 'aktywny' | 'archiwalny';
 
+/** Jedna działka robocza planu z budowy – osobna zakładka (obszar, km, warstwa). */
+export interface ZakladkaPlanuBudowy {
+  id: string;
+  legendaId: string;
+  obszarNazwa?: string;
+  warstwaNazwa: string;
+  warstwaKategoria?: KategoriaWarstwy;
+  kilometrazOdM: number;
+  kilometrazDoM: number;
+  odsadzkaLewaCm: number;
+  odsadzkaPrawaCm: number;
+  mieszankaId: string;
+  /** Grubość wbudowywania każdego odcinka konstrukcji w tej działce [cm]. */
+  grubosciCm: number[];
+}
+
 export interface Plan {
   id: string;
   dataWbudowywania: string;     // ISO date string
@@ -171,6 +187,8 @@ export interface Plan {
   /** Alias zapisu z formularza (ta sama wartość co odsadzkaLewaCm). */
   odsadzkaKorektaLewaCm?: number;
   odsadzkaKorektaPrawaCm?: number;
+  /** Zakładki działek roboczych w kolejności zakrywania. Brak = jeden zakres planu. */
+  zakladkiBudowy?: ZakladkaPlanuBudowy[];
   createdAt: string;
   updatedAt: string;
 }
