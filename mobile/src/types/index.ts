@@ -132,6 +132,8 @@ export interface DzialkaRobocza {
   figury: Figura[];
   /** Obmiar wzdłuż układu: dokładne m² z PZT na odcinku (nie średnia szerokość). */
   profilSzerokosci?: Array<{ dlugoscM: number; szerokoscM: number; powierzchniaM2?: number }>;
+  /** Zakładka planu z budowy, do której należy ten odcinek. */
+  zakladkaId?: string;
 }
 
 // --- Rzut (partia samochodów) ---

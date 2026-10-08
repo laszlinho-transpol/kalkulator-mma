@@ -30,7 +30,8 @@ import {
 } from '../../src/utils/calculations';
 import { gruboscWbudowywania, gruboscProjektowa, formatujTolerancje } from '../../src/utils/grubosc';
 import { formatujDatePl } from '../../src/utils/dates';
-import { komentarzPlanuBudowy, tytulPlanuBudowy, uzupelnijProfilObmiaruDzialek } from '../../src/utils/planZBudowy';
+import { komentarzPlanuBudowy, obszarySzkicuPlanu, tytulPlanuBudowy, uzupelnijProfilObmiaruDzialek } from '../../src/utils/planZBudowy';
+import { formatujKmM } from '../../src/utils/projektBudowy';
 import { potwierdzAkcje } from '../../src/utils/dialog';
 import { formatujPikietaz, pikietazPoMetrach } from '../../src/utils/chainage';
 import { eksportujJSON, generujInteraktywnyHTML } from '../../src/utils/htmlGenerator';
@@ -66,6 +67,18 @@ export default function PlanDetailScreen() {
     () => uzupelnijProfilObmiaruDzialek(budowaPodglad?.projekt, plan),
     [budowaPodglad?.projekt, plan],
   );
+  const tabeleAut = useMemo(() => {
+    if (!plan) return null;
+    const ciezar = (mid: string) => mieszanki.find((m) => m.id === mid)?.ciezarObjetosciowy;
+    let sumaAut = 0;
+    for (const dz of plan.dzialki) {
+      const rho = ciezar(dz.mieszankaId);
+      if (rho == null) continue;
+      sumaAut += obliczWynikiDzialki(dz, rho, plan.tonazAuta).iloscSamochodow;
+    }
+    const rzuty = plan.rzuty.length > 0 ? plan.rzuty : generujDomyslneRzuty(sumaAut);
+    return obliczTabeleAutPlanu(dzialkiObmiaru, rzuty, plan.tonazAuta, ciezar);
+  }, [plan, mieszanki, dzialkiObmiaru]);
 
   if (!plan) {
     return (
@@ -79,23 +92,7 @@ export default function PlanDetailScreen() {
   }
 
   const getMieszanka = (id: string) => mieszanki.find((m) => m.id === id);
-
-  const tabeleAut = useMemo(() => {
-    if (!plan) return null;
-    let sumaAut = 0;
-    for (const dz of plan.dzialki) {
-      const m = getMieszanka(dz.mieszankaId);
-      if (!m) continue;
-      sumaAut += obliczWynikiDzialki(dz, m.ciezarObjetosciowy, plan.tonazAuta).iloscSamochodow;
-    }
-    const rzuty = plan.rzuty.length > 0 ? plan.rzuty : generujDomyslneRzuty(sumaAut);
-    return obliczTabeleAutPlanu(
-      dzialkiObmiaru,
-      rzuty,
-      plan.tonazAuta,
-      (mid) => getMieszanka(mid)?.ciezarObjetosciowy,
-    );
-  }, [plan, mieszanki, dzialkiObmiaru]);
+  const obszarySzkicu = plan.zrodlo === 'budowa' ? obszarySzkicuPlanu(plan) : [];
 
   const udostepnijJSON = async () => {
     try { await eksportujJSON(plan, mieszanki, wpisyLive); } catch { /* cancelled */ }
@@ -124,6 +121,7 @@ export default function PlanDetailScreen() {
   };
 
   const budowa = budowaPodglad;
+  const projektSzkicu = budowa?.projekt;
 
   const usunTenPlan = () => potwierdzAkcje(
     'Usuń plan',
@@ -317,11 +315,29 @@ export default function PlanDetailScreen() {
         {/* ---- ZAKŁADKA: SZKIC ---- */}
         {aktywnaZakladka === 'szkic' && (
           <>
-            {plan.zrodlo === 'budowa' && budowa?.projekt ? (
-              <View style={[styles.kartaDzialki, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-                <Text style={[styles.kartaTytul, { color: theme.colors.text }]}>Szkic PZT (wycinek km)</Text>
-                <SzkicPlanuBudowy projekt={budowa.projekt} plan={plan} theme={theme} wysokosc={320} />
-              </View>
+            {plan.zrodlo === 'budowa' && projektSzkicu ? (
+              obszarySzkicu.length > 0 ? obszarySzkicu.map((obszar) => (
+                <View key={obszar.id} style={[styles.kartaDzialki, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+                  <Text style={[styles.kartaTytul, { color: theme.colors.text }]}>
+                    Szkic PZT · {obszar.numer}. {obszar.nazwa}
+                  </Text>
+                  <Text style={{ color: theme.colors.textSecondary, fontSize: 13, marginBottom: 8 }}>
+                    {formatujKmM(obszar.kilometrazOdM)} - {formatujKmM(obszar.kilometrazDoM)}
+                  </Text>
+                  <SzkicPlanuBudowy
+                    projekt={projektSzkicu}
+                    plan={plan}
+                    theme={theme}
+                    wysokosc={320}
+                    zakres={obszar}
+                  />
+                </View>
+              )) : (
+                <View style={[styles.kartaDzialki, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+                  <Text style={[styles.kartaTytul, { color: theme.colors.text }]}>Szkic PZT (wycinek km)</Text>
+                  <SzkicPlanuBudowy projekt={projektSzkicu} plan={plan} theme={theme} wysokosc={320} />
+                </View>
+              )
             ) : (
               <>
             {plan.dzialki.length > 1 && (

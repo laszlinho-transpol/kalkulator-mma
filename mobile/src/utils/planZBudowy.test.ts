@@ -14,11 +14,13 @@ import {
   policzOdcinkiPlanu,
   stronaKrawedznika,
   tytulPlanuBudowy,
+  obszarySzkicuPlanu,
+  pozycjaSzkicuPoMetrach,
   uzupelnijProfilObmiaruDzialek,
   zbudujPlanZBudowy,
   zbudujPlanZZakladek,
 } from './planZBudowy';
-import { obliczTabeleAutPlanu } from './calculations';
+import { obliczLacznaDlugosc, obliczTabeleAutPlanu } from './calculations';
 import { pikietazPoMetrach, zakresOdcinkaKm } from './chainage';
 import { segmentyKonstrukcji } from './projektBudowy';
 
@@ -436,6 +438,8 @@ describe('planZBudowy / oś XFDF', () => {
     });
     assert.equal(plan.dzialki.length, 2);
     assert.equal(plan.iloscDzialek, 2);
+    assert.equal(plan.dzialki[0].zakladkaId, 'z1');
+    assert.equal(plan.dzialki[1].zakladkaId, 'z2');
     assert.equal(plan.dzialki[0].nazwa, '107+000 – 107+500');
     assert.equal(plan.dzialki[0].mieszankaId, 'mix-w');
     assert.equal(plan.dzialki[1].nazwa, '107+500 – 108+000');
@@ -463,5 +467,34 @@ describe('planZBudowy / oś XFDF', () => {
     assert.equal(odwrotnie.dzialki[0].mieszankaId, 'mix-s');
     const auta = odwrotnie.rzuty.reduce((s, r) => s + r.iloscSamochodow, 0);
     assert.ok(auta > 1, `oczekiwano sumy aut z obu zakładek, jest ${auta}`);
+
+    const obszary = obszarySzkicuPlanu(plan as any);
+    assert.equal(obszary.length, 2);
+    assert.equal(obszary[0].id, 'z1');
+    assert.equal(obszary[1].id, 'z2');
+    assert.deepEqual(obszary[0].dzialkaIds, [plan.dzialki[0].id]);
+    assert.deepEqual(obszary[1].dzialkaIds, [plan.dzialki[1].id]);
+
+    const dl = obliczLacznaDlugosc(plan.dzialki[0]);
+    assert.ok(Math.abs(dl - 500) < 0.2, `długość pierwszej działki ${dl}`);
+    const naStarcie = pozycjaSzkicuPoMetrach(plan as any, obszary, 0);
+    assert.equal(naStarcie?.obszarId, 'z1');
+    assert.equal(naStarcie?.dzialkaId, plan.dzialki[0].id);
+    assert.ok(Math.abs((naStarcie?.stacjaM ?? 0) - 107000) < 0.2);
+    const wSrodku = pozycjaSzkicuPoMetrach(plan as any, obszary, 250);
+    assert.equal(wSrodku?.obszarId, 'z1');
+    assert.ok(Math.abs((wSrodku?.stacjaM ?? 0) - 107250) < 0.2);
+    const naGranicy = pozycjaSzkicuPoMetrach(plan as any, obszary, dl);
+    assert.equal(naGranicy?.obszarId, 'z2');
+    assert.equal(naGranicy?.dzialkaId, plan.dzialki[1].id);
+    assert.ok(Math.abs((naGranicy?.stacjaM ?? 0) - 107500) < 0.2);
+
+    const bezId = {
+      ...plan,
+      dzialki: plan.dzialki.map((d) => ({ ...d, zakladkaId: undefined })),
+    };
+    const fallback = obszarySzkicuPlanu(bezId as any);
+    assert.equal(fallback[0].dzialkaIds[0], plan.dzialki[0].id);
+    assert.equal(fallback[1].dzialkaIds[0], plan.dzialki[1].id);
   });
 });

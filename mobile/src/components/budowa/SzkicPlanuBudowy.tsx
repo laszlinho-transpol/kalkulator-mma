@@ -5,6 +5,14 @@ import type { Plan, ProjektBudowy, TloArkuszaPzt, WpisLive } from '../../types';
 import { arkuszeSzkicuPlanu } from '../../utils/planZBudowy';
 import { PztArkuszPodglad } from './PztArkuszPodglad';
 
+interface ZakresSzkicu {
+  legendaId: string;
+  kilometrazOdM: number;
+  kilometrazDoM: number;
+  /** Odcinki tej działki roboczej – auta spoza nich nie wchodzą na szkic. */
+  dzialkaIds?: string[];
+}
+
 interface Props {
   projekt: ProjektBudowy;
   plan: Plan;
@@ -15,6 +23,10 @@ interface Props {
   onBlokadaPodgladu?: (v: boolean) => void;
   onDotykZmiana?: (aktywny: boolean) => void;
   onPressAuto?: (id: string) => void;
+  /** Jedna działka robocza zamiast całego planu. */
+  zakres?: ZakresSzkicu;
+  /** Pozycja rozkładarki przy wpisywaniu auta, zanim wpis zostanie zapisany. */
+  stacjaPodgladuM?: number | null;
 }
 
 export function SzkicPlanuBudowy({
@@ -27,20 +39,31 @@ export function SzkicPlanuBudowy({
   onBlokadaPodgladu,
   onDotykZmiana,
   onPressAuto,
+  zakres,
+  stacjaPodgladuM,
 }: Props) {
   const [idx, setIdx] = useState(0);
   const [wybranoArkusz, setWybranoArkusz] = useState(false);
   const [tloPatch, setTloPatch] = useState<Record<string, Partial<TloArkuszaPzt>>>({});
 
-  const arkusze = useMemo(() => arkuszeSzkicuPlanu(projekt, plan), [projekt, plan]);
-  const od = plan.kilometrazOdM ?? 0;
-  const doM = plan.kilometrazDoM ?? 0;
+  const od = zakres?.kilometrazOdM ?? plan.kilometrazOdM ?? 0;
+  const doM = zakres?.kilometrazDoM ?? plan.kilometrazDoM ?? 0;
+  const legendaId = zakres?.legendaId ?? plan.legendaId;
+  const wpisyZakresu = useMemo(() => {
+    if (!zakres?.dzialkaIds) return wpisy;
+    const ids = new Set(zakres.dzialkaIds);
+    return wpisy.filter((w) => ids.has(w.dzialkaId));
+  }, [wpisy, zakres]);
+  const arkusze = useMemo(
+    () => arkuszeSzkicuPlanu(projekt, { ...plan, legendaId, kilometrazOdM: od, kilometrazDoM: doM }),
+    [projekt, plan, legendaId, od, doM],
+  );
   const maleje = od > doM;
   const { liveAuta, stacjaRozkladarki } = useMemo(() => {
     const metryCum: { id: string; numer: number; stacjaM: number }[] = [];
     let acc = 0;
-    const poNumerze = new Map<number, typeof wpisy>();
-    for (const w of [...wpisy].sort((a, b) => a.numerAuta - b.numerAuta || a.createdAt.localeCompare(b.createdAt))) {
+    const poNumerze = new Map<number, typeof wpisyZakresu>();
+    for (const w of [...wpisyZakresu].sort((a, b) => a.numerAuta - b.numerAuta || a.createdAt.localeCompare(b.createdAt))) {
       const lista = poNumerze.get(w.numerAuta) ?? [];
       lista.push(w);
       poNumerze.set(w.numerAuta, lista);
@@ -55,9 +78,11 @@ export function SzkicPlanuBudowy({
     }
     return {
       liveAuta: metryCum,
-      stacjaRozkladarki: maleje ? od - acc : od + acc,
+      stacjaRozkladarki: stacjaPodgladuM != null && Number.isFinite(stacjaPodgladuM)
+        ? stacjaPodgladuM
+        : (maleje ? od - acc : od + acc),
     };
-  }, [wpisy, od, doM, maleje]);
+  }, [wpisyZakresu, od, doM, maleje, stacjaPodgladuM]);
   const arkuszZeStacja = arkusze.findIndex((a) => (
     stacjaRozkladarki >= a.kilometrazPoczatkowyM - 0.6 && stacjaRozkladarki <= a.kilometrazKoncowyM + 0.6
   ));

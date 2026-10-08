@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.22';
+export const WERSJA_APLIKACJI = '1.8.23';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,17 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.23',
+    data: '2026-10-08',
+    tytul: 'Szkice obszarów i podsumowanie dnia',
+    zmiany: [
+      'Auta i podsumowanie: rodzaj mieszanki, powierzchnia, tony z liczbą aut, potem numerowana kolejność wbudowywania',
+      'Kilka mieszanek jednego dnia jest w tabeli; obszary zostają rozpiską 1, 2, 3',
+      'Zakładka Szkic i plan we wbudowywaniu mają osobne okno PZT na każdy obszar, a pod szkicem jest podsumowanie i rozpiska aut',
+      'Live dzieli szkic na zakładki obszarów i przeskakuje na ten, który jest właśnie układany',
+    ],
+  },
   {
     wersja: '1.8.22',
     data: '2026-10-07',

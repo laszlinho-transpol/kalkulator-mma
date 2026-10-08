@@ -50,7 +50,7 @@ import {
 import { formatujDatePl, aktualnaGodzina } from '../../src/utils/dates';
 import { zakresOdcinkaKm } from '../../src/utils/chainage';
 import { formatujKmM } from '../../src/utils/projektBudowy';
-import { uzupelnijProfilObmiaruDzialek } from '../../src/utils/planZBudowy';
+import { obszarySzkicuPlanu, pozycjaSzkicuPoMetrach, uzupelnijProfilObmiaruDzialek } from '../../src/utils/planZBudowy';
 import {
   znajdzAktywnaDzialke,
   rozdzielMetryNaDzialki,
@@ -161,6 +161,33 @@ export default function WbudowywanieDetailScreen() {
     if (akt) setSzkicObszarId(akt.dzialka.id);
   }, [id, wpisyCalegoPlanu, sesje]);
 
+  const [recznySzkicId, setRecznySzkicId] = useState<string | null>(null);
+  const poprzedniCelSzkicu = useRef<string | null>(null);
+  const celSzkicuBudowy = useMemo(() => {
+    if (!plan || plan.zrodlo !== 'budowa') return null;
+    const obszary = obszarySzkicuPlanu(plan);
+    if (obszary.length === 0) return null;
+    const ulozone = wpisyCalegoPlanu.reduce((s, w) => s + w.przejechaneMetry, 0);
+    const val = parseFloat(nowyMetry.replace(',', '.'));
+    const wpisuje = !edytowanyWpisId && nowyMetry.trim() !== '' && !Number.isNaN(val) && val >= 0;
+    if (wpisuje) {
+      const globalne = trybMetrowLive === 'odStartu' ? val : ulozone + val;
+      const poz = pozycjaSzkicuPoMetrach(plan, obszary, globalne);
+      if (poz) return { obszarId: poz.obszarId, stacjaM: poz.stacjaM as number | null };
+    }
+    const akt = znajdzAktywnaDzialke(plan, wpisyCalegoPlanu, sesje);
+    const obszar = (akt && obszary.find((o) => o.dzialkaIds.includes(akt.dzialka.id))) || obszary[0];
+    return { obszarId: obszar.id, stacjaM: null as number | null };
+  }, [plan, wpisyCalegoPlanu, sesje, nowyMetry, trybMetrowLive, edytowanyWpisId]);
+
+  useEffect(() => {
+    const idCelu = celSzkicuBudowy?.obszarId ?? null;
+    if (idCelu && idCelu !== poprzedniCelSzkicu.current) {
+      poprzedniCelSzkicu.current = idCelu;
+      setRecznySzkicId(null);
+    }
+  }, [celSzkicuBudowy?.obszarId]);
+
   if (!plan) {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -183,6 +210,7 @@ export default function WbudowywanieDetailScreen() {
   const getMieszanka = (mId: string) => mieszanki.find((m) => m.id === mId);
   const ciezarPoMieszance = (mId: string) => mieszanki.find((m) => m.id === mId)?.ciezarObjetosciowy;
   const budowa = budowaPodglad;
+  const projektSzkicu = budowa?.projekt;
   const zalacznikiPzt = budowa?.zalaczniki?.length
     ? budowa.zalaczniki
     : (plan.zalaczniki ?? []);
@@ -511,26 +539,99 @@ export default function WbudowywanieDetailScreen() {
                 <IR label="Łącznie metrów" v={`${formatLiczby(podsumowanieDnia.laczneMetry)} m`} theme={theme} />
                 <IR label="Samochodów (plan)" v={String(podsumowanieDnia.lacznaIloscAut)} theme={theme} bold />
               </View>
-              {plan.zrodlo === 'budowa' && budowa?.projekt ? (
-                <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-                  <Text style={[styles.kartaTytul, { color: theme.colors.primary }]}>Szkic PZT (wycinek km)</Text>
-                  <SzkicPlanuBudowy
-                    projekt={budowa.projekt}
-                    plan={plan}
-                    theme={theme}
-                    wpisy={wpisyCalegoPlanu}
-                    wysokosc={280}
-                    blokadaPodgladu={blokadaSzkicuPzt}
-                    onBlokadaPodgladu={setBlokadaSzkicuPzt}
-                    onDotykZmiana={setMapaSzkicAktywna}
-                    onPressAuto={(wpisId) => {
-                      const wpis = wpisyCalegoPlanu.find((w) => w.id === wpisId);
-                      if (wpis) { setAutaModal({ wpis }); setAutaModalZakladka('szczegoły'); }
-                    }}
-                  />
-                </View>
-              ) : null}
-              {plan.dzialki.map((dz) => {
+              {plan.zrodlo === 'budowa' && projektSzkicu ? (
+                obszarySzkicuPlanu(plan).map((obszar) => {
+                  const dzialkiObszaru = plan.dzialki.filter((d) => obszar.dzialkaIds.includes(d.id));
+                  const doKarty = dzialkiObszaru.length > 0 ? dzialkiObszaru : [];
+                  let powObszaru = 0;
+                  let masaObszaru = 0;
+                  let autaObszaru = 0;
+                  const mieszNazwy: string[] = [];
+                  for (const dz of doKarty) {
+                    const mie = getMieszanka(dz.mieszankaId);
+                    if (!mie) continue;
+                    const w = obliczWynikiDzialki(dz, mie.ciezarObjetosciowy, plan.tonazAuta);
+                    powObszaru += w.lacznaPowierzchnia;
+                    masaObszaru += w.lacznaIloscMasy;
+                    autaObszaru += w.iloscSamochodow;
+                    if (!mieszNazwy.includes(mie.rodzaj)) mieszNazwy.push(mie.rodzaj);
+                  }
+                  return (
+                    <View key={obszar.id}>
+                      <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+                        <Text style={[styles.kartaTytul, { color: theme.colors.primary }]}>
+                          Szkic PZT · {obszar.numer}. {obszar.nazwa}
+                        </Text>
+                        <Text style={{ color: theme.colors.textSecondary, fontSize: 13, marginBottom: 8 }}>
+                          {formatujKmM(obszar.kilometrazOdM)} - {formatujKmM(obszar.kilometrazDoM)}
+                        </Text>
+                        <SzkicPlanuBudowy
+                          projekt={projektSzkicu}
+                          plan={plan}
+                          theme={theme}
+                          wpisy={wpisyCalegoPlanu.filter((w) => obszar.dzialkaIds.includes(w.dzialkaId))}
+                          wysokosc={280}
+                          zakres={obszar}
+                          blokadaPodgladu={blokadaSzkicuPzt}
+                          onBlokadaPodgladu={setBlokadaSzkicuPzt}
+                          onDotykZmiana={setMapaSzkicAktywna}
+                          onPressAuto={(wpisId) => {
+                            const wpis = wpisyCalegoPlanu.find((w) => w.id === wpisId);
+                            if (wpis) { setAutaModal({ wpis }); setAutaModalZakladka('szczegoły'); }
+                          }}
+                        />
+                      </View>
+                      <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+                        <Text style={[styles.kartaTytul, { color: theme.colors.primary }]}>
+                          {obszar.numer}. {obszar.nazwa}
+                        </Text>
+                        <IR label="Mieszanka" v={mieszNazwy.join(', ') || '—'} theme={theme} />
+                        <IR label="Powierzchnia" v={`${formatLiczby(powObszaru)} m²`} theme={theme} />
+                        <IR label="Masa" v={`${formatLiczby(masaObszaru, 3)} Mg`} theme={theme} bold />
+                        <IR label="Samochodów (plan)" v={String(autaObszaru)} theme={theme} bold />
+                        {doKarty.map((dz) => {
+                          const mie = getMieszanka(dz.mieszankaId);
+                          if (!mie) return null;
+                          const wyniki = obliczWynikiDzialki(dz, mie.ciezarObjetosciowy, plan.tonazAuta);
+                          const tabelaDz = tabeleAutPlanu.dzialki.find((t) => t.dzialkaId === dz.id);
+                          return (
+                            <View key={dz.id} style={{ marginTop: 12 }}>
+                              {doKarty.length > 1 ? (
+                                <Text style={{ color: theme.colors.text, fontWeight: '700', marginBottom: 6 }}>
+                                  {dz.nazwa}
+                                  {tabelaDz ? `  (auta ${tabelaDz.numerAutaOd}–${tabelaDz.numerAutaDo})` : ''}
+                                </Text>
+                              ) : null}
+                              <IR label="Grubość projektowa" v={`${gruboscProjektowa(dz)} cm`} theme={theme} />
+                              <IR label="Tolerancja" v={formatujTolerancje(dz)} theme={theme} />
+                              <IR label="Grubość wbudowywania" v={`${gruboscWbudowywania(dz)} cm`} theme={theme} />
+                              <IR label="Metrów" v={`${formatLiczby(obliczLacznaDlugosc(dz))} m`} theme={theme} />
+                              {doKarty.length > 1 ? (
+                                <IR label="Masa odcinka" v={`${formatLiczby(wyniki.lacznaIloscMasy, 3)} Mg`} theme={theme} />
+                              ) : null}
+                              <Text style={[styles.kartaTytul, { color: theme.colors.text, marginTop: 8, marginBottom: 8 }]}>Rozpiska samochodów</Text>
+                              <TabelaAut
+                                dzialka={dz}
+                                tonazAuta={plan.tonazAuta}
+                                rzuty={plan.rzuty}
+                                ciezarObjetosciowy={mie.ciezarObjetosciowy}
+                                theme={theme}
+                                wiersze={tabelaDz?.wiersze}
+                                naglowek={tabelaDz ? {
+                                  doWbudowania: `${formatLiczby(tabelaDz.wiersze.reduce((s, w) => s + w.masa, 0), 2)} Mg`,
+                                  iloscAut: `${tabelaDz.numerAutaOd}–${tabelaDz.numerAutaDo}`,
+                                  rzuty: [...new Set(tabelaDz.wiersze.map((w) => w.numerRzutu))].join('+'),
+                                  lacznieMetrow: `${formatLiczby(obliczLacznaDlugosc(dz))} m`,
+                                } : undefined}
+                              />
+                            </View>
+                          );
+                        })}
+                      </View>
+                    </View>
+                  );
+                })
+              ) : plan.dzialki.map((dz) => {
             const mie = getMieszanka(dz.mieszankaId);
             if (!mie) return null;
             const wyniki = obliczWynikiDzialki(dz, mie.ciezarObjetosciowy, plan.tonazAuta);
@@ -708,22 +809,79 @@ export default function WbudowywanieDetailScreen() {
                   <Text style={[styles.kartaTytul, { color: theme.colors.primary }]}>
                     {plan.zrodlo === 'budowa' ? 'Szkic PZT (wycinek km)' : plan.zrodlo === 'obmiar' ? 'Szkic obszarów PZT' : 'Szkic planu dnia'}
                   </Text>
-                  {plan.zrodlo === 'budowa' && budowa?.projekt ? (
-                    <SzkicPlanuBudowy
-                      projekt={budowa.projekt}
-                      plan={plan}
-                      theme={theme}
-                      wpisy={wpisyCalegoPlanu}
-                      wysokosc={Math.min(VIEWPORT_SZKICU_LIVE, 360)}
-                      blokadaPodgladu={blokadaSzkicuPzt}
-                      onBlokadaPodgladu={setBlokadaSzkicuPzt}
-                      onDotykZmiana={setMapaSzkicAktywna}
-                      onPressAuto={(wpisId) => {
-                        const wpis = wpisyCalegoPlanu.find((w) => w.id === wpisId);
-                        if (wpis) { setAutaModal({ wpis }); setAutaModalZakladka('szczegoły'); }
-                      }}
-                    />
-                  ) : plan.zrodlo === 'obmiar' && sesjaObmiaru ? (
+                  {plan.zrodlo === 'budowa' && projektSzkicu ? (() => {
+                    const obszary = obszarySzkicuPlanu(plan);
+                    const wpisuje = celSzkicuBudowy?.stacjaM != null;
+                    const widocznyId = (wpisuje ? celSzkicuBudowy?.obszarId : null)
+                      ?? recznySzkicId
+                      ?? celSzkicuBudowy?.obszarId
+                      ?? obszary[0]?.id;
+                    const obszar = obszary.find((o) => o.id === widocznyId) ?? obszary[0];
+                    if (!obszar) {
+                      return (
+                        <SzkicPlanuBudowy
+                          projekt={projektSzkicu}
+                          plan={plan}
+                          theme={theme}
+                          wpisy={wpisyCalegoPlanu}
+                          wysokosc={Math.min(VIEWPORT_SZKICU_LIVE, 360)}
+                          blokadaPodgladu={blokadaSzkicuPzt}
+                          onBlokadaPodgladu={setBlokadaSzkicuPzt}
+                          onDotykZmiana={setMapaSzkicAktywna}
+                        />
+                      );
+                    }
+                    const aktualny = celSzkicuBudowy?.obszarId === obszar.id;
+                    return (
+                      <>
+                        {obszary.length > 1 ? (
+                          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
+                            {obszary.map((o) => {
+                              const on = o.id === obszar.id;
+                              const postep = celSzkicuBudowy?.obszarId === o.id;
+                              return (
+                                <TouchableOpacity
+                                  key={o.id}
+                                  accessibilityLabel={`Zakładka szkicu ${o.numer}`}
+                                  onPress={() => setRecznySzkicId(o.id)}
+                                  style={[styles.selectorBtn, {
+                                    borderColor: postep ? theme.colors.success : (on ? theme.colors.primary : theme.colors.border),
+                                    backgroundColor: on ? theme.colors.primary : theme.colors.inputBackground,
+                                    borderWidth: postep ? 2 : 1,
+                                  }]}
+                                >
+                                  <Text style={{ color: on ? '#fff' : theme.colors.text, fontWeight: '800', fontSize: 13 }}>
+                                    {o.numer}. {o.nazwa}
+                                  </Text>
+                                </TouchableOpacity>
+                              );
+                            })}
+                          </ScrollView>
+                        ) : null}
+                        <Text style={{ color: theme.colors.textSecondary, fontSize: 13, marginBottom: 8 }}>
+                          {formatujKmM(obszar.kilometrazOdM)} - {formatujKmM(obszar.kilometrazDoM)}
+                          {aktualny ? '  ·  układane teraz' : ''}
+                        </Text>
+                        <SzkicPlanuBudowy
+                          key={obszar.id}
+                          projekt={projektSzkicu}
+                          plan={plan}
+                          theme={theme}
+                          wpisy={wpisyCalegoPlanu.filter((w) => obszar.dzialkaIds.includes(w.dzialkaId))}
+                          wysokosc={Math.min(VIEWPORT_SZKICU_LIVE, 360)}
+                          zakres={obszar}
+                          stacjaPodgladuM={aktualny ? celSzkicuBudowy?.stacjaM : null}
+                          blokadaPodgladu={blokadaSzkicuPzt}
+                          onBlokadaPodgladu={setBlokadaSzkicuPzt}
+                          onDotykZmiana={setMapaSzkicAktywna}
+                          onPressAuto={(wpisId) => {
+                            const wpis = wpisyCalegoPlanu.find((w) => w.id === wpisId);
+                            if (wpis) { setAutaModal({ wpis }); setAutaModalZakladka('szczegoły'); }
+                          }}
+                        />
+                      </>
+                    );
+                  })() : plan.zrodlo === 'obmiar' && sesjaObmiaru ? (
                     <>
                       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
                         {sesjaObmiaru.obszary.map((o) => {

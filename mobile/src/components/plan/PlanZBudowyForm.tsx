@@ -295,12 +295,22 @@ export function PlanZBudowyForm({ tytul, budowaId, initialPlan, onZapisz }: Prop
   const sumaPow = roundSum(wyniki.flatMap((w) => w.odcinki.map((o) => o.powierzchniaM2)));
   const sumaMasy = roundSum3(wyniki.flatMap((w) => w.odcinki.map((o) => o.masaMg)));
   const sumaAut = wyniki.reduce((s, w) => s + w.odcinki.reduce((a, o) => a + o.auta, 0), 0);
-  const obszaryLacznie = unikalne(wyniki.map((w) => w.obszarNazwa));
-  const kmLacznie = wyniki
-    .filter((w) => w.od !== w.dok)
-    .map((w) => `${formatujKmM(w.od)} - ${formatujKmM(w.dok)}`)
-    .join(' · ');
-  const mieszankiLacznie = unikalne(wyniki.map((w) => w.mieszankaNazwa));
+  const wierszeMix = (() => {
+    const mapa = new Map<string, { nazwa: string; pow: number; masa: number; auta: number }>();
+    for (const w of wyniki) {
+      const nazwa = w.mieszankaNazwa || '—';
+      const cur = mapa.get(nazwa) ?? { nazwa, pow: 0, masa: 0, auta: 0 };
+      cur.pow += w.odcinki.reduce((s, o) => s + o.powierzchniaM2, 0);
+      cur.masa += w.odcinki.reduce((s, o) => s + o.masaMg, 0);
+      cur.auta += w.odcinki.reduce((s, o) => s + o.auta, 0);
+      mapa.set(nazwa, cur);
+    }
+    return [...mapa.values()].map((w) => ({
+      ...w,
+      pow: Math.round(w.pow * 100) / 100,
+      masa: Math.round(w.masa * 1000) / 1000,
+    }));
+  })();
 
   const patchAktywna = (patch: Partial<ZakladkaDraft>) => {
     setZakladki((prev) => prev.map((z, i) => (i === aktywnaIdx ? { ...z, ...patch } : z)));
@@ -665,30 +675,30 @@ export function PlanZBudowyForm({ tytul, budowaId, initialPlan, onZapisz }: Prop
               <Text style={{ color: theme.colors.danger, marginTop: 4 }}>Suma rzutów musi wynosić {sumaAut}</Text>
             ) : null}
 
-            <Text style={[styl.wierszPodsum, { color: theme.colors.textSecondary }]}>Obszar wbudowywania</Text>
-            <Text style={{ color: theme.colors.text, fontWeight: '700' }}>{obszaryLacznie || '—'}</Text>
-            <Text style={[styl.wierszPodsum, { color: theme.colors.textSecondary }]}>Kilometraż</Text>
-            <Text style={{ color: theme.colors.text }}>{kmLacznie || '—'}</Text>
-            <Text style={[styl.wierszPodsum, { color: theme.colors.textSecondary }]}>Rodzaj mieszanki</Text>
-            <Text style={{ color: theme.colors.text }}>{mieszankiLacznie || '—'}</Text>
-            <Text style={[styl.wierszPodsum, { color: theme.colors.textSecondary }]}>Powierzchnia</Text>
-            <Text style={{ color: theme.colors.text, fontWeight: '700' }}>{formatLiczby(sumaPow)} m²</Text>
-            <Text style={[styl.wierszPodsum, { color: theme.colors.textSecondary }]}>Tony do wbudowania</Text>
-            <Text style={{ color: theme.colors.text, fontWeight: '700' }}>
-              {formatLiczby(sumaMasy, 3)} Mg  ·  {sumaAut} aut
-            </Text>
-            {zakladki.length > 1 && (
-              <View style={{ marginTop: 10 }}>
-                {wyniki.map((w, i) => (
-                  <Text key={zakladki[i].id} style={{ color: theme.colors.textSecondary, fontSize: 12, marginTop: 4 }}>
-                    {i + 1}. {w.obszarNazwa || '—'} · {formatujKmM(w.od)} - {formatujKmM(w.dok)}
-                    {w.mieszankaNazwa ? ` · ${w.mieszankaNazwa}` : ''}
-                    {' · '}{formatLiczby(roundSum(w.odcinki.map((o) => o.powierzchniaM2)))} m²
-                    {' · '}{formatLiczby(roundSum3(w.odcinki.map((o) => o.masaMg)), 3)} Mg
-                  </Text>
-                ))}
-              </View>
+            {wierszeMix.length > 1 ? (
+              <TabelaMieszanek wiersze={wierszeMix} razemPow={sumaPow} razemMasa={sumaMasy} razemAut={sumaAut} theme={theme} />
+            ) : (
+              <>
+                <Text style={[styl.wierszPodsum, { color: theme.colors.textSecondary }]}>Rodzaj mieszanki</Text>
+                <Text style={{ color: theme.colors.text, fontWeight: '700' }}>{wierszeMix[0]?.nazwa || '—'}</Text>
+                <Text style={[styl.wierszPodsum, { color: theme.colors.textSecondary }]}>Powierzchnia</Text>
+                <Text style={{ color: theme.colors.text, fontWeight: '700' }}>{formatLiczby(sumaPow)} m²</Text>
+                <Text style={[styl.wierszPodsum, { color: theme.colors.textSecondary }]}>Tony do wbudowania</Text>
+                <Text style={{ color: theme.colors.text, fontWeight: '700' }}>
+                  {formatLiczby(sumaMasy, 3)} Mg  ·  {sumaAut} aut
+                </Text>
+              </>
             )}
+
+            <Text style={[styl.wierszPodsum, { color: theme.colors.textSecondary }]}>Obszar wbudowywania</Text>
+            {wyniki.map((w, i) => (
+              <Text key={zakladki[i].id} style={{ color: theme.colors.text, fontSize: 13, marginTop: 4, lineHeight: 18 }}>
+                {i + 1}. {w.obszarNazwa || '—'} · {formatujKmM(w.od)} - {formatujKmM(w.dok)}
+                {w.mieszankaNazwa ? ` · ${w.mieszankaNazwa}` : ''}
+                {' · '}{formatLiczby(roundSum(w.odcinki.map((o) => o.powierzchniaM2)))} m²
+                {' · '}{formatLiczby(roundSum3(w.odcinki.map((o) => o.masaMg)), 3)} Mg
+              </Text>
+            ))}
             {widok.odcinki.length > 1 && zakladki.length === 1 && (
               <Text style={{ color: theme.colors.textSecondary, marginTop: 6, fontSize: 12 }}>
                 {widok.odcinki.length} odcinki o zmiennej konstrukcji
@@ -728,13 +738,35 @@ export function PlanZBudowyForm({ tytul, budowaId, initialPlan, onZapisz }: Prop
   );
 }
 
-function unikalne(xs: string[]): string {
-  const out: string[] = [];
-  for (const x of xs) {
-    const t = x.trim();
-    if (t && !out.includes(t)) out.push(t);
-  }
-  return out.join(', ');
+function TabelaMieszanek({
+  wiersze, razemPow, razemMasa, razemAut, theme,
+}: {
+  wiersze: Array<{ nazwa: string; pow: number; masa: number; auta: number }>;
+  razemPow: number;
+  razemMasa: number;
+  razemAut: number;
+  theme: AppTheme;
+}) {
+  const naglowek = { color: theme.colors.textSecondary, fontSize: 11, fontWeight: '700' as const };
+  const kom = { color: theme.colors.text, fontSize: 13 };
+  const wiersz = (nazwa: string, pow: string, tony: string, mocny = false) => (
+    <View key={nazwa} style={[styl.tabelaWiersz, { borderTopColor: theme.colors.border }]}>
+      <Text style={[kom, { flex: 1.4, fontWeight: mocny ? '800' : '600' }]}>{nazwa}</Text>
+      <Text style={[kom, { flex: 1, fontWeight: mocny ? '800' : '500' }]}>{pow}</Text>
+      <Text style={[kom, { flex: 1.3, fontWeight: mocny ? '800' : '500' }]}>{tony}</Text>
+    </View>
+  );
+  return (
+    <View style={{ marginTop: 12 }}>
+      <View style={styl.tabelaWiersz}>
+        <Text style={[naglowek, { flex: 1.4 }]}>Rodzaj mieszanki</Text>
+        <Text style={[naglowek, { flex: 1 }]}>Powierzchnia</Text>
+        <Text style={[naglowek, { flex: 1.3 }]}>Tony do wbudowania</Text>
+      </View>
+      {wiersze.map((w) => wiersz(w.nazwa, `${formatLiczby(w.pow)} m²`, `${formatLiczby(w.masa, 3)} Mg  ·  ${w.auta} aut`))}
+      {wiersz('Razem', `${formatLiczby(razemPow)} m²`, `${formatLiczby(razemMasa, 3)} Mg  ·  ${razemAut} aut`, true)}
+    </View>
+  );
 }
 
 function roundSum(xs: number[]): number {
@@ -772,6 +804,7 @@ const styl = StyleSheet.create({
   input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
   podsum: { borderWidth: 1, borderRadius: 14, padding: 16, marginBottom: 8 },
   wierszPodsum: { fontSize: 12, fontWeight: '700', marginTop: 10, marginBottom: 2 },
+  tabelaWiersz: { flexDirection: 'row', gap: 8, paddingVertical: 8, borderTopWidth: 1, borderTopColor: 'transparent' },
   licznikWrap: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   licznikLabel: { fontSize: 13, fontWeight: '600', flex: 1 },
   licznikPrzyciski: { flexDirection: 'row', alignItems: 'center', gap: 12 },

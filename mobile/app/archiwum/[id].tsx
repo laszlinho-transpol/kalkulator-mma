@@ -26,6 +26,8 @@ import { formatLiczby } from '../../src/utils/calculations';
 import { policzBilansDnia } from '../../src/utils/bilansDnia';
 import { formatujDatePl } from '../../src/utils/dates';
 import { formatujPikietaz } from '../../src/utils/chainage';
+import { formatujKmM } from '../../src/utils/projektBudowy';
+import { obszarySzkicuPlanu } from '../../src/utils/planZBudowy';
 import type { AppTheme } from '../../src/constants/theme';
 
 type ZakladkaTyp = 'podsumowanie' | 'live' | 'szkic';
@@ -59,6 +61,7 @@ export default function ArchiwumDetailScreen() {
   }
 
   const budowa = plan.budowaId ? budowy.find((b) => b.id === plan.budowaId) : undefined;
+  const projektSzkicu = budowa?.projekt;
 
   const getMieszanka = (mId: string) => mieszanki.find((m) => m.id === mId);
   const wpisyLive = wpisyDlaPlanu(plan.id);
@@ -219,14 +222,27 @@ export default function ArchiwumDetailScreen() {
         {aktywnaZakladka === 'szkic' && wybraDzialka && (
           <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
             <Text style={[styles.kartaTytul, { color: theme.colors.text }]}>Szkic: {wybraDzialka.nazwa}</Text>
-            {budowa?.projekt ? (
-              <SzkicPlanuBudowy
-                projekt={budowa.projekt}
-                plan={plan}
-                theme={theme}
-                wpisy={wpisyLive}
-                wysokosc={420}
-              />
+            {projektSzkicu ? (
+              obszarySzkicuPlanu(plan).length > 0 ? obszarySzkicuPlanu(plan).map((obszar) => (
+                <View key={obszar.id} style={{ marginBottom: 16 }}>
+                  <Text style={{ color: theme.colors.text, fontWeight: '800', marginBottom: 4 }}>
+                    {obszar.numer}. {obszar.nazwa}
+                  </Text>
+                  <Text style={{ color: theme.colors.textSecondary, fontSize: 13, marginBottom: 8 }}>
+                    {formatujKmM(obszar.kilometrazOdM)} - {formatujKmM(obszar.kilometrazDoM)}
+                  </Text>
+                  <SzkicPlanuBudowy
+                    projekt={projektSzkicu}
+                    plan={plan}
+                    theme={theme}
+                    wpisy={wpisyLive.filter((w) => obszar.dzialkaIds.includes(w.dzialkaId))}
+                    wysokosc={420}
+                    zakres={obszar}
+                  />
+                </View>
+              )) : (
+                <SzkicPlanuBudowy projekt={projektSzkicu} plan={plan} theme={theme} wpisy={wpisyLive} wysokosc={420} />
+              )
             ) : (
               <DzialkaSketch
                 dzialka={wybraDzialka}

@@ -18,7 +18,7 @@ import type {
   WarstwaKonstrukcji,
   WpisLegendy,
 } from '../types';
-import { round2, round3, generujDomyslneRzuty } from './calculations';
+import { obliczLacznaDlugosc, round2, round3, generujDomyslneRzuty } from './calculations';
 import { formatujDateKrotko } from './dates';
 import {
   arkuszeNachodzaceNaKm,
@@ -417,6 +417,7 @@ function dzialkaZOdcinka(
     warstwaNazwa: string;
     obszarNazwa: string;
     profilSzerokosci?: PlasterekObmiaru[];
+    zakladkaId?: string;
   },
 ): DzialkaRobocza {
   const start = opts.kierunek === 'malejacy' ? odc.doM : odc.odM;
@@ -447,6 +448,7 @@ function dzialkaZOdcinka(
     kierunekUkladania: opts.kierunek,
     figury: [figura],
     profilSzerokosci: opts.profilSzerokosci?.length ? opts.profilSzerokosci : undefined,
+    zakladkaId: opts.zakladkaId,
   };
 }
 
@@ -467,6 +469,8 @@ export interface DanePlanuZBudowy {
   tonazAuta: number;
   rzuty?: Rzut[];
   grubosciCm?: number[];
+  /** Id zakładki działki roboczej – trafia na każdy odcinek konstrukcji. */
+  zakladkaId?: string;
 }
 
 export function zbudujPlanZBudowy(
@@ -502,6 +506,7 @@ export function zbudujPlanZBudowy(
       warstwaNazwa: dane.warstwaNazwa,
       obszarNazwa: dane.obszarNazwa,
       profilSzerokosci: profil,
+      zakladkaId: dane.zakladkaId,
     });
   });
   const sumaAut = odcinki.reduce((s, o) => s + o.auta, 0);
@@ -564,6 +569,7 @@ export function zbudujPlanZZakladek(
     gestoscTm3: z.gestoscTm3,
     tonazAuta: dane.tonazAuta,
     grubosciCm: z.grubosciCm,
+    zakladkaId: z.id,
   }));
   const pierwsza = czesci[0];
   const dzialki = czesci.flatMap((c) => c.dzialki);
@@ -651,6 +657,100 @@ export function komentarzPlanuBudowy(
   const km = od != null && doM != null ? `${formatujKmM(od)} - ${formatujKmM(doM)}` : '';
   const obszar = plan.obszarNazwa?.trim() ?? '';
   return [km, obszar].filter(Boolean).join(' ');
+}
+
+export interface ObszarSzkicuPlanu {
+  id: string;
+  /** Kolejność wbudowywania, od 1. */
+  numer: number;
+  nazwa: string;
+  legendaId: string;
+  kilometrazOdM: number;
+  kilometrazDoM: number;
+  dzialkaIds: string[];
+}
+
+/** Jedno okno szkicu na każdą działkę roboczą (zakładkę), nie na odcinek konstrukcji. */
+export function obszarySzkicuPlanu(
+  plan: Pick<Plan, 'legendaId' | 'obszarNazwa' | 'kilometrazOdM' | 'kilometrazDoM' | 'zakladkiBudowy' | 'dzialki'>,
+): ObszarSzkicuPlanu[] {
+  const zak = plan.zakladkiBudowy?.filter((z) => z.legendaId);
+  if (!zak || zak.length === 0) {
+    if (!plan.legendaId || plan.kilometrazOdM == null || plan.kilometrazDoM == null) return [];
+    return [{
+      id: 'caly',
+      numer: 1,
+      nazwa: plan.obszarNazwa?.trim() || plan.dzialki[0]?.nazwa || 'Obszar',
+      legendaId: plan.legendaId,
+      kilometrazOdM: plan.kilometrazOdM,
+      kilometrazDoM: plan.kilometrazDoM,
+      dzialkaIds: plan.dzialki.map((d) => d.id),
+    }];
+  }
+  const maId = plan.dzialki.some((d) => d.zakladkaId);
+  if (maId) {
+    return zak.map((z, i) => ({
+      id: z.id,
+      numer: i + 1,
+      nazwa: z.obszarNazwa?.trim() || `Działka ${i + 1}`,
+      legendaId: z.legendaId,
+      kilometrazOdM: z.kilometrazOdM,
+      kilometrazDoM: z.kilometrazDoM,
+      dzialkaIds: plan.dzialki.filter((d) => d.zakladkaId === z.id).map((d) => d.id),
+    }));
+  }
+  const wolne = [...plan.dzialki];
+  return zak.map((z, i) => {
+    const lo = Math.min(z.kilometrazOdM, z.kilometrazDoM) - 1;
+    const hi = Math.max(z.kilometrazOdM, z.kilometrazDoM) + 1;
+    const pas: DzialkaRobocza[] = [];
+    for (let k = 0; k < wolne.length;) {
+      const d = wolne[k];
+      const start = d.kilometrazPoczatkowyKm * 1000 + d.kilometrazPoczatkowyM;
+      const mixOk = !z.mieszankaId || d.mieszankaId === z.mieszankaId;
+      if (mixOk && start >= lo && start <= hi) {
+        pas.push(d);
+        wolne.splice(k, 1);
+      } else {
+        k += 1;
+      }
+    }
+    return {
+      id: z.id,
+      numer: i + 1,
+      nazwa: z.obszarNazwa?.trim() || `Działka ${i + 1}`,
+      legendaId: z.legendaId,
+      kilometrazOdM: z.kilometrazOdM,
+      kilometrazDoM: z.kilometrazDoM,
+      dzialkaIds: pas.map((d) => d.id),
+    };
+  });
+}
+
+/** Gdzie na szkicu jest rozkładarka po `metryOdStartu` całego dnia. Na granicy działki przechodzi na następną. */
+export function pozycjaSzkicuPoMetrach(
+  plan: Pick<Plan, 'dzialki'>,
+  obszary: ObszarSzkicuPlanu[],
+  metryOdStartu: number,
+): { obszarId: string; stacjaM: number; dzialkaId: string } | null {
+  if (plan.dzialki.length === 0 || obszary.length === 0) return null;
+  let acc = 0;
+  const metry = Math.max(0, metryOdStartu);
+  for (let i = 0; i < plan.dzialki.length; i++) {
+    const dz = plan.dzialki[i];
+    const dl = Math.max(0, obliczLacznaDlugosc(dz));
+    const ostatnia = i === plan.dzialki.length - 1;
+    const koniec = acc + dl;
+    if (metry < koniec - 0.05 || ostatnia) {
+      const wSrodku = Math.min(Math.max(0, metry - acc), dl);
+      const start = dz.kilometrazPoczatkowyKm * 1000 + dz.kilometrazPoczatkowyM;
+      const stacja = dz.kierunekUkladania === 'malejacy' ? start - wSrodku : start + wSrodku;
+      const obszar = obszary.find((o) => o.dzialkaIds.includes(dz.id)) ?? obszary[0];
+      return { obszarId: obszar.id, stacjaM: stacja, dzialkaId: dz.id };
+    }
+    acc = koniec;
+  }
+  return null;
 }
 
 export function arkuszeSzkicuPlanu(projekt: ProjektBudowy, plan: Plan): ArkuszPzt[] {
