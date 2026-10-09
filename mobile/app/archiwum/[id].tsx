@@ -18,18 +18,16 @@ import { useBudowyStore } from '../../src/stores/budowyStore';
 import { lightTheme, darkTheme } from '../../src/constants/theme';
 import { AnimatedTabBar } from '../../src/components/common/AnimatedTabBar';
 import { DzialkaSketch } from '../../src/components/sketch/DzialkaSketch';
+import { SzkicPlanuBudowy } from '../../src/components/budowa/SzkicPlanuBudowy';
 import { TabelaLive } from '../../src/components/plan/TabelaLive';
-import { generujRaportPDF } from '../../src/utils/pdfGenerator';
+import { generujRaportPDF, wyslijRaportDniaMailem } from '../../src/utils/pdfGenerator';
 import { eksportujJSON, generujInteraktywnyHTML } from '../../src/utils/htmlGenerator';
-import * as MailComposer from 'expo-mail-composer';
-import {
-  obliczWynikiDzialki,
-  formatLiczby,
-  obliczPowierzchnioweOdStartu,
-} from '../../src/utils/calculations';
+import { formatLiczby } from '../../src/utils/calculations';
+import { policzBilansDnia } from '../../src/utils/bilansDnia';
 import { formatujDatePl } from '../../src/utils/dates';
 import { formatujPikietaz } from '../../src/utils/chainage';
-import { gruboscWbudowywania } from '../../src/utils/grubosc';
+import { formatujKmM } from '../../src/utils/projektBudowy';
+import { obszarySzkicuPlanu } from '../../src/utils/planZBudowy';
 import type { AppTheme } from '../../src/constants/theme';
 
 type ZakladkaTyp = 'podsumowanie' | 'live' | 'szkic';
@@ -63,40 +61,40 @@ export default function ArchiwumDetailScreen() {
   }
 
   const budowa = plan.budowaId ? budowy.find((b) => b.id === plan.budowaId) : undefined;
+  const projektSzkicu = budowa?.projekt;
 
   const getMieszanka = (mId: string) => mieszanki.find((m) => m.id === mId);
   const wpisyLive = wpisyDlaPlanu(plan.id);
   const wybraDzialka = plan.dzialki[wybranaIdx];
 
+  const opcjeRaportu = {
+    plan,
+    wpisyLive,
+    mieszanki,
+    budowa: budowa ? { kodBudowy: budowa.kodBudowy, nazwaInwestycji: budowa.nazwaInwestycji } : undefined,
+  };
+
   const handleGenerujPDF = async () => {
     setGenerujePDF(true);
-    try { await generujRaportPDF({ plan, wpisyLive, mieszanki, budowa: budowa ? { kodBudowy: budowa.kodBudowy, nazwaInwestycji: budowa.nazwaInwestycji } : undefined }); }
+    try { await generujRaportPDF(opcjeRaportu); }
     catch { Alert.alert('Błąd', 'Nie udało się wygenerować PDF. Spróbuj ponownie.'); }
     finally { setGenerujePDF(false); }
   };
 
   const handleWyslijMail = async () => {
-    const dostepny = await MailComposer.isAvailableAsync();
-    if (!dostepny) { Alert.alert('Brak klienta e-mail', 'Na urządzeniu nie skonfigurowano konta e-mail.'); return; }
-    await MailComposer.composeAsync({
-      subject: `Raport MMA – ${formatujDatePl(plan.dataWbudowywania)}`,
-      body: `W załączniku znajdziesz raport dnia roboczego z ${formatujDatePl(plan.dataWbudowywania)}.\n\nWygenerowano: Kalkulator MMA`,
-    });
+    setGenerujePDF(true);
+    try { await wyslijRaportDniaMailem(opcjeRaportu); }
+    catch { Alert.alert('Błąd', 'Nie udało się przygotować wiadomości z PDF.'); }
+    finally { setGenerujePDF(false); }
   };
 
-  // Statystyki sumaryczne
-  const sumaMasyPlan = plan.dzialki.reduce((s, dz) => {
-    const m = getMieszanka(dz.mieszankaId);
-    if (!m) return s;
-    return s + obliczWynikiDzialki(dz, m.ciezarObjetosciowy, plan.tonazAuta).lacznaIloscMasy;
-  }, 0);
-  const sumaMasyLive = wpisyLive.reduce((s, w) => s + w.tonazPrzywieziony, 0);
-  const sumaMetrLive = wpisyLive.reduce((s, w) => s + w.przejechaneMetry, 0);
-  const bilansMasy = sumaMasyLive - sumaMasyPlan;
-  const kmStartGlobal = plan.dzialki.length > 0
-    ? plan.dzialki[0].kilometrazPoczatkowyKm * 1000 + plan.dzialki[0].kilometrazPoczatkowyM
-    : 0;
-  const kmKoniecGlobal = kmStartGlobal + sumaMetrLive;
+  const bilans = policzBilansDnia(plan, wpisyLive, mieszanki);
+  const znakMasy = bilans.deltaMasaMg > 0.0005 ? '+' : '';
+  const znakMetry = bilans.deltaMetry > 0.05 ? '+' : '';
+  const znakGr = bilans.deltaGruboscCm > 0.0005 ? '+' : '';
+  const kolorMasy = bilans.deltaMasaMg > 0.0005 ? theme.colors.danger : theme.colors.success;
+  const kolorMetry = bilans.deltaMetry < -0.05 ? theme.colors.danger : theme.colors.success;
+  const kolorGr = bilans.deltaGruboscCm > 0.0005 ? theme.colors.danger : theme.colors.success;
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background, paddingTop: insets.top }]}>
@@ -161,53 +159,43 @@ export default function ArchiwumDetailScreen() {
             <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
               <Text style={[styles.kartaTytul, { color: theme.colors.text }]}>BILANS KOŃCOWY</Text>
               <IR label="Data" v={formatujDatePl(plan.dataWbudowywania)} theme={theme} />
-              <IR label="Działki" v={`${plan.dzialki.length}`} theme={theme} />
-              <IR label="Masa zaplanowana" v={`${formatLiczby(sumaMasyPlan, 2)} Mg`} theme={theme} />
-              {wpisyLive.length > 0 && (
-                <>
-                  <IR label="Masa wbudowana" v={`${formatLiczby(sumaMasyLive, 2)} Mg (${bilansMasy >= 0 ? '+' : ''}${formatLiczby(bilansMasy, 2)} Mg)`} theme={theme} />
-                  <IR label="Metry wykonane" v={`${formatLiczby(sumaMetrLive)} m (${formatujPikietaz(kmStartGlobal)} – ${formatujPikietaz(kmKoniecGlobal)})`} theme={theme} />
-                  <IR label="Aut przybyło" v={`${wpisyLive.length}`} theme={theme} />
-                  <View style={[styles.bilansBoks, { backgroundColor: bilansMasy > 0 ? `${theme.colors.danger}15` : `${theme.colors.success}15`, borderColor: bilansMasy > 0 ? theme.colors.danger : theme.colors.success }]}>
-                    <Text style={[styles.bilansLabel, { color: bilansMasy > 0 ? theme.colors.danger : theme.colors.success }]}>
-                      {bilansMasy > 0 ? '⚠ Przepał' : '✓ Oszczędność'}
-                    </Text>
-                    <Text style={[styles.bilansWartosc, { color: bilansMasy > 0 ? theme.colors.danger : theme.colors.success }]}>
-                      {bilansMasy > 0 ? '+' : ''}{formatLiczby(bilansMasy, 2)} Mg
-                    </Text>
-                  </View>
-                </>
-              )}
+              <IR label="Działki" v={`${bilans.liczbaDzialek}`} theme={theme} />
+              <IR label="Mieszanka" v={bilans.mieszanka} theme={theme} />
+              <IR label="Masa zaplanowana" v={`${formatLiczby(bilans.masaPlanMg, 2)} Mg`} theme={theme} />
+              <WierszZDelta
+                label="Masa wbudowana"
+                wartosc={`${formatLiczby(bilans.masaLiveMg, 2)} Mg`}
+                delta={`${znakMasy}${formatLiczby(bilans.deltaMasaMg, 2)} Mg`}
+                kolor={kolorMasy}
+                theme={theme}
+              />
+              <IR
+                label="Odcinek zaplanowany"
+                v={`${formatLiczby(bilans.dlugoscPlanM, 2)} m (${formatujPikietaz(bilans.startM)} – ${formatujPikietaz(bilans.koniecPlanM)})`}
+                theme={theme}
+              />
+              <WierszZDelta
+                label="Metry wykonane"
+                wartosc={`${formatLiczby(bilans.metryWykonane, 2)} m (${formatujPikietaz(bilans.startM)} – ${formatujPikietaz(bilans.koniecWykonanyM)})`}
+                delta={`${znakMetry}${formatLiczby(bilans.deltaMetry, 2)} m`}
+                kolor={kolorMetry}
+                theme={theme}
+              />
+              <IR label="Aut przybyło" v={bilans.autOpis} theme={theme} />
+              <WierszZDelta
+                label="Grubość wbudowywania"
+                wartosc={`${formatLiczby(bilans.gruboscPlanCm, 2)} cm (${formatLiczby(bilans.gruboscUzyskanaCm, 2)} cm)`}
+                delta={`${znakGr}${formatLiczby(bilans.deltaGruboscCm, 2)} cm`}
+                kolor={kolorGr}
+                theme={theme}
+              />
+              <TouchableOpacity
+                style={[styles.btnEdytuj, { borderColor: theme.colors.warning }]}
+                onPress={() => router.push(`/plan/edytuj/${plan.id}` as any)}
+              >
+                <Text style={{ color: theme.colors.warning, fontWeight: '700', fontSize: 15 }}>Edytuj plan</Text>
+              </TouchableOpacity>
             </View>
-
-            {/* Każda działka */}
-            {plan.dzialki.map((dz) => {
-              const mie = getMieszanka(dz.mieszankaId);
-              const wyniki = mie ? obliczWynikiDzialki(dz, mie.ciezarObjetosciowy, plan.tonazAuta) : null;
-              const wpisyDz = wpisyLive.filter((w) => w.dzialkaId === dz.id);
-              const sumaTonDz = wpisyDz.reduce((s, w) => s + w.tonazPrzywieziony, 0);
-              const sumaMetrDz = wpisyDz.reduce((s, w) => s + w.przejechaneMetry, 0);
-              const kmStart = dz.kilometrazPoczatkowyKm * 1000 + dz.kilometrazPoczatkowyM;
-              const powLaczna = mie ? obliczPowierzchnioweOdStartu(dz, sumaMetrDz) : 0;
-              const uzyskGr = powLaczna > 0 && mie ? (sumaTonDz / (mie.ciezarObjetosciowy * powLaczna)) * 100 : 0;
-              const grWb = gruboscWbudowywania(dz);
-              const strzalka = uzyskGr > grWb + 0.05 ? ' ▲' : uzyskGr < grWb - 0.05 && uzyskGr > 0 ? ' ▼' : '';
-              return (
-                <View key={dz.id} style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-                  <Text style={[styles.kartaTytul, { color: theme.colors.primary }]}>{dz.nazwa}</Text>
-                  <IR label="Mieszanka" v={mie?.rodzaj ?? '–'} theme={theme} />
-                  <IR label="Grubość wbudowywania" v={`${grWb} cm${uzyskGr > 0 ? ` (${formatLiczby(uzyskGr, 2)} cm${strzalka})` : ''}`} theme={theme} />
-                  {wyniki && <IR label="Masa planu" v={`${formatLiczby(wyniki.lacznaIloscMasy, 3)} Mg`} theme={theme} />}
-                  {wpisyDz.length > 0 && (
-                    <>
-                      <IR label="Wbudowano" v={`${formatLiczby(sumaTonDz, 2)} Mg`} theme={theme} bold />
-                      <IR label="Metry" v={`${formatLiczby(sumaMetrDz)} m (${formatujPikietaz(kmStart)} – ${formatujPikietaz(kmStart + sumaMetrDz)})`} theme={theme} />
-                      <IR label="Aut" v={`${wpisyDz.length}`} theme={theme} />
-                    </>
-                  )}
-                </View>
-              );
-            })}
           </>
         )}
 
@@ -223,6 +211,7 @@ export default function ArchiwumDetailScreen() {
               <TabelaLive
                 dzialka={wybraDzialka}
                 wpisy={wpisyLive.filter((w) => w.dzialkaId === wybraDzialka.id)}
+                ciezarObjetosciowy={getMieszanka(wybraDzialka.mieszankaId)?.ciezarObjetosciowy}
                 theme={theme}
               />
             )}
@@ -233,11 +222,34 @@ export default function ArchiwumDetailScreen() {
         {aktywnaZakladka === 'szkic' && wybraDzialka && (
           <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
             <Text style={[styles.kartaTytul, { color: theme.colors.text }]}>Szkic: {wybraDzialka.nazwa}</Text>
-            <DzialkaSketch
-              dzialka={wybraDzialka}
-              ciezarObjetosciowy={getMieszanka(wybraDzialka.mieszankaId)?.ciezarObjetosciowy ?? 2.4}
-              wykonaneMetry={wpisyLive.filter((w) => w.dzialkaId === wybraDzialka.id).reduce((s, w) => s + w.przejechaneMetry, 0)}
-            />
+            {projektSzkicu ? (
+              obszarySzkicuPlanu(plan).length > 0 ? obszarySzkicuPlanu(plan).map((obszar) => (
+                <View key={obszar.id} style={{ marginBottom: 16 }}>
+                  <Text style={{ color: theme.colors.text, fontWeight: '800', marginBottom: 4 }}>
+                    {obszar.numer}. {obszar.nazwa}
+                  </Text>
+                  <Text style={{ color: theme.colors.textSecondary, fontSize: 13, marginBottom: 8 }}>
+                    {formatujKmM(obszar.kilometrazOdM)} - {formatujKmM(obszar.kilometrazDoM)}
+                  </Text>
+                  <SzkicPlanuBudowy
+                    projekt={projektSzkicu}
+                    plan={plan}
+                    theme={theme}
+                    wpisy={wpisyLive.filter((w) => obszar.dzialkaIds.includes(w.dzialkaId))}
+                    wysokosc={420}
+                    zakres={obszar}
+                  />
+                </View>
+              )) : (
+                <SzkicPlanuBudowy projekt={projektSzkicu} plan={plan} theme={theme} wpisy={wpisyLive} wysokosc={420} />
+              )
+            ) : (
+              <DzialkaSketch
+                dzialka={wybraDzialka}
+                ciezarObjetosciowy={getMieszanka(wybraDzialka.mieszankaId)?.ciezarObjetosciowy ?? 2.4}
+                wykonaneMetry={wpisyLive.filter((w) => w.dzialkaId === wybraDzialka.id).reduce((s, w) => s + w.przejechaneMetry, 0)}
+              />
+            )}
           </View>
         )}
 
@@ -255,7 +267,7 @@ export default function ArchiwumDetailScreen() {
             </TouchableOpacity>
             <TouchableOpacity style={[uStyles.btn, { backgroundColor: `${theme.colors.danger}15`, borderColor: theme.colors.danger }]} onPress={async () => { setUdostepnijModal(false); handleWyslijMail(); }}>
               <Text style={uStyles.btnIkona}>✉️</Text>
-              <View><Text style={[uStyles.btnTytul, { color: theme.colors.text }]}>Wyślij e-mailem</Text><Text style={[uStyles.btnOpis, { color: theme.colors.textSecondary }]}>Otwórz klienta poczty z raportem</Text></View>
+              <View><Text style={[uStyles.btnTytul, { color: theme.colors.text }]}>Wyślij e-mailem</Text><Text style={[uStyles.btnOpis, { color: theme.colors.textSecondary }]}>PDF w załączniku. W przeglądarce zapisz PDF z okna drukowania i dołącz go do maila.</Text></View>
             </TouchableOpacity>
             <TouchableOpacity style={[uStyles.btn, { backgroundColor: `${theme.colors.info}15`, borderColor: theme.colors.info }]} onPress={async () => { setUdostepnijModal(false); try { await eksportujJSON(plan, mieszanki); } catch {} }}>
               <Text style={uStyles.btnIkona}>📦</Text>
@@ -290,9 +302,23 @@ const uStyles = StyleSheet.create({
 
 function IR({ label, v, theme, bold }: { label: string; v: string; theme: AppTheme; bold?: boolean }) {
   return (
-    <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 }}>
-      <Text style={{ color: theme.colors.textSecondary, fontSize: 14 }}>{label}</Text>
-      <Text style={{ color: theme.colors.text, fontSize: 14, fontWeight: bold ? '700' : '400' }}>{v}</Text>
+    <View style={{ paddingVertical: 5 }}>
+      <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>{label}</Text>
+      <Text style={{ color: theme.colors.text, fontSize: 15, fontWeight: bold ? '800' : '700' }}>{v}</Text>
+    </View>
+  );
+}
+
+function WierszZDelta({
+  label, wartosc, delta, kolor, theme,
+}: { label: string; wartosc: string; delta: string; kolor: string; theme: AppTheme }) {
+  return (
+    <View style={{ paddingVertical: 5 }}>
+      <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>{label}</Text>
+      <Text style={{ color: theme.colors.text, fontSize: 15, fontWeight: '700' }}>
+        {wartosc}{' '}
+        <Text style={{ color: kolor, fontWeight: '800' }}>{delta}</Text>
+      </Text>
     </View>
   );
 }
@@ -302,7 +328,8 @@ const styles = StyleSheet.create({
   naglowek: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1 },
   wstecz: { fontSize: 17, minWidth: 60 },
   tytulN: { fontSize: 16, fontWeight: '700', flex: 1, textAlign: 'center' },
-  btnPDF: { fontSize: 15, fontWeight: '600', minWidth: 60, textAlign: 'right' },
+  btnPDF: { fontSize: 15, fontWeight: '600', textAlign: 'right' },
+  btnEdytuj: { marginTop: 12, borderWidth: 1, borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
   zakladki: { flexDirection: 'row', borderBottomWidth: 1 },
   zakladka: { flex: 1, paddingVertical: 12, alignItems: 'center' },
   zakladkaTekst: { fontSize: 13, fontWeight: '600' },

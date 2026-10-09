@@ -12,31 +12,18 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { lightTheme, darkTheme, type AppTheme } from '../src/constants/theme';
 import { AnimatedCard } from '../src/components/common/AnimatedCard';
+import { InfoTooltip } from '../src/components/common/InfoTooltip';
+import { GrafikaMaszynSekcja } from '../src/components/ustawienia/GrafikaMaszynSekcja';
 import { useMieszankiStore } from '../src/stores/mieszankiStore';
 import { usePlanyStore } from '../src/stores/planyStore';
 import { useLiveStore } from '../src/stores/liveStore';
 import { WERSJA_APLIKACJI, CHANGELOG } from '../src/constants/version';
+import { pobierzUstawienia, zapiszUstawienia } from '../src/utils/ustawieniaAplikacji';
 
 const KLUCZ_ONBOARDING = '@mma:onboardingComplete';
 const KLUCZ_USTAWIEN = '@mma:settings';
 
-interface Ustawienia {
-  tonazDomyslny: number;
-}
-
-const DOMYSLNE_USTAWIENIA: Ustawienia = { tonazDomyslny: 25.5 };
-
-export async function pobierzUstawienia(): Promise<Ustawienia> {
-  try {
-    const json = await AsyncStorage.getItem(KLUCZ_USTAWIEN);
-    if (json) return { ...DOMYSLNE_USTAWIENIA, ...JSON.parse(json) };
-  } catch {}
-  return DOMYSLNE_USTAWIENIA;
-}
-
-export async function zapiszUstawienia(u: Ustawienia): Promise<void> {
-  await AsyncStorage.setItem(KLUCZ_USTAWIEN, JSON.stringify(u));
-}
+export { pobierzUstawienia, zapiszUstawienia };
 
 export default function UstawieniaScreen() {
   const colorScheme = useColorScheme();
@@ -133,10 +120,10 @@ export default function UstawieniaScreen() {
         {/* Domyślny tonaż */}
         <AnimatedCard delay={80}>
           <View style={[styles.sekcja, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-            <Text style={[styles.sekcjaTytul, { color: theme.colors.textSecondary }]}>DOMYŚLNY TONAŻ AUTA</Text>
-            <Text style={[styles.opisSekcji, { color: theme.colors.textSecondary }]}>
-              Tonaż wstępnie wpisywany w każdym nowym planie. Możesz go zmienić przy tworzeniu planu.
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Text style={[styles.sekcjaTytul, { color: theme.colors.textSecondary, flex: 1 }]}>DOMYŚLNY TONAŻ AUTA</Text>
+              <InfoTooltip tresc="Tonaż wstępnie wpisywany w każdym nowym planie. Możesz go zmienić przy tworzeniu planu." />
+            </View>
             <View style={styles.tonazRow}>
               <TextInput
                 style={[styles.tonazInput, { backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.border, color: theme.colors.text }]}
@@ -154,6 +141,7 @@ export default function UstawieniaScreen() {
                 <Text style={styles.btnZapiszTekst}>{zapisano ? '✓ Zapisano' : 'Zapisz'}</Text>
               </TouchableOpacity>
             </View>
+            <GrafikaMaszynSekcja theme={theme} />
           </View>
         </AnimatedCard>
 

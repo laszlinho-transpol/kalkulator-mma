@@ -8,7 +8,7 @@ import { AppHeader } from '../../../src/components/common/AppHeader';
 const KALKULATORY = [
   { tytul: 'Wydajność powierzchniowa', opis: 'Metry z tony', sciezka: '/niezbednik/masa/wydajnosc-powierzchniowa' },
   { tytul: 'Wydajność grubościowa', opis: 'Średnia grubość', sciezka: '/niezbednik/masa/wydajnosc-grubosciowa' },
-  { tytul: 'Ustawianie wskaźnika rozkładarki', opis: 'Wymiary asymetryczne', sciezka: '/niezbednik/masa/wskaznik-rozkladarki' },
+  { tytul: 'Ustawianie wskaźnika rozkładarki', opis: 'Stół, poszerzenia i wymiary', sciezka: '/niezbednik/masa/wskaznik-rozkladarki' },
 ];
 
 export default function MasaISprzetScreen() {

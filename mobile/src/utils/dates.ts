@@ -2,6 +2,14 @@
 // NARZĘDZIA DATY – Kalkulator MMA
 // ============================================================
 
+/** Jutro (kalendarzowo), niezależnie od weekendu. */
+export function nastepnyDzienKalendarzowy(): Date {
+  const wynik = new Date();
+  wynik.setDate(wynik.getDate() + 1);
+  wynik.setHours(6, 0, 0, 0);
+  return wynik;
+}
+
 /** Zwraca następny dzień roboczy (pom-nd → pon, pt → pon za 3 dni) */
 export function nastepnyDzienRoboczy(): Date {
   const dzisiaj = new Date();

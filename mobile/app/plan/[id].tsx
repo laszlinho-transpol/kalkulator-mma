@@ -11,6 +11,8 @@ import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMieszankiStore } from '../../src/stores/mieszankiStore';
 import { useBudowyStore } from '../../src/stores/budowyStore';
+import { usePlanyStore } from '../../src/stores/planyStore';
+import { useLiveStore } from '../../src/stores/liveStore';
 import { useRouteId } from '../../src/hooks/useRouteId';
 import { usePlanPoId } from '../../src/hooks/usePlanPoId';
 import { useWpisyDlaPlanu } from '../../src/hooks/useWpisyDlaPlanu';
@@ -19,6 +21,7 @@ import { AnimatedTabBar } from '../../src/components/common/AnimatedTabBar';
 import { AppHeader } from '../../src/components/common/AppHeader';
 import { ZalacznikiViewer } from '../../src/components/common/ZalacznikiViewer';
 import { DzialkaSketch } from '../../src/components/sketch/DzialkaSketch';
+import { SzkicPlanuBudowy } from '../../src/components/budowa/SzkicPlanuBudowy';
 import { tekstPrzycisk, tekstWramce } from '../../src/constants/layout';
 import { TabelaAut } from '../../src/components/plan/TabelaAut';
 import {
@@ -27,6 +30,10 @@ import {
 } from '../../src/utils/calculations';
 import { gruboscWbudowywania, gruboscProjektowa, formatujTolerancje } from '../../src/utils/grubosc';
 import { formatujDatePl } from '../../src/utils/dates';
+import { komentarzPlanuBudowy, obszarySzkicuPlanu, tytulPlanuBudowy, uzupelnijProfilObmiaruDzialek } from '../../src/utils/planZBudowy';
+import { formatujKmM } from '../../src/utils/projektBudowy';
+import { potwierdzAkcje } from '../../src/utils/dialog';
+import { formatujPikietaz, pikietazPoMetrach } from '../../src/utils/chainage';
 import { eksportujJSON, generujInteraktywnyHTML } from '../../src/utils/htmlGenerator';
 import type { DzialkaRobocza, Rzut } from '../../src/types';
 import type { AppTheme } from '../../src/constants/theme';
@@ -41,6 +48,8 @@ export default function PlanDetailScreen() {
   const plan = usePlanPoId(id);
   const mieszanki = useMieszankiStore((s) => s.mieszanki);
   const budowy = useBudowyStore((s) => s.budowy);
+  const usunPlan = usePlanyStore((s) => s.usunPlan);
+  const wyczyścWpisyPlanu = useLiveStore((s) => s.wyczyścWpisyPlanu);
   const wpisyLive = useWpisyDlaPlanu(id);
 
   const [aktywnaZakladka, setZakladka] = useState<ZakladkaTyp>('plan');
@@ -52,6 +61,24 @@ export default function PlanDetailScreen() {
   const [autorNazwa, setAutorNazwa] = useState('');
   const [viewerZal, setViewerZal] = useState(false);
   const insets = useSafeAreaInsets();
+
+  const budowaPodglad = plan?.budowaId ? budowy.find((b) => b.id === plan.budowaId) : undefined;
+  const dzialkiObmiaru = useMemo(
+    () => uzupelnijProfilObmiaruDzialek(budowaPodglad?.projekt, plan),
+    [budowaPodglad?.projekt, plan],
+  );
+  const tabeleAut = useMemo(() => {
+    if (!plan) return null;
+    const ciezar = (mid: string) => mieszanki.find((m) => m.id === mid)?.ciezarObjetosciowy;
+    let sumaAut = 0;
+    for (const dz of plan.dzialki) {
+      const rho = ciezar(dz.mieszankaId);
+      if (rho == null) continue;
+      sumaAut += obliczWynikiDzialki(dz, rho, plan.tonazAuta).iloscSamochodow;
+    }
+    const rzuty = plan.rzuty.length > 0 ? plan.rzuty : generujDomyslneRzuty(sumaAut);
+    return obliczTabeleAutPlanu(dzialkiObmiaru, rzuty, plan.tonazAuta, ciezar);
+  }, [plan, mieszanki, dzialkiObmiaru]);
 
   if (!plan) {
     return (
@@ -65,23 +92,7 @@ export default function PlanDetailScreen() {
   }
 
   const getMieszanka = (id: string) => mieszanki.find((m) => m.id === id);
-
-  const tabeleAut = useMemo(() => {
-    if (!plan) return null;
-    let sumaAut = 0;
-    for (const dz of plan.dzialki) {
-      const m = getMieszanka(dz.mieszankaId);
-      if (!m) continue;
-      sumaAut += obliczWynikiDzialki(dz, m.ciezarObjetosciowy, plan.tonazAuta).iloscSamochodow;
-    }
-    const rzuty = plan.rzuty.length > 0 ? plan.rzuty : generujDomyslneRzuty(sumaAut);
-    return obliczTabeleAutPlanu(
-      plan.dzialki,
-      rzuty,
-      plan.tonazAuta,
-      (mid) => getMieszanka(mid)?.ciezarObjetosciowy,
-    );
-  }, [plan, mieszanki]);
+  const obszarySzkicu = plan.zrodlo === 'budowa' ? obszarySzkicuPlanu(plan) : [];
 
   const udostepnijJSON = async () => {
     try { await eksportujJSON(plan, mieszanki, wpisyLive); } catch { /* cancelled */ }
@@ -100,22 +111,41 @@ export default function PlanDetailScreen() {
       return;
     }
     try {
-      await generujInteraktywnyHTML(plan, mieszanki, { autor: autorNazwa.trim(), wpisyLive });
+      await generujInteraktywnyHTML(plan, mieszanki, {
+        autor: autorNazwa.trim(),
+        wpisyLive,
+        projekt: budowaPodglad?.projekt,
+      });
     } catch { /* cancelled */ }
     setAutorModal(false);
   };
 
-  const budowa = plan.budowaId ? budowy.find((b) => b.id === plan.budowaId) : undefined;
+  const budowa = budowaPodglad;
+  const projektSzkicu = budowa?.projekt;
+
+  const usunTenPlan = () => potwierdzAkcje(
+    'Usuń plan',
+    `Usunąć „${plan.zrodlo === 'budowa' ? tytulPlanuBudowy(plan) : formatujDatePl(plan.dataWbudowywania)}”?`,
+    () => {
+      void (async () => {
+        await wyczyścWpisyPlanu(plan.id);
+        await usunPlan(plan.id);
+        router.back();
+      })();
+    },
+  );
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <AppHeader
-        tytul={formatujDatePl(plan.dataWbudowywania).split(',')[0]}
+        tytul={plan.zrodlo === 'budowa' ? tytulPlanuBudowy(plan) : formatujDatePl(plan.dataWbudowywania).split(',')[0]}
+        podtytul={plan.zrodlo === 'budowa' ? komentarzPlanuBudowy(plan) : undefined}
         lewy={{ tekst: '‹ Wstecz', onPress: () => router.back() }}
         prawy={{ tekst: 'Udostępnij', onPress: () => setUdostepnijModal(true), kolor: theme.colors.secondary }}
         przyciski={plan.status === 'aktywny' ? [
           { tekst: '✏ Edytuj plan', onPress: () => router.push(`/plan/edytuj/${plan.id}` as any), kolor: theme.colors.warning },
           { tekst: '▶ Wbudowywanie', onPress: () => router.push(`/wbudowywanie/${plan.id}` as any), kolor: '#fff', tlo: theme.colors.success },
+          { tekst: 'Usuń', onPress: usunTenPlan, kolor: theme.colors.danger },
         ] : []}
       />
 
@@ -160,9 +190,13 @@ export default function PlanDetailScreen() {
               const mieszanka = getMieszanka(dz.mieszankaId);
               if (!mieszanka) return null;
               const wyniki = obliczWynikiDzialki(dz, mieszanka.ciezarObjetosciowy, plan.tonazAuta);
+              const km0 = dz.kilometrazPoczatkowyKm * 1000 + dz.kilometrazPoczatkowyM;
+              const km1 = pikietazPoMetrach(km0, obliczLacznaDlugosc(dz), dz.kierunekUkladania);
+              const zakres = `${formatujPikietaz(km0)} – ${formatujPikietaz(km1)}`;
               return (
                 <View key={dz.id} style={[styles.kartaDzialki, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-                  <Text style={[styles.kartaTytul, { color: theme.colors.primary }]}>{dz.nazwa}</Text>
+                  <Text style={[styles.kartaTytul, { color: theme.colors.primary }]}>{zakres}</Text>
+                  <InfoRow label="Kierunek" wartosc={dz.kierunekUkladania === 'malejacy' ? 'malejący ↓' : 'rosnący ↑'} theme={theme} />
                   <InfoRow label="Mieszanka" wartosc={`${mieszanka.rodzaj}  ρ=${mieszanka.ciezarObjetosciowy.toFixed(3)}`} theme={theme} />
                   <InfoRow label="Grubość projektowa" wartosc={`${gruboscProjektowa(dz)} cm`} theme={theme} />
                   <InfoRow label="Tolerancja" wartosc={formatujTolerancje(dz)} theme={theme} />
@@ -226,7 +260,7 @@ export default function PlanDetailScreen() {
             </ScrollView>
 
             {idxTabeliAut === -1 ? (() => {
-              const pierwsza = plan.dzialki[0];
+              const pierwsza = dzialkiObmiaru[0] ?? plan.dzialki[0];
               const m0 = pierwsza ? getMieszanka(pierwsza.mieszankaId) : undefined;
               if (!pierwsza || !m0) return null;
               const sumaMasy = tabeleAut.calosc.reduce((s, w) => s + w.masa, 0);
@@ -252,7 +286,7 @@ export default function PlanDetailScreen() {
             })() : (() => {
               const td = tabeleAut.dzialki[idxTabeliAut];
               if (!td) return null;
-              const dz = plan.dzialki.find((d) => d.id === td.dzialkaId);
+              const dz = dzialkiObmiaru.find((d) => d.id === td.dzialkaId) ?? plan.dzialki.find((d) => d.id === td.dzialkaId);
               const m = dz ? getMieszanka(dz.mieszankaId) : undefined;
               if (!dz || !m) return null;
               return (
@@ -281,6 +315,31 @@ export default function PlanDetailScreen() {
         {/* ---- ZAKŁADKA: SZKIC ---- */}
         {aktywnaZakladka === 'szkic' && (
           <>
+            {plan.zrodlo === 'budowa' && projektSzkicu ? (
+              obszarySzkicu.length > 0 ? obszarySzkicu.map((obszar) => (
+                <View key={obszar.id} style={[styles.kartaDzialki, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+                  <Text style={[styles.kartaTytul, { color: theme.colors.text }]}>
+                    Szkic PZT · {obszar.numer}. {obszar.nazwa}
+                  </Text>
+                  <Text style={{ color: theme.colors.textSecondary, fontSize: 13, marginBottom: 8 }}>
+                    {formatujKmM(obszar.kilometrazOdM)} - {formatujKmM(obszar.kilometrazDoM)}
+                  </Text>
+                  <SzkicPlanuBudowy
+                    projekt={projektSzkicu}
+                    plan={plan}
+                    theme={theme}
+                    wysokosc={320}
+                    zakres={obszar}
+                  />
+                </View>
+              )) : (
+                <View style={[styles.kartaDzialki, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+                  <Text style={[styles.kartaTytul, { color: theme.colors.text }]}>Szkic PZT (wycinek km)</Text>
+                  <SzkicPlanuBudowy projekt={projektSzkicu} plan={plan} theme={theme} wysokosc={320} />
+                </View>
+              )
+            ) : (
+              <>
             {plan.dzialki.length > 1 && (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.selectorScroll}>
                 {plan.dzialki.map((dz, idx) => (
@@ -307,6 +366,8 @@ export default function PlanDetailScreen() {
                 </View>
               );
             })()}
+              </>
+            )}
           </>
         )}
 

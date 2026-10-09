@@ -2,11 +2,11 @@
 // PLAN CIĄGŁY – wszystkie działki jako jeden odcinek dnia
 // ============================================================
 
-import type { Plan, DzialkaRobocza, WynikiKontroli, WpisTabeliAut, Rzut } from '../types';
+import type { Plan, DzialkaRobocza, WynikiKontroli, WpisTabeliAut, Rzut, Figura, WpisLive } from '../types';
 import type { TabeleAutPlanu, TabelaAutDzialki } from './calculations';
 import {
   dlugoscFigury,
-  sredniaSzerokoscFigury,
+  obliczPowierzchniFigury,
   obliczWynikiDzialki,
   obliczLacznaDlugosc,
   round2,
@@ -20,8 +20,11 @@ export interface SegmentPlanu {
   dzialkaIdx: number;
   nazwa: string;
   dl: number;
+  /** Dokładny obmiar odcinka [m²]. */
+  pow: number;
   masaNaM: number;
   pozostalo: number;
+  pozostaloPow: number;
   grubosc: number;
   ciezar: number;
 }
@@ -49,7 +52,7 @@ export interface PodsumowaniePlanuDnia {
   liczbaDzialek: number;
 }
 
-/** Segmenty geometryczne planu w kolejności układania */
+/** Segmenty geometryczne planu w kolejności układania (plasterki obmiaru, nie średnia figury). */
 export function budujSegmentyPlanu(
   dzialki: DzialkaRobocza[],
   ciezarPoMieszance: (mieszankaId: string) => number | undefined,
@@ -59,16 +62,28 @@ export function budujSegmentyPlanu(
     const ciezar = ciezarPoMieszance(dz.mieszankaId);
     if (!ciezar) return;
     const gr = gruboscWbudowywania(dz);
-    for (const f of dz.figury) {
-      const dl = dlugoscFigury(f);
-      if (dl <= 0) continue;
+    const rhoH = (gr / 100) * ciezar;
+    const zProfilu = (dz.profilSzerokosci ?? []).filter((p) => p.dlugoscM > 0);
+    const plasterki = zProfilu.length > 0
+      ? zProfilu.map((p) => ({
+        dl: p.dlugoscM,
+        pow: Math.max(0, p.powierzchniaM2 ?? (p.szerokoscM ?? 0) * p.dlugoscM),
+      }))
+      : dz.figury.map((f) => ({
+        dl: dlugoscFigury(f),
+        pow: Math.max(0, obliczPowierzchniFigury(f)),
+      }));
+    for (const p of plasterki) {
+      if (p.dl <= 0 || p.pow <= 1e-6) continue;
       out.push({
         dzialkaId: dz.id,
         dzialkaIdx,
         nazwa: dz.nazwa,
-        dl,
-        masaNaM: round3(sredniaSzerokoscFigury(f) * (gr / 100) * ciezar),
-        pozostalo: dl,
+        dl: p.dl,
+        pow: p.pow,
+        masaNaM: round3((p.pow / p.dl) * rhoH),
+        pozostalo: p.dl,
+        pozostaloPow: p.pow,
         grubosc: gr,
         ciezar,
       });
@@ -81,7 +96,7 @@ function klonSegmenty(seg: SegmentPlanu[]): SegmentPlanu[] {
   return seg.map((s) => ({ ...s }));
 }
 
-/** Ile metrów [od startu planu] pokrywa dana masa */
+/** Ile metrów [od startu planu] pokrywa dana masa – z dokładnego obmiaru m², nie średniej. */
 export function metryOdMasyPlanu(segmenty: SegmentPlanu[], masaMg: number): number {
   if (masaMg <= 0) return 0;
   const seg = klonSegmenty(segmenty);
@@ -90,14 +105,17 @@ export function metryOdMasyPlanu(segmenty: SegmentPlanu[], masaMg: number): numb
   let i = 0;
   while (masaPozost > 0.0001 && i < seg.length) {
     const s = seg[i];
-    if (s.masaNaM <= 0 || s.pozostalo <= 0) { i++; continue; }
-    const maxM = s.pozostalo * s.masaNaM;
+    const rhoH = (s.grubosc / 100) * s.ciezar;
+    if (rhoH <= 0 || s.pozostaloPow <= 1e-6) { i++; continue; }
+    const maxM = s.pozostaloPow * rhoH;
     const zuzyj = Math.min(masaPozost, maxM);
-    const m = s.masaNaM > 0 ? zuzyj / s.masaNaM : 0;
+    const zjedzPow = zuzyj / rhoH;
+    const m = s.pow > 0 ? (zjedzPow / s.pow) * s.dl : 0;
     metry = round2(metry + m);
+    s.pozostaloPow -= zjedzPow;
     s.pozostalo = round2(s.pozostalo - m);
     masaPozost = round3(masaPozost - zuzyj);
-    if (s.pozostalo <= 0.001) i++;
+    if (s.pozostaloPow <= 1e-6) i++;
   }
   return metry;
 }
@@ -108,11 +126,11 @@ export function powierzchniaOdMetrowPlanu(segmenty: SegmentPlanu[], metryGlobaln
   let metryCum = 0;
   for (const s of segmenty) {
     if (metryCum + s.dl <= metryGlobalne) {
-      pow += s.dl * (s.masaNaM / (s.ciezar * (s.grubosc / 100)));
+      pow += s.pow;
       metryCum += s.dl;
     } else {
       const ulamek = s.dl > 0 ? (metryGlobalne - metryCum) / s.dl : 0;
-      pow += s.dl * ulamek * (s.masaNaM / (s.ciezar * (s.grubosc / 100)));
+      pow += s.pow * ulamek;
       break;
     }
   }
@@ -207,7 +225,7 @@ export function obliczKontrolePlanu(
   for (const s of segmenty) {
     const doM = Math.min(s.dl, Math.max(0, przejechaneMetry - cum));
     if (doM > 0) {
-      const pow = doM * (s.masaNaM / (s.ciezar * (s.grubosc / 100)));
+      const pow = s.dl > 0 ? s.pow * (doM / s.dl) : 0;
       numGr += pow * s.grubosc * s.ciezar;
       denGr += pow * s.ciezar;
     }
@@ -224,7 +242,7 @@ export function obliczKontrolePlanu(
   for (const s of segmenty) {
     const doM = Math.min(s.dl, Math.max(0, przejechaneMetry - cum));
     if (doM > 0) {
-      const pow = doM * (s.masaNaM / (s.ciezar * (s.grubosc / 100)));
+      const pow = s.dl > 0 ? s.pow * (doM / s.dl) : 0;
       sredniCiezar += s.ciezar * pow;
       wPow += pow;
     }
@@ -271,10 +289,6 @@ export function obliczTabeleAutPlanuCiagla(
     return { calosc: [], dzialki: [], lacznaIloscAut: 0 };
   }
 
-  const lacznaMasaPlanu = round3(
-    segmenty.reduce((s, x) => s + x.dl * x.masaNaM, 0),
-  );
-
   type WierszWew = { numerAuta: number; dzialkaId: string; masa: number; metry: number };
   const wierszeWew: WierszWew[] = [];
   const seg = klonSegmenty(segmenty);
@@ -284,19 +298,29 @@ export function obliczTabeleAutPlanuCiagla(
 
   const klucz = (n: number, dzId: string) => `${n}:${dzId}`;
   const mapa = new Map<string, WierszWew>();
+  let bezpiecznik = 0;
+  const limitKrokow = Math.max(2000, seg.length * 8);
 
-  while (segIdx < seg.length) {
+  while (segIdx < seg.length && bezpiecznik++ < limitKrokow) {
     const s = seg[segIdx];
-    if (s.pozostalo <= 0.001 || s.masaNaM <= 0) { segIdx++; continue; }
+    const rhoH = (s.grubosc / 100) * s.ciezar;
+    if (s.pozostaloPow <= 1e-4 || s.pow <= 0 || rhoH <= 0) { segIdx++; continue; }
 
-    if (ladunekAuta <= 0.0001) {
+    if (ladunekAuta <= 0.0005) {
       numerAuta++;
       ladunekAuta = tonazAuta;
     }
 
-    const masaNaSeg = s.pozostalo * s.masaNaM;
+    const masaNaSeg = s.pozostaloPow * rhoH;
     const doUzycia = round3(Math.min(ladunekAuta, masaNaSeg));
-    const metrySeg = s.masaNaM > 0 ? round2(doUzycia / s.masaNaM) : 0;
+    // Reszta poniżej 0,001 t po round3 = 0 i pętla nigdy nie schodzi z odcinka.
+    if (doUzycia <= 0) {
+      if (masaNaSeg <= ladunekAuta + 1e-9) segIdx++;
+      else ladunekAuta = 0;
+      continue;
+    }
+    const zjedzPow = doUzycia / rhoH;
+    const metrySeg = s.pow > 0 ? round2((zjedzPow / s.pow) * s.dl) : 0;
 
     const k = klucz(numerAuta, s.dzialkaId);
     const istniejacy = mapa.get(k);
@@ -310,8 +334,9 @@ export function obliczTabeleAutPlanuCiagla(
     }
 
     ladunekAuta = round3(ladunekAuta - doUzycia);
+    s.pozostaloPow -= zjedzPow;
     s.pozostalo = round2(s.pozostalo - metrySeg);
-    if (s.pozostalo <= 0.001) segIdx++;
+    if (s.pozostaloPow <= 1e-6) segIdx++;
   }
 
   // Numeracja rzutów
@@ -379,5 +404,160 @@ export function obliczTabeleAutPlanuCiagla(
     calosc,
     dzialki: poDzialkach,
     lacznaIloscAut: unikalneAuta,
+  };
+}
+
+export interface FiguraWCiaguPlanu {
+  figura: Figura;
+  dzialkaId: string;
+  dzialkaNazwa: string;
+  metryGlobalneStart: number;
+  grubosc: number;
+  ciezar: number;
+}
+
+export interface MarkerPlanuCiaglego {
+  wpis: WpisLive;
+  metryKumulatywne: number;
+  metryWDzialce: number;
+  idxGlobalny: number;
+}
+
+export interface PodsumowanieOdcinkaPlanu {
+  numerAutaDo: number;
+  tonDo: number;
+  metryDo: number;
+  powDo: number;
+  sredniaGrubosc: number;
+  bilansMasy: number;
+  pozostaloMetrow: number;
+}
+
+/** Wpisy w kolejności układania (auto #, działka, czas) */
+export function sortujWpisyPlanu(plan: Plan, wpisy: WpisLive[]): WpisLive[] {
+  return [...wpisy].sort((a, b) => {
+    if (a.numerAuta !== b.numerAuta) return a.numerAuta - b.numerAuta;
+    const idxA = plan.dzialki.findIndex((d) => d.id === a.dzialkaId);
+    const idxB = plan.dzialki.findIndex((d) => d.id === b.dzialkaId);
+    if (idxA !== idxB) return idxA - idxB;
+    return a.createdAt.localeCompare(b.createdAt);
+  });
+}
+
+/** Wszystkie figury planu w jednym ciągu z offsetami metrów globalnych */
+export function budujFiguryPlanu(
+  plan: Plan,
+  ciezarPoMieszance: (mieszankaId: string) => number | undefined,
+): FiguraWCiaguPlanu[] {
+  const out: FiguraWCiaguPlanu[] = [];
+  let offset = 0;
+  for (const dz of plan.dzialki) {
+    const ciezar = ciezarPoMieszance(dz.mieszankaId);
+    if (!ciezar) continue;
+    const gr = gruboscWbudowywania(dz);
+    for (const f of dz.figury) {
+      out.push({
+        figura: f,
+        dzialkaId: dz.id,
+        dzialkaNazwa: dz.nazwa,
+        metryGlobalneStart: round2(offset),
+        grubosc: gr,
+        ciezar,
+      });
+      offset = round2(offset + dlugoscFigury(f));
+    }
+  }
+  return out;
+}
+
+export function obliczLacznaDlugoscPlanu(plan: Plan): number {
+  return round2(plan.dzialki.reduce((s, dz) => s + obliczLacznaDlugosc(dz), 0));
+}
+
+/** Markery aut z metrami od startu całego planu */
+export function obliczMarkeryPlanuCiaglego(
+  plan: Plan,
+  wpisy: WpisLive[],
+): MarkerPlanuCiaglego[] {
+  const offsets = new Map<string, number>();
+  let off = 0;
+  for (const dz of plan.dzialki) {
+    offsets.set(dz.id, off);
+    off += obliczLacznaDlugosc(dz);
+  }
+
+  const markery: MarkerPlanuCiaglego[] = [];
+  let idx = 0;
+  for (const dz of plan.dzialki) {
+    const dzWpisy = wpisy
+      .filter((w) => w.dzialkaId === dz.id)
+      .sort((a, b) => a.numerAuta - b.numerAuta || a.createdAt.localeCompare(b.createdAt));
+    let cumDz = 0;
+    const base = offsets.get(dz.id) ?? 0;
+    for (const w of dzWpisy) {
+      cumDz = round2(cumDz + w.przejechaneMetry);
+      markery.push({
+        wpis: w,
+        metryKumulatywne: round2(base + cumDz),
+        metryWDzialce: cumDz,
+        idxGlobalny: idx++,
+      });
+    }
+  }
+  return markery;
+}
+
+/** Podsumowanie od startu planu do auta #N (cały dzień) */
+export function obliczPodsumowanieOdcinkaPlanu(
+  plan: Plan,
+  wpisy: WpisLive[],
+  numerAutaDo: number,
+  ciezarPoMieszance: (mieszankaId: string) => number | undefined,
+): PodsumowanieOdcinkaPlanu {
+  const segmenty = budujSegmentyPlanu(plan.dzialki, ciezarPoMieszance);
+  const lacznaDl = obliczLacznaDlugoscPlanu(plan);
+  const wpisyDo = sortujWpisyPlanu(plan, wpisy).filter((w) => w.numerAuta <= numerAutaDo);
+  const tonDo = round2(wpisyDo.reduce((s, w) => s + w.tonazPrzywieziony, 0));
+
+  const markery = obliczMarkeryPlanuCiaglego(plan, wpisy);
+  const ostatni = [...markery].reverse().find((m) => m.wpis.numerAuta <= numerAutaDo);
+  const metryDo = ostatni?.metryKumulatywne ?? 0;
+  const powDo = powierzchniaOdMetrowPlanu(segmenty, metryDo);
+
+  let denGr = 0;
+  let numGr = 0;
+  let cum = 0;
+  for (const s of segmenty) {
+    const doM = Math.min(s.dl, Math.max(0, metryDo - cum));
+    if (doM > 0) {
+      const pow = s.dl > 0 ? s.pow * (doM / s.dl) : 0;
+      numGr += pow * s.grubosc * s.ciezar;
+      denGr += pow * s.ciezar;
+    }
+    cum += s.dl;
+    if (cum >= metryDo) break;
+  }
+  const sredniaGrubosc = powDo > 0 && denGr > 0 ? round2((tonDo / denGr) * 100) : 0;
+
+  let masaPlan = 0;
+  cum = 0;
+  for (const s of segmenty) {
+    const doM = Math.min(s.dl, Math.max(0, metryDo - cum));
+    if (doM > 0) {
+      const pow = s.dl > 0 ? s.pow * (doM / s.dl) : 0;
+      masaPlan += pow * (s.grubosc / 100) * s.ciezar;
+    }
+    cum += s.dl;
+  }
+  const bilansMasy = round3(tonDo - masaPlan);
+
+  return {
+    numerAutaDo,
+    tonDo,
+    metryDo,
+    powDo,
+    sredniaGrubosc,
+    bilansMasy,
+    pozostaloMetrow: round2(Math.max(0, lacznaDl - metryDo)),
   };
 }

@@ -11,6 +11,8 @@ import { useBudowyStore } from '../src/stores/budowyStore';
 import { useWytwornieStore } from '../src/stores/wytwornieStore';
 import { useLiveStore } from '../src/stores/liveStore';
 import { useNotatnikStore } from '../src/stores/notatnikStore';
+import { useObmiarStore } from '../src/stores/obmiarStore';
+import { useGrafikaMaszynStore } from '../src/stores/grafikaMaszynStore';
 import { lightTheme, darkTheme } from '../src/constants/theme';
 import { LoadingScreen } from '../src/components/common/LoadingScreen';
 import { ErrorBoundary } from '../src/components/common/ErrorBoundary';
@@ -28,6 +30,8 @@ export default function RootLayout() {
   const zaladujWytwornie = useWytwornieStore((s) => s.zaladujWytwornie);
   const zaladujWpisy = useLiveStore((s) => s.zaladujWpisy);
   const zaladujNotatnik = useNotatnikStore((s) => s.zaladuj);
+  const zaladujObmiar = useObmiarStore((s) => s.zaladuj);
+  const zaladujGrafike = useGrafikaMaszynStore((s) => s.zaladuj);
 
   const [ladowanie, setLadowanie] = useState(true);
   const [loadingWidoczny, setLoadingWidoczny] = useState(true);
@@ -44,6 +48,8 @@ export default function RootLayout() {
           zaladujBudowy(),
           zaladujWytwornie(),
           zaladujNotatnik(),
+          zaladujObmiar(),
+          zaladujGrafike(),
         ]);
         const onboardingComplete = await AsyncStorage.getItem(KLUCZ_ONBOARDING);
         if (!onboardingComplete) {
@@ -115,6 +121,7 @@ export default function RootLayout() {
             name="plan/nowy"
             options={{ headerShown: false, animation: 'slide_from_bottom' }}
           />
+          <Stack.Screen name="plan/budowa/[id]" options={{ headerShown: false }} />
           <Stack.Screen name="plan/[id]" options={{ headerShown: false }} />
           <Stack.Screen
             name="plan/import"
@@ -128,6 +135,11 @@ export default function RootLayout() {
           <Stack.Screen name="wbudowywanie/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="archiwum/index" options={{ headerShown: false }} />
         <Stack.Screen name="archiwum/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="archiwum/obmiar/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="obmiar/index" options={{ headerShown: false }} />
+        <Stack.Screen name="obmiar/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="budowa/index" options={{ headerShown: false }} />
+        <Stack.Screen name="budowa/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="niezbednik/index" options={{ headerShown: false }} />
         <Stack.Screen name="niezbednik/masa/index" options={{ headerShown: false }} />
         <Stack.Screen name="niezbednik/masa/wydajnosc-powierzchniowa" options={{ headerShown: false }} />

@@ -2,11 +2,15 @@
 // GENERATOR PDF – Raport dnia roboczego (rozszerzone kolumny)
 // ============================================================
 
+import { Platform } from 'react-native';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
-import type { Plan, WpisLive } from '../types';
+import * as MailComposer from 'expo-mail-composer';
+import type { Plan, WpisLive, SesjaObmiaruDnia } from '../types';
 import { obliczWynikiDzialki, obliczPowierzchnioweOdStartu, formatLiczby } from './calculations';
 import { formatujDatePl } from './dates';
+import { infoAutaWz, dlugoscUkladaniaObszaru } from './obmiarLive';
+import { formatujKilometraz } from './obmiarFigura';
 
 interface GenerujPDFOptions {
   plan: Plan;
@@ -15,7 +19,7 @@ interface GenerujPDFOptions {
   budowa?: { kodBudowy: string; nazwaInwestycji: string };
 }
 
-export async function generujRaportPDF({ plan, wpisyLive, mieszanki, budowa }: GenerujPDFOptions): Promise<void> {
+export function htmlRaportuDnia({ plan, wpisyLive, mieszanki, budowa }: GenerujPDFOptions): string {
   const getMieszanka = (id: string) => mieszanki.find((m) => m.id === id);
 
   const stylePDF = `
@@ -146,6 +150,163 @@ export async function generujRaportPDF({ plan, wpisyLive, mieszanki, budowa }: G
 </body>
 </html>`;
 
+  return html;
+}
+
+function otworzMailto(temat: string, tresc: string) {
+  if (typeof document === 'undefined') return;
+  const a = document.createElement('a');
+  a.href = `mailto:?subject=${encodeURIComponent(temat)}&body=${encodeURIComponent(tresc)}`;
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+/** Na telefonie w przeglądarce expo-print drukuje całą aplikację. Raport idzie osobno. */
+function drukujHtmlWRamce(html: string) {
+  if (typeof document === 'undefined') return;
+  const iframe = document.createElement('iframe');
+  iframe.setAttribute('style', 'position:fixed;width:0;height:0;border:0;');
+  document.body.appendChild(iframe);
+  const doc = iframe.contentDocument ?? iframe.contentWindow?.document;
+  if (!doc) {
+    iframe.remove();
+    return;
+  }
+  doc.open();
+  doc.write(html);
+  doc.close();
+  setTimeout(() => {
+    iframe.contentWindow?.focus();
+    iframe.contentWindow?.print();
+    setTimeout(() => iframe.remove(), 1500);
+  }, 250);
+}
+
+async function udostepnijHtmlRaportu(html: string): Promise<void> {
+  if (Platform.OS === 'web') {
+    drukujHtmlWRamce(html);
+    return;
+  }
   const { uri } = await Print.printToFileAsync({ html, base64: false });
   await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'Udostępnij raport PDF' });
+}
+
+export async function generujRaportPDF(opcje: GenerujPDFOptions): Promise<void> {
+  await udostepnijHtmlRaportu(htmlRaportuDnia(opcje));
+}
+
+export async function wyslijRaportDniaMailem(opcje: GenerujPDFOptions): Promise<void> {
+  const temat = `Raport MMA – ${formatujDatePl(opcje.plan.dataWbudowywania)}`;
+  const tresc = `Raport dnia roboczego z ${formatujDatePl(opcje.plan.dataWbudowywania)}.\n\nKalkulator MMA`;
+  const html = htmlRaportuDnia(opcje);
+  if (Platform.OS === 'web') {
+    drukujHtmlWRamce(html);
+    setTimeout(() => {
+      otworzMailto(temat, `${tresc}\n\nZałącz plik PDF z okna drukowania (Zapisz jako PDF).`);
+    }, 600);
+    return;
+  }
+  const { uri } = await Print.printToFileAsync({ html, base64: false });
+  const dostepny = await MailComposer.isAvailableAsync();
+  if (!dostepny) {
+    await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'Udostępnij raport PDF' });
+    return;
+  }
+  await MailComposer.composeAsync({ subject: temat, body: tresc, attachments: [uri] });
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+interface GenerujObmiarPDFOptions {
+  sesja: SesjaObmiaruDnia;
+  mieszanki: Array<{ id: string; rodzaj: string; ciezarObjetosciowy: number }>;
+  budowa?: { kodBudowy: string; nazwaInwestycji: string };
+}
+
+export async function stworzRaportObmiaruPDF({
+  sesja, mieszanki, budowa,
+}: GenerujObmiarPDFOptions): Promise<string> {
+  const stylePDF = `
+    body { font-family: Arial, sans-serif; font-size: 11px; color: #1a1a1a; margin: 16px; }
+    h1 { font-size: 16px; color: #E8A020; border-bottom: 2px solid #E8A020; padding-bottom: 5px; margin-bottom: 12px; }
+    h2 { font-size: 13px; color: #2E86AB; margin-top: 16px; margin-bottom: 6px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 10px; }
+    th { background-color: #E8A020; color: #fff; padding: 5px 6px; text-align: center; }
+    td { padding: 4px 6px; border-bottom: 1px solid #E5E7EB; text-align: center; }
+    tr:nth-child(even) td { background-color: #f9fafb; }
+    .info-row { display: flex; justify-content: space-between; padding: 3px 0; border-bottom: 1px solid #f0f0f0; }
+    .lbl { color: #6B7280; }
+    .val { font-weight: bold; }
+    .section-box { border: 1px solid #E5E7EB; border-radius: 6px; padding: 10px; margin-top: 8px; }
+    .footer { color: #9CA3AF; font-size: 9px; margin-top: 14px; }
+  `;
+
+  const sumaPow = sesja.obszary.reduce((a, o) => a + o.powierzchniaM2, 0);
+  const wszystkieWz = sesja.obszary.flatMap((o) => o.wpisyWz ?? []);
+  const sumaTon = wszystkieWz.reduce((a, w) => a + w.tony, 0);
+
+  const bloki = sesja.obszary.map((o) => {
+    const mie = o.mieszankaId ? mieszanki.find((m) => m.id === o.mieszankaId) : undefined;
+    const rho = mie?.ciezarObjetosciowy ?? 2.4;
+    const wpisy = [...(o.wpisyWz ?? [])].sort((a, b) => a.numer - b.numer);
+    const wiersze = wpisy.map((w) => {
+      const info = infoAutaWz(o, w, rho);
+      return `<tr>
+        <td>${w.numer}</td>
+        <td>${formatLiczby(w.tony)}</td>
+        <td>${formatLiczby(info.metryTegoAuta)}</td>
+        <td>${formatLiczby(w.przejechaneMetry)}</td>
+        <td>${formatLiczby(info.powierzchniaM2)}</td>
+        <td>${info.gruboscCm != null ? formatLiczby(info.gruboscCm) : '—'}</td>
+      </tr>`;
+    }).join('');
+    const kmS = formatujKilometraz(o.bazaStart?.kilometrazKm ?? o.kilometrazStartKm, o.bazaStart?.kilometrazM ?? o.kilometrazStartM);
+    const kmK = formatujKilometraz(o.bazaKoniec?.kilometrazKm ?? o.kilometrazKoniecKm, o.bazaKoniec?.kilometrazM ?? o.kilometrazKoniecM);
+    return `
+      <h2>${o.kolejnosc}. ${escapeHtml(o.nazwa)}</h2>
+      <div class="section-box">
+        <div class="info-row"><span class="lbl">Powierzchnia</span><span class="val">${formatLiczby(o.powierzchniaM2)} m²</span></div>
+        <div class="info-row"><span class="lbl">Długość układania</span><span class="val">${formatLiczby(dlugoscUkladaniaObszaru(o))} m</span></div>
+        ${kmS || kmK ? `<div class="info-row"><span class="lbl">Kilometraż</span><span class="val">${escapeHtml(kmS)} → ${escapeHtml(kmK)}</span></div>` : ''}
+        ${mie ? `<div class="info-row"><span class="lbl">Mieszanka</span><span class="val">${escapeHtml(mie.rodzaj)} · ρ ${mie.ciezarObjetosciowy.toFixed(3)}</span></div>` : ''}
+        ${o.gruboscCm != null ? `<div class="info-row"><span class="lbl">Grubość planu</span><span class="val">${formatLiczby(o.gruboscCm)} cm</span></div>` : ''}
+        <div class="info-row"><span class="lbl">Aut / tony</span><span class="val">${wpisy.length} · ${formatLiczby(wpisy.reduce((a, w) => a + w.tony, 0), 2)} Mg</span></div>
+      </div>
+      ${wpisy.length > 0 ? `<table>
+        <thead><tr><th>Auto</th><th>Mg</th><th>m z auta</th><th>m od startu</th><th>m²</th><th>Gr. cm</th></tr></thead>
+        <tbody>${wiersze}</tbody>
+      </table>` : '<p>Brak wpisów WZ.</p>'}
+    `;
+  }).join('');
+
+  const html = `<!DOCTYPE html>
+<html lang="pl">
+<head><meta charset="utf-8"/><style>${stylePDF}</style></head>
+<body>
+  <h1>Raport obmiaru WZ – Kalkulator MMA</h1>
+  ${budowa ? `<div class="section-box" style="border-color:#2E86AB"><div class="info-row"><span class="lbl">Budowa</span><span class="val">${escapeHtml(budowa.kodBudowy)} – ${escapeHtml(budowa.nazwaInwestycji)}</span></div></div>` : ''}
+  <div class="section-box">
+    <div class="info-row"><span class="lbl">Sesja</span><span class="val">${escapeHtml(sesja.nazwa)}</span></div>
+    <div class="info-row"><span class="lbl">Data</span><span class="val">${formatujDatePl(sesja.data)}</span></div>
+    <div class="info-row"><span class="lbl">Obszary</span><span class="val">${sesja.obszary.length}</span></div>
+    <div class="info-row"><span class="lbl">Łączna powierzchnia</span><span class="val">${formatLiczby(sumaPow)} m²</span></div>
+    <div class="info-row"><span class="lbl">Aut / masa</span><span class="val">${wszystkieWz.length} · ${formatLiczby(sumaTon, 2)} Mg</span></div>
+  </div>
+  ${bloki}
+  <p class="footer">Wygenerowano: ${new Date().toLocaleString('pl-PL')} | Kalkulator MMA</p>
+</body>
+</html>`;
+
+  const { uri } = await Print.printToFileAsync({ html, base64: false });
+  return uri;
+}
+
+export async function generujRaportObmiaruPDF(opts: GenerujObmiarPDFOptions): Promise<string> {
+  const uri = await stworzRaportObmiaruPDF(opts);
+  await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'Udostępnij raport obmiaru PDF' });
+  return uri;
 }

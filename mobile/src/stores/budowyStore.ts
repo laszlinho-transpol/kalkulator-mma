@@ -4,7 +4,8 @@
 
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { Budowa } from '../types';
+import type { Budowa, ProjektBudowy } from '../types';
+import { pustyProjektBudowy } from '../utils/projektBudowy';
 
 const KLUCZ_STORAGE = '@mma:budowy';
 
@@ -18,6 +19,7 @@ interface BudowyStore {
   archiwizujBudowe: (id: string) => Promise<void>;
   przywrocBudowe: (id: string) => Promise<void>;
   pobierzBudowe: (id: string) => Budowa | undefined;
+  zapiszProjekt: (id: string, projekt: ProjektBudowy) => Promise<void>;
 }
 
 const generujId = (): string =>
@@ -43,7 +45,14 @@ export const useBudowyStore = create<BudowyStore>((set, get) => ({
   dodajBudowe: async (dane) => {
     const teraz = new Date().toISOString();
     const id = generujId();
-    const nowa: Budowa = { ...dane, id, status: dane.status ?? 'aktywna', createdAt: teraz, updatedAt: teraz };
+    const nowa: Budowa = {
+      ...dane,
+      id,
+      status: dane.status ?? 'aktywna',
+      projekt: dane.projekt ?? pustyProjektBudowy(),
+      createdAt: teraz,
+      updatedAt: teraz,
+    };
     const zaktualizowane = [...get().budowy, nowa];
     set({ budowy: zaktualizowane });
     await zapiszDoStorage(zaktualizowane);
@@ -81,4 +90,8 @@ export const useBudowyStore = create<BudowyStore>((set, get) => ({
   },
 
   pobierzBudowe: (id) => get().budowy.find((b) => b.id === id),
+
+  zapiszProjekt: async (id, projekt) => {
+    await get().edytujBudowe(id, { projekt });
+  },
 }));

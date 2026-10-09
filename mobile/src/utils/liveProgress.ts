@@ -11,6 +11,7 @@ import {
   round3,
 } from './calculations';
 import { gruboscWbudowywania } from './grubosc';
+import { obliczLacznaDlugoscPlanu } from './planCiagly';
 
 export interface SegmentLive {
   dzialkaId: string;
@@ -26,6 +27,8 @@ export interface BilansLivePlanu {
   zakrytaPowierzchnia: number;
   lacznaPowierzchniaPlanu: number;
   pozostalaPowierzchnia: number;
+  lacznaDlugoscPlanu: number;
+  pozostaloMetrow: number;
   sredniaGrubosc: number;
   pozostalaMasaWgPlanu: number;
   pozostalaMasaWgSredniej: number;
@@ -33,6 +36,11 @@ export interface BilansLivePlanu {
 }
 
 const kluczSesji = (planId: string, dzialkaId: string) => `${planId}:${dzialkaId}`;
+
+/** Tony do 0,01 Mg. Korekta omija 8,575 → 8,57 przy błędzie zmiennoprzecinkowym. */
+function round2tony(n: number): number {
+  return Math.round((n + 1e-8) * 100) / 100;
+}
 
 /** Liczba logicznych aut (nie segmentów po rozbiciu) */
 export function liczUnikalnychAut(wpisyPlanu: WpisLive[]): number {
@@ -119,9 +127,67 @@ export function znajdzAktywnaDzialke(
   return null;
 }
 
+/** Powierzchnia działki między dwoma metrami od jej startu. */
+export function powierzchniaZakresuDzialki(dz: DzialkaRobocza, odM: number, doM: number): number {
+  const a = obliczPowierzchnioweOdStartu(dz, Math.max(0, odM));
+  const b = obliczPowierzchnioweOdStartu(dz, Math.max(0, doM));
+  return round2(Math.max(0, b - a));
+}
+
+/** Tony przy grubości planu na podanym zakresie metrów działki. */
+export function tonyZakresuPrzyGrubosciPlanu(
+  dz: DzialkaRobocza,
+  odM: number,
+  doM: number,
+  gestoscTm3: number,
+): number {
+  const pow = powierzchniaZakresuDzialki(dz, odM, doM);
+  const gr = gruboscWbudowywania(dz);
+  return round3(pow * (Math.max(0, gr) / 100) * Math.max(0, gestoscTm3));
+}
+
+/** Grubość, która wyszła na zakresie: tony / (powierzchnia × gęstość). */
+export function gruboscSegmentuLive(
+  dz: DzialkaRobocza,
+  metryPrzed: number,
+  metrySegmentu: number,
+  tonaz: number,
+  gestoscTm3: number,
+): { powierzchnia: number; grubosc: number } {
+  const powierzchnia = powierzchniaZakresuDzialki(dz, metryPrzed, metryPrzed + metrySegmentu);
+  const grubosc = powierzchnia > 0 && gestoscTm3 > 0
+    ? (tonaz / (gestoscTm3 * powierzchnia)) * 100
+    : 0;
+  return { powierzchnia, grubosc };
+}
+
+function gestoscDzialki(
+  dz: DzialkaRobocza,
+  ciezar?: (mieszankaId: string) => number | undefined,
+): number {
+  const g = ciezar?.(dz.mieszankaId);
+  return g && g > 0 ? g : 2.45;
+}
+
+export interface OpcjeRozdzialuLive {
+  /**
+   * Działka zamknięta ręcznie („ostatnie auto”) nie przyjmuje kolejnego auta,
+   * ale auto, które na niej już leżało, może zostać przy przebudowie historii.
+   */
+  pominZamknieteGdyJuzCosLezy?: boolean;
+  /**
+   * Zamknięcia, na których w dotychczasowej historii są już metry.
+   * Puste zamknięcie (obszar pominięty przed pierwszym autem) zostaje pominięte.
+   * Brak listy = każde zamknięcie można ponownie zająć, gdy w przebudowie jest jeszcze puste.
+   */
+  zajeteZamknieciaIds?: string[];
+}
+
 /**
- * Rozdziela nowe metry od aktywnej działki wzdłuż kolejnych działek planu.
- * Tonaż dzielony proporcjonalnie do metrów w każdym segmencie.
+ * Rozdziela nowe metry od aktywnej działki wzdłuż kolejnych obszarów.
+ * Na wcześniejszych obszarach tony biorą się z powierzchni × grubość wbudowywania
+ * wpisana w planie (nie grubość projektowa) × gęstość.
+ * Ostatni obszar dostaje resztę ładunku – uzyskana grubość porównuje się z tą założoną.
  */
 export function rozdzielMetryNaDzialki(
   plan: Plan,
@@ -129,6 +195,8 @@ export function rozdzielMetryNaDzialki(
   sesje: SesjaDzialkiLive[],
   noweMetry: number,
   tonazCalkowity: number,
+  ciezarPoMieszance?: (mieszankaId: string) => number | undefined,
+  opcje?: OpcjeRozdzialuLive,
 ): SegmentLive[] {
   const aktywna = znajdzAktywnaDzialke(plan, wpisyPlanu, sesje);
   if (!aktywna || noweMetry <= 0 || tonazCalkowity <= 0) return [];
@@ -138,12 +206,17 @@ export function rozdzielMetryNaDzialki(
 
   for (let i = aktywna.idx; i < plan.dzialki.length && metryPozost > 0.001; i++) {
     const dz = plan.dzialki[i];
-    if (czyDzialkaZakonczonaProg(plan.id, dz.id, wpisyPlanu, sesje, dz)) continue;
-
     const juz = sumaMetrowDzialki(wpisyPlanu, dz.id);
     const laczna = obliczLacznaDlugosc(dz);
     const wolne = round2(Math.max(0, laczna - juz));
     if (wolne <= 0.001) continue;
+    const zamknieta = sesje.some((s) => kluczSesji(s.planId, s.dzialkaId) === kluczSesji(plan.id, dz.id) && s.zakonczona);
+    const wolnoWrocic = Boolean(
+      opcje?.pominZamknieteGdyJuzCosLezy
+      && juz <= 0.05
+      && (opcje.zajeteZamknieciaIds == null || opcje.zajeteZamknieciaIds.includes(dz.id)),
+    );
+    if (zamknieta && !wolnoWrocic) continue;
 
     const naTej = round2(Math.min(metryPozost, wolne));
     segmenty.push({
@@ -158,14 +231,22 @@ export function rozdzielMetryNaDzialki(
   const sumaM = segmenty.reduce((s, seg) => s + seg.metry, 0);
   if (sumaM <= 0) return [];
 
-  let tonRozd = 0;
+  let zostalo = round2tony(tonazCalkowity);
   for (let i = 0; i < segmenty.length; i++) {
-    if (i === segmenty.length - 1) {
-      segmenty[i].tonaz = round2(tonazCalkowity - tonRozd);
-    } else {
-      segmenty[i].tonaz = round2(tonazCalkowity * (segmenty[i].metry / sumaM));
-      tonRozd = round3(tonRozd + segmenty[i].tonaz);
+    const seg = segmenty[i];
+    const dz = plan.dzialki[seg.dzialkaIdx];
+    if (i === segmenty.length - 1 || !dz) {
+      seg.tonaz = round2tony(Math.max(0, zostalo));
+      zostalo = 0;
+      continue;
     }
+    const juz = sumaMetrowDzialki(wpisyPlanu, dz.id);
+    const rho = gestoscDzialki(dz, ciezarPoMieszance);
+    const pow = powierzchniaZakresuDzialki(dz, juz, juz + seg.metry);
+    const przyPlanie = round2tony(pow * (Math.max(0, gruboscWbudowywania(dz)) / 100) * rho);
+    const wez = round2tony(Math.min(Math.max(0, przyPlanie), Math.max(0, zostalo)));
+    seg.tonaz = wez;
+    zostalo = round2tony(zostalo - wez);
   }
 
   return segmenty;
@@ -237,6 +318,9 @@ export function obliczBilansLivePlanu(
     ? round3(pozostalaPow * (sredniaGrubosc / 100) * rhoSr)
     : pozostalaMasaWgPlanu;
 
+  const lacznaDlugoscPlanu = obliczLacznaDlugoscPlanu(plan);
+  const pozostaloMetrow = round2(Math.max(0, lacznaDlugoscPlanu - laczneMetry));
+
   return {
     liczbaAut: liczUnikalnychAut(wpisyPlanu),
     lacznyTonaz,
@@ -244,6 +328,8 @@ export function obliczBilansLivePlanu(
     zakrytaPowierzchnia: zakrytaPow,
     lacznaPowierzchniaPlanu: lacznaPowPlan,
     pozostalaPowierzchnia: pozostalaPow,
+    lacznaDlugoscPlanu,
+    pozostaloMetrow,
     sredniaGrubosc,
     pozostalaMasaWgPlanu,
     pozostalaMasaWgSredniej: pozostalaMasaSrednia,
@@ -284,4 +370,165 @@ export function dzialkiDoAutoZamkniecia(
     }
   }
   return doZamkniecia;
+}
+
+/** Jedno auto, niezależnie od tego na ile obszarów się rozłożyło. */
+export interface AutoLogiczneLive {
+  numerAuta: number;
+  /** Cały ładunek przywieziony tym autem [Mg]. */
+  tonaz: number;
+  /** Całe metry przejazdu tego auta, suma obszarów [m]. */
+  metry: number;
+  numerRzutu?: number;
+  komentarz?: string;
+  godzinaWybudowania: string;
+  createdAt: string;
+}
+
+/** Składa segmenty o tym samym numerze w jedno auto. Kolejność = kolejność wbudowywania. */
+export function grupujAutaLive(plan: Plan, wpisy: WpisLive[]): AutoLogiczneLive[] {
+  const kolejnoscDzialki = new Map(plan.dzialki.map((d, i) => [d.id, i]));
+  const posortowane = [...wpisy].sort((a, b) => {
+    if (a.numerAuta !== b.numerAuta) return a.numerAuta - b.numerAuta;
+    return (kolejnoscDzialki.get(a.dzialkaId) ?? 0) - (kolejnoscDzialki.get(b.dzialkaId) ?? 0)
+      || a.createdAt.localeCompare(b.createdAt);
+  });
+  const mapa = new Map<number, AutoLogiczneLive>();
+  const kolejnosc: number[] = [];
+  for (const w of posortowane) {
+    const jest = mapa.get(w.numerAuta);
+    if (!jest) {
+      kolejnosc.push(w.numerAuta);
+      mapa.set(w.numerAuta, {
+        numerAuta: w.numerAuta,
+        tonaz: round2(w.tonazPrzywieziony),
+        metry: round2(w.przejechaneMetry),
+        numerRzutu: w.numerRzutu,
+        komentarz: w.komentarz,
+        godzinaWybudowania: w.godzinaWybudowania,
+        createdAt: w.createdAt,
+      });
+    } else {
+      jest.tonaz = round2(jest.tonaz + w.tonazPrzywieziony);
+      jest.metry = round2(jest.metry + w.przejechaneMetry);
+      if (!jest.komentarz && w.komentarz) jest.komentarz = w.komentarz;
+    }
+  }
+  return kolejnosc.map((n) => mapa.get(n)!);
+}
+
+/**
+ * Zamknięcia, które nie wynikają z wypełnienia metrów – „ostatnie auto” w środku obszaru.
+ * Takie obszary kolejne auta omijają.
+ */
+export function zamknieciaReczneDzialek(
+  plan: Plan,
+  wpisy: WpisLive[],
+  sesje: SesjaDzialkiLive[],
+): string[] {
+  const ids: string[] = [];
+  for (const s of sesje) {
+    if (s.planId !== plan.id || !s.zakonczona) continue;
+    const dz = plan.dzialki.find((d) => d.id === s.dzialkaId);
+    if (!dz) continue;
+    if (sumaMetrowDzialki(wpisy, dz.id) < obliczLacznaDlugosc(dz) - 0.05) ids.push(dz.id);
+  }
+  return ids;
+}
+
+/** Metry już ułożone na działce przed tym wpisem (wcześniejsze auta i wcześniejsze segmenty). */
+export function metryPrzedWpisem(plan: Plan, wpisy: WpisLive[], wpis: WpisLive): number {
+  const kolejnosc = new Map(plan.dzialki.map((d, i) => [d.id, i]));
+  const naDzialce = wpisy
+    .filter((w) => w.dzialkaId === wpis.dzialkaId)
+    .sort((a, b) => a.numerAuta - b.numerAuta
+      || (kolejnosc.get(a.dzialkaId) ?? 0) - (kolejnosc.get(b.dzialkaId) ?? 0)
+      || a.createdAt.localeCompare(b.createdAt));
+  let metry = 0;
+  for (const w of naDzialce) {
+    if (w.id === wpis.id) break;
+    metry += w.przejechaneMetry;
+  }
+  return round2(metry);
+}
+
+/**
+ * Układa auta od początku dnia. Ten sam numer zostaje na każdym obszarze,
+ * a tony wcześniejszych obszarów liczą się z ich grubości.
+ */
+export function ulozenieAutLive(
+  plan: Plan,
+  auta: AutoLogiczneLive[],
+  zamknieciaReczneIds: string[],
+  ciezarPoMieszance: (mieszankaId: string) => number | undefined,
+  noweId: () => string,
+  zajeteZamknieciaIds?: string[],
+): WpisLive[] {
+  const reczne: SesjaDzialkiLive[] = zamknieciaReczneIds.map((id) => ({
+    planId: plan.id,
+    dzialkaId: id,
+    zakonczona: true,
+  }));
+  const wynik: WpisLive[] = [];
+  for (const auto of auta) {
+    if (auto.metry <= 0 || auto.tonaz <= 0) continue;
+    let segmenty = rozdzielMetryNaDzialki(
+      plan,
+      wynik,
+      reczne,
+      auto.metry,
+      auto.tonaz,
+      ciezarPoMieszance,
+      { pominZamknieteGdyJuzCosLezy: true, zajeteZamknieciaIds },
+    );
+    if (segmenty.length === 0 && plan.dzialki.length > 0) {
+      const ostatnia = plan.dzialki[plan.dzialki.length - 1];
+      segmenty = [{
+        dzialkaId: ostatnia.id,
+        dzialkaIdx: plan.dzialki.length - 1,
+        metry: round2(auto.metry),
+        tonaz: round2(auto.tonaz),
+      }];
+    }
+    for (const seg of segmenty) {
+      wynik.push({
+        id: noweId(),
+        planId: plan.id,
+        dzialkaId: seg.dzialkaId,
+        numerAuta: auto.numerAuta,
+        numerRzutu: auto.numerRzutu,
+        tonazPrzywieziony: seg.tonaz,
+        przejechaneMetry: seg.metry,
+        komentarz: auto.komentarz,
+        godzinaWybudowania: auto.godzinaWybudowania,
+        createdAt: auto.createdAt,
+      });
+    }
+  }
+  return wynik;
+}
+
+/** Sesje po nowym ułożeniu: pełny obszar albo ręczne zamknięcie zostają, reszta wraca do układania. */
+export function sesjePoUlozeniu(
+  plan: Plan,
+  wpisy: WpisLive[],
+  reczneIds: string[],
+  poprzednie: SesjaDzialkiLive[],
+): SesjaDzialkiLive[] {
+  const inne = poprzednie.filter((s) => s.planId !== plan.id);
+  const teraz = new Date().toISOString();
+  const tego: SesjaDzialkiLive[] = [];
+  for (const dz of plan.dzialki) {
+    const pelna = czyDzialkaWypelniona(dz, wpisy);
+    const reczna = reczneIds.includes(dz.id) && !pelna;
+    if (!pelna && !reczna) continue;
+    const stara = poprzednie.find((s) => s.planId === plan.id && s.dzialkaId === dz.id && s.zakonczona);
+    tego.push({
+      planId: plan.id,
+      dzialkaId: dz.id,
+      zakonczona: true,
+      zakonczonaAt: stara?.zakonczonaAt ?? teraz,
+    });
+  }
+  return [...inne, ...tego];
 }

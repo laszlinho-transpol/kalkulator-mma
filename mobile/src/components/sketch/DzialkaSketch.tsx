@@ -10,9 +10,10 @@ import {
 } from 'react-native';
 import Svg, {
   Rect as SvgRect, Line as SvgLine, Text as SvgText,
-  G as SvgG, Circle as SvgCircle, Polygon as SvgPolygon, Path as SvgPath,
+  G as SvgG, Polygon as SvgPolygon, Path as SvgPath,
   Defs, ClipPath,
 } from 'react-native-svg';
+import { FILL_ULOZONE, MaszynaObmiaru } from './MaszynyObmiaru';
 import { lightTheme, darkTheme, type AppTheme } from '../../constants/theme';
 import {
   obliczPowierzchniFigury, dlugoscFigury, sredniaSzerokoscFigury, obliczWynikiDzialki, formatLiczby,
@@ -27,60 +28,15 @@ import {
   obliczWysokosciFigur,
   cumMetryFigur,
   metryDoY,
+  szerokoscObszaruSzkicuPx,
   type TrybSzkicu,
 } from '../../utils/sketchLayout';
 import type { DzialkaRobocza, Figura, WpisLive } from '../../types';
 
 const PAD_TOP = SKETCH_PAD.top;
 const PAD_BOT = SKETCH_PAD.bot;
-
-// ---- Rozkładarka z góry (bird's eye view) ----
-// Wygląda jak maszyna widziana z góry: prostokątny korpus + rozłożone ramiona stołu
-function PaverTopSVG({ x, y, szer }: { x: number; y: number; szer: number }) {
-  const W = szer * 0.85; // szerokość stołu wyrównującego
-  const CW = szer * 0.55; // szerokość korpusu
-  const CL = 22; // długość korpusu (wzdłuż osi ruchu = pionowo w szkicu)
-  const cx = x;
-
-  return (
-    <SvgG transform={`translate(${cx - CW / 2}, ${y - CL / 2})`}>
-      {/* Stół wyrównujący (screed) – szeroka belka */}
-      <SvgRect x={(CW - W) / 2} y={CL - 3} width={W} height={6} rx="2" fill="#E8A020" stroke="#c4860f" strokeWidth="1" />
-
-      {/* Korpus maszyny */}
-      <SvgRect x="0" y="3" width={CW} height={CL - 6} rx="3" fill="#d4900f" stroke="#c4860f" strokeWidth="1" />
-
-      {/* Silnik / środek */}
-      <SvgRect x={CW * 0.2} y="5" width={CW * 0.6} height={CL - 12} rx="2" fill="#c4860f" />
-
-      {/* Skrzynia zasypowa (hopper) – trójkąt z przodu */}
-      <SvgPolygon points={`0,3 ${CW},3 ${CW / 2},0`} fill="#E8A020" stroke="#c4860f" strokeWidth="1" />
-
-      {/* Gąsienice */}
-      <SvgRect x={-5} y="2" width="5" height={CL - 4} rx="2" fill="#1a1a1a" />
-      <SvgRect x={CW} y="2" width="5" height={CL - 4} rx="2" fill="#1a1a1a" />
-    </SvgG>
-  );
-}
-
-// ---- Wywrotka z góry ----
-function TruckTopSVG({ x, y, nrAuta }: { x: number; y: number; nrAuta: number }) {
-  return (
-    <SvgG transform={`translate(${x - 18}, ${y - 10})`}>
-      {/* Kabina */}
-      <SvgRect x="5" y="0" width="26" height="10" rx="2" fill="#c4860f" />
-      {/* Skrzynia */}
-      <SvgRect x="2" y="10" width="32" height="16" rx="2" fill="#E8A020" stroke="#c4860f" strokeWidth="1" />
-      {/* Numer */}
-      <SvgText x="18" y="21" fontSize={nrAuta >= 10 ? "8" : "9"} fontWeight="900" fill="#1a1a1a" textAnchor="middle">{String(nrAuta)}</SvgText>
-      {/* Koła */}
-      <SvgCircle cx="7" cy="10" r="4" fill="#1a1a1a" />
-      <SvgCircle cx="29" cy="10" r="4" fill="#1a1a1a" />
-      <SvgCircle cx="7" cy="26" r="4" fill="#1a1a1a" />
-      <SvgCircle cx="29" cy="26" r="4" fill="#1a1a1a" />
-    </SvgG>
-  );
-}
+/** Szkic figur idzie w dół kartki – przód maszyny (+X) obracamy o 90°. */
+const ROT_UKLADANIA = 90;
 
 function maxSzerokoscFigury(figura: Figura): number {
   switch (figura.typ) {
@@ -299,31 +255,39 @@ export function DzialkaSketch({
                       yFig={yFig}
                       hFig={hFig}
                       maxSzer={maxSzer}
-                      fill="#000000"
-                      stroke="#000000"
+                      fill={FILL_ULOZONE}
+                      stroke="none"
                       strokeW={0}
                       onPress={() => {}}
                     />
                   </SvgG>
                 );
               })}
-              {/* Linia rozkładarki */}
-              {paverY > PAD_TOP && (
-                <SvgLine x1={LEFT_MARGIN - 4} y1={paverY} x2={LEFT_MARGIN + SKETCH_W + 4} y2={paverY} stroke="#E8A020" strokeWidth="2" />
+              {wykonaneMetry > 0 && (
+                <MaszynaObmiaru
+                  x={LEFT_MARGIN + SKETCH_W / 2}
+                  y={paverY}
+                  rotDeg={ROT_UKLADANIA}
+                  szerObszaru={szerokoscObszaruSzkicuPx(figury, wykonaneMetry)}
+                  rodzaj="rozkladarka"
+                />
               )}
-              {/* Rozkładarka */}
-              {paverY > PAD_TOP + 14 && (
-                <PaverTopSVG x={LEFT_MARGIN + SKETCH_W / 2} y={paverY} szer={SKETCH_W - 4} />
-              )}
-              {/* Markery aut */}
               {markery.map((marker, mIdx) => {
                 const markerY = metryDoY(figury, heights, marker.metryKumulatywne);
+                const szerAuta = szerokoscObszaruSzkicuPx(figury, marker.metryKumulatywne);
+                const yAuta = wykonaneMetry > 0 && Math.abs(markerY - paverY) < 8
+                  ? Math.max(PAD_TOP + 4, markerY - 22)
+                  : markerY;
                 return (
-                  <SvgG key={marker.wpis.id}>
-                    <SvgLine x1={LEFT_MARGIN - 6} y1={markerY} x2={LEFT_MARGIN + SKETCH_W} y2={markerY} stroke="rgba(255,255,255,0.5)" strokeWidth="1.2" strokeDasharray="4,3" />
-                    <SvgG onPress={() => onTruckPress?.(marker.wpis, mIdx)}>
-                      <TruckTopSVG x={LEFT_MARGIN / 2} y={markerY} nrAuta={marker.wpis.numerAuta} />
-                    </SvgG>
+                  <SvgG key={marker.wpis.id} onPress={() => onTruckPress?.(marker.wpis, mIdx)}>
+                    <MaszynaObmiaru
+                      x={LEFT_MARGIN + SKETCH_W / 2}
+                      y={yAuta}
+                      rotDeg={ROT_UKLADANIA}
+                      szerObszaru={szerAuta}
+                      rodzaj="auto"
+                      numer={marker.wpis.numerAuta}
+                    />
                   </SvgG>
                 );
               })}

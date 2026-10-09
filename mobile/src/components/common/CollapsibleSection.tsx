@@ -73,5 +73,5 @@ const styles = StyleSheet.create({
   prawo: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   liczba: { fontSize: 13, fontWeight: '600' },
   strzalka: { fontSize: 12, fontWeight: '700' },
-  zawartosc: { gap: 8, paddingLeft: 4 },
+  zawartosc: { gap: 8, paddingLeft: 4, overflow: 'visible' },
 });

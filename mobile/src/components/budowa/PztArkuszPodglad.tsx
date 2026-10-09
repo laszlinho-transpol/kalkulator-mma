@@ -1,0 +1,1207 @@
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Animated, LayoutChangeEvent, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View,
+} from 'react-native';
+import {
+  GestureHandlerRootView,
+  PanGestureHandler,
+  PinchGestureHandler,
+  State,
+} from 'react-native-gesture-handler';
+import Svg, { Circle, G, Image as SvgImage, Line, Polygon, Polyline, Rect, Text as SvgText } from 'react-native-svg';
+import { InfoTooltip } from '../common/InfoTooltip';
+import type { ArkuszPzt, Punkt2D, TloArkuszaPzt } from '../../types';
+import { bboxWielokata } from '../../utils/obmiarGeometry';
+import {
+  czoloObmiaruPdf,
+  dlugoscOsiPdf1500M,
+  dlugoscPolilinii,
+  medianaSzerokosciObszarowPdf,
+  napisZakresuWzdluzOsi,
+  ocenaOdstempuPodzialkiM,
+  osPdfZorientowana,
+  pdfDoSvgPodgladu,
+  pomiarWzdlozOsiPdf,
+  punktNaOsi,
+  rozmiarPodzialkiOsi,
+  stacjaNaOsi,
+  stacjePodzialki,
+  stycznyNaOsi,
+  svgDoPdfPodgladu,
+  pasUkladaniaPdf,
+  szerokoscPoprzecznaPdf,
+  wycinekPolilinii,
+  wycinekWielokataPoOsi,
+} from '../../utils/osPzt';
+import type { WynikPomiaruOsi } from '../../utils/osPzt';
+import {
+  nastepnyPresetZoom,
+  ograniczenie,
+  PRESETY_ZOOM_PROC,
+  SKALA_MAX,
+  SKALA_MIN,
+  skalaZProcentu,
+  translacjaPrzyZoomie,
+  punktSvgZEkranu,
+} from '../../utils/obmiarMapa';
+import { formatujKmM } from '../../utils/projektBudowy';
+import { buforTlaArkusza, listaWgranychPdf, odtworzTlaZIdb, podlaczBuforDoArkusza, przypnijWgranyPdfDoArkusza } from '../../utils/tloPdfPamiec';
+import { PztTloPdfCanvas, type ObrazTlaPdf } from './PztTloPdfCanvas';
+import { FILL_ULOZONE, katWektoraStopni, MaszynaObmiaru, wymiaryMaszyny } from '../sketch/MaszynyObmiaru';
+import type { AppTheme } from '../../constants/theme';
+
+function hostHtml(node: unknown): HTMLElement | null {
+  if (Platform.OS !== 'web' || !node) return null;
+  if (typeof HTMLElement !== 'undefined' && node instanceof HTMLElement) return node;
+  const anyNode = node as { getNode?: () => unknown; _nativeNode?: unknown };
+  const inner = anyNode.getNode?.() ?? anyNode._nativeNode ?? null;
+  if (typeof HTMLElement !== 'undefined' && inner instanceof HTMLElement) return inner;
+  return null;
+}
+
+function hexDoRgba(hex: string | undefined, alpha: number): string {
+  if (!hex || !/^#([0-9A-Fa-f]{6})$/.test(hex)) return `rgba(232,160,32,${alpha})`;
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`;
+}
+
+function srodek(pts: Punkt2D[]): Punkt2D {
+  if (pts.length === 0) return { x: 0, y: 0 };
+  let x = 0;
+  let y = 0;
+  for (const p of pts) {
+    x += p.x;
+    y += p.y;
+  }
+  return { x: x / pts.length, y: y / pts.length };
+}
+
+function idAutaPodPunktem(
+  maszyny: Array<{ id: string; rodzaj: 'rozkladarka' | 'auto'; x: number; y: number; rotDeg: number; szerObszaru: number }>,
+  x: number,
+  y: number,
+): string | null {
+  let best: { id: string; d2: number } | null = null;
+  for (const m of maszyny) {
+    if (m.rodzaj !== 'auto') continue;
+    const { szer, dl } = wymiaryMaszyny(m.szerObszaru, 'auto');
+    const rad = (-m.rotDeg * Math.PI) / 180;
+    const dx = x - m.x;
+    const dy = y - m.y;
+    const lx = dx * Math.cos(rad) - dy * Math.sin(rad);
+    const ly = dx * Math.sin(rad) + dy * Math.cos(rad);
+    if (Math.abs(lx) > dl / 2 || Math.abs(ly) > szer / 2) continue;
+    const d2 = lx * lx + ly * ly;
+    if (!best || d2 < best.d2) best = { id: m.id, d2 };
+  }
+  return best?.id ?? null;
+}
+
+function kmAlboPuste(v: number | null | undefined): string {
+  return v == null ? '—' : formatujKmM(v);
+}
+
+function tekstKmPunktow(w: WynikPomiaruOsi): string {
+  return `A ${kmAlboPuste(w.kmPztA)} · B ${kmAlboPuste(w.kmPztB)}`;
+}
+
+function tekstOsi1500(os1500M: number, xfdfM: number | undefined, dlM: number): string {
+  const a = os1500M.toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const xfdf = (xfdfM && xfdfM > 1 ? xfdfM : dlM).toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return `Oś 1:500 = ${a} m · XFDF = ${xfdf} m.`;
+}
+
+interface LiveAutoPzt {
+  id: string;
+  stacjaM: number;
+  numer: number;
+}
+
+interface Props {
+  arkusz: ArkuszPzt;
+  theme: AppTheme;
+  wysokosc?: number;
+  blokadaPodgladu?: boolean;
+  onBlokadaPodgladu?: (v: boolean) => void;
+  onDotykZmiana?: (aktywny: boolean) => void;
+  onTloZmiana?: (patch: Partial<TloArkuszaPzt>) => void;
+  liveStacjaM?: number;
+  liveAuta?: LiveAutoPzt[];
+  onPressAuto?: (id: string) => void;
+  /** Co ile metrów kreska pikiety na osi (0 = wyłącz). */
+  podzialkaM?: number;
+  /** Start zakresu planu (zielona kreska). */
+  zakresStartM?: number;
+  /** Koniec zakresu planu (czerwona kreska). */
+  zakresKoniecM?: number;
+  /** Stuknięcie w podgląd zwraca punkt PDF (wybór kilometrażu na mapie). */
+  onWskazPdf?: (p: Punkt2D) => void;
+}
+
+export function PztArkuszPodglad({
+  arkusz,
+  theme,
+  wysokosc = 360,
+  blokadaPodgladu = false,
+  onBlokadaPodgladu,
+  onDotykZmiana,
+  onTloZmiana,
+  liveStacjaM,
+  liveAuta,
+  onPressAuto,
+  podzialkaM = 50,
+  zakresStartM,
+  zakresKoniecM,
+  onWskazPdf,
+}: Props) {
+  const [rozmiar, setRozmiar] = useState({ w: 320, h: wysokosc });
+  const [skalaPct, setSkalaPct] = useState(100);
+  const [xform, setXform] = useState({ s: 1, tx: 0, ty: 0 });
+  const [bladTla, setBladTla] = useState<string | null>(null);
+  const [tloObraz, setTloObraz] = useState<ObrazTlaPdf | null>(null);
+  const [zmierz, setZmierz] = useState(false);
+  const [punktyPomiaru, setPunktyPomiaru] = useState<Punkt2D[]>([]);
+  const onObrazTla = useCallback((o: ObrazTlaPdf | null) => setTloObraz(o), []);
+  const onBladTla = useCallback((m: string | null) => setBladTla(m), []);
+  const [tickTla, setTickTla] = useState(0);
+
+  useEffect(() => {
+    const tlo = arkusz.tlo;
+    if (!tlo || tlo.widoczne === false) return undefined;
+    if (buforTlaArkusza(arkusz.id) ?? (tlo.nazwa ? podlaczBuforDoArkusza(arkusz.id, tlo.nazwa) : undefined)) {
+      return undefined;
+    }
+    let zyje = true;
+    void odtworzTlaZIdb().then(() => {
+      if (!zyje) return;
+      if (tlo.nazwa) podlaczBuforDoArkusza(arkusz.id, tlo.nazwa);
+      if (!buforTlaArkusza(arkusz.id)) {
+        const lista = listaWgranychPdf();
+        if (lista.length === 1) przypnijWgranyPdfDoArkusza(arkusz.id, lista[0].nazwa);
+      }
+      setTickTla((n) => n + 1);
+    });
+    return () => { zyje = false; };
+  }, [arkusz.id, arkusz.tlo?.nazwa, arkusz.tlo?.widoczne]);
+  const TAP_MAX = 12;
+
+  const bazaSkali = useRef(1);
+  const bazaX = useRef(0);
+  const bazaY = useRef(0);
+  const pinchStart = useRef({ s: 1, tx: 0, ty: 0, f0x: 0, f0y: 0 });
+  const pinchRef = useRef(null);
+  const panRef = useRef(null);
+  const klipRef = useRef<View>(null);
+  const odpinWheel = useRef<(() => void) | null>(null);
+  const rozmiarRef = useRef({ w: 320, h: wysokosc });
+  rozmiarRef.current = rozmiar;
+  const PAN_CZYNNIK = 0.55;
+
+  const geometria = useMemo(() => {
+    const pts = arkusz.obszary.flatMap((o) => [
+      ...o.wierzcholkiPdf,
+      ...(o.krawedzniki ?? []).flatMap((k) => k.wierzcholkiPdf),
+    ]);
+    if (arkusz.osTrasy?.wierzcholkiPdf?.length) pts.push(...arkusz.osTrasy.wierzcholkiPdf);
+    return bboxWielokata(pts);
+  }, [arkusz]);
+
+  const mapa = useMemo(() => {
+    if (arkusz.obszary.length === 0 || geometria.szer <= 0) return null;
+    const pad = 28;
+    const skalaFit = Math.min(
+      (rozmiar.w - pad * 2) / Math.max(geometria.szer, 0.01),
+      (rozmiar.h - pad * 2) / Math.max(geometria.wys, 0.01),
+    );
+    const cx = (geometria.minX + geometria.maxX) / 2;
+    const cy = (geometria.minY + geometria.maxY) / 2;
+    const toSvg = (p: Punkt2D) => ({
+      x: rozmiar.w / 2 + (p.x - cx) * skalaFit,
+      y: rozmiar.h / 2 - (p.y - cy) * skalaFit,
+    });
+    const obszary = arkusz.obszary.map((o) => {
+      const svgPts = o.wierzcholkiPdf.map(toSvg);
+      const c = srodek(svgPts);
+      return {
+        id: o.id,
+        nazwa: o.nazwa,
+        fill: hexDoRgba(o.kolorWypelnienia, arkusz.tlo?.widoczne === false ? 0.42 : (arkusz.tlo ? 0.12 : 0.42)),
+        stroke: o.kolorWypelnienia || '#E8A020',
+        punkty: svgPts.map((p) => `${p.x},${p.y}`).join(' '),
+        cx: c.x,
+        cy: c.y,
+        krawedzniki: (o.krawedzniki ?? []).map((k) => ({
+          id: k.id,
+          punkty: k.wierzcholkiPdf.map(toSvg).map((p) => `${p.x},${p.y}`).join(' '),
+          kolor: k.kolor || '#FF0000',
+          odOsi: k.polozenie === 'odOsi',
+        })),
+      };
+    });
+    const osPdf = osPdfZorientowana(arkusz);
+    const osPts = osPdf.map(toSvg);
+    const osPunkty = osPts.map((p) => `${p.x},${p.y}`).join(' ');
+    const dlM = Math.max(0.01, arkusz.kilometrazKoncowyM - arkusz.kilometrazPoczatkowyM);
+    const stacjaNaSvg = (stacjaM: number): (Punkt2D & { ux: number; uy: number }) | null => {
+      if (!osPdf || osPdf.length < 2) return null;
+      const sM = stacjaM - arkusz.kilometrazPoczatkowyM;
+      if (sM < -1 || sM > dlM + 1) return null;
+      const sPdf = (sM / dlM) * dlugoscPolilinii(osPdf);
+      const t = stycznyNaOsi(osPdf, sPdf);
+      if (!t) return null;
+      const p = toSvg(t.punkt);
+      const sdx = t.dx * skalaFit;
+      const sdy = -t.dy * skalaFit;
+      const sl = Math.hypot(sdx, sdy) || 1;
+      return { x: p.x, y: p.y, ux: sdx / sl, uy: sdy / sl };
+    };
+    const dlPdf = osPdf && osPdf.length >= 2 ? dlugoscPolilinii(osPdf) : 0;
+    const krok = podzialkaM ?? 0;
+    const szerPdf = medianaSzerokosciObszarowPdf(arkusz.obszary);
+    const kreskaNaStacji = (kmM: number, odM: number, span: number, skalaKreski: number) => {
+      if (!osPdf || osPdf.length < 2) return null;
+      const sPdf = ((kmM - odM) / span) * dlPdf;
+      const t = stycznyNaOsi(osPdf, sPdf);
+      if (!t) return null;
+      const lokalna = szerokoscPoprzecznaPdf(arkusz.obszary, osPdf, sPdf);
+      const podz = rozmiarPodzialkiOsi(lokalna > 2 ? lokalna : szerPdf);
+      const plen = Math.hypot(t.dx, t.dy) || 1;
+      const nx = -t.dy / plen;
+      const ny = t.dx / plen;
+      const half = podz.halfPdf * skalaKreski;
+      const p1 = toSvg({ x: t.punkt.x + nx * half, y: t.punkt.y + ny * half });
+      const p2 = toSvg({ x: t.punkt.x - nx * half, y: t.punkt.y - ny * half });
+      const mid = toSvg(t.punkt);
+      let tp = toSvg({
+        x: t.punkt.x + nx * podz.odstepTekstuPdf * skalaKreski,
+        y: t.punkt.y + ny * podz.odstepTekstuPdf * skalaKreski,
+      });
+      if (tp.y > mid.y) {
+        tp = toSvg({
+          x: t.punkt.x - nx * podz.odstepTekstuPdf * skalaKreski,
+          y: t.punkt.y - ny * podz.odstepTekstuPdf * skalaKreski,
+        });
+      }
+      const sdx = t.dx * skalaFit;
+      const sdy = -t.dy * skalaFit;
+      const sl = Math.hypot(sdx, sdy) || 1;
+      return {
+        kmM,
+        etykieta: formatujKmM(kmM),
+        x1: p1.x,
+        y1: p1.y,
+        x2: p2.x,
+        y2: p2.y,
+        tx: tp.x,
+        ty: tp.y,
+        mx: mid.x,
+        my: mid.y,
+        ux: sdx / sl,
+        uy: sdy / sl,
+        fontSvg: podz.fontPdf * skalaFit * (skalaKreski < 1 ? 0.92 : 1),
+        rMarkerSvg: Math.max(2.2, Math.min(4.5, podz.halfPdf * skalaFit * 0.28)),
+      };
+    };
+    const kreski = (odM: number, doM: number, skalaKreski: number) => {
+      if (krok < 1 || !osPdf || osPdf.length < 2) return [];
+      const span = Math.max(0.01, doM - odM);
+      return stacjePodzialki(odM, doM, krok)
+        .map((kmM) => kreskaNaStacji(kmM, odM, span, skalaKreski))
+        .filter((x): x is NonNullable<typeof x> => !!x);
+    };
+    const odKm = arkusz.kilometrazPoczatkowyM;
+    const doKm = arkusz.kilometrazKoncowyM;
+    const spanKm = Math.max(0.01, doKm - odKm);
+    const podzialki = kreski(odKm, doKm, 1);
+    const naArkuszu = (km?: number) => km != null && km >= odKm - 0.6 && km <= doKm + 0.6;
+    const zakresKreski: Array<NonNullable<ReturnType<typeof kreskaNaStacji>> & { kolor: string; rola: 'start' | 'koniec' }> = [];
+    const zCzolem = (k: NonNullable<ReturnType<typeof kreskaNaStacji>>, kmM: number) => {
+      if (!osPdf || osPdf.length < 2) return k;
+      const sPdf = ((kmM - odKm) / spanKm) * dlPdf;
+      const cz = czoloObmiaruPdf(arkusz.obszary, osPdf, sPdf);
+      if (!cz) return k;
+      const a = toSvg(cz.a);
+      const b = toSvg(cz.b);
+      const s = toSvg(cz.srodek);
+      return { ...k, x1: a.x, y1: a.y, x2: b.x, y2: b.y, mx: s.x, my: s.y };
+    };
+    const kStart = naArkuszu(zakresStartM) ? kreskaNaStacji(zakresStartM!, odKm, spanKm, 1.05) : null;
+    const kKoniec = naArkuszu(zakresKoniecM) ? kreskaNaStacji(zakresKoniecM!, odKm, spanKm, 1.05) : null;
+    if (kStart) zakresKreski.push({ ...zCzolem(kStart, zakresStartM!), kolor: '#16A34A', rola: 'start' });
+    if (kKoniec) zakresKreski.push({ ...zCzolem(kKoniec, zakresKoniecM!), kolor: '#DC2626', rola: 'koniec' });
+    const kmRosnie = zakresStartM == null || zakresKoniecM == null || zakresKoniecM >= zakresStartM;
+    const maszynaNaStacji = (stacjaM: number) => {
+      if (!osPdf || osPdf.length < 2 || dlPdf <= 0) return null;
+      const margines = 12;
+      if (stacjaM < odKm - margines || stacjaM > doKm + margines) return null;
+      const stacja = Math.max(odKm, Math.min(doKm, stacjaM));
+      const p = stacjaNaSvg(stacja);
+      if (!p) return null;
+      const sPdf = ((stacja - odKm) / spanKm) * dlPdf;
+      const pas = pasUkladaniaPdf(arkusz.obszary, osPdf, sPdf);
+      let x = p.x;
+      let y = p.y;
+      let szerObszaru = Math.max(szerPdf, 0.5) * skalaFit;
+      if (pas && pas.szer > 0.4) {
+        const s = toSvg(pas.srodek);
+        x = s.x;
+        y = s.y;
+        szerObszaru = pas.szer * skalaFit;
+      }
+      const znak = kmRosnie ? 1 : -1;
+      return { x, y, rotDeg: katWektoraStopni(p.ux * znak, p.uy * znak), szerObszaru };
+    };
+    const maszyny: Array<{
+      id: string;
+      rodzaj: 'rozkladarka' | 'auto';
+      x: number;
+      y: number;
+      rotDeg: number;
+      szerObszaru: number;
+      numer?: number;
+    }> = [];
+    for (const a of liveAuta ?? []) {
+      const m = maszynaNaStacji(a.stacjaM);
+      if (m) maszyny.push({ id: a.id, rodzaj: 'auto', numer: a.numer, ...m });
+    }
+    if (liveStacjaM != null) {
+      const m = maszynaNaStacji(liveStacjaM);
+      if (m) maszyny.push({ id: 'rozkladarka', rodzaj: 'rozkladarka', ...m });
+    }
+    const rozkladarka = maszyny.find((m) => m.rodzaj === 'rozkladarka');
+    if (rozkladarka) {
+      for (const auto of maszyny) {
+        if (auto.rodzaj !== 'auto') continue;
+        if (Math.hypot(auto.x - rozkladarka.x, auto.y - rozkladarka.y) > auto.szerObszaru * 0.45) continue;
+        const rad = (auto.rotDeg * Math.PI) / 180;
+        const cofnij = (wymiaryMaszyny(rozkladarka.szerObszaru, 'rozkladarka').dl + wymiaryMaszyny(auto.szerObszaru, 'auto').dl) * 0.55;
+        auto.x -= Math.cos(rad) * cofnij;
+        auto.y -= Math.sin(rad) * cofnij;
+      }
+    }
+    const ulozone: string[] = [];
+    if (liveStacjaM != null && zakresStartM != null && osPdf && osPdf.length >= 2 && dlPdf > 0) {
+      const clampS = (km: number) => {
+        const s = ((km - odKm) / spanKm) * dlPdf;
+        return Math.max(0, Math.min(dlPdf, s));
+      };
+      const sA = clampS(zakresStartM);
+      const sB = clampS(liveStacjaM);
+      if (Math.abs(sB - sA) > 0.4) {
+        for (const o of arkusz.obszary) {
+          const clip = wycinekWielokataPoOsi(o.wierzcholkiPdf, osPdf, sA, sB);
+          if (clip.length < 3) continue;
+          ulozone.push(clip.map((pt) => {
+            const s = toSvg(pt);
+            return `${s.x},${s.y}`;
+          }).join(' '));
+        }
+      }
+    }
+    const mapaSvg = { w: rozmiar.w, h: rozmiar.h, cx, cy, skalaFit };
+    const os1500M = osPdf && osPdf.length >= 2 ? dlugoscOsiPdf1500M(osPdf) : 0;
+    const xfdfM = arkusz.osTrasy?.dlugoscEtykietaM;
+    return {
+      obszary,
+      skalaFit,
+      cx,
+      cy,
+      osPdf,
+      osPunkty,
+      mapaSvg,
+      os1500M,
+      xfdfM,
+      dlM,
+      maszyny,
+      ulozone,
+      podzialki,
+      zakresKreski,
+      rMarkerSvg: podzialki[0]?.rMarkerSvg ?? Math.max(2.2, Math.min(4.5, 3.2 * skalaFit)),
+    };
+  }, [arkusz, geometria, rozmiar.w, rozmiar.h, liveStacjaM, liveAuta, podzialkaM, zakresStartM, zakresKoniecM]);
+
+  const mapaRef = useRef(mapa);
+  mapaRef.current = mapa;
+  const zmierzRef = useRef(zmierz);
+  zmierzRef.current = zmierz;
+  const wskazRef = useRef(onWskazPdf);
+  wskazRef.current = onWskazPdf;
+  const onPressAutoRef = useRef(onPressAuto);
+  onPressAutoRef.current = onPressAuto;
+  const lastTapMs = useRef(0);
+
+  const pdfZEkranu = (ekranX: number, ekranY: number): Punkt2D | null => {
+    const m = mapaRef.current;
+    if (!m?.mapaSvg) return null;
+    const svg = punktSvgZEkranu({
+      ekranX,
+      ekranY,
+      szer: rozmiarRef.current.w,
+      wys: rozmiarRef.current.h,
+      tx: bazaX.current,
+      ty: bazaY.current,
+      rot: 0,
+      skala: bazaSkali.current,
+    });
+    return svgDoPdfPodgladu(svg, m.mapaSvg);
+  };
+
+  const obsluzTapMapy = (ekranX: number, ekranY: number) => {
+    if (zmierzRef.current) {
+      dodajPunktPomiaru(ekranX, ekranY);
+      return;
+    }
+    const m = mapaRef.current;
+    if (m?.maszyny && onPressAutoRef.current) {
+      const svg = punktSvgZEkranu({
+        ekranX,
+        ekranY,
+        szer: rozmiarRef.current.w,
+        wys: rozmiarRef.current.h,
+        tx: bazaX.current,
+        ty: bazaY.current,
+        rot: 0,
+        skala: bazaSkali.current,
+      });
+      const id = idAutaPodPunktem(m.maszyny, svg.x, svg.y);
+      if (id) {
+        onPressAutoRef.current(id);
+        return;
+      }
+    }
+    wskazNaMapie(ekranX, ekranY);
+  };
+
+  const dodajPunktPomiaru = (ekranX: number, ekranY: number) => {
+    const m = mapaRef.current;
+    if (!zmierzRef.current || !m?.osPdf || m.osPdf.length < 2) return;
+    const now = Date.now();
+    if (now - lastTapMs.current < 280) return;
+    lastTapMs.current = now;
+    const pdf = pdfZEkranu(ekranX, ekranY);
+    if (pdf) setPunktyPomiaru((prev) => (prev.length >= 2 ? [pdf] : [...prev, pdf]));
+  };
+
+  const wskazNaMapie = (ekranX: number, ekranY: number) => {
+    const cb = wskazRef.current;
+    if (!cb || zmierzRef.current) return;
+    const now = Date.now();
+    if (now - lastTapMs.current < 280) return;
+    lastTapMs.current = now;
+    const pdf = pdfZEkranu(ekranX, ekranY);
+    if (pdf) cb(pdf);
+  };
+
+  const wynikPomiaru = useMemo(() => {
+    if (!mapa?.osPdf || punktyPomiaru.length < 2) return null;
+    return pomiarWzdlozOsiPdf({
+      osPdf: mapa.osPdf,
+      a: punktyPomiaru[0],
+      b: punktyPomiaru[1],
+      kmPzt: { odM: arkusz.kilometrazPoczatkowyM, doM: arkusz.kilometrazKoncowyM },
+      kmXfdf: { odM: arkusz.kilometrazPoczatkowyM, doM: arkusz.kilometrazKoncowyM },
+    });
+  }, [mapa, punktyPomiaru, arkusz.kilometrazPoczatkowyM, arkusz.kilometrazKoncowyM]);
+
+  const rysunekPomiaru = useMemo(() => {
+    if (!mapa?.osPdf || punktyPomiaru.length === 0) return null;
+    const toSvg = (p: Punkt2D) => pdfDoSvgPodgladu(p, mapa.mapaSvg);
+    const markery = punktyPomiaru.map((p, i) => {
+      const naOsi = i === 0 && wynikPomiaru
+        ? wynikPomiaru.punktA
+        : (i === 1 && wynikPomiaru
+          ? wynikPomiaru.punktB
+          : (punktNaOsi(mapa.osPdf, stacjaNaOsi(mapa.osPdf, p)) ?? p));
+      return { i, ...toSvg(naOsi) };
+    });
+    const odcinek = wynikPomiaru
+      ? wycinekPolilinii(
+        mapa.osPdf,
+        Math.min(wynikPomiaru.stacjaAPdf, wynikPomiaru.stacjaBPdf),
+        Math.max(wynikPomiaru.stacjaAPdf, wynikPomiaru.stacjaBPdf),
+      ).map(toSvg)
+      : [];
+    return { markery, odcinek };
+  }, [mapa, punktyPomiaru, wynikPomiaru]);
+
+  const clampTrans = (x: number, y: number, s = bazaSkali.current) => {
+    const { w, h } = rozmiarRef.current;
+    const max = Math.max(w, h) * Math.max(s, 1) * 3;
+    return { x: ograniczenie(x, -max, max), y: ograniczenie(y, -max, max) };
+  };
+
+  const ustawWidok = (s: number, tx: number, ty: number) => {
+    setXform({ s, tx, ty });
+    setSkalaPct(Math.round(s * 100));
+  };
+
+  const ustawSkaleWokolPunktu = (s1raw: number, f0x: number, f0y: number) => {
+    const s0 = bazaSkali.current;
+    const s1 = ograniczenie(s1raw, SKALA_MIN, SKALA_MAX);
+    const t0 = translacjaPrzyZoomie({
+      skala0: s0,
+      skala1: s1,
+      tx0: bazaX.current,
+      ty0: bazaY.current,
+      f0x,
+      f0y,
+      f1x: f0x,
+      f1y: f0y,
+    });
+    const t = clampTrans(t0.tx, t0.ty, s1);
+    bazaSkali.current = s1;
+    bazaX.current = t.x;
+    bazaY.current = t.y;
+    ustawWidok(s1, t.x, t.y);
+  };
+
+  const ustawSkaleWokolSrodka = (s1raw: number) => ustawSkaleWokolPunktu(s1raw, 0, 0);
+  const zoomFnRef = useRef(ustawSkaleWokolPunktu);
+  zoomFnRef.current = ustawSkaleWokolPunktu;
+
+  const resetWidoku = () => {
+    bazaSkali.current = 1;
+    bazaX.current = 0;
+    bazaY.current = 0;
+    ustawWidok(1, 0, 0);
+    onDotykZmiana?.(false);
+  };
+
+  useEffect(() => {
+    resetWidoku();
+    setTloObraz(null);
+    setBladTla(null);
+    setPunktyPomiaru([]);
+    setZmierz(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [arkusz.id]);
+
+  const podlaczWheel = useCallback((node: View | null) => {
+    klipRef.current = node;
+    odpinWheel.current?.();
+    odpinWheel.current = null;
+    const el = hostHtml(node);
+    if (!el || typeof el.addEventListener !== 'function') return;
+    const handler = (e: WheelEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const rect = el.getBoundingClientRect();
+      const { w, h } = rozmiarRef.current;
+      const f0x = e.clientX - rect.left - w / 2;
+      const f0y = e.clientY - rect.top - h / 2;
+      const dir: -1 | 1 = e.deltaY > 0 ? -1 : 1;
+      zoomFnRef.current(nastepnyPresetZoom(bazaSkali.current, dir), f0x, f0y);
+    };
+    el.addEventListener('wheel', handler, { passive: false });
+    const onClick = (e: MouseEvent) => {
+      if (!zmierzRef.current) return;
+      const rect = el.getBoundingClientRect();
+      dodajPunktPomiaru(e.clientX - rect.left, e.clientY - rect.top);
+    };
+    el.addEventListener('click', onClick);
+    odpinWheel.current = () => {
+      el.removeEventListener('wheel', handler);
+      el.removeEventListener('click', onClick);
+    };
+  }, []);
+  useEffect(() => () => odpinWheel.current?.(), []);
+
+  const onLayout = (e: LayoutChangeEvent) => {
+    const w = Math.round(e.nativeEvent.layout.width);
+    const h = Math.round(e.nativeEvent.layout.height);
+    if (w <= 0 || h <= 0) return;
+    const cur = rozmiarRef.current;
+    if (w === cur.w && h === cur.h) return;
+    setRozmiar({ w, h });
+  };
+
+  const ognisko = (e: { focalX?: number; focalY?: number; x?: number; y?: number }) => ({
+    x: (e.focalX ?? e.x ?? rozmiar.w / 2) - rozmiar.w / 2,
+    y: (e.focalY ?? e.y ?? rozmiar.h / 2) - rozmiar.h / 2,
+  });
+
+  const onPinch = (e: any) => {
+    const ev = e.nativeEvent;
+    const s1 = ograniczenie(pinchStart.current.s * ev.scale, SKALA_MIN, SKALA_MAX);
+    const f1 = ognisko(ev);
+    const t0 = translacjaPrzyZoomie({
+      skala0: pinchStart.current.s,
+      skala1: s1,
+      tx0: pinchStart.current.tx,
+      ty0: pinchStart.current.ty,
+      f0x: pinchStart.current.f0x,
+      f0y: pinchStart.current.f0y,
+      f1x: f1.x,
+      f1y: f1.y,
+    });
+    const t = clampTrans(t0.tx, t0.ty, s1);
+    ustawWidok(s1, t.x, t.y);
+  };
+
+  const onPinchState = (e: any) => {
+    const st = e.nativeEvent.state;
+    if (st === State.ACTIVE) onDotykZmiana?.(true);
+    if (st === State.BEGAN) {
+      const f = ognisko(e.nativeEvent);
+      pinchStart.current = {
+        s: bazaSkali.current,
+        tx: bazaX.current,
+        ty: bazaY.current,
+        f0x: f.x,
+        f0y: f.y,
+      };
+    }
+    if (e.nativeEvent.oldState === State.ACTIVE) {
+      bazaSkali.current = ograniczenie(
+        pinchStart.current.s * e.nativeEvent.scale,
+        SKALA_MIN,
+        SKALA_MAX,
+      );
+      const f1 = ognisko(e.nativeEvent);
+      const t0 = translacjaPrzyZoomie({
+        skala0: pinchStart.current.s,
+        skala1: bazaSkali.current,
+        tx0: pinchStart.current.tx,
+        ty0: pinchStart.current.ty,
+        f0x: pinchStart.current.f0x,
+        f0y: pinchStart.current.f0y,
+        f1x: f1.x,
+        f1y: f1.y,
+      });
+      const t = clampTrans(t0.tx, t0.ty, bazaSkali.current);
+      bazaX.current = t.x;
+      bazaY.current = t.y;
+      ustawWidok(bazaSkali.current, t.x, t.y);
+      onDotykZmiana?.(false);
+    }
+    if (st === State.FAILED || st === State.CANCELLED || st === State.END) onDotykZmiana?.(false);
+  };
+
+  const onPan = (e: any) => {
+    if (e.nativeEvent.numberOfPointers > 1) return;
+    const t = clampTrans(
+      bazaX.current + e.nativeEvent.translationX * PAN_CZYNNIK,
+      bazaY.current + e.nativeEvent.translationY * PAN_CZYNNIK,
+    );
+    ustawWidok(bazaSkali.current, t.x, t.y);
+  };
+
+  const onPanState = (e: any) => {
+    const st = e.nativeEvent.state;
+    const dx = e.nativeEvent.translationX ?? 0;
+    const dy = e.nativeEvent.translationY ?? 0;
+    const tap = Math.hypot(dx, dy) < TAP_MAX;
+    if (st === State.ACTIVE) onDotykZmiana?.(true);
+    if (e.nativeEvent.oldState !== State.ACTIVE) {
+      if (st === State.FAILED || st === State.CANCELLED || st === State.END) {
+        if (tap) {
+          const x = e.nativeEvent.x as number | undefined;
+          const y = e.nativeEvent.y as number | undefined;
+          if (x != null && y != null) obsluzTapMapy(x, y);
+        }
+        onDotykZmiana?.(false);
+      }
+      return;
+    }
+    if (tap) {
+      const x = e.nativeEvent.x as number | undefined;
+      const y = e.nativeEvent.y as number | undefined;
+      if (x != null && y != null) obsluzTapMapy(x, y);
+      if (zmierzRef.current || wskazRef.current) {
+        onDotykZmiana?.(false);
+        return;
+      }
+    }
+    if (e.nativeEvent.numberOfPointers > 1) {
+      onDotykZmiana?.(false);
+      return;
+    }
+    const t = clampTrans(
+      bazaX.current + e.nativeEvent.translationX * PAN_CZYNNIK,
+      bazaY.current + e.nativeEvent.translationY * PAN_CZYNNIK,
+    );
+    bazaX.current = t.x;
+    bazaY.current = t.y;
+    ustawWidok(bazaSkali.current, t.x, t.y);
+    onDotykZmiana?.(false);
+  };
+
+  if (arkusz.obszary.length === 0 || !mapa) {
+    return (
+      <View style={[styl.ramka, { height: wysokosc, borderColor: theme.colors.border }]}>
+        <Text style={styl.pusto}>Brak obszarów na arkuszu</Text>
+      </View>
+    );
+  }
+
+  const panOffset = blokadaPodgladu ? 2 : 14;
+  const gXform = `translate(${rozmiar.w / 2 + xform.tx},${rozmiar.h / 2 + xform.ty}) scale(${xform.s}) translate(${-rozmiar.w / 2},${-rozmiar.h / 2})`;
+  const swEkran = 1.25;
+  const dash = 5 / Math.max(xform.s, 0.12);
+  const rZnak = (mapa?.rMarkerSvg ?? 3.2) / Math.max(xform.s, 0.35);
+  const tloMeta = arkusz.tlo;
+  const tloWidoczne = !!(tloMeta && tloMeta.widoczne !== false);
+  const buforTla = tloMeta && tickTla >= 0
+    ? (buforTlaArkusza(arkusz.id) ?? podlaczBuforDoArkusza(arkusz.id, tloMeta.nazwa) ?? null)
+    : null;
+
+  return (
+    <View>
+      <View
+        style={[styl.ramka, { height: wysokosc }, blokadaPodgladu && styl.ramkaBlokada]}
+        collapsable={false}
+      >
+        <Text style={styl.etykieta} pointerEvents="none">
+          {formatujKmM(arkusz.kilometrazPoczatkowyM)} → {formatujKmM(arkusz.kilometrazKoncowyM)}
+        </Text>
+        <TouchableOpacity style={styl.celownik} onPress={resetWidoku} accessibilityLabel="Przywróć obszar">
+          <Text style={styl.celownikTekst}>⌖</Text>
+        </TouchableOpacity>
+
+        <View style={styl.blokadaKol}>
+          <TouchableOpacity
+            style={styl.blokada}
+            onPress={() => onBlokadaPodgladu?.(!blokadaPodgladu)}
+            accessibilityLabel="Blokada podglądu"
+          >
+            <View style={[styl.check, blokadaPodgladu && styl.checkOn]}>
+              {blokadaPodgladu ? <Text style={styl.checkTekst}>✓</Text> : null}
+            </View>
+            <Text style={styl.blokadaTekst}>Ramka</Text>
+          </TouchableOpacity>
+          {tloMeta ? (
+            <>
+              <TouchableOpacity
+                style={styl.blokada}
+                onPress={() => onTloZmiana?.({ widoczne: !tloWidoczne })}
+                accessibilityLabel="Tło PDF"
+              >
+                <View style={[styl.check, tloWidoczne && styl.checkOn]}>
+                  {tloWidoczne ? <Text style={styl.checkTekst}>✓</Text> : null}
+                </View>
+                <Text style={styl.blokadaTekst}>Tło</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styl.blokada}
+                onPress={() => onTloZmiana?.({ odwrocY: !tloMeta.odwrocY })}
+                accessibilityLabel="Odwróć oś Y tła PDF"
+              >
+                <View style={[styl.check, tloMeta.odwrocY && styl.checkOn]}>
+                  {tloMeta.odwrocY ? <Text style={styl.checkTekst}>✓</Text> : null}
+                </View>
+                <Text style={styl.blokadaTekst}>Y↕</Text>
+              </TouchableOpacity>
+            </>
+          ) : null}
+          <TouchableOpacity
+            style={styl.blokada}
+            onPress={() => {
+              setZmierz((v) => {
+                const next = !v;
+                if (next) onBlokadaPodgladu?.(true);
+                else setPunktyPomiaru([]);
+                return next;
+              });
+            }}
+            accessibilityLabel="Zmierz oś 1:500"
+          >
+            <View style={[styl.check, zmierz && styl.checkOn]}>
+              {zmierz ? <Text style={styl.checkTekst}>✓</Text> : null}
+            </View>
+            <Text style={styl.blokadaTekst}>Zmierz</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styl.lupka}>
+          <TouchableOpacity style={styl.lupkaBtn} onPress={() => ustawSkaleWokolSrodka(nastepnyPresetZoom(bazaSkali.current, -1))}>
+            <Text style={styl.lupkaZnak}>−</Text>
+          </TouchableOpacity>
+          <Text style={styl.lupkaPct}>{skalaPct}%</Text>
+          <TouchableOpacity style={styl.lupkaBtn} onPress={() => ustawSkaleWokolSrodka(nastepnyPresetZoom(bazaSkali.current, 1))}>
+            <Text style={styl.lupkaZnak}>+</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View
+          ref={podlaczWheel}
+          style={[styl.klip, Platform.OS === 'web' ? ({ touchAction: 'none' } as object) : null]}
+          collapsable={false}
+          onLayout={onLayout}
+        >
+          {tloWidoczne && buforTla ? (
+            <PztTloPdfCanvas
+              bufor={buforTla}
+              widoczne={tloWidoczne}
+              cx={mapa.cx}
+              cy={mapa.cy}
+              skalaFit={mapa.skalaFit}
+              szer={rozmiar.w}
+              wys={rozmiar.h}
+              skala={xform.s}
+              tx={xform.tx}
+              ty={xform.ty}
+              onObraz={onObrazTla}
+              onBlad={onBladTla}
+            />
+          ) : null}
+          <GestureHandlerRootView style={[StyleSheet.absoluteFill, { zIndex: 1, backgroundColor: 'transparent' }]}>
+            <PinchGestureHandler
+              ref={pinchRef}
+              simultaneousHandlers={[panRef]}
+              onGestureEvent={onPinch}
+              onHandlerStateChange={onPinchState}
+            >
+              <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: 'transparent' }]} collapsable={false}>
+                <PanGestureHandler
+                  ref={panRef}
+                  simultaneousHandlers={[pinchRef]}
+                  minPointers={1}
+                  maxPointers={2}
+                  avgTouches
+                  activeOffsetX={[-panOffset, panOffset]}
+                  activeOffsetY={[-panOffset, panOffset]}
+                  onGestureEvent={onPan}
+                  onHandlerStateChange={onPanState}
+                >
+                  <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: 'transparent' }]} collapsable={false}>
+                    <Svg
+                      width={rozmiar.w}
+                      height={rozmiar.h}
+                      style={{ backgroundColor: 'transparent' }}
+                      onPress={(e) => {
+                        const ne = e.nativeEvent as { locationX?: number; x?: number; locationY?: number; y?: number };
+                        const x = ne.locationX ?? ne.x;
+                        const y = ne.locationY ?? ne.y;
+                        if (x != null && y != null) obsluzTapMapy(x, y);
+                      }}
+                    >
+                      <Rect
+                        x={0}
+                        y={0}
+                        width={rozmiar.w}
+                        height={rozmiar.h}
+                        fill={tloWidoczne && buforTla ? '#FFFFFF' : (theme.dark ? '#111827' : '#F8FAFC')}
+                      />
+                      <G transform={gXform}>
+                        {tloWidoczne && tloObraz ? (
+                          <G
+                            transform={tloMeta?.odwrocY
+                              ? `translate(${tloObraz.x}, ${tloObraz.y + tloObraz.height}) scale(1,-1)`
+                              : undefined}
+                          >
+                            <SvgImage
+                              href={{ uri: tloObraz.uri }}
+                              x={tloMeta?.odwrocY ? 0 : tloObraz.x}
+                              y={tloMeta?.odwrocY ? 0 : tloObraz.y}
+                              width={tloObraz.width}
+                              height={tloObraz.height}
+                              opacity={tloMeta?.opacity ?? 1}
+                              preserveAspectRatio="none"
+                            />
+                          </G>
+                        ) : null}
+                        {mapa.obszary.map((o) => (
+                          <Polygon
+                            key={o.id}
+                            points={o.punkty}
+                            fill={o.fill}
+                            stroke={o.stroke}
+                            strokeWidth={swEkran}
+                            strokeLinejoin="round"
+                            vectorEffect="non-scaling-stroke"
+                          />
+                        ))}
+                        {mapa.ulozone.map((pts, i) => (
+                          <Polygon key={`ulo-${i}`} points={pts} fill={FILL_ULOZONE} />
+                        ))}
+                        {mapa.obszary.flatMap((o) =>
+                          o.krawedzniki.map((k) => (
+                            <Polyline
+                              key={k.id}
+                              points={k.punkty}
+                              fill="none"
+                              stroke={k.kolor}
+                              strokeWidth={swEkran * (k.odOsi ? 1.35 : 1.1)}
+                              strokeDasharray={k.odOsi ? `${dash} ${dash * 0.6}` : undefined}
+                              strokeLinejoin="round"
+                              strokeLinecap="round"
+                              vectorEffect="non-scaling-stroke"
+                            />
+                          )),
+                        )}
+                        {mapa.osPunkty ? (
+                          <Polyline
+                            points={mapa.osPunkty}
+                            fill="none"
+                            stroke="#111827"
+                            strokeWidth={swEkran * 1.4}
+                            strokeDasharray={`${dash * 1.6} ${dash * 0.8} ${dash * 0.7} ${dash * 0.8}`}
+                            strokeLinejoin="round"
+                            strokeLinecap="round"
+                            vectorEffect="non-scaling-stroke"
+                          />
+                        ) : null}
+                        {mapa.podzialki.map((t) => (
+                          <G key={`pk-${t.kmM}`}>
+                            <Line
+                              x1={t.x1}
+                              y1={t.y1}
+                              x2={t.x2}
+                              y2={t.y2}
+                              stroke="#374151"
+                              strokeWidth={swEkran * 0.75}
+                              strokeLinecap="butt"
+                              vectorEffect="non-scaling-stroke"
+                            />
+                            <SvgText
+                              x={t.tx}
+                              y={t.ty}
+                              fontSize={t.fontSvg}
+                              fontWeight="600"
+                              fill="#374151"
+                              textAnchor="middle"
+                              alignmentBaseline="middle"
+                            >
+                              {t.etykieta}
+                            </SvgText>
+                          </G>
+                        ))}
+                        {mapa.zakresKreski.map((t) => {
+                          const napis = t.rola === 'start' ? 'START' : 'KONIEC';
+                          const font = 13 / Math.max(xform.s, 0.08);
+                          const polozenie = napisZakresuWzdluzOsi({
+                            mx: t.mx,
+                            my: t.my,
+                            ux: t.ux,
+                            uy: t.uy,
+                            rola: t.rola,
+                            kilometrazMaleje: (zakresStartM ?? 0) > (zakresKoniecM ?? 0),
+                            font,
+                          });
+                          return (
+                            <G key={`zk-${t.rola}-${t.kmM}`}>
+                              <Line
+                                x1={t.x1}
+                                y1={t.y1}
+                                x2={t.x2}
+                                y2={t.y2}
+                                stroke={t.kolor}
+                                strokeWidth={swEkran * 1.55}
+                                strokeLinecap="butt"
+                                vectorEffect="non-scaling-stroke"
+                              />
+                              <G transform={`rotate(${polozenie.rot} ${polozenie.x} ${polozenie.y})`}>
+                                <SvgText
+                                  x={polozenie.x}
+                                  y={polozenie.y}
+                                  fontSize={font}
+                                  fontWeight="700"
+                                  fill={t.kolor}
+                                  textAnchor="middle"
+                                  alignmentBaseline="middle"
+                                >
+                                  {napis}
+                                </SvgText>
+                              </G>
+                            </G>
+                          );
+                        })}
+                        {mapa.maszyny.map((m) => (
+                          <G key={m.id} onPress={m.rodzaj === 'auto' ? () => onPressAuto?.(m.id) : undefined}>
+                            <MaszynaObmiaru
+                              x={m.x}
+                              y={m.y}
+                              rotDeg={m.rotDeg}
+                              szerObszaru={m.szerObszaru}
+                              rodzaj={m.rodzaj}
+                              numer={m.numer}
+                            />
+                          </G>
+                        ))}
+                        {rysunekPomiaru?.odcinek && rysunekPomiaru.odcinek.length >= 2 ? (
+                          <Polyline
+                            points={rysunekPomiaru.odcinek.map((p) => `${p.x},${p.y}`).join(' ')}
+                            fill="none"
+                            stroke="#2563EB"
+                            strokeWidth={swEkran * 2.1}
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            vectorEffect="non-scaling-stroke"
+                          />
+                        ) : null}
+                        {rysunekPomiaru?.markery.map((mk) => (
+                          <G key={`pom-${mk.i}`}>
+                            <Circle
+                              cx={mk.x}
+                              cy={mk.y}
+                              r={rZnak}
+                              fill="#2563EB"
+                              stroke="#fff"
+                              strokeWidth={1.2}
+                            />
+                            <SvgText
+                              x={mk.x}
+                              y={mk.y + rZnak * 0.35}
+                              fontSize={Math.max(6, rZnak * 1.15)}
+                              fontWeight="800"
+                              fill="#fff"
+                              textAnchor="middle"
+                            >
+                              {mk.i === 0 ? 'A' : 'B'}
+                            </SvgText>
+                          </G>
+                        ))}
+                      </G>
+                    </Svg>
+                  </Animated.View>
+                </PanGestureHandler>
+              </Animated.View>
+            </PinchGestureHandler>
+          </GestureHandlerRootView>
+        </View>
+      </View>
+
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styl.presety}
+        nestedScrollEnabled
+      >
+        {PRESETY_ZOOM_PROC.map((p) => {
+          const aktywny = Math.abs(skalaPct - p) < 1;
+          return (
+            <TouchableOpacity
+              key={p}
+              style={[styl.preset, aktywny && styl.presetOn]}
+              onPress={() => ustawSkaleWokolSrodka(skalaZProcentu(p))}
+            >
+              <Text style={[styl.presetTekst, aktywny && styl.presetTekstOn]}>{p}%</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 4 }}>
+        <View style={{ flex: 1 }}>
+          {mapa.os1500M > 1 ? (
+            <Text style={styl.hintPod}>{tekstOsi1500(mapa.os1500M, mapa.xfdfM, mapa.dlM)}</Text>
+          ) : null}
+          {wynikPomiaru ? (
+            <Text style={[styl.hintPod, { color: '#1E3A8A' }]}>
+              {`${tekstKmPunktow(wynikPomiaru)}. ${ocenaOdstempuPodzialkiM(wynikPomiaru.metry1500).tekst}`}
+            </Text>
+          ) : null}
+          {tloMeta && !buforTla ? (
+            <Text style={styl.hintPod}>Odtwarzanie tła z pamięci przeglądarki…</Text>
+          ) : null}
+          {onWskazPdf ? (
+            <Text style={[styl.hintPod, { color: '#166534', fontWeight: '700' }]}>Wskaż punkt na mapie</Text>
+          ) : null}
+          {zmierz && punktyPomiaru.length === 1 ? (
+            <Text style={[styl.hintPod, { color: '#1D4ED8', fontWeight: '700' }]}>Wybierz drugą pikietę</Text>
+          ) : null}
+        </View>
+        <InfoTooltip tresc="Ramka blokuje przewijanie strony: jeden palec albo mysz przesuwa rysunek, dwa palce, kółko albo lupka przybliżają. Żeby widać było pikiety, pobocza i budynki, wgraj oryginalny PDF arkusza. Zmierz: zaznacz Ramkę, przybliż pikietę i stuknij oś dwa razy — wynik jest w metrach skali 1:500, trzecie stuknięcie zaczyna nowy odcinek. W trybie zaznaczenia na mapie stuknięcie łączy obie krawędzie wybranego obszaru i wpisuje kilometraż." />
+      </View>
+    </View>
+  );
+}
+
+const styl = StyleSheet.create({
+  ramka: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  ramkaBlokada: { borderColor: '#E8A020' },
+  klip: {
+    ...StyleSheet.absoluteFill,
+    overflow: 'hidden',
+    backgroundColor: '#F8FAFC',
+  },
+  pusto: { textAlign: 'center', marginTop: 40, color: '#6B7280' },
+  etykieta: {
+    position: 'absolute',
+    top: 8,
+    left: 10,
+    zIndex: 4,
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#6B7280',
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  celownik: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    zIndex: 6,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  celownikTekst: { fontSize: 18, color: '#374151', fontWeight: '700' },
+  blokadaKol: { position: 'absolute', bottom: 8, left: 8, zIndex: 6, gap: 6 },
+  blokada: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    alignSelf: 'flex-start',
+  },
+  check: {
+    width: 16,
+    height: 16,
+    borderRadius: 3,
+    borderWidth: 1.5,
+    borderColor: '#9CA3AF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkOn: { backgroundColor: '#E8A020', borderColor: '#E8A020' },
+  checkTekst: { color: '#fff', fontSize: 11, fontWeight: '800', lineHeight: 13 },
+  blokadaTekst: { fontSize: 11, fontWeight: '700', color: '#374151' },
+  lupka: {
+    position: 'absolute',
+    bottom: 8,
+    right: 8,
+    zIndex: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.96)',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    overflow: 'hidden',
+  },
+  lupkaBtn: { width: 34, height: 32, alignItems: 'center', justifyContent: 'center' },
+  lupkaZnak: { fontSize: 20, fontWeight: '700', color: '#111827', lineHeight: 22 },
+  lupkaPct: { minWidth: 58, textAlign: 'center', fontSize: 12, fontWeight: '800', color: '#111827' },
+  presety: { gap: 6, paddingVertical: 8, paddingHorizontal: 2 },
+  preset: {
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: '#fff',
+  },
+  presetOn: { borderColor: '#E8A020', backgroundColor: '#FFF7E6' },
+  presetTekst: { fontSize: 11, fontWeight: '700', color: '#4B5563' },
+  presetTekstOn: { color: '#B45309' },
+  hintPod: { fontSize: 11, color: '#6B7280', lineHeight: 15, marginTop: 2 },
+});

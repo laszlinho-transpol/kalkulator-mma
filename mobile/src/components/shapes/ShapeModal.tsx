@@ -14,6 +14,7 @@ import {
 import { SafeModal } from '../common/SafeModal';
 import { lightTheme, darkTheme } from '../../constants/theme';
 import { NumericInput } from '../common/NumericInput';
+import { InfoTooltip } from '../common/InfoTooltip';
 import { obliczPowierzchniFigury } from '../../utils/calculations';
 import { formatujPikietaz } from '../../utils/chainage';
 import type { Figura, TypFigury } from '../../types';
@@ -276,9 +277,9 @@ export function ShapeModal({
               <>
                 <View style={[styles.typBadge, { backgroundColor: `${theme.colors.primary}20` }]}>
                   <Text style={styles.typBadgeIkona}>{info?.ikona}</Text>
-                  <View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                     <Text style={[styles.typBadgeTytul, { color: theme.colors.text }]}>{info?.etykieta}</Text>
-                    <Text style={[styles.typBadgeOpis, { color: theme.colors.textSecondary }]}>{info?.opis}</Text>
+                    {info?.opis ? <InfoTooltip tresc={info.opis} /> : null}
                   </View>
                 </View>
 

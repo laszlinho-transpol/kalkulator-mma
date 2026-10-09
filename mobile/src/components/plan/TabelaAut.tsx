@@ -8,7 +8,7 @@ import {
   obliczWynikiDzialki, obliczTabeleAut, obliczLacznaDlugosc,
   formatLiczby, generujDomyslneRzuty,
 } from '../../utils/calculations';
-import { formatujPikietaz, obliczPikietazFigur } from '../../utils/chainage';
+import { formatujPikietaz, obliczPikietazFigur, pikietazPoMetrach } from '../../utils/chainage';
 import type { DzialkaRobocza, Rzut, WpisTabeliAut } from '../../types';
 import type { AppTheme } from '../../constants/theme';
 
@@ -91,7 +91,7 @@ export function TabelaAut({
           {tabela.map((wiersz) => {
             const nowyRzut = wiersz.numerRzutu !== ostatniRzut;
             ostatniRzut = wiersz.numerRzutu;
-            const kmKoniec = kmStart + wiersz.metryNarastajaco;
+            const kmKoniec = pikietazPoMetrach(kmStart, wiersz.metryNarastajaco, dzialka.kierunekUkladania);
             return (
               <React.Fragment key={`${wiersz.numerAuta}-${wiersz.numerRzutu}`}>
                 {nowyRzut && (

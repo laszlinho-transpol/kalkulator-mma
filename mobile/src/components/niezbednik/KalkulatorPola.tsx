@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, TextInput, StyleSheet } from 'react-native';
 import type { AppTheme } from '../../constants/theme';
+import { InfoTooltip } from '../common/InfoTooltip';
 
 interface PoleProps {
   label: string;
@@ -35,10 +36,11 @@ export function WynikKafelek({ etykieta, wartosc, theme }: { etykieta: string; w
   );
 }
 
-export function SchematInfo({ tekst, theme }: { tekst: string; theme: AppTheme }) {
+export function SchematInfo({ tekst }: { tekst: string; theme: AppTheme }) {
   return (
-    <View style={[styles.schemat, { backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.border }]}>
-      <Text style={{ color: theme.colors.textSecondary, fontSize: 12, lineHeight: 18 }}>{tekst}</Text>
+    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+      <Text style={{ color: '#6B7280', fontSize: 13, fontWeight: '700' }}>Jak liczyć</Text>
+      <InfoTooltip tresc={tekst} />
     </View>
   );
 }

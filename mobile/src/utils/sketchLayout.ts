@@ -71,4 +71,52 @@ export function metryDoY(
   return cumY;
 }
 
+function maxSzerokoscFiguryM(figura: Figura): number {
+  switch (figura.typ) {
+    case 'prostokat': return figura.szerokosc;
+    case 'trapez': return Math.max(figura.szerokosc1, figura.szerokosc2);
+    case 'trojkat': return figura.szerokosc;
+    case 'pierscien': return figura.szerokosc * 1.5;
+    case 'wjazd': return figura.s;
+    default: return 1;
+  }
+}
+
+/** Szerokość figury [m] w ułamku długości 0…1, zgodnie z kształtem na szkicu. */
+export function szerokoscMNaUlamku(figura: Figura, t: number): number {
+  const u = Math.max(0, Math.min(1, t));
+  switch (figura.typ) {
+    case 'prostokat': return figura.szerokosc;
+    case 'trapez': return figura.szerokosc1 + (figura.szerokosc2 - figura.szerokosc1) * u;
+    case 'trojkat': return figura.szerokosc * (1 - u);
+    case 'pierscien': return figura.szerokosc * (1.35 - 0.8 * u);
+    case 'wjazd': {
+      const udzialL = figura.L / Math.max(figura.L + figura.R1 + figura.R2, 1);
+      const prog = Math.min(udzialL, 0.75);
+      if (u <= prog) return figura.s;
+      const k = (u - prog) / Math.max(1 - prog, 1e-6);
+      return figura.s * (1 - 0.5 * k);
+    }
+    default: return 1;
+  }
+}
+
+/** Szerokość układanego pasa [px] na szkicu figur, w danym metrze od startu. */
+export function szerokoscObszaruSzkicuPx(figury: Figura[], metryOdStartu: number): number {
+  const maxSzer = Math.max(...figury.map(maxSzerokoscFiguryM), 1);
+  let cum = 0;
+  for (let i = 0; i < figury.length; i++) {
+    const f = figury[i];
+    const l = dlugoscFigury(f);
+    const ostatnia = i === figury.length - 1;
+    if (ostatnia || metryOdStartu <= cum + l) {
+      const u = l <= 0 ? 0 : Math.max(0, Math.min(1, (metryOdStartu - cum) / l));
+      const szerM = szerokoscMNaUlamku(f, u);
+      return Math.max(6, (szerM / maxSzer) * SKETCH_BLOCK_W);
+    }
+    cum += l;
+  }
+  return SKETCH_BLOCK_W;
+}
+
 export const SKETCH_PAD = { top: PAD_TOP, bot: PAD_BOT };
