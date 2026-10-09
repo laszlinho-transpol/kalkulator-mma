@@ -64,7 +64,7 @@ export function TabelaLive({ dzialka, wpisy, theme, ciezarObjetosciowy }: Tabela
             <Text style={[styles.kom, { color: theme.colors.text }]}>{formatLiczby(wp.przejechaneMetry)}</Text>
             <Text style={[styles.kom, { color: theme.colors.text, fontWeight: '600' }]}>{formatLiczby(cumMetr)}</Text>
             <Text style={[styles.kom, { color: kolorGr, fontWeight: '700' }]}>
-              {gr > 0 ? `${formatLiczby(gr)} ${ponad ? '▲' : ponizej ? '▼' : ''}` : '–'}
+              {gr > 0 ? `${formatLiczby(gr)} ${ponad ? '▲' : ponizej ? '▼' : ''} / ${formatLiczby(grPlan)}` : '–'}
             </Text>
             <Text style={[styles.kom, { color: theme.colors.info, flex: 1.4, fontSize: 11 }]}>{formatujPikietaz(kmKoniec)}</Text>
           </View>

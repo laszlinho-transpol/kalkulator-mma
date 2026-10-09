@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.24';
+export const WERSJA_APLIKACJI = '1.8.25';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,16 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.25',
+    data: '2026-10-09',
+    tytul: 'Live – grubość założona, nie projektowa',
+    zmiany: [
+      'Tony na wcześniejszym obszarze liczą się z grubości wbudowywania wpisanej w planie, nie z grubości projektowej',
+      'W tabeli i w podglądzie widać uzyskaną grubość obok założonej, ze strzałką gdy układanie schodzi z planu',
+      'Bilans „do wbudowania” też liczy się z grubości założonej',
+    ],
+  },
   {
     wersja: '1.8.24',
     data: '2026-10-09',

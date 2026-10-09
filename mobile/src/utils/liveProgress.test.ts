@@ -138,6 +138,28 @@ describe('liveProgress', () => {
     assert.ok(Math.abs(gr2.grubosc - 9.57) < 0.02);
   });
 
+  it('rozdzielMetryNaDzialki – tony z grubości wbudowywania, nie z projektowej', () => {
+    const a: DzialkaRobocza = {
+      ...dz1,
+      grubosc: 10,
+      gruboscProjektowa: 12,
+      gruboscWbudowywania: 10,
+      figury: [{ ...dz1.figury[0], dlugosc: 10, szerokosc: 3.5 }],
+    };
+    const b: DzialkaRobocza = {
+      ...dz2,
+      grubosc: 7,
+      gruboscProjektowa: 4,
+      gruboscWbudowywania: 7,
+      figury: [{ ...dz2.figury[0], dlugosc: 40, szerokosc: 3.5 }],
+    };
+    const p: Plan = { ...plan, dzialki: [a, b] };
+    const seg = rozdzielMetryNaDzialki(p, [], sesje, 30, 25, () => 2.45);
+    assert.equal(seg[0].tonaz, 8.58);
+    assert.notEqual(seg[0].tonaz, 10.29);
+    assert.equal(seg[1].tonaz, 16.42);
+  });
+
   it('dzialkiDoAutoZamkniecia – po wypełnieniu działki', () => {
     const wpisy = [wpis('dz1', 80)];
     const seg = rozdzielMetryNaDzialki(plan, wpisy, sesje, 20, 25);

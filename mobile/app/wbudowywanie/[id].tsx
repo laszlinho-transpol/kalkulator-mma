@@ -77,6 +77,13 @@ const SCREEN_H = Dimensions.get('window').height;
 /** Wysokość okna przewijania szkicu LIVE – ~42% ekranu, min 260 / max 520 px */
 const VIEWPORT_SZKICU_LIVE = Math.min(Math.max(SCREEN_H * 0.42, 260), 520);
 
+/** Uzyskana grubość obok założonej przez użytkownika (grubość wbudowywania, nie projekt). */
+function tekstGrubosciLive(uzyskana: number, zalozena: number): string {
+  if (!(uzyskana > 0)) return '–';
+  const znak = uzyskana > zalozena + 0.2 ? ' ▲' : uzyskana < zalozena - 0.2 ? ' ▼' : '';
+  return `${formatLiczby(uzyskana)}${znak} / ${formatLiczby(zalozena)}`;
+}
+
 function kmWpisuLive(plan: Plan, wpisy: WpisLive[], wpis: WpisLive): string {
   const dz = plan.dzialki.find((d) => d.id === wpis.dzialkaId);
   if (!dz) return '';
@@ -110,7 +117,7 @@ const KOLUMNY = [
   { id: 'auto', label: '#', width: 56 },
   { id: 'mg', label: 'Mg', width: 56 },
   { id: 'metry', label: 'm', width: 56 },
-  { id: 'grubosc', label: 'Gr.', width: 56 },
+  { id: 'grubosc', label: 'Uzysk./założ.', width: 108 },
   { id: 'doKonca', label: 'Do końca m', width: 80 },
   { id: 'godzina', label: 'Godz.', width: 56 },
 ];
@@ -1074,7 +1081,7 @@ export default function WbudowywanieDetailScreen() {
                                 <Text style={[styles.tabelaKom, { width: KOLUMNY[1].width, color: theme.colors.text }]}>{formatLiczby(auto.tonaz)}</Text>
                                 <Text style={[styles.tabelaKom, { width: KOLUMNY[2].width, color: theme.colors.text }]}>{formatLiczby(auto.metry)}</Text>
                                 <Text style={[styles.tabelaKom, { width: KOLUMNY[3].width, color: przepal ? theme.colors.danger : niedomiar ? theme.colors.warning : theme.colors.success }]}>
-                                  {wierszJednego && grW > 0 ? `${formatLiczby(grW)} ${przepal ? '▲' : niedomiar ? '▼' : ''}` : '—'}
+                                  {wierszJednego && grW > 0 ? tekstGrubosciLive(grW, grPlan) : '—'}
                                 </Text>
                                 <Text style={[styles.tabelaKom, { width: KOLUMNY[4].width, color: theme.colors.text }]}>{formatLiczby(doKonca)}</Text>
                                 <Text style={[styles.tabelaKom, { width: KOLUMNY[5].width, color: theme.colors.text }]}>{auto.godzinaWybudowania}</Text>
@@ -1098,7 +1105,7 @@ export default function WbudowywanieDetailScreen() {
                                     <Text style={[styles.tabelaKom, { width: KOLUMNY[1].width, color: theme.colors.text, fontSize: 11 }]}>{formatLiczby(wpis.tonazPrzywieziony)}</Text>
                                     <Text style={[styles.tabelaKom, { width: KOLUMNY[2].width, color: theme.colors.text, fontSize: 11 }]}>{formatLiczby(wpis.przejechaneMetry)}</Text>
                                     <Text style={[styles.tabelaKom, { width: KOLUMNY[3].width, fontSize: 11, color: ponad ? theme.colors.danger : ponizej ? theme.colors.warning : theme.colors.success }]}>
-                                      {grSeg > 0 ? `${formatLiczby(grSeg)} ${ponad ? '▲' : ponizej ? '▼' : ''}` : '–'}
+                                      {tekstGrubosciLive(grSeg, grP)}
                                     </Text>
                                     <Text style={[styles.tabelaKom, { width: KOLUMNY[4].width, color: theme.colors.textSecondary, fontSize: 11 }]} />
                                     <Text style={[styles.tabelaKom, { width: KOLUMNY[5].width, color: theme.colors.textSecondary, fontSize: 11 }]} />
@@ -1120,7 +1127,7 @@ export default function WbudowywanieDetailScreen() {
                     <View style={[styles.livePodsumWrap, { backgroundColor: `${theme.colors.info}10`, borderColor: theme.colors.info }]}>
                       <IR label="Pozostało pow." v={`${formatLiczby(bilansPlanu.pozostalaPowierzchnia)} m²`} theme={theme} />
                       <IR label="Do końca metrów" v={`${formatLiczby(bilansPlanu.pozostaloMetrow)} m`} theme={theme} />
-                      <IR label="Do wbudowania (plan)" v={`${formatLiczby(bilansPlanu.pozostalaMasaWgPlanu, 2)} Mg`} theme={theme} />
+                      <IR label="Do wbudowania (założenie)" v={`${formatLiczby(bilansPlanu.pozostalaMasaWgPlanu, 2)} Mg`} theme={theme} />
                     </View>
                   </View>
                 )}
@@ -1160,7 +1167,7 @@ export default function WbudowywanieDetailScreen() {
                   </View>
                   <Text style={[styles.opisMaly, { color: theme.colors.textSecondary, marginBottom: 8 }]}>
                     {edytowanyNumerAuta != null
-                      ? 'Edytujesz całe auto: łączny tonaż i łączne metry. Po zapisie tony wcześniejszych obszarów liczą się z ich grubości, a na ostatnim wychodzi grubość z reszty ładunku. Tabele, szkic i bilans przeliczają się od nowa.'
+                      ? 'Edytujesz całe auto: łączny tonaż i łączne metry. Tony wcześniejszych obszarów liczą się z grubości wbudowywania wpisanej w planie, nie z grubości projektowej. Na ostatnim obszarze wychodzi grubość z reszty ładunku i widać, czy trzyma założenie.'
                       : aktywnaDzialka
                         ? `Program sam liczy pozycję od „${aktywnaDzialka.dzialka.nazwa}”. Auto, które przechodzi na kolejny obszar, zachowuje ten sam numer.`
                         : 'Wszystkie działki zakończone.'}
@@ -1229,11 +1236,12 @@ export default function WbudowywanieDetailScreen() {
                         const dz = plan.dzialki.find((d) => d.id === seg.dzialkaId);
                         const rho = dz ? (ciezarPoMieszance(dz.mieszankaId) ?? 2.45) : 2.45;
                         const gr = dz ? gruboscSegmentuLive(dz, seg.przed, seg.metry, seg.tonaz, rho).grubosc : 0;
+                        const zalozena = dz ? gruboscWbudowywania(dz) : 0;
                         const start = dz ? dz.kilometrazPoczatkowyKm * 1000 + dz.kilometrazPoczatkowyM : 0;
                         const zakres = dz ? zakresOdcinkaKm(start, seg.przed, seg.metry, dz.kierunekUkladania) : null;
                         return (
                           <Text key={`${seg.dzialkaId}-${i}`} style={{ color: theme.colors.text, fontSize: 13, marginBottom: 2 }}>
-                            {dz?.nazwa ?? 'Obszar'}: {formatLiczby(seg.metry)} m · {formatLiczby(seg.tonaz)} Mg · {formatLiczby(gr)} cm
+                            {dz?.nazwa ?? 'Obszar'}: {formatLiczby(seg.metry)} m · {formatLiczby(seg.tonaz)} Mg · {tekstGrubosciLive(gr, zalozena)} cm
                             {zakres ? ` · ${formatujPikietaz(zakres.odM)}–${formatujPikietaz(zakres.doM)}` : ''}
                           </Text>
                         );
@@ -1387,6 +1395,8 @@ export default function WbudowywanieDetailScreen() {
                   <ModalRow label="Tonaż przywieziony" v={`${formatLiczby(wpis.tonazPrzywieziony)} Mg`} theme={theme} />
                   <ModalRow label="Przejechane metry" v={metryAuta} theme={theme} />
                   <ModalRow label="Zakryta powierzchnia" v={`${formatLiczby(powAuta)} m²`} theme={theme} />
+                  <ModalRow label="Grubość założona" v={`${formatLiczby(grModal)} cm`} theme={theme} />
+                  <ModalRow label="Grubość projektowa" v={`${formatLiczby(gruboscProjektowa(dzModal))} cm`} theme={theme} />
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 5 }}>
                     <Text style={{ color: theme.colors.textSecondary, fontSize: 14 }}>Uzyskana grubość</Text>
                     <Text style={{ color: Math.abs(grAuta - grModal) > 0.3 ? theme.colors.danger : theme.colors.success, fontSize: 14, fontWeight: '700' }}>

@@ -185,8 +185,9 @@ export interface OpcjeRozdzialuLive {
 
 /**
  * Rozdziela nowe metry od aktywnej działki wzdłuż kolejnych obszarów.
- * Na wcześniejszych obszarach tony biorą się z powierzchni × grubość planu × gęstość.
- * Ostatni obszar dostaje resztę ładunku – z niej wychodzi uzyskana grubość.
+ * Na wcześniejszych obszarach tony biorą się z powierzchni × grubość wbudowywania
+ * wpisana w planie (nie grubość projektowa) × gęstość.
+ * Ostatni obszar dostaje resztę ładunku – uzyskana grubość porównuje się z tą założoną.
  */
 export function rozdzielMetryNaDzialki(
   plan: Plan,
