@@ -23,6 +23,8 @@ interface LiveStore {
   edytujWpisAuta: (id: string, dane: Partial<Omit<WpisLive, 'id' | 'createdAt'>>) => Promise<void>;
   usunWpisAuta: (id: string) => Promise<void>;
   usunAutoPlanu: (planId: string, numerAuta: number) => Promise<void>;
+  /** Podmienia wpisy i zamknięcia jednego planu naraz (edycja, usunięcie, przebudowa). */
+  zastapPostepPlanu: (planId: string, wpisyPlanu: WpisLive[], sesjePlanu: SesjaDzialkiLive[]) => Promise<void>;
   wpisyDlaPlanu: (planId: string) => WpisLive[];
   wpisyDlaDzialki: (planId: string, dzialkaId: string) => WpisLive[];
   wyczyścWpisyPlanu: (planId: string) => Promise<void>;
@@ -107,6 +109,20 @@ export const useLiveStore = create<LiveStore>((set, get) => ({
     const wpis = get().wpisy.find((w) => w.id === id);
     if (!wpis) return;
     await get().usunAutoPlanu(wpis.planId, wpis.numerAuta);
+  },
+
+  zastapPostepPlanu: async (planId, wpisyPlanu, sesjePlanu) => {
+    const wpisy = [
+      ...get().wpisy.filter((w) => w.planId !== planId),
+      ...wpisyPlanu.map((w) => ({ ...w, planId, id: w.id || generujId() })),
+    ];
+    const sesje = [
+      ...get().sesje.filter((s) => s.planId !== planId),
+      ...sesjePlanu.filter((s) => s.planId === planId),
+    ];
+    set({ wpisy, sesje });
+    await zapiszDoStorage(wpisy);
+    await zapiszSesje(sesje);
   },
 
   usunAutoPlanu: async (planId, numerAuta) => {

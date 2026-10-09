@@ -4,9 +4,10 @@
 
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { formatLiczby, obliczPowierzchnioweOdStartu } from '../../utils/calculations';
+import { formatLiczby } from '../../utils/calculations';
 import { formatujPikietaz, obliczPikietazFigur, pikietazPoMetrach } from '../../utils/chainage';
 import { gruboscWbudowywania } from '../../utils/grubosc';
+import { gruboscSegmentuLive } from '../../utils/liveProgress';
 import type { DzialkaRobocza, WpisLive } from '../../types';
 import type { AppTheme } from '../../constants/theme';
 
@@ -44,12 +45,12 @@ export function TabelaLive({ dzialka, wpisy, theme, ciezarObjetosciowy }: Tabela
       </View>
 
       {posortowane.map((wp) => {
+        const przed = cumMetr;
         cumTon += wp.tonazPrzywieziony;
         cumMetr += wp.przejechaneMetry;
         const kmKoniec = pikietazPoMetrach(kmStart, cumMetr, dzialka.kierunekUkladania);
-        const pow = obliczPowierzchnioweOdStartu(dzialka, wp.przejechaneMetry);
-        const gr = pow > 0 && ciezarObjetosciowy
-          ? (wp.tonazPrzywieziony / (ciezarObjetosciowy * pow)) * 100
+        const gr = ciezarObjetosciowy
+          ? gruboscSegmentuLive(dzialka, przed, wp.przejechaneMetry, wp.tonazPrzywieziony, ciezarObjetosciowy).grubosc
           : 0;
         const ponad = gr > grPlan + 0.2;
         const ponizej = gr > 0 && gr < grPlan - 0.2;

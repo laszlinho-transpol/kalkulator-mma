@@ -34,7 +34,7 @@ import { generujRaportPDF } from '../../src/utils/pdfGenerator';
 import { gruboscWbudowywania, gruboscProjektowa, formatujTolerancje, kolorUzyskanejGrubosci, kolorGrubosciDoHex } from '../../src/utils/grubosc';
 import {
   obliczWynikiDzialki, obliczLacznaDlugosc, obliczKontrolę,
-  obliczPowierzchnioweOdStartu, formatLiczby, obliczTabeleAutPlanu,
+  formatLiczby, obliczTabeleAutPlanu,
   round2,
 } from '../../src/utils/calculations';
 import {
@@ -48,7 +48,7 @@ import {
   sortujWpisyPlanu,
 } from '../../src/utils/planCiagly';
 import { formatujDatePl, aktualnaGodzina } from '../../src/utils/dates';
-import { zakresOdcinkaKm } from '../../src/utils/chainage';
+import { formatujPikietaz, pikietazPoMetrach, zakresOdcinkaKm } from '../../src/utils/chainage';
 import { formatujKmM } from '../../src/utils/projektBudowy';
 import { obszarySzkicuPlanu, pozycjaSzkicuPoMetrach, uzupelnijProfilObmiaruDzialek } from '../../src/utils/planZBudowy';
 import {
@@ -57,8 +57,16 @@ import {
   obliczBilansLivePlanu,
   dzialkiDoAutoZamkniecia,
   nastepnyNumerAuta,
+  grupujAutaLive,
+  zamknieciaReczneDzialek,
+  ulozenieAutLive,
+  sesjePoUlozeniu,
+  gruboscSegmentuLive,
+  metryPrzedWpisem,
+  sumaMetrowDzialki,
 } from '../../src/utils/liveProgress';
-import type { DzialkaRobocza, WpisLive } from '../../src/types';
+import { potwierdzAkcje } from '../../src/utils/dialog';
+import type { DzialkaRobocza, Plan, WpisLive } from '../../src/types';
 
 type ZakladkaTyp = 'plan' | 'kontrola' | 'live' | 'pzt';
 
@@ -68,6 +76,15 @@ const SCREEN_W = Dimensions.get('window').width;
 const SCREEN_H = Dimensions.get('window').height;
 /** Wysokość okna przewijania szkicu LIVE – ~42% ekranu, min 260 / max 520 px */
 const VIEWPORT_SZKICU_LIVE = Math.min(Math.max(SCREEN_H * 0.42, 260), 520);
+
+function kmWpisuLive(plan: Plan, wpisy: WpisLive[], wpis: WpisLive): string {
+  const dz = plan.dzialki.find((d) => d.id === wpis.dzialkaId);
+  if (!dz) return '';
+  const start = dz.kilometrazPoczatkowyKm * 1000 + dz.kilometrazPoczatkowyM;
+  const przed = metryPrzedWpisem(plan, wpisy, wpis);
+  const zakres = zakresOdcinkaKm(start, przed, wpis.przejechaneMetry, dz.kierunekUkladania);
+  return `${formatujPikietaz(zakres.odM)}–${formatujPikietaz(zakres.doM)}`;
+}
 
 /** Wstecz z historii, a gdy historia jest pusta albo nic się nie dzieje – menu główne. */
 function wracajZPlanu() {
@@ -108,7 +125,7 @@ export default function WbudowywanieDetailScreen() {
   const mieszanki = useMieszankiStore((s) => s.mieszanki);
   const budowy = useBudowyStore((s) => s.budowy);
   const {
-    sesje, dodajAutoZRozbiciem, edytujWpisAuta, usunWpisAuta,
+    sesje, dodajAutoZRozbiciem, zastapPostepPlanu,
     czyDzialkaZakonczona, oznaczOstatnieAuto, wznowDzialke, wyczyścWpisyPlanu,
   } = useLiveStore();
   const wpisyCalegoPlanu = useWpisyDlaPlanu(id);
@@ -125,7 +142,7 @@ export default function WbudowywanieDetailScreen() {
   const [trybMetrowLive, setTrybMetrowLive] = useState<'zAuta' | 'odStartu'>('zAuta');
   const [nowyKomentarz, setNowyKomentarz] = useState('');
   const [nowyGodzina, setNowyGodzina] = useState(aktualnaGodzina());
-  const [edytowanyWpisId, setEdytowanyWpisId] = useState<string | null>(null);
+  const [edytowanyNumerAuta, setEdytowanyNumerAuta] = useState<number | null>(null);
 
   // Modal auta
   const [autaModal, setAutaModal] = useState<{ wpis: WpisLive } | null>(null);
@@ -148,11 +165,11 @@ export default function WbudowywanieDetailScreen() {
   );
 
   useEffect(() => {
-    if (rzutReczny.current || edytowanyWpisId) return;
+    if (rzutReczny.current || edytowanyNumerAuta != null) return;
     const max = wpisyCalegoPlanu.reduce((m, w) => Math.max(m, w.numerAuta), 0);
     const ostatni = wpisyCalegoPlanu.find((w) => w.numerAuta === max);
     if (ostatni) setNumerRzutu(ostatni.numerRzutu ?? 1);
-  }, [wpisyCalegoPlanu, edytowanyWpisId]);
+  }, [wpisyCalegoPlanu, edytowanyNumerAuta]);
 
   useEffect(() => {
     const p = usePlanyStore.getState().pobierzPlan(id ?? '');
@@ -169,7 +186,7 @@ export default function WbudowywanieDetailScreen() {
     if (obszary.length === 0) return null;
     const ulozone = wpisyCalegoPlanu.reduce((s, w) => s + w.przejechaneMetry, 0);
     const val = parseFloat(nowyMetry.replace(',', '.'));
-    const wpisuje = !edytowanyWpisId && nowyMetry.trim() !== '' && !Number.isNaN(val) && val >= 0;
+    const wpisuje = edytowanyNumerAuta == null && nowyMetry.trim() !== '' && !Number.isNaN(val) && val >= 0;
     if (wpisuje) {
       const globalne = trybMetrowLive === 'odStartu' ? val : ulozone + val;
       const poz = pozycjaSzkicuPoMetrach(plan, obszary, globalne);
@@ -178,7 +195,7 @@ export default function WbudowywanieDetailScreen() {
     const akt = znajdzAktywnaDzialke(plan, wpisyCalegoPlanu, sesje);
     const obszar = (akt && obszary.find((o) => o.dzialkaIds.includes(akt.dzialka.id))) || obszary[0];
     return { obszarId: obszar.id, stacjaM: null as number | null };
-  }, [plan, wpisyCalegoPlanu, sesje, nowyMetry, trybMetrowLive, edytowanyWpisId]);
+  }, [plan, wpisyCalegoPlanu, sesje, nowyMetry, trybMetrowLive, edytowanyNumerAuta]);
 
   useEffect(() => {
     const idCelu = celSzkicuBudowy?.obszarId ?? null;
@@ -242,7 +259,7 @@ export default function WbudowywanieDetailScreen() {
   const mapaMetrowWpisu = new Map(markeryPlanu.map((m) => [m.wpis.id, m.metryKumulatywne]));
 
   const tonNowyLive = parseFloat(nowyTonaz.replace(',', '.'));
-  const metryPlanowaneLive = !edytowanyWpisId && !isNaN(tonNowyLive) && tonNowyLive > 0
+  const metryPlanowaneLive = edytowanyNumerAuta == null && !isNaN(tonNowyLive) && tonNowyLive > 0
     ? metryOdMasyPlanu(segmentyPlanu, bilansPlanu.lacznyTonaz + tonNowyLive)
     : null;
   const metryZDojazduZAuta = metryPlanowaneLive != null
@@ -260,7 +277,7 @@ export default function WbudowywanieDetailScreen() {
     : (!isNaN(wartoscMetrowNum) ? wartoscMetrowNum : null);
 
   const przelaczTrybMetrow = (nowy: 'zAuta' | 'odStartu') => {
-    if (nowy === trybMetrowLive || edytowanyWpisId) return;
+    if (nowy === trybMetrowLive || edytowanyNumerAuta != null) return;
     if (!isNaN(wartoscMetrowNum) && wartoscMetrowNum > 0) {
       if (nowy === 'odStartu') {
         setNowyMetry(String(round2(bilansPlanu.laczneMetry + wartoscMetrowNum)));
@@ -274,7 +291,7 @@ export default function WbudowywanieDetailScreen() {
   const rozwiazMetryWpisu = (): number | null => {
     const val = parseFloat(nowyMetry.replace(',', '.'));
     if (isNaN(val)) return null;
-    if (edytowanyWpisId || trybMetrowLive === 'zAuta') return val;
+    if (edytowanyNumerAuta != null || trybMetrowLive === 'zAuta') return val;
     return round2(val - bilansPlanu.laczneMetry);
   };
 
@@ -293,8 +310,10 @@ export default function WbudowywanieDetailScreen() {
     const mie = dz ? getMieszanka(dz.mieszankaId) : undefined;
     const metryKum = mapaMetrowWpisu.get(wpis.id) ?? 0;
     if (!dz || !mie) return { grubosc: 0, doKoncaM: 0, grPlan: 0 };
-    const powJednego = obliczPowierzchnioweOdStartu(dz, wpis.przejechaneMetry);
-    const gr = powJednego > 0 ? (wpis.tonazPrzywieziony / (mie.ciezarObjetosciowy * powJednego)) * 100 : 0;
+    const przed = metryPrzedWpisem(plan, wpisyCalegoPlanu, wpis);
+    const { grubosc: gr } = gruboscSegmentuLive(
+      dz, przed, wpis.przejechaneMetry, wpis.tonazPrzywieziony, mie.ciezarObjetosciowy,
+    );
     const doK = Math.max(0, bilansPlanu.lacznaDlugoscPlanu - metryKum);
     return { grubosc: gr, doKoncaM: doK, grPlan: gruboscWbudowywania(dz) };
   };
@@ -333,28 +352,29 @@ export default function WbudowywanieDetailScreen() {
     const dz = aktywnaDzialka?.dzialka;
     if (!dz) return;
     if (czyDzialkaZakonczona(plan.id, dz.id)) {
-      Alert.alert('Wznów działkę', 'Czy chcesz wznowić rozpisywanie aut na tej działce?', [
-        { text: 'Anuluj', style: 'cancel' },
-        { text: 'Wznów', onPress: () => wznowDzialke(plan.id, dz.id) },
-      ]);
+      potwierdzAkcje(
+        'Wznów działkę',
+        'Czy chcesz wznowić rozpisywanie aut na tej działce?',
+        () => { void wznowDzialke(plan.id, dz.id); },
+        'Wznów',
+      );
       return;
     }
-    Alert.alert('Ostatnie auto', `Kończysz działkę „${dz.nazwa}”. Kolejne auto będzie na następnej działce.`, [
-      { text: 'Anuluj', style: 'cancel' },
-      {
-        text: 'Zakończ działkę',
-        onPress: async () => {
-          await oznaczOstatnieAuto(plan.id, dz.id);
-          const next = (aktywnaDzialka?.idx ?? 0) + 1;
-          if (next < plan.dzialki.length) {
-            Alert.alert(
-              'Przejście do kolejnej działki',
-              `${plan.dzialki[next].nazwa}\nKolejne auto: #${kolejnyNumerAuta}`,
-            );
-          }
-        },
+    potwierdzAkcje(
+      'Ostatnie auto',
+      `Kończysz działkę „${dz.nazwa}”. Kolejne auto będzie na następnej działce.`,
+      async () => {
+        await oznaczOstatnieAuto(plan.id, dz.id);
+        const next = (aktywnaDzialka?.idx ?? 0) + 1;
+        if (next < plan.dzialki.length) {
+          Alert.alert(
+            'Przejście do kolejnej działki',
+            `${plan.dzialki[next].nazwa}\nKolejne auto: #${kolejnyNumerAuta}`,
+          );
+        }
       },
-    ]);
+      'Zakończ działkę',
+    );
   };
 
   const mieszankiUnikalne = [...new Set(plan.dzialki.map((d) => d.mieszankaId))];
@@ -363,24 +383,39 @@ export default function WbudowywanieDetailScreen() {
     if (!dz) return;
     const mix = dz.mieszankaId;
     const nazwaMix = getMieszanka(mix)?.rodzaj ?? 'mieszanki';
-    Alert.alert('Koniec mieszanki', `Zakończyć wszystkie działki mieszanki ${nazwaMix} i przejść do kolejnej?`, [
-      { text: 'Anuluj', style: 'cancel' },
-      {
-        text: 'Zakończ mieszankę',
-        onPress: async () => {
-          for (const d of plan.dzialki) {
-            if (d.mieszankaId === mix && !czyDzialkaZakonczona(plan.id, d.id)) {
-              await oznaczOstatnieAuto(plan.id, d.id);
-            }
+    potwierdzAkcje(
+      'Koniec mieszanki',
+      `Zakończyć wszystkie działki mieszanki ${nazwaMix} i przejść do kolejnej?`,
+      async () => {
+        for (const d of plan.dzialki) {
+          if (d.mieszankaId === mix && !czyDzialkaZakonczona(plan.id, d.id)) {
+            await oznaczOstatnieAuto(plan.id, d.id);
           }
-          const next = plan.dzialki.find((d) => d.mieszankaId !== mix && !czyDzialkaZakonczona(plan.id, d.id));
-          if (next) {
-            setSzkicObszarId(next.id);
-            Alert.alert('Kolejna mieszanka', `${next.nazwa}\nKolejne auto: #${kolejnyNumerAuta}`);
-          }
-        },
+        }
+        const next = plan.dzialki.find((d) => d.mieszankaId !== mix && !czyDzialkaZakonczona(plan.id, d.id));
+        if (next) {
+          setSzkicObszarId(next.id);
+          Alert.alert('Kolejna mieszanka', `${next.nazwa}\nKolejne auto: #${kolejnyNumerAuta}`);
+        }
       },
-    ]);
+      'Zakończ mieszankę',
+    );
+  };
+
+  const zapiszAuta = async (auta: ReturnType<typeof grupujAutaLive>) => {
+    const reczne = zamknieciaReczneDzialek(plan, wpisyCalegoPlanu, sesje);
+    const zajete = reczne.filter((id) => sumaMetrowDzialki(wpisyCalegoPlanu, id) > 0.05);
+    let n = 0;
+    const nowe = ulozenieAutLive(
+      plan,
+      auta,
+      reczne,
+      ciezarPoMieszance,
+      () => `live-${Date.now().toString(36)}-${n++}`,
+      zajete,
+    );
+    const sesjeNowe = sesjePoUlozeniu(plan, nowe, reczne, sesje).filter((s) => s.planId === plan.id);
+    await zastapPostepPlanu(plan.id, nowe, sesjeNowe);
   };
 
   const dodajWpisLive = async () => {
@@ -388,40 +423,41 @@ export default function WbudowywanieDetailScreen() {
     const met = rozwiazMetryWpisu();
     if (isNaN(ton) || ton <= 0) { Alert.alert('Błąd', 'Podaj prawidłowy tonaż.'); return; }
     if (met === null || met <= 0) {
-      Alert.alert('Błąd', trybMetrowLive === 'odStartu' && !edytowanyWpisId
+      Alert.alert('Błąd', trybMetrowLive === 'odStartu' && edytowanyNumerAuta == null
         ? 'Odległość od startu musi być większa niż dotychczas przejechane metry.'
         : 'Podaj prawidłowe metry.');
       return;
     }
-    if (edytowanyWpisId) {
-      const wpis = wpisyCalegoPlanu.find((w) => w.id === edytowanyWpisId);
-      await edytujWpisAuta(edytowanyWpisId, {
-        tonazPrzywieziony: ton,
-        przejechaneMetry: met,
-        komentarz: nowyKomentarz.trim() || undefined,
-        godzinaWybudowania: nowyGodzina,
-        numerRzutu,
-      });
-      if (wpis) {
-        for (const w of wpisyCalegoPlanu) {
-          if (w.numerAuta === wpis.numerAuta && w.id !== edytowanyWpisId) {
-            await edytujWpisAuta(w.id, { numerRzutu });
+    if (edytowanyNumerAuta != null) {
+      const numer = edytowanyNumerAuta;
+      const auta = grupujAutaLive(plan, wpisyCalegoPlanu).map((a) => (
+        a.numerAuta === numer
+          ? {
+            ...a,
+            tonaz: round2(ton),
+            metry: round2(met),
+            komentarz: nowyKomentarz.trim() || undefined,
+            godzinaWybudowania: nowyGodzina,
+            numerRzutu,
           }
-        }
-        const max = wpisyCalegoPlanu.reduce((m, w) => Math.max(m, w.numerAuta), 0);
-        if (wpis.numerAuta !== max) {
-          const ostatni = wpisyCalegoPlanu.find((w) => w.numerAuta === max);
-          setNumerRzutu(ostatni?.numerRzutu ?? 1);
-        }
+          : a
+      ));
+      await zapiszAuta(auta);
+      const max = auta.reduce((m, a) => Math.max(m, a.numerAuta), 0);
+      if (numer !== max) {
+        const ostatni = auta.find((a) => a.numerAuta === max);
+        setNumerRzutu(ostatni?.numerRzutu ?? 1);
       }
-      setEdytowanyWpisId(null);
+      setEdytowanyNumerAuta(null);
       rzutReczny.current = true;
     } else {
       if (!aktywnaDzialka) {
         Alert.alert('Plan ukończony', 'Wszystkie działki są zakończone. Możesz zarchiwizować plan.');
         return;
       }
-      const segmenty = rozdzielMetryNaDzialki(plan, wpisyCalegoPlanu, sesje, met, ton);
+      const segmenty = rozdzielMetryNaDzialki(
+        plan, wpisyCalegoPlanu, sesje, met, ton, ciezarPoMieszance,
+      );
       if (segmenty.length === 0) {
         Alert.alert('Brak miejsca', 'Nie można rozdzielić metrów – sprawdź postęp na działkach.');
         return;
@@ -455,24 +491,39 @@ export default function WbudowywanieDetailScreen() {
     setRzutListaOtwarta(false);
   };
 
-  const rozpocznijEdycjeWpisu = (wpis: WpisLive) => {
-    setEdytowanyWpisId(wpis.id);
+  const rozpocznijEdycjeAuta = (auto: ReturnType<typeof grupujAutaLive>[number]) => {
+    setEdytowanyNumerAuta(auto.numerAuta);
     setTrybMetrowLive('zAuta');
-    setNowyTonaz(String(wpis.tonazPrzywieziony));
-    setNowyMetry(String(wpis.przejechaneMetry));
-    setNowyKomentarz(wpis.komentarz ?? '');
-    setNowyGodzina(wpis.godzinaWybudowania);
-    setNumerRzutu(wpis.numerRzutu ?? 1);
+    setNowyTonaz(String(auto.tonaz));
+    setNowyMetry(String(auto.metry));
+    setNowyKomentarz(auto.komentarz ?? '');
+    setNowyGodzina(auto.godzinaWybudowania);
+    setNumerRzutu(auto.numerRzutu ?? 1);
     rzutReczny.current = true;
     setRzutListaOtwarta(false);
   };
 
   const anulujEdycjeWpisu = () => {
-    setEdytowanyWpisId(null);
+    setEdytowanyNumerAuta(null);
     setTrybMetrowLive('zAuta');
     setNowyTonaz(''); setNowyMetry(''); setNowyKomentarz(''); setNowyGodzina(aktualnaGodzina());
     rzutReczny.current = false;
     setRzutListaOtwarta(false);
+  };
+
+  const usunAutoLive = (numer: number) => {
+    potwierdzAkcje(
+      'Usuń auto',
+      `Usunąć auto #${numer}? Zniknie ze wszystkich obszarów, a kolejne auta i bilans zostaną przeliczone.`,
+      async () => {
+        const zostaja = grupujAutaLive(plan, wpisyCalegoPlanu)
+          .filter((a) => a.numerAuta !== numer)
+          .map((a, i) => ({ ...a, numerAuta: i + 1 }));
+        if (zostaja.length === 0) await wyczyścWpisyPlanu(plan.id);
+        else await zapiszAuta(zostaja);
+        anulujEdycjeWpisu();
+      },
+    );
   };
 
   const wyczyscLive = () => {
@@ -480,22 +531,49 @@ export default function WbudowywanieDetailScreen() {
       Alert.alert('Brak wpisów', 'Nie ma żadnych aut LIVE do usunięcia.');
       return;
     }
-    Alert.alert(
+    potwierdzAkcje(
       'Wyczyść LIVE',
       'Usunąć wszystkie wprowadzone auta w tym planie i zacząć od nowa?',
-      [
-        { text: 'Anuluj', style: 'cancel' },
-        {
-          text: 'Wyczyść',
-          style: 'destructive',
-          onPress: async () => {
-            await wyczyścWpisyPlanu(plan.id);
-            anulujEdycjeWpisu();
-          },
-        },
-      ],
+      async () => {
+        await wyczyścWpisyPlanu(plan.id);
+        anulujEdycjeWpisu();
+      },
+      'Wyczyść',
     );
   };
+
+  const autaLive = grupujAutaLive(plan, wpisyCalegoPlanu);
+  const podgladRozkladu = (() => {
+    const ton = parseFloat(nowyTonaz.replace(',', '.'));
+    const met = rozwiazMetryWpisu();
+    if (!(ton > 0) || met == null || met <= 0) {
+      return [] as { dzialkaId: string; metry: number; tonaz: number; przed: number }[];
+    }
+    if (edytowanyNumerAuta != null) {
+      const numer = edytowanyNumerAuta;
+      const auta = grupujAutaLive(plan, wpisyCalegoPlanu).map((a) => (
+        a.numerAuta === numer ? { ...a, tonaz: round2(ton), metry: round2(met) } : a
+      ));
+      const reczne = zamknieciaReczneDzialek(plan, wpisyCalegoPlanu, sesje);
+      const zajete = reczne.filter((id) => sumaMetrowDzialki(wpisyCalegoPlanu, id) > 0.05);
+      let n = 0;
+      const wszystkie = ulozenieAutLive(
+        plan, auta, reczne, ciezarPoMieszance, () => `podglad-${n++}`, zajete,
+      );
+      return wszystkie.filter((w) => w.numerAuta === numer).map((w) => ({
+        dzialkaId: w.dzialkaId,
+        metry: w.przejechaneMetry,
+        tonaz: w.tonazPrzywieziony,
+        przed: metryPrzedWpisem(plan, wszystkie, w),
+      }));
+    }
+    return rozdzielMetryNaDzialki(plan, wpisyCalegoPlanu, sesje, met, ton, ciezarPoMieszance).map((s) => ({
+      dzialkaId: s.dzialkaId,
+      metry: s.metry,
+      tonaz: s.tonaz,
+      przed: sumaMetrowDzialki(wpisyCalegoPlanu, s.dzialkaId),
+    }));
+  })();
 
   // Selektor działki – usunięty (kontrola i LIVE = cały odcinek dnia)
 
@@ -970,39 +1048,69 @@ export default function WbudowywanieDetailScreen() {
                           {KOLUMNY.map((k) => (
                             <Text key={k.id} style={[styles.tabelaNaglTekst, { width: k.width, color: theme.colors.textSecondary }]}>{k.label}</Text>
                           ))}
-                          <Text style={[styles.tabelaNaglTekst, { width: 72, color: theme.colors.textSecondary }]}>Działka</Text>
+                          <Text style={[styles.tabelaNaglTekst, { width: 88, color: theme.colors.textSecondary }]}>Działka</Text>
+                          <Text style={[styles.tabelaNaglTekst, { width: 108, color: theme.colors.textSecondary }]}>km</Text>
                           <Text style={[styles.tabelaNaglTekst, { width: 32, color: theme.colors.textSecondary }]} />
                           <Text style={[styles.tabelaNaglTekst, { width: 32, color: theme.colors.textSecondary }]} />
                         </View>
-                        {wpisyLivePosortowane.map((wpis) => {
-                          const dz = plan.dzialki.find((d) => d.id === wpis.dzialkaId);
-                          const { grubosc: grW, doKoncaM, grPlan } = obliczWierszLive(wpis);
-                          const przepal = grW > grPlan + 0.2;
-                          const niedomiar = grW < grPlan - 0.2;
+                        {autaLive.map((auto) => {
+                          const segmenty = wpisyLivePosortowane.filter((w) => w.numerAuta === auto.numerAuta);
+                          const ostatni = segmenty[segmenty.length - 1];
+                          const jeden = segmenty.length === 1 ? segmenty[0] : undefined;
+                          const wierszJednego = jeden ? obliczWierszLive(jeden) : null;
+                          const doKonca = ostatni ? obliczWierszLive(ostatni).doKoncaM : 0;
+                          const grPlan = wierszJednego?.grPlan ?? 0;
+                          const grW = wierszJednego?.grubosc ?? 0;
+                          const przepal = Boolean(wierszJednego && grW > grPlan + 0.2);
+                          const niedomiar = Boolean(wierszJednego && grW < grPlan - 0.2);
+                          const nazwaObszaru = jeden
+                            ? (plan.dzialki.find((d) => d.id === jeden.dzialkaId)?.nazwa ?? '—')
+                            : segmenty.map((s) => plan.dzialki.find((d) => d.id === s.dzialkaId)?.nazwa).filter(Boolean).join(' → ');
+                          const kmJednego = jeden ? kmWpisuLive(plan, wpisyCalegoPlanu, jeden) : '';
                           return (
-                            <View key={wpis.id}>
+                            <View key={`auto-${auto.numerAuta}`}>
                               <View style={[styles.tabelaRzad, { borderBottomColor: theme.colors.border }]}>
-                                <Text style={[styles.tabelaKom, { width: KOLUMNY[0].width, color: theme.colors.textSecondary }]}>{wpis.numerAuta} {ETYKIETY_RZUTU[(wpis.numerRzutu ?? 1) - 1]?.replace(' rzut', '')}</Text>
-                                <Text style={[styles.tabelaKom, { width: KOLUMNY[1].width, color: theme.colors.text }]}>{formatLiczby(wpis.tonazPrzywieziony)}</Text>
-                                <Text style={[styles.tabelaKom, { width: KOLUMNY[2].width, color: theme.colors.text }]}>{formatLiczby(wpis.przejechaneMetry)}</Text>
+                                <Text style={[styles.tabelaKom, { width: KOLUMNY[0].width, color: theme.colors.textSecondary }]}>{auto.numerAuta} {ETYKIETY_RZUTU[(auto.numerRzutu ?? 1) - 1]?.replace(' rzut', '')}</Text>
+                                <Text style={[styles.tabelaKom, { width: KOLUMNY[1].width, color: theme.colors.text }]}>{formatLiczby(auto.tonaz)}</Text>
+                                <Text style={[styles.tabelaKom, { width: KOLUMNY[2].width, color: theme.colors.text }]}>{formatLiczby(auto.metry)}</Text>
                                 <Text style={[styles.tabelaKom, { width: KOLUMNY[3].width, color: przepal ? theme.colors.danger : niedomiar ? theme.colors.warning : theme.colors.success }]}>
-                                  {grW > 0 ? `${formatLiczby(grW)} ${przepal ? '▲' : niedomiar ? '▼' : ''}` : '–'}
+                                  {wierszJednego && grW > 0 ? `${formatLiczby(grW)} ${przepal ? '▲' : niedomiar ? '▼' : ''}` : '—'}
                                 </Text>
-                                <Text style={[styles.tabelaKom, { width: KOLUMNY[4].width, color: theme.colors.text }]}>{formatLiczby(doKoncaM)}</Text>
-                                <Text style={[styles.tabelaKom, { width: KOLUMNY[5].width, color: theme.colors.text }]}>{wpis.godzinaWybudowania}</Text>
-                                <Text style={[styles.tabelaKom, { width: 72, color: theme.colors.textSecondary, fontSize: 10 }]} numberOfLines={1}>{dz?.nazwa ?? '—'}</Text>
-                                <TouchableOpacity onPress={() => rozpocznijEdycjeWpisu(wpis)} style={{ width: 32, alignItems: 'center' }}>
+                                <Text style={[styles.tabelaKom, { width: KOLUMNY[4].width, color: theme.colors.text }]}>{formatLiczby(doKonca)}</Text>
+                                <Text style={[styles.tabelaKom, { width: KOLUMNY[5].width, color: theme.colors.text }]}>{auto.godzinaWybudowania}</Text>
+                                <Text style={[styles.tabelaKom, { width: 88, color: theme.colors.textSecondary, fontSize: 10 }]} numberOfLines={2}>{nazwaObszaru}</Text>
+                                <Text style={[styles.tabelaKom, { width: 108, color: theme.colors.info, fontSize: 10 }]} numberOfLines={2}>{kmJednego || '—'}</Text>
+                                <TouchableOpacity accessibilityLabel={`Edytuj auto ${auto.numerAuta}`} onPress={() => rozpocznijEdycjeAuta(auto)} style={{ width: 32, alignItems: 'center' }}>
                                   <Text style={{ color: theme.colors.info, fontSize: 15 }}>✎</Text>
                                 </TouchableOpacity>
-                                <TouchableOpacity onPress={() => Alert.alert('Usuń auto', `Usunąć auto #${wpis.numerAuta} (wszystkie segmenty na planie)?`, [
-                                  { text: 'Anuluj', style: 'cancel' },
-                                  { text: 'Usuń', style: 'destructive', onPress: () => usunWpisAuta(wpis.id) },
-                                ])} style={{ width: 32, alignItems: 'center' }}>
+                                <TouchableOpacity accessibilityLabel={`Usuń auto ${auto.numerAuta}`} onPress={() => usunAutoLive(auto.numerAuta)} style={{ width: 32, alignItems: 'center' }}>
                                   <Text style={{ color: theme.colors.danger, fontSize: 16 }}>✕</Text>
                                 </TouchableOpacity>
                               </View>
-                              {wpis.komentarz ? (
-                                <Text style={[styles.komentarzTekst, { color: theme.colors.textSecondary, borderBottomColor: theme.colors.border }]}>💬 {wpis.komentarz}</Text>
+                              {segmenty.length > 1 && segmenty.map((wpis) => {
+                                const dz = plan.dzialki.find((d) => d.id === wpis.dzialkaId);
+                                const { grubosc: grSeg, grPlan: grP } = obliczWierszLive(wpis);
+                                const ponad = grSeg > grP + 0.2;
+                                const ponizej = grSeg < grP - 0.2;
+                                return (
+                                  <View key={wpis.id} style={[styles.tabelaRzad, { borderBottomColor: theme.colors.border, backgroundColor: `${theme.colors.primary}08` }]}>
+                                    <Text style={[styles.tabelaKom, { width: KOLUMNY[0].width, color: theme.colors.textSecondary, fontSize: 11 }]}>{auto.numerAuta}</Text>
+                                    <Text style={[styles.tabelaKom, { width: KOLUMNY[1].width, color: theme.colors.text, fontSize: 11 }]}>{formatLiczby(wpis.tonazPrzywieziony)}</Text>
+                                    <Text style={[styles.tabelaKom, { width: KOLUMNY[2].width, color: theme.colors.text, fontSize: 11 }]}>{formatLiczby(wpis.przejechaneMetry)}</Text>
+                                    <Text style={[styles.tabelaKom, { width: KOLUMNY[3].width, fontSize: 11, color: ponad ? theme.colors.danger : ponizej ? theme.colors.warning : theme.colors.success }]}>
+                                      {grSeg > 0 ? `${formatLiczby(grSeg)} ${ponad ? '▲' : ponizej ? '▼' : ''}` : '–'}
+                                    </Text>
+                                    <Text style={[styles.tabelaKom, { width: KOLUMNY[4].width, color: theme.colors.textSecondary, fontSize: 11 }]} />
+                                    <Text style={[styles.tabelaKom, { width: KOLUMNY[5].width, color: theme.colors.textSecondary, fontSize: 11 }]} />
+                                    <Text style={[styles.tabelaKom, { width: 88, color: theme.colors.textSecondary, fontSize: 10 }]} numberOfLines={2}>{dz?.nazwa ?? '—'}</Text>
+                                    <Text style={[styles.tabelaKom, { width: 108, color: theme.colors.info, fontSize: 10 }]} numberOfLines={2}>{dz ? kmWpisuLive(plan, wpisyCalegoPlanu, wpis) : '—'}</Text>
+                                    <Text style={{ width: 32 }} />
+                                    <Text style={{ width: 32 }} />
+                                  </View>
+                                );
+                              })}
+                              {auto.komentarz ? (
+                                <Text style={[styles.komentarzTekst, { color: theme.colors.textSecondary, borderBottomColor: theme.colors.border }]}>💬 {auto.komentarz}</Text>
                               ) : null}
                             </View>
                           );
@@ -1017,12 +1125,10 @@ export default function WbudowywanieDetailScreen() {
                   </View>
                 )}
 
-                <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: edytowanyWpisId ? theme.colors.warning : theme.colors.border }]}>
+                <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: edytowanyNumerAuta != null ? theme.colors.warning : theme.colors.border }]}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
                     <Text style={[styles.kartaTytul, { color: theme.colors.text, marginBottom: 0, flex: 1 }]}>
-                      {edytowanyWpisId
-                        ? `Edycja auta #${wpisyCalegoPlanu.find((w) => w.id === edytowanyWpisId)?.numerAuta ?? '?'}`
-                        : `Auto #${kolejnyNumerAuta}`}
+                      {edytowanyNumerAuta != null ? `Edycja auta #${edytowanyNumerAuta}` : `Auto #${kolejnyNumerAuta}`}
                     </Text>
                     <View style={{ minWidth: 120 }}>
                       <TouchableOpacity
@@ -1053,15 +1159,15 @@ export default function WbudowywanieDetailScreen() {
                     </View>
                   </View>
                   <Text style={[styles.opisMaly, { color: theme.colors.textSecondary, marginBottom: 8 }]}>
-                    {edytowanyWpisId
-                      ? 'Edycja istniejącego wpisu – metry nie są automatycznie rozdzielane.'
+                    {edytowanyNumerAuta != null
+                      ? 'Edytujesz całe auto: łączny tonaż i łączne metry. Po zapisie tony wcześniejszych obszarów liczą się z ich grubości, a na ostatnim wychodzi grubość z reszty ładunku. Tabele, szkic i bilans przeliczają się od nowa.'
                       : aktywnaDzialka
-                        ? `Program sam liczy pozycję od „${aktywnaDzialka.dzialka.nazwa}” – metry mogą przejść na kolejne działki.`
+                        ? `Program sam liczy pozycję od „${aktywnaDzialka.dzialka.nazwa}”. Auto, które przechodzi na kolejny obszar, zachowuje ten sam numer.`
                         : 'Wszystkie działki zakończone.'}
-                    {dzialkaZakonczonaWpisu && !edytowanyWpisId ? ' (aktywna działka zakończona – wznów lub dodaj metry na kolejnej)' : ''}
+                    {dzialkaZakonczonaWpisu && edytowanyNumerAuta == null ? ' (aktywna działka zakończona – wznów lub dodaj metry na kolejnej)' : ''}
                   </Text>
                   <NumInput label="Tonaż [Mg]" value={nowyTonaz} onChange={setNowyTonaz} theme={theme} placeholder={String(plan.tonazAuta)} />
-                  {!edytowanyWpisId && (
+                  {edytowanyNumerAuta == null && (
                     <View style={{ marginBottom: 10 }}>
                       <Text style={{ color: theme.colors.textSecondary, fontSize: 13, fontWeight: '600', marginBottom: 5 }}>Gdzie powinniśmy dojechać</Text>
                       <View style={[styles.poleSzare, { backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.border }]}>
@@ -1073,7 +1179,7 @@ export default function WbudowywanieDetailScreen() {
                       </View>
                     </View>
                   )}
-                  {!edytowanyWpisId && (
+                  {edytowanyNumerAuta == null && (
                     <View style={[styles.miniTabs, { borderColor: theme.colors.border, marginBottom: 8 }]}>
                       {([
                         { id: 'zAuta' as const, label: 'Metry z auta' },
@@ -1092,12 +1198,12 @@ export default function WbudowywanieDetailScreen() {
                     </View>
                   )}
                   <NumInput
-                    label={edytowanyWpisId || trybMetrowLive === 'zAuta' ? 'Przejechane metry z auta [m]' : 'Odległość od startu [m]'}
+                    label={edytowanyNumerAuta != null || trybMetrowLive === 'zAuta' ? 'Przejechane metry z auta [m]' : 'Odległość od startu [m]'}
                     value={nowyMetry}
                     onChange={setNowyMetry}
                     theme={theme}
                   />
-                  {!edytowanyWpisId && (
+                  {edytowanyNumerAuta == null && (
                     <View style={{ marginBottom: 10 }}>
                       <Text style={{ color: theme.colors.textSecondary, fontSize: 13, fontWeight: '600', marginBottom: 5 }}>
                         {trybMetrowLive === 'zAuta' ? 'Odległość od startu (auto)' : 'Metry z auta (auto)'}
@@ -1116,10 +1222,32 @@ export default function WbudowywanieDetailScreen() {
                     <TextInput style={[styles.godzInput, { backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.border, color: theme.colors.text }]} value={nowyGodzina} onChangeText={setNowyGodzina} maxLength={5} placeholder="HH:MM" placeholderTextColor={theme.colors.textSecondary} keyboardType="numbers-and-punctuation" />
                   </View>
                   <TextInput style={[styles.komentarzInput, { backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.border, color: theme.colors.text }]} value={nowyKomentarz} onChangeText={setNowyKomentarz} placeholder="Komentarz / uwagi (opcjonalnie)" placeholderTextColor={theme.colors.textSecondary} multiline />
-                  <TouchableOpacity style={[styles.btnDodajAuto, { backgroundColor: edytowanyWpisId ? theme.colors.warning : theme.colors.success }]} onPress={dodajWpisLive}>
-                    <Text style={styles.btnDodajAutoTekst}>{edytowanyWpisId ? '✓ Zapisz zmiany' : `+ Dodaj auto #${kolejnyNumerAuta}`}</Text>
+                  {podgladRozkladu.length > 0 && (
+                    <View style={{ marginBottom: 10 }}>
+                      <Text style={{ color: theme.colors.textSecondary, fontSize: 13, fontWeight: '600', marginBottom: 5 }}>Rozkład na obszary</Text>
+                      {podgladRozkladu.map((seg, i) => {
+                        const dz = plan.dzialki.find((d) => d.id === seg.dzialkaId);
+                        const rho = dz ? (ciezarPoMieszance(dz.mieszankaId) ?? 2.45) : 2.45;
+                        const gr = dz ? gruboscSegmentuLive(dz, seg.przed, seg.metry, seg.tonaz, rho).grubosc : 0;
+                        const start = dz ? dz.kilometrazPoczatkowyKm * 1000 + dz.kilometrazPoczatkowyM : 0;
+                        const zakres = dz ? zakresOdcinkaKm(start, seg.przed, seg.metry, dz.kierunekUkladania) : null;
+                        return (
+                          <Text key={`${seg.dzialkaId}-${i}`} style={{ color: theme.colors.text, fontSize: 13, marginBottom: 2 }}>
+                            {dz?.nazwa ?? 'Obszar'}: {formatLiczby(seg.metry)} m · {formatLiczby(seg.tonaz)} Mg · {formatLiczby(gr)} cm
+                            {zakres ? ` · ${formatujPikietaz(zakres.odM)}–${formatujPikietaz(zakres.doM)}` : ''}
+                          </Text>
+                        );
+                      })}
+                    </View>
+                  )}
+                  <TouchableOpacity
+                    accessibilityLabel={edytowanyNumerAuta != null ? 'Zapisz zmiany auta' : `Dodaj auto ${kolejnyNumerAuta}`}
+                    style={[styles.btnDodajAuto, { backgroundColor: edytowanyNumerAuta != null ? theme.colors.warning : theme.colors.success }]}
+                    onPress={dodajWpisLive}
+                  >
+                    <Text style={styles.btnDodajAutoTekst}>{edytowanyNumerAuta != null ? '✓ Zapisz zmiany' : `+ Dodaj auto #${kolejnyNumerAuta}`}</Text>
                   </TouchableOpacity>
-                  {edytowanyWpisId && (
+                  {edytowanyNumerAuta != null && (
                     <TouchableOpacity style={{ marginTop: 10, alignItems: 'center' }} onPress={anulujEdycjeWpisu}>
                       <Text style={{ color: theme.colors.textSecondary, fontWeight: '600' }}>Anuluj edycję</Text>
                     </TouchableOpacity>
@@ -1159,6 +1287,7 @@ export default function WbudowywanieDetailScreen() {
                   </View>
                   <TouchableOpacity
                     style={[styles.btnOstatnieAuto, { backgroundColor: `${theme.colors.textSecondary}15`, borderColor: theme.colors.border, marginBottom: 10 }]}
+                    accessibilityLabel="Wyczyść LIVE"
                     onPress={wyczyscLive}
                   >
                     <Text style={{ color: theme.colors.text, fontWeight: '700', fontSize: 14 }}>🗑 Wyczyść LIVE</Text>
@@ -1215,21 +1344,19 @@ export default function WbudowywanieDetailScreen() {
           wpis.numerAuta,
           ciezarPoMieszance,
         );
-        const powAuta = obliczPowierzchnioweOdStartu(dzModal, wpis.przejechaneMetry);
-        const grAuta = powAuta > 0 ? (wpis.tonazPrzywieziony / (mieModal.ciezarObjetosciowy * powAuta)) * 100 : 0;
+        const przedModal = metryPrzedWpisem(plan, wpisyCalegoPlanu, wpis);
+        const uzysk = gruboscSegmentuLive(
+          dzModal,
+          przedModal,
+          wpis.przejechaneMetry,
+          wpis.tonazPrzywieziony,
+          mieModal.ciezarObjetosciowy,
+        );
+        const powAuta = uzysk.powierzchnia;
+        const grAuta = uzysk.grubosc;
         const bilansAuta = wpis.tonazPrzywieziony - powAuta * (grModal / 100) * mieModal.ciezarObjetosciowy;
-        const startKm = plan.kilometrazOdM;
-        const maleje = startKm != null && (plan.kilometrazDoM ?? startKm) < startKm;
-        let metryPrzed = 0;
-        if (startKm != null) {
-          for (const w of sortujWpisyPlanu(plan, wpisyCalegoPlanu)) {
-            if (w.id === wpis.id) break;
-            metryPrzed += w.przejechaneMetry;
-          }
-        }
-        const zakresKm = startKm != null
-          ? zakresOdcinkaKm(startKm, metryPrzed, wpis.przejechaneMetry, maleje ? 'malejacy' : 'rosnacy')
-          : null;
+        const startKm = dzModal.kilometrazPoczatkowyKm * 1000 + dzModal.kilometrazPoczatkowyM;
+        const zakresKm = zakresOdcinkaKm(startKm, przedModal, wpis.przejechaneMetry, dzModal.kierunekUkladania);
         const metryAuta = zakresKm
           ? `${formatLiczby(wpis.przejechaneMetry)} m (${formatujKmM(zakresKm.odM)} - ${formatujKmM(zakresKm.doM)})`
           : `${formatLiczby(wpis.przejechaneMetry)} m`;

@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.23';
+export const WERSJA_APLIKACJI = '1.8.24';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,17 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.24',
+    data: '2026-10-09',
+    tytul: 'Live – edycja auta i grubość obszarów',
+    zmiany: [
+      'Edycja dotyczy całego auta: łączny tonaż i łączne metry. Auto, które przechodzi na kolejny obszar, zostaje pod tym samym numerem',
+      'Na wcześniejszych obszarach tony liczą się z powierzchni, grubości planu i gęstości. Ostatni obszar dostaje resztę ładunku i pokazuje uzyskaną grubość',
+      'Po zapisie albo usunięciu auta tabele, kilometraż, szkic i bilans liczą się od nowa',
+      'Wyczyść LIVE i usuń auto działają też w przeglądarce',
+    ],
+  },
   {
     wersja: '1.8.23',
     data: '2026-10-08',
