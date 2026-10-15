@@ -153,7 +153,7 @@ export default function HomeScreen() {
                 >
                   {kafelek.tytul}
                 </Text>
-                <Text style={[styles.kafelekPodtytul, { color: kafelek.kolor }]} numberOfLines={1}>
+                <Text style={[styles.kafelekPodtytul, { color: kafelek.kolor }]} numberOfLines={2}>
                   {kafelek.podtytul}
                 </Text>
                 <View style={[styles.pasekKoloru, { backgroundColor: kafelek.kolor }]} />

@@ -20,7 +20,7 @@ export default function SprzetMenuScreen() {
         tytul="Sprzęt"
         podtytul="Wybierz rodzaj"
         lewy={{ tekst: '‹ Wstecz', onPress: () => wstecz('/budzet') }}
-        prawy={{ tekst: 'Dodaj nowy', onPress: () => router.push('/budzet/sprzet/nowy' as never) }}
+        przyciski={[{ tekst: 'Dodaj nowy', onPress: () => router.push('/budzet/sprzet/nowy' as never), tlo: theme.colors.primary, kolor: '#1A1A1A' }]}
       />
       <ScrollView contentContainerStyle={[styles.lista, { paddingBottom: insets.bottom + 24 }]}>
         {GRUPY_SPRZETU.map((grupa) => (

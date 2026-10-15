@@ -32,10 +32,12 @@ export default function ListaRodzajuScreen() {
         tytul={rodzaj?.nazwa ?? 'Sprzęt'}
         podtytul="Lista"
         lewy={{ tekst: '‹ Wstecz', onPress: () => wstecz('/budzet/sprzet') }}
-        prawy={{
+        przyciski={[{
           tekst: 'Dodaj nowy',
           onPress: () => router.push(`/budzet/sprzet/nowy?rodzaj=${id ?? ''}` as never),
-        }}
+          tlo: theme.colors.primary,
+          kolor: '#1A1A1A',
+        }]}
       />
       {!rodzaj ? (
         <EmptyState ikona="🚜" tytul="Nieznany rodzaj" opis="Wróć do menu sprzętu i wybierz rodzaj z listy." />
