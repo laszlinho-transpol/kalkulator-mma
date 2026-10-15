@@ -1,5 +1,5 @@
 import type { RodzajRozliczenia, StawkiSprzetu } from './rozliczenie';
-import type { Dojazd, StawkiPracownika } from './pracownicy';
+import type { StawkiPracownika } from './pracownicy';
 
 export interface Firma {
   id: string;
@@ -42,7 +42,8 @@ export interface RaportPracownika {
   godziny: number;
   godzinyPodstawowe: number;
   nadgodziny: number;
-  dojazd: Dojazd;
+  godzinyKierowca?: number;
+  godzinyPasazer?: number;
   stawki: StawkiPracownika;
   wynagrodzenie: number;
   /** Wynagrodzenie × mnożnik ZUS. */

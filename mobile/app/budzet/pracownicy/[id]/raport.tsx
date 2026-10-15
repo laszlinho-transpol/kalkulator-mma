@@ -20,8 +20,6 @@ import { useRouteId } from '../../../../src/hooks/useRouteId';
 import { useBudowyStore } from '../../../../src/stores/budowyStore';
 import { usePracownicyStore } from '../../../../src/stores/pracownicyStore';
 
-const DOJAZDY: [Dojazd, string][] = [['brak', 'Brak'], ['kierowca', 'Kierowca'], ['pasazer', 'Pasażer']];
-
 export default function RaportPracownikaScreen() {
   const id = useRouteId();
   const colorScheme = useColorScheme();
@@ -34,7 +32,8 @@ export default function RaportPracownikaScreen() {
   const [data, setData] = useState(wczorajIso);
   const [budowaId, setBudowaId] = useState('');
   const [godzinyTekst, setGodzinyTekst] = useState('8');
-  const [dojazd, setDojazd] = useState<Dojazd>('brak');
+  const [kierowcaTekst, setKierowcaTekst] = useState('');
+  const [pasazerTekst, setPasazerTekst] = useState('');
   const [stawkiTekst, setStawkiTekst] = useState<Partial<Record<PoleWynagrodzenia, string>>>({});
   const [uwagi, setUwagi] = useState('');
   const [blad, setBlad] = useState('');
@@ -66,6 +65,10 @@ export default function RaportPracownikaScreen() {
   }
   const godziny = parsujLiczbePola(godzinyTekst) ?? 0;
   const podzial = podzialGodzin(data, godziny);
+  const dojazd: Dojazd = {
+    kierowca: parsujLiczbePola(kierowcaTekst) ?? 0,
+    pasazer: parsujLiczbePola(pasazerTekst) ?? 0,
+  };
   const wynik = kwotaPracownika(stawki, podzial.podstawowe, podzial.nadgodziny, dojazd);
 
   const budowyKolejnosc = [...budowy].sort((a, b) => {
@@ -76,10 +79,16 @@ export default function RaportPracownikaScreen() {
   const zapisz = async () => {
     if (!pracownik) return;
     if (!budowaId) { setBlad('Wybierz budowę.'); return; }
-    if (!(godziny > 0) || godziny > 24) { setBlad('Podaj godziny pracy od 0 do 24.'); return; }
+    if (godziny < 0 || godziny > 24) { setBlad('Godziny pracy: od 0 do 24.'); return; }
+    if ((kierowcaTekst.trim() && parsujLiczbePola(kierowcaTekst) == null) || (pasazerTekst.trim() && parsujLiczbePola(pasazerTekst) == null) || dojazd.kierowca < 0 || dojazd.pasazer < 0) {
+      setBlad('Godziny kierowcy i pasażera to liczba, np. 1,5.');
+      return;
+    }
+    if (!(godziny > 0) && !(dojazd.kierowca > 0) && !(dojazd.pasazer > 0)) { setBlad('Podaj godziny pracy albo jazdy.'); return; }
     if (podzial.podstawowe > 0 && !stawki.stawka8h) { setBlad('Podaj stawkę 8h.'); return; }
     if (podzial.nadgodziny > 0 && !stawki.nadgodzina) { setBlad('Podaj stawkę za nadgodzinę.'); return; }
-    if (dojazd !== 'brak' && !stawki[dojazd]) { setBlad(`Podaj stawkę: ${dojazd === 'kierowca' ? 'kierowca' : 'pasażer'}.`); return; }
+    if (dojazd.kierowca > 0 && !stawki.kierowca) { setBlad('Podaj stawkę: kierowca.'); return; }
+    if (dojazd.pasazer > 0 && !stawki.pasazer) { setBlad('Podaj stawkę: pasażer.'); return; }
     for (const pole of POLA_WYNAGRODZENIA) {
       const tekst = (stawkiTekst[pole.id] ?? '').trim();
       if (tekst && !stawki[pole.id]) { setBlad(`Pole „${pole.nazwa}” przyjmuje liczbę większą od zera.`); return; }
@@ -94,7 +103,8 @@ export default function RaportPracownikaScreen() {
         godziny,
         godzinyPodstawowe: podzial.podstawowe,
         nadgodziny: podzial.nadgodziny,
-        dojazd,
+        godzinyKierowca: dojazd.kierowca || undefined,
+        godzinyPasazer: dojazd.pasazer || undefined,
         stawki,
         wynagrodzenie: wynik.wynagrodzenie,
         kwota: wynik.koszt,
@@ -148,18 +158,16 @@ export default function RaportPracownikaScreen() {
           </Text>
 
           <Text style={[styles.etykieta, { color: theme.colors.textSecondary }]}>Dojazd</Text>
+          <Text style={[styles.opis, { color: theme.colors.textSecondary }]}>
+            Godziny jazdy w tym dniu. Można wpisać obie, gdy pracownik prowadził w jedną stronę, a jechał jako pasażer w drugą.
+          </Text>
           <View style={styles.wiersz}>
-            {DOJAZDY.map(([wartosc, nazwa]) => (
-              <View key={wartosc} style={{ flex: 1 }}>
-                <Wybor
-                  theme={theme}
-                  zaznaczony={dojazd === wartosc}
-                  etykieta={nazwa}
-                  accessibilityLabel={`Dojazd ${nazwa}`}
-                  onPress={() => setDojazd(wartosc)}
-                />
-              </View>
-            ))}
+            <View style={{ flex: 1 }}>
+              <PoleLiczby theme={theme} etykieta="Kierowca (h)" value={kierowcaTekst} onChangeText={setKierowcaTekst} accessibilityLabel="Godziny kierowcy" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <PoleLiczby theme={theme} etykieta="Pasażer (h)" value={pasazerTekst} onChangeText={setPasazerTekst} accessibilityLabel="Godziny pasażera" />
+            </View>
           </View>
 
           <Text style={[styles.etykieta, { color: theme.colors.textSecondary }]}>Stawki</Text>

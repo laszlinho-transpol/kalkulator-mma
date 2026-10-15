@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { czyDzienWolny, swietaPolskie } from './kalendarzPracy';
 import { dniRoboczeMiesiaca } from './rozliczenie';
 import {
-  kwotaPracownika, nazwaPracownika, podzialGodzin, rozdzielImieNazwisko, sekcjePracownikow,
+  BEZ_DOJAZDU, kwotaPracownika, nazwaPracownika, podzialGodzin, rozdzielImieNazwisko, sekcjePracownikow,
 } from './pracownicy';
 import type { GrupaPracownikow, Pracownik } from './typy';
 
@@ -45,12 +45,19 @@ describe('wynagrodzenie pracownika', () => {
   });
 
   it('ZUS mnoży sumę pozycji 1–4', () => {
-    const stawki = { stawka8h: 280, nadgodzina: 45, kierowca: 30, pasazer: 15, zus: 1.2 };
-    const wynik = kwotaPracownika(stawki, 8, 2, 'kierowca');
+    const stawki = { stawka8h: 280, nadgodzina: 45, kierowca: 30, pasazer: 20, zus: 1.2 };
+    const wynik = kwotaPracownika(stawki, 8, 2, { kierowca: 1, pasazer: 0 });
     assert.equal(wynik.wynagrodzenie, 280 + 90 + 30);
     assert.equal(wynik.koszt, 480);
-    assert.equal(kwotaPracownika(stawki, 4, 0, 'pasazer').wynagrodzenie, 155);
-    assert.equal(kwotaPracownika({ stawka8h: 200 }, 8, 0, 'brak').koszt, 200);
+    assert.equal(kwotaPracownika(stawki, 4, 0, { kierowca: 0, pasazer: 2 }).wynagrodzenie, 180);
+    assert.equal(kwotaPracownika({ stawka8h: 200 }, 8, 0, BEZ_DOJAZDU).koszt, 200);
+  });
+
+  it('kierowca i pasażer łączą się w jednym dniu, płatne za godzinę', () => {
+    const wynik = kwotaPracownika({ kierowca: 30, pasazer: 20 }, 0, 0, { kierowca: 1, pasazer: 1.5 });
+    assert.equal(wynik.zaKierowce, 30);
+    assert.equal(wynik.zaPasazera, 30);
+    assert.equal(wynik.wynagrodzenie, 60);
   });
 });
 

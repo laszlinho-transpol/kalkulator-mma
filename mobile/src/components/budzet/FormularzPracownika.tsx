@@ -19,7 +19,7 @@ const PRZYKLADY: Record<PoleWynagrodzenia, string> = {
   stawka8h: 'np. 280',
   nadgodzina: 'np. 45',
   kierowca: 'np. 30',
-  pasazer: 'np. 15',
+  pasazer: 'np. 20',
   zus: 'np. 1,2',
 };
 

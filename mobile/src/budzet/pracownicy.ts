@@ -22,15 +22,27 @@ export const POLA_WYNAGRODZENIA: OpisPolaStawki<PoleWynagrodzenia>[] = [
     id: 'nadgodzina', nazwa: 'Nadgodzina', jednostka: 'zł / h',
     podpowiedz: 'Pn–pt każda godzina powyżej 8 h oraz każda godzina w soboty, niedziele i święta.',
   },
-  { id: 'kierowca', nazwa: 'Kierowca', jednostka: 'zł / dzień' },
-  { id: 'pasazer', nazwa: 'Pasażer', jednostka: 'zł / dzień' },
+  {
+    id: 'kierowca', nazwa: 'Kierowca', jednostka: 'zł / h',
+    podpowiedz: 'Za każdą godzinę prowadzenia auta. Można łączyć z pasażerem w jednym dniu.',
+  },
+  {
+    id: 'pasazer', nazwa: 'Pasażer', jednostka: 'zł / h',
+    podpowiedz: 'Za każdą godzinę jazdy jako pasażer.',
+  },
   {
     id: 'zus', nazwa: 'ZUS', jednostka: 'mnożnik', mnoznik: true,
     podpowiedz: 'Koszt pracodawcy: mnożnik sumy pozycji 1–4, np. 1,2.',
   },
 ];
 
-export type Dojazd = 'brak' | 'kierowca' | 'pasazer';
+/** Godziny jazdy w dniu. Kierowca i pasażer mogą się zmieniać w drodze do pracy i z powrotem. */
+export interface Dojazd {
+  kierowca: number;
+  pasazer: number;
+}
+
+export const BEZ_DOJAZDU: Dojazd = { kierowca: 0, pasazer: 0 };
 
 export const GODZINY_DNIOWKI = 8;
 
@@ -50,7 +62,8 @@ export function podzialGodzin(isoData: string, godziny: number): { podstawowe: n
 export interface WynikPracownika {
   zaPodstawe: number;
   zaNadgodziny: number;
-  zaDojazd: number;
+  zaKierowce: number;
+  zaPasazera: number;
   wynagrodzenie: number;
   koszt: number;
 }
@@ -63,10 +76,11 @@ export function kwotaPracownika(
 ): WynikPracownika {
   const zaPodstawe = round2(((stawki.stawka8h ?? 0) * podstawowe) / GODZINY_DNIOWKI);
   const zaNadgodziny = round2((stawki.nadgodzina ?? 0) * nadgodziny);
-  const zaDojazd = dojazd === 'kierowca' ? stawki.kierowca ?? 0 : dojazd === 'pasazer' ? stawki.pasazer ?? 0 : 0;
-  const wynagrodzenie = round2(zaPodstawe + zaNadgodziny + zaDojazd);
+  const zaKierowce = round2((stawki.kierowca ?? 0) * Math.max(0, dojazd.kierowca));
+  const zaPasazera = round2((stawki.pasazer ?? 0) * Math.max(0, dojazd.pasazer));
+  const wynagrodzenie = round2(zaPodstawe + zaNadgodziny + zaKierowce + zaPasazera);
   const mnoznik = stawki.zus && stawki.zus > 0 ? stawki.zus : 1;
-  return { zaPodstawe, zaNadgodziny, zaDojazd, wynagrodzenie, koszt: round2(wynagrodzenie * mnoznik) };
+  return { zaPodstawe, zaNadgodziny, zaKierowce, zaPasazera, wynagrodzenie, koszt: round2(wynagrodzenie * mnoznik) };
 }
 
 export function liniePodsumowania(
@@ -83,12 +97,20 @@ export function liniePodsumowania(
   if (nadgodziny > 0) {
     linie.push(`Nadgodziny: ${formatLiczby(nadgodziny)} h × ${formatLiczby(stawki.nadgodzina ?? 0)} zł = ${formatLiczby(wynik.zaNadgodziny)} zł`);
   }
-  if (dojazd !== 'brak') {
-    linie.push(`${dojazd === 'kierowca' ? 'Kierowca' : 'Pasażer'}: ${formatLiczby(wynik.zaDojazd)} zł`);
+  if (dojazd.kierowca > 0) {
+    linie.push(`Kierowca: ${formatLiczby(dojazd.kierowca)} h × ${formatLiczby(stawki.kierowca ?? 0)} zł = ${formatLiczby(wynik.zaKierowce)} zł`);
+  }
+  if (dojazd.pasazer > 0) {
+    linie.push(`Pasażer: ${formatLiczby(dojazd.pasazer)} h × ${formatLiczby(stawki.pasazer ?? 0)} zł = ${formatLiczby(wynik.zaPasazera)} zł`);
   }
   linie.push(`Wynagrodzenie: ${formatLiczby(wynik.wynagrodzenie)} zł`);
   if (stawki.zus) linie.push(`ZUS: × ${formatLiczby(stawki.zus)}`);
   return linie;
+}
+
+/** Raporty z 1.8.28 miały dojazd jako wybór jednej opcji bez godzin. */
+export function dojazdRaportu(raport: { dojazd?: unknown; godzinyKierowca?: number; godzinyPasazer?: number }): Dojazd {
+  return { kierowca: raport.godzinyKierowca ?? 0, pasazer: raport.godzinyPasazer ?? 0 };
 }
 
 export function linieStawekPola(pola: OpisPolaStawki[], stawki: object): string[] {

@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.28';
+export const WERSJA_APLIKACJI = '1.8.29';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,15 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.29',
+    data: '2026-10-15',
+    tytul: 'Pracownicy – kierowca i pasażer za godzinę',
+    zmiany: [
+      'Kierowca i pasażer to stawki godzinowe (np. 30 zł/h i 20 zł/h)',
+      'W raporcie dnia wpisuje się godziny kierowcy i pasażera – obie naraz, gdy pracownicy zmieniają się w drodze',
+    ],
+  },
   {
     wersja: '1.8.28',
     data: '2026-10-15',

@@ -8,7 +8,7 @@ import { Gwiazdka, Zakladki, type ZakladkaKarty } from '../../../../src/componen
 import { lightTheme, darkTheme } from '../../../../src/constants/theme';
 import { formatLiczby } from '../../../../src/utils/calculations';
 import {
-  POLA_WYNAGRODZENIA, kwotaPracownika, liniePodsumowania, linieStawekPola, nazwaPracownika,
+  POLA_WYNAGRODZENIA, dojazdRaportu, kwotaPracownika, liniePodsumowania, linieStawekPola, nazwaPracownika,
 } from '../../../../src/budzet/pracownicy';
 import type { StawkiPracownika } from '../../../../src/budzet/pracownicy';
 import { dataKrotko } from '../../../../src/budzet/wyswietlanie';
@@ -138,14 +138,15 @@ export default function KartaPracownikaScreen() {
                 </Text>
               ) : lista.map((raport) => {
                 const budowa = budowy.find((b) => b.id === raport.budowaId);
-                const wynik = kwotaPracownika(raport.stawki, raport.godzinyPodstawowe, raport.nadgodziny, raport.dojazd);
+                const dojazd = dojazdRaportu(raport);
+                const wynik = kwotaPracownika(raport.stawki, raport.godzinyPodstawowe, raport.nadgodziny, dojazd);
                 return (
                   <View key={raport.id} style={[styles.raport, { borderColor: theme.colors.border }]}>
                     <Text style={[styles.data, { color: theme.colors.text }]}>{dataKrotko(raport.data)} · {formatLiczby(raport.godziny)} h</Text>
                     <Text style={{ color: theme.colors.textSecondary }}>
                       {budowa ? `${budowa.kodBudowy} · ${budowa.nazwaInwestycji}` : 'Budowa usunięta'}
                     </Text>
-                    {liniePodsumowania(raport.stawki, raport.godzinyPodstawowe, raport.nadgodziny, raport.dojazd, wynik).map((linia) => (
+                    {liniePodsumowania(raport.stawki, raport.godzinyPodstawowe, raport.nadgodziny, dojazd, wynik).map((linia) => (
                       <Text key={linia} style={{ color: theme.colors.text, marginTop: 2 }}>{linia}</Text>
                     ))}
                     <Text style={[styles.kwota, { color: theme.colors.text }]}>Koszt: {formatLiczby(raport.kwota)} zł</Text>
