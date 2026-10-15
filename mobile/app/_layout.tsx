@@ -13,6 +13,9 @@ import { useLiveStore } from '../src/stores/liveStore';
 import { useNotatnikStore } from '../src/stores/notatnikStore';
 import { useObmiarStore } from '../src/stores/obmiarStore';
 import { useGrafikaMaszynStore } from '../src/stores/grafikaMaszynStore';
+import { useFirmyStore } from '../src/stores/firmyStore';
+import { usePracownicyStore } from '../src/stores/pracownicyStore';
+import { useSprzetStore } from '../src/stores/sprzetStore';
 import { lightTheme, darkTheme } from '../src/constants/theme';
 import { LoadingScreen } from '../src/components/common/LoadingScreen';
 import { ErrorBoundary } from '../src/components/common/ErrorBoundary';
@@ -32,6 +35,9 @@ export default function RootLayout() {
   const zaladujNotatnik = useNotatnikStore((s) => s.zaladuj);
   const zaladujObmiar = useObmiarStore((s) => s.zaladuj);
   const zaladujGrafike = useGrafikaMaszynStore((s) => s.zaladuj);
+  const zaladujFirmy = useFirmyStore((s) => s.zaladuj);
+  const zaladujPracownikow = usePracownicyStore((s) => s.zaladuj);
+  const zaladujSprzet = useSprzetStore((s) => s.zaladuj);
 
   const [ladowanie, setLadowanie] = useState(true);
   const [loadingWidoczny, setLoadingWidoczny] = useState(true);
@@ -50,6 +56,9 @@ export default function RootLayout() {
           zaladujNotatnik(),
           zaladujObmiar(),
           zaladujGrafike(),
+          zaladujFirmy(),
+          zaladujPracownikow(),
+          zaladujSprzet(),
         ]);
         const onboardingComplete = await AsyncStorage.getItem(KLUCZ_ONBOARDING);
         if (!onboardingComplete) {
@@ -149,6 +158,15 @@ export default function RootLayout() {
         <Stack.Screen name="niezbednik/geodezja/luki" options={{ headerShown: false }} />
         <Stack.Screen name="niezbednik/geodezja/kat-prosty" options={{ headerShown: false }} />
         <Stack.Screen name="niezbednik/notatnik/index" options={{ headerShown: false }} />
+        <Stack.Screen name="budzet/index" options={{ headerShown: false }} />
+        <Stack.Screen name="budzet/sprzet/index" options={{ headerShown: false }} />
+        <Stack.Screen name="budzet/sprzet/nowy" options={{ headerShown: false }} />
+        <Stack.Screen name="budzet/sprzet/rodzaj/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="budzet/sprzet/[id]/index" options={{ headerShown: false }} />
+        <Stack.Screen name="budzet/sprzet/[id]/raport" options={{ headerShown: false }} />
+        <Stack.Screen name="budzet/pracownicy/index" options={{ headerShown: false }} />
+        <Stack.Screen name="budzet/firmy/index" options={{ headerShown: false }} />
+        <Stack.Screen name="budzet/grupa-bitumiczna/index" options={{ headerShown: false }} />
       </Stack>
 
         {loadingWidoczny && (

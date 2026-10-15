@@ -34,6 +34,7 @@ const KAFELKI: Kafelek[] = [
   { id: 'plan', tytul: 'Zaplanuj Masę', podtytul: 'Zaplanuj dzień', ikona: '📋', sciezka: '/plan', kolor: '#2E86AB', delay: 160 },
   { id: 'wbudowywanie', tytul: 'Wbudowywanie', podtytul: 'Live Tracker', ikona: '🛣️', sciezka: '/wbudowywanie', kolor: '#22C55E', delay: 240 },
   { id: 'archiwum', tytul: 'Archiwum', podtytul: 'Raporty', ikona: '📁', sciezka: '/archiwum', kolor: '#8B5CF6', delay: 320 },
+  { id: 'budzet', tytul: 'Budżet', podtytul: 'Sprzęt · pracownicy · firmy', ikona: '💰', sciezka: '/budzet', kolor: '#B45309', delay: 400 },
 ];
 
 const NIEZBEDNIK: Kafelek[] = [
@@ -136,6 +137,7 @@ export default function HomeScreen() {
               }}
             >
               <TouchableOpacity
+                accessibilityLabel={kafelek.tytul}
                 style={[styles.kafelek, { backgroundColor: theme.colors.tileBackground, borderColor: theme.colors.border }]}
                 onPress={() => handleKafelekPress(kafelek, idx)}
                 activeOpacity={1}

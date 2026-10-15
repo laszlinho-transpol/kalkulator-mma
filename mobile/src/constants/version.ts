@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.25';
+export const WERSJA_APLIKACJI = '1.8.26';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,17 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.26',
+    data: '2026-10-15',
+    tytul: 'Budżet – sprzęt i raporty',
+    zmiany: [
+      'W menu głównym jest kafelek Budżet: Sprzęt, Pracownicy, Firmy i Grupa bitumiczna',
+      'Sprzęt dzieli się na rodzaje maszyn. Karta ma numer, firmę, stawki i spalanie',
+      'Firma z karty sprzętu trafia do osobnej bazy firm i podpowiada się przy kolejnej maszynie',
+      'Raport maszyny liczy kwotę z kosztu miesięcznego, stawki dziennej, motogodziny albo kilometra',
+    ],
+  },
   {
     wersja: '1.8.25',
     data: '2026-10-09',
