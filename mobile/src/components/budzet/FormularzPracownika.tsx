@@ -16,11 +16,11 @@ export interface DanePracownikaFormularza {
 }
 
 const PRZYKLADY: Record<PoleWynagrodzenia, string> = {
-  stawka8h: 'np. 280',
-  nadgodzina: 'np. 45',
+  stawka8h: 'np. 45',
+  nadgodzina: 'np. 60',
   kierowca: 'np. 30',
   pasazer: 'np. 20',
-  zus: 'np. 1,2',
+  zus: 'np. 1,4',
 };
 
 interface Props {

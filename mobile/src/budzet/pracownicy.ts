@@ -17,7 +17,10 @@ export interface OpisPolaStawki<K extends string = string> {
 }
 
 export const POLA_WYNAGRODZENIA: OpisPolaStawki<PoleWynagrodzenia>[] = [
-  { id: 'stawka8h', nazwa: 'Stawka 8h', jednostka: 'zł / 8 h' },
+  {
+    id: 'stawka8h', nazwa: 'Stawka 8h', jednostka: 'zł / h',
+    podpowiedz: 'Stawka za godzinę w ramach pierwszych 8 h pracy od poniedziałku do piątku.',
+  },
   {
     id: 'nadgodzina', nazwa: 'Nadgodzina', jednostka: 'zł / h',
     podpowiedz: 'Pn–pt każda godzina powyżej 8 h oraz każda godzina w soboty, niedziele i święta.',
@@ -74,7 +77,7 @@ export function kwotaPracownika(
   nadgodziny: number,
   dojazd: Dojazd,
 ): WynikPracownika {
-  const zaPodstawe = round2(((stawki.stawka8h ?? 0) * podstawowe) / GODZINY_DNIOWKI);
+  const zaPodstawe = round2((stawki.stawka8h ?? 0) * podstawowe);
   const zaNadgodziny = round2((stawki.nadgodzina ?? 0) * nadgodziny);
   const zaKierowce = round2((stawki.kierowca ?? 0) * Math.max(0, dojazd.kierowca));
   const zaPasazera = round2((stawki.pasazer ?? 0) * Math.max(0, dojazd.pasazer));
@@ -92,7 +95,7 @@ export function liniePodsumowania(
 ): string[] {
   const linie: string[] = [];
   if (podstawowe > 0) {
-    linie.push(`Stawka 8h: ${formatLiczby(stawki.stawka8h ?? 0)} zł × ${formatLiczby(podstawowe)} h ÷ 8 = ${formatLiczby(wynik.zaPodstawe)} zł`);
+    linie.push(`Stawka 8h: ${formatLiczby(podstawowe)} h × ${formatLiczby(stawki.stawka8h ?? 0)} zł = ${formatLiczby(wynik.zaPodstawe)} zł`);
   }
   if (nadgodziny > 0) {
     linie.push(`Nadgodziny: ${formatLiczby(nadgodziny)} h × ${formatLiczby(stawki.nadgodzina ?? 0)} zł = ${formatLiczby(wynik.zaNadgodziny)} zł`);
