@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.27';
+export const WERSJA_APLIKACJI = '1.8.28';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,19 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.28',
+    data: '2026-10-15',
+    tytul: 'Budżet – pracownicy',
+    zmiany: [
+      'Formularz pracownika: nazwisko, imię, grupa i wynagrodzenie (stawka 8h, nadgodzina, kierowca, pasażer, ZUS)',
+      'Nowa nazwa grupy trafia do bazy grup i jest podpowiadana przy kolejnych pracownikach',
+      'Lista w grupach, alfabetycznie po nazwisku. Gwiazdka przenosi grupę na górę listy, a pracownika na górę grupy',
+      'Karta pracownika z zakładkami Dane, Historia stawek i Raporty',
+      'Raport dnia dzieli godziny: pn–pt powyżej 8 h oraz soboty, niedziele i święta to nadgodziny. Koszt = suma × ZUS',
+      'Dni robocze przy koszcie miesięcznym sprzętu pomijają święta',
+    ],
+  },
   {
     wersja: '1.8.27',
     data: '2026-10-15',

@@ -18,6 +18,7 @@ import { etykietaSprzetu } from '../../../../src/budzet/wyswietlanie';
 import { wstecz } from '../../../../src/budzet/nawigacja';
 import { useRouteId } from '../../../../src/hooks/useRouteId';
 import { useBudowyStore } from '../../../../src/stores/budowyStore';
+import { nazwaPracownika, pracownicyAlfabetycznie } from '../../../../src/budzet/pracownicy';
 import { usePracownicyStore } from '../../../../src/stores/pracownicyStore';
 import { useSprzetStore } from '../../../../src/stores/sprzetStore';
 import type { PozycjaRaportuSprzetu } from '../../../../src/budzet/typy';
@@ -170,17 +171,17 @@ export default function RaportSprzetuScreen() {
           <Text style={[styles.etykieta, { color: theme.colors.textSecondary }]}>Pracownik</Text>
           {pracownicy.length === 0 ? (
             <Text style={[styles.opis, { color: theme.colors.textSecondary }]}>Najpierw dodaj pracownika w menu Pracownicy.</Text>
-          ) : pracownicy.map((pracownik) => (
+          ) : pracownicyAlfabetycznie(pracownicy).map((pracownik) => (
             <Wybor
               key={pracownik.id}
               theme={theme}
               zaznaczony={pracownik.id === pracownikId}
-              etykieta={pracownik.imieNazwisko}
-              accessibilityLabel={`Pracownik ${pracownik.imieNazwisko}`}
+              etykieta={nazwaPracownika(pracownik)}
+              accessibilityLabel={`Pracownik ${nazwaPracownika(pracownik)}`}
               onPress={() => setPracownikId(pracownik.id)}
             />
           ))}
-          <TouchableOpacity onPress={() => router.push('/budzet/pracownicy' as never)}>
+          <TouchableOpacity onPress={() => router.push('/budzet/pracownicy/nowy' as never)}>
             <Text style={{ color: theme.colors.primary, fontWeight: '800' }}>Nowy pracownik</Text>
           </TouchableOpacity>
 
@@ -231,7 +232,7 @@ export default function RaportSprzetuScreen() {
                           accessibilityLabel="Ilość dni pracujących"
                         />
                         <Text style={[styles.opis, { color: theme.colors.textSecondary }]}>
-                          Podpowiedź na {miesiac}: {sugerowaneDni} dni robocze (pn–pt). Można wpisać inną liczbę.
+                          Podpowiedź na {miesiac}: {sugerowaneDni} dni robocze (pn–pt bez świąt). Można wpisać inną liczbę.
                         </Text>
                         <TouchableOpacity
                           accessibilityLabel="Przywróć dni robocze"

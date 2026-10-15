@@ -4,10 +4,12 @@ import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppHeader } from '../../../../src/components/common/AppHeader';
 import { HistoriaStawek } from '../../../../src/components/budzet/HistoriaStawek';
+import { Zakladki, type ZakladkaKarty } from '../../../../src/components/budzet/Zakladki';
 import { lightTheme, darkTheme } from '../../../../src/constants/theme';
 import { formatLiczby } from '../../../../src/utils/calculations';
 import { rodzajPoId } from '../../../../src/budzet/rodzajeSprzetu';
-import { opisRozliczenia } from '../../../../src/budzet/rozliczenie';
+import { OPISY_ROZLICZENIA, opisRozliczenia } from '../../../../src/budzet/rozliczenie';
+import { nazwaPracownika } from '../../../../src/budzet/pracownicy';
 import { dataKrotko, etykietaSprzetu, linieStawek } from '../../../../src/budzet/wyswietlanie';
 import { wstecz } from '../../../../src/budzet/nawigacja';
 import { useRouteId } from '../../../../src/hooks/useRouteId';
@@ -16,18 +18,23 @@ import { useFirmyStore } from '../../../../src/stores/firmyStore';
 import { usePracownicyStore } from '../../../../src/stores/pracownicyStore';
 import { useSprzetStore } from '../../../../src/stores/sprzetStore';
 
+const POLA_SPRZETU = OPISY_ROZLICZENIA.map((o) => ({ id: o.id, nazwa: o.nazwa, jednostka: o.jednostkaStawki }));
+
 export default function KartaSprzetuScreen() {
   const id = useRouteId();
   const colorScheme = useColorScheme();
   const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
   const insets = useSafeAreaInsets();
   const [szukaj, setSzukaj] = useState('');
-  const [zakladka, setZakladka] = useState<'dane' | 'historia' | 'raporty'>('dane');
+  const [zakladka, setZakladka] = useState<ZakladkaKarty>('dane');
   const maszyna = useSprzetStore((s) => s.sprzet.find((pozycja) => pozycja.id === id));
   const raporty = useSprzetStore((s) => s.raporty);
   const firmy = useFirmyStore((s) => s.firmy);
   const budowy = useBudowyStore((s) => s.budowy);
   const pracownicy = usePracownicyStore((s) => s.pracownicy);
+  const dodajOkres = useSprzetStore((s) => s.dodajOkresStawek);
+  const zmienOkres = useSprzetStore((s) => s.zmienOkresStawek);
+  const usunOkres = useSprzetStore((s) => s.usunOkresStawek);
 
   const lista = useMemo(() => {
     const fraza = szukaj.trim().toLowerCase();
@@ -43,7 +50,7 @@ export default function KartaSprzetuScreen() {
           formatLiczby(r.kwota).replace(/\u00A0/g, ''),
           String(r.kwota).replace('.', ','),
           budowa?.kodBudowy ?? '', budowa?.nazwaInwestycji ?? '',
-          pracownik?.imieNazwisko ?? '',
+          pracownik ? nazwaPracownika(pracownik) : '',
         ].join(' ').toLowerCase();
         return tekst.includes(fraza);
       });
@@ -64,28 +71,7 @@ export default function KartaSprzetuScreen() {
         <Text style={[styles.brak, { color: theme.colors.textSecondary }]}>Nie znaleziono sprzętu.</Text>
       ) : (
         <ScrollView contentContainerStyle={[styles.tresc, { paddingBottom: insets.bottom + 24 }]}>
-          <View style={styles.zakladki}>
-            {([
-              ['dane', 'Dane'],
-              ['historia', 'Historia stawek'],
-              ['raporty', 'Raporty'],
-            ] as const).map(([idZakladki, nazwa]) => {
-              const on = zakladka === idZakladki;
-              return (
-                <TouchableOpacity
-                  key={idZakladki}
-                  accessibilityLabel={`Zakładka ${nazwa}`}
-                  onPress={() => setZakladka(idZakladki)}
-                  style={[styles.zakladka, {
-                    borderColor: on ? theme.colors.primary : theme.colors.border,
-                    backgroundColor: on ? `${theme.colors.primary}22` : theme.colors.card,
-                  }]}
-                >
-                  <Text style={{ color: theme.colors.text, fontWeight: on ? '800' : '600', textAlign: 'center', fontSize: 13 }}>{nazwa}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+          <Zakladki theme={theme} aktywna={zakladka} onZmien={setZakladka} />
           {zakladka === 'dane' ? (
           <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
             <Wiersz etykieta="Rodzaj" wartosc={rodzaj?.nazwa ?? maszyna.rodzajId} kolor={theme.colors.text} etykietaKolor={theme.colors.textSecondary} />
@@ -109,7 +95,18 @@ export default function KartaSprzetuScreen() {
             </TouchableOpacity>
           </View>
           ) : null}
-          {zakladka === 'historia' ? <HistoriaStawek maszyna={maszyna} theme={theme} /> : null}
+          {zakladka === 'historia' ? (
+            <HistoriaStawek
+              theme={theme}
+              pola={POLA_SPRZETU}
+              bazowe={maszyna.stawki}
+              historia={maszyna.historiaStawek}
+              linie={linieStawek}
+              onDodaj={(okres) => dodajOkres(maszyna.id, okres)}
+              onZmien={(okres) => zmienOkres(maszyna.id, okres)}
+              onUsun={(okresId) => usunOkres(maszyna.id, okresId)}
+            />
+          ) : null}
           {zakladka === 'raporty' ? (
           <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
             <Text style={[styles.sekcja, { color: theme.colors.text }]}>Raporty</Text>
@@ -141,7 +138,7 @@ export default function KartaSprzetuScreen() {
                   <Text style={{ color: theme.colors.textSecondary }}>
                     {budowa ? `${budowa.kodBudowy} · ${budowa.nazwaInwestycji}` : 'Budowa usunięta'}
                   </Text>
-                  <Text style={{ color: theme.colors.textSecondary }}>{pracownik?.imieNazwisko ?? 'Pracownik usunięty'}</Text>
+                  <Text style={{ color: theme.colors.textSecondary }}>{pracownik ? nazwaPracownika(pracownik) : 'Pracownik usunięty'}</Text>
                   {raport.pozycje.map((pozycja) => (
                     <Text key={pozycja.rodzaj} style={{ color: theme.colors.text, marginTop: 4 }}>
                       {pozycja.rodzaj === 'miesieczny' && pozycja.dniRobocze
@@ -175,8 +172,6 @@ const styles = StyleSheet.create({
   ekran: { flex: 1 },
   brak: { padding: 24, fontSize: 16 },
   tresc: { padding: 16, gap: 12 },
-  zakladki: { flexDirection: 'row', gap: 8 },
-  zakladka: { flex: 1, borderWidth: 1, borderRadius: 12, paddingHorizontal: 8, paddingVertical: 10, alignItems: 'center', justifyContent: 'center', minHeight: 48 },
   karta: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 8 },
   sekcja: { fontSize: 18, fontWeight: '800' },
   wiersz: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },

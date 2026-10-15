@@ -15,6 +15,7 @@ import { useObmiarStore } from '../src/stores/obmiarStore';
 import { useGrafikaMaszynStore } from '../src/stores/grafikaMaszynStore';
 import { useFirmyStore } from '../src/stores/firmyStore';
 import { usePracownicyStore } from '../src/stores/pracownicyStore';
+import { useGrupyPracownikowStore } from '../src/stores/grupyPracownikowStore';
 import { useSprzetStore } from '../src/stores/sprzetStore';
 import { lightTheme, darkTheme } from '../src/constants/theme';
 import { LoadingScreen } from '../src/components/common/LoadingScreen';
@@ -37,6 +38,7 @@ export default function RootLayout() {
   const zaladujGrafike = useGrafikaMaszynStore((s) => s.zaladuj);
   const zaladujFirmy = useFirmyStore((s) => s.zaladuj);
   const zaladujPracownikow = usePracownicyStore((s) => s.zaladuj);
+  const zaladujGrupyPracownikow = useGrupyPracownikowStore((s) => s.zaladuj);
   const zaladujSprzet = useSprzetStore((s) => s.zaladuj);
 
   const [ladowanie, setLadowanie] = useState(true);
@@ -58,6 +60,7 @@ export default function RootLayout() {
           zaladujGrafike(),
           zaladujFirmy(),
           zaladujPracownikow(),
+          zaladujGrupyPracownikow(),
           zaladujSprzet(),
         ]);
         const onboardingComplete = await AsyncStorage.getItem(KLUCZ_ONBOARDING);
@@ -166,6 +169,10 @@ export default function RootLayout() {
         <Stack.Screen name="budzet/sprzet/[id]/raport" options={{ headerShown: false }} />
         <Stack.Screen name="budzet/sprzet/[id]/edytuj" options={{ headerShown: false }} />
         <Stack.Screen name="budzet/pracownicy/index" options={{ headerShown: false }} />
+        <Stack.Screen name="budzet/pracownicy/nowy" options={{ headerShown: false }} />
+        <Stack.Screen name="budzet/pracownicy/[id]/index" options={{ headerShown: false }} />
+        <Stack.Screen name="budzet/pracownicy/[id]/edytuj" options={{ headerShown: false }} />
+        <Stack.Screen name="budzet/pracownicy/[id]/raport" options={{ headerShown: false }} />
         <Stack.Screen name="budzet/firmy/index" options={{ headerShown: false }} />
         <Stack.Screen name="budzet/grupa-bitumiczna/index" options={{ headerShown: false }} />
       </Stack>

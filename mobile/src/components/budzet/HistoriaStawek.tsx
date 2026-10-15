@@ -2,15 +2,11 @@ import React, { useState } from 'react';
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import type { AppTheme } from '../../constants/theme';
 import { KalendarzZakresu, etykietaZakresu } from '../common/KalendarzZakresu';
-import {
-  OPISY_ROZLICZENIA, parsujLiczbePola, tekstZapisanejStawki, zakresNachodzi,
-  type RodzajRozliczenia, type StawkiSprzetu,
-} from '../../budzet/rozliczenie';
-import { linieStawek } from '../../budzet/wyswietlanie';
-import type { OkresStawek, Sprzet } from '../../budzet/typy';
+import { parsujLiczbePola, tekstZapisanejStawki, zakresNachodzi } from '../../budzet/rozliczenie';
+import type { OpisPolaStawki } from '../../budzet/pracownicy';
+import type { OkresStawek } from '../../budzet/typy';
 import { potwierdzAkcje } from '../../utils/dialog';
 import { dzisIso } from '../../utils/zakresDat';
-import { useSprzetStore } from '../../stores/sprzetStore';
 
 function zakresMiesiaca(iso: string): { od: string; do: string } {
   const [rok, miesiac] = iso.split('-').map(Number);
@@ -19,17 +15,22 @@ function zakresMiesiaca(iso: string): { od: string; do: string } {
   return { od: `${rok}-${mm}-01`, do: `${rok}-${mm}-${String(ostatni).padStart(2, '0')}` };
 }
 
-interface Props {
-  maszyna: Sprzet;
+interface Props<T extends object> {
   theme: AppTheme;
+  pola: OpisPolaStawki[];
+  bazowe: T;
+  historia?: OkresStawek<T>[];
+  linie: (stawki: T) => string[];
+  onDodaj: (okres: Omit<OkresStawek<T>, 'id'>) => Promise<unknown>;
+  onZmien: (okres: OkresStawek<T>) => Promise<void>;
+  onUsun: (okresId: string) => Promise<void>;
 }
 
-export function HistoriaStawek({ maszyna, theme }: Props) {
-  const dodajOkres = useSprzetStore((s) => s.dodajOkresStawek);
-  const zmienOkres = useSprzetStore((s) => s.zmienOkresStawek);
-  const usunOkres = useSprzetStore((s) => s.usunOkresStawek);
+export function HistoriaStawek<T extends object>({
+  theme, pola, bazowe, historia: zapisana, linie, onDodaj, onZmien, onUsun,
+}: Props<T>) {
   const [formularz, setFormularz] = useState<string | null>(null);
-  const historia = [...(maszyna.historiaStawek ?? [])].sort((a, b) => b.od.localeCompare(a.od));
+  const historia = [...(zapisana ?? [])].sort((a, b) => b.od.localeCompare(a.od));
 
   return (
     <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
@@ -38,7 +39,7 @@ export function HistoriaStawek({ maszyna, theme }: Props) {
         Każdy okres ma własne stawki. Raport z daty w zakresie bierze je z tego okresu. Poza zakresami zostają stawki z karty.
       </Text>
       <Text style={{ color: theme.colors.text, fontWeight: '700' }}>Stawki z karty</Text>
-      {linieStawek(maszyna.stawki).map((linia) => (
+      {linie(bazowe).map((linia) => (
         <Text key={linia} style={{ color: theme.colors.textSecondary }}>{linia}</Text>
       ))}
 
@@ -47,7 +48,7 @@ export function HistoriaStawek({ maszyna, theme }: Props) {
       ) : historia.map((okres) => (
         <View key={okres.id} style={[styles.okres, { borderColor: theme.colors.border }]}>
           <Text style={[styles.zakres, { color: theme.colors.text }]}>{etykietaZakresu(okres.od, okres.do)}</Text>
-          {linieStawek(okres.stawki).map((linia) => (
+          {linie(okres.stawki).map((linia) => (
             <Text key={linia} style={{ color: theme.colors.text }}>{linia}</Text>
           ))}
           <View style={styles.akcje}>
@@ -59,7 +60,7 @@ export function HistoriaStawek({ maszyna, theme }: Props) {
               onPress={() => potwierdzAkcje(
                 'Usuń okres stawek',
                 `Usunąć stawki z zakresu ${etykietaZakresu(okres.od, okres.do)}?`,
-                () => { void usunOkres(maszyna.id, okres.id); },
+                () => { void onUsun(okres.id); },
               )}
             >
               <Text style={{ color: theme.colors.danger, fontWeight: '800' }}>Usuń</Text>
@@ -68,12 +69,13 @@ export function HistoriaStawek({ maszyna, theme }: Props) {
           {formularz === okres.id ? (
             <FormularzOkresu
               theme={theme}
-              historia={maszyna.historiaStawek}
+              pola={pola}
+              historia={zapisana}
               pominId={okres.id}
               poczatek={okres}
               onAnuluj={() => setFormularz(null)}
               onZapisz={async (dane) => {
-                await zmienOkres(maszyna.id, { ...dane, id: okres.id });
+                await onZmien({ ...dane, id: okres.id });
                 setFormularz(null);
               }}
             />
@@ -84,11 +86,12 @@ export function HistoriaStawek({ maszyna, theme }: Props) {
       {formularz === 'nowy' ? (
         <FormularzOkresu
           theme={theme}
-          historia={maszyna.historiaStawek}
-          poczatek={{ ...zakresMiesiaca(dzisIso()), stawki: maszyna.stawki }}
+          pola={pola}
+          historia={zapisana}
+          poczatek={{ ...zakresMiesiaca(dzisIso()), stawki: bazowe }}
           onAnuluj={() => setFormularz(null)}
           onZapisz={async (dane) => {
-            await dodajOkres(maszyna.id, dane);
+            await onDodaj(dane);
             setFormularz(null);
           }}
         />
@@ -105,23 +108,22 @@ export function HistoriaStawek({ maszyna, theme }: Props) {
   );
 }
 
-function FormularzOkresu({
-  theme, historia, pominId, poczatek, onAnuluj, onZapisz,
+function FormularzOkresu<T extends object>({
+  theme, pola, historia, pominId, poczatek, onAnuluj, onZapisz,
 }: {
   theme: AppTheme;
-  historia?: OkresStawek[];
+  pola: OpisPolaStawki[];
+  historia?: OkresStawek<T>[];
   pominId?: string;
-  poczatek: { od: string; do: string; stawki: StawkiSprzetu };
+  poczatek: { od: string; do: string; stawki: T };
   onAnuluj: () => void;
-  onZapisz: (dane: Omit<OkresStawek, 'id'>) => Promise<void>;
+  onZapisz: (dane: Omit<OkresStawek<T>, 'id'>) => Promise<void>;
 }) {
   const [od, setOd] = useState(poczatek.od);
   const [doDnia, setDoDnia] = useState(poczatek.do);
-  const [stawkiTekst, setStawkiTekst] = useState<Record<RodzajRozliczenia, string>>({
-    miesieczny: tekstZapisanejStawki(poczatek.stawki.miesieczny),
-    dzienny: tekstZapisanejStawki(poczatek.stawki.dzienny),
-    godzinowy: tekstZapisanejStawki(poczatek.stawki.godzinowy),
-    kilometr: tekstZapisanejStawki(poczatek.stawki.kilometr),
+  const [stawkiTekst, setStawkiTekst] = useState<Record<string, string>>(() => {
+    const wartosci = poczatek.stawki as Record<string, number | undefined>;
+    return Object.fromEntries(pola.map((pole) => [pole.id, tekstZapisanejStawki(wartosci[pole.id])]));
   });
   const [blad, setBlad] = useState('');
   const [zapis, setZapis] = useState(false);
@@ -133,16 +135,16 @@ function FormularzOkresu({
       setBlad('Ten zakres nachodzi na inny okres stawek.');
       return;
     }
-    const stawki: StawkiSprzetu = {};
-    for (const opis of OPISY_ROZLICZENIA) {
-      const tekst = stawkiTekst[opis.id].trim();
+    const stawki: Record<string, number> = {};
+    for (const pole of pola) {
+      const tekst = (stawkiTekst[pole.id] ?? '').trim();
       if (!tekst) continue;
       const liczba = parsujLiczbePola(tekst);
       if (liczba == null || liczba <= 0) {
-        setBlad(`Pole „${opis.nazwa}” przyjmuje liczbę większą od zera.`);
+        setBlad(`Pole „${pole.nazwa}” przyjmuje liczbę większą od zera.`);
         return;
       }
-      stawki[opis.id] = liczba;
+      stawki[pole.id] = liczba;
     }
     if (Object.keys(stawki).length === 0) {
       setBlad('Podaj choć jedną stawkę w tym okresie.');
@@ -151,7 +153,7 @@ function FormularzOkresu({
     setBlad('');
     setZapis(true);
     try {
-      await onZapisz({ od: poczatekZakresu, do: koniec, stawki });
+      await onZapisz({ od: poczatekZakresu, do: koniec, stawki: stawki as T });
     } finally {
       setZapis(false);
     }
@@ -162,15 +164,15 @@ function FormularzOkresu({
       <Text style={[styles.etykieta, { color: theme.colors.textSecondary }]}>Zakres dat</Text>
       <KalendarzZakresu od={od} doDnia={doDnia} theme={theme} onZatwierdz={(a, b) => { setOd(a); setDoDnia(b); }} />
       <Text style={{ color: theme.colors.textSecondary, fontSize: 13 }}>Najpierw początek, potem koniec. Zapis po OK.</Text>
-      {OPISY_ROZLICZENIA.map((opis) => (
-        <View key={opis.id} style={{ gap: 4 }}>
-          <Text style={[styles.etykieta, { color: theme.colors.textSecondary }]}>{opis.nazwa} (opcjonalnie)</Text>
+      {pola.map((pole) => (
+        <View key={pole.id} style={{ gap: 4 }}>
+          <Text style={[styles.etykieta, { color: theme.colors.textSecondary }]}>{pole.nazwa} (opcjonalnie)</Text>
           <TextInput
-            value={stawkiTekst[opis.id]}
-            onChangeText={(tekst) => setStawkiTekst((prev) => ({ ...prev, [opis.id]: tekst }))}
-            placeholder={opis.jednostkaStawki}
+            value={stawkiTekst[pole.id] ?? ''}
+            onChangeText={(tekst) => setStawkiTekst((prev) => ({ ...prev, [pole.id]: tekst }))}
+            placeholder={pole.jednostka}
             placeholderTextColor={theme.colors.textSecondary}
-            accessibilityLabel={`Okres ${opis.nazwa}`}
+            accessibilityLabel={`Okres ${pole.nazwa}`}
             keyboardType="decimal-pad"
             style={[styles.input, { color: theme.colors.text, borderColor: theme.colors.border, backgroundColor: theme.colors.inputBackground }]}
           />

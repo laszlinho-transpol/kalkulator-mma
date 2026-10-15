@@ -2,11 +2,13 @@
 
 import { round2 } from '../utils/calculations';
 
-interface ZakresStawek {
+import { czyDzienWolny } from './kalendarzPracy';
+
+interface ZakresStawek<T = StawkiSprzetu> {
   id: string;
   od: string;
   do: string;
-  stawki: StawkiSprzetu;
+  stawki: T;
 }
 
 export type RodzajRozliczenia = 'miesieczny' | 'dzienny' | 'godzinowy' | 'kilometr';
@@ -42,22 +44,22 @@ export function dostepneRozliczenia(stawki: StawkiSprzetu): RodzajRozliczenia[] 
 }
 
 /** Okres o najpóźniejszym początku, który obejmuje dzień. */
-export function okresNaDzien(historia: ZakresStawek[] | undefined, iso: string): ZakresStawek | undefined {
+export function okresNaDzien<T>(historia: ZakresStawek<T>[] | undefined, iso: string): ZakresStawek<T> | undefined {
   return (historia ?? [])
     .filter((okres) => okres.od <= iso && iso <= okres.do)
     .sort((a, b) => b.od.localeCompare(a.od) || b.do.localeCompare(a.do))[0];
 }
 
-export function stawkiObowiazujace(
-  bazowe: StawkiSprzetu,
-  historia: ZakresStawek[] | undefined,
+export function stawkiObowiazujace<T>(
+  bazowe: T,
+  historia: ZakresStawek<T>[] | undefined,
   iso: string,
-): StawkiSprzetu {
+): T {
   return okresNaDzien(historia, iso)?.stawki ?? bazowe;
 }
 
 export function zakresNachodzi(
-  historia: ZakresStawek[] | undefined,
+  historia: ZakresStawek<unknown>[] | undefined,
   od: string,
   dokad: string,
   pominId?: string,
@@ -69,15 +71,15 @@ export function tekstZapisanejStawki(stawka?: number): string {
   return stawka ? String(stawka).replace('.', ',') : '';
 }
 
-/** Poniedziałek–piątek w miesiącu daty raportu. */
+/** Poniedziałek–piątek bez świąt w miesiącu daty raportu. */
 export function dniRoboczeMiesiaca(isoData: string): number {
   const [rok, miesiac] = isoData.split('-').map(Number);
   if (!rok || !miesiac) return 0;
   const ostatni = new Date(rok, miesiac, 0).getDate();
+  const mm = String(miesiac).padStart(2, '0');
   let dni = 0;
   for (let dzien = 1; dzien <= ostatni; dzien += 1) {
-    const numer = new Date(rok, miesiac - 1, dzien).getDay();
-    if (numer !== 0 && numer !== 6) dni += 1;
+    if (!czyDzienWolny(`${rok}-${mm}-${String(dzien).padStart(2, '0')}`)) dni += 1;
   }
   return dni;
 }

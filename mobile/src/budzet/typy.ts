@@ -1,4 +1,5 @@
 import type { RodzajRozliczenia, StawkiSprzetu } from './rozliczenie';
+import type { Dojazd, StawkiPracownika } from './pracownicy';
 
 export interface Firma {
   id: string;
@@ -6,19 +7,48 @@ export interface Firma {
   createdAt: string;
 }
 
+export interface GrupaPracownikow {
+  id: string;
+  nazwa: string;
+  ulubiona?: boolean;
+  createdAt: string;
+}
+
+/** Stawki obowiązujące od–do. Raport z daty w zakresie bierze te kwoty zamiast stawek z karty. */
+export interface OkresStawek<T = StawkiSprzetu> {
+  id: string;
+  od: string;
+  do: string;
+  stawki: T;
+}
+
 export interface Pracownik {
   id: string;
-  imieNazwisko: string;
+  nazwisko: string;
+  imie: string;
+  grupaId?: string;
+  stawki: StawkiPracownika;
+  historiaStawek?: OkresStawek<StawkiPracownika>[];
+  ulubiony?: boolean;
   createdAt: string;
   updatedAt: string;
 }
 
-/** Stawki obowiązujące od–do. Raport z daty w zakresie bierze te kwoty zamiast stawek z karty. */
-export interface OkresStawek {
+export interface RaportPracownika {
   id: string;
-  od: string;
-  do: string;
-  stawki: StawkiSprzetu;
+  pracownikId: string;
+  data: string;
+  budowaId: string;
+  godziny: number;
+  godzinyPodstawowe: number;
+  nadgodziny: number;
+  dojazd: Dojazd;
+  stawki: StawkiPracownika;
+  wynagrodzenie: number;
+  /** Wynagrodzenie × mnożnik ZUS. */
+  kwota: number;
+  uwagi?: string;
+  createdAt: string;
 }
 
 export interface Sprzet {
