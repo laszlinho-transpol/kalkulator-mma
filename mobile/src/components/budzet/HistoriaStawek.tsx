@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import type { AppTheme } from '../../constants/theme';
 import { KalendarzZakresu, etykietaZakresu } from '../common/KalendarzZakresu';
+import { Etykieta, Pole, Wiersz } from '../common/Formularz';
+import { InfoTooltip } from '../common/InfoTooltip';
 import { parsujLiczbePola, tekstZapisanejStawki, zakresNachodzi } from '../../budzet/rozliczenie';
 import type { OpisPolaStawki } from '../../budzet/pracownicy';
 import type { OkresStawek } from '../../budzet/typy';
@@ -34,10 +36,10 @@ export function HistoriaStawek<T extends object>({
 
   return (
     <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-      <Text style={[styles.sekcja, { color: theme.colors.text }]}>Historia stawek</Text>
-      <Text style={{ color: theme.colors.textSecondary, lineHeight: 18 }}>
-        Każdy okres ma własne stawki. Raport z daty w zakresie bierze je z tego okresu. Poza zakresami zostają stawki z karty.
-      </Text>
+      <View style={styles.tytulWiersz}>
+        <Text style={[styles.sekcja, { color: theme.colors.text }]}>Historia stawek</Text>
+        <InfoTooltip tresc="Każdy okres ma własne stawki. Raport z daty w zakresie bierze je z tego okresu. Poza zakresami zostają stawki z karty." />
+      </View>
       <Text style={{ color: theme.colors.text, fontWeight: '700' }}>Stawki z karty</Text>
       {linie(bazowe).map((linia) => (
         <Text key={linia} style={{ color: theme.colors.textSecondary }}>{linia}</Text>
@@ -161,22 +163,22 @@ function FormularzOkresu<T extends object>({
 
   return (
     <View style={styles.formularz}>
-      <Text style={[styles.etykieta, { color: theme.colors.textSecondary }]}>Zakres dat</Text>
+      <Etykieta tekst="Zakres dat" info="Najpierw wybierz początek, potem koniec. Zakres zapisuje się po OK." />
       <KalendarzZakresu od={od} doDnia={doDnia} theme={theme} onZatwierdz={(a, b) => { setOd(a); setDoDnia(b); }} />
-      <Text style={{ color: theme.colors.textSecondary, fontSize: 13 }}>Najpierw początek, potem koniec. Zapis po OK.</Text>
-      {pola.map((pole) => (
-        <View key={pole.id} style={{ gap: 4 }}>
-          <Text style={[styles.etykieta, { color: theme.colors.textSecondary }]}>{pole.nazwa} (opcjonalnie)</Text>
-          <TextInput
-            value={stawkiTekst[pole.id] ?? ''}
-            onChangeText={(tekst) => setStawkiTekst((prev) => ({ ...prev, [pole.id]: tekst }))}
-            placeholder={pole.jednostka}
-            placeholderTextColor={theme.colors.textSecondary}
-            accessibilityLabel={`Okres ${pole.nazwa}`}
-            keyboardType="decimal-pad"
-            style={[styles.input, { color: theme.colors.text, borderColor: theme.colors.border, backgroundColor: theme.colors.inputBackground }]}
-          />
-        </View>
+      {Array.from({ length: Math.ceil(pola.length / 2) }, (_, i) => pola.slice(i * 2, i * 2 + 2)).map((para) => (
+        <Wiersz key={para[0].id}>
+          {[...para.map((pole) => (
+            <Pole
+              key={pole.id}
+              etykieta={pole.nazwa}
+              jednostka={pole.mnoznik ? '×' : pole.jednostka.replace(' / ', '/')}
+              value={stawkiTekst[pole.id] ?? ''}
+              onChangeText={(tekst) => setStawkiTekst((prev) => ({ ...prev, [pole.id]: tekst }))}
+              accessibilityLabel={`Okres ${pole.nazwa}`}
+              liczba
+            />
+          )), para.length === 1 ? <View key="pusto" /> : null]}
+        </Wiersz>
       ))}
       {blad ? <Text style={{ color: theme.colors.danger, fontWeight: '700' }}>{blad}</Text> : null}
       <View style={styles.akcje}>
@@ -199,13 +201,12 @@ function FormularzOkresu<T extends object>({
 const styles = StyleSheet.create({
   karta: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 8 },
   sekcja: { fontSize: 18, fontWeight: '800' },
+  tytulWiersz: { flexDirection: 'row', alignItems: 'center' },
   okres: { borderTopWidth: 1, paddingTop: 10, gap: 4 },
   zakres: { fontSize: 16, fontWeight: '800' },
   akcje: { flexDirection: 'row', gap: 16, marginTop: 4 },
   dodaj: { borderRadius: 12, paddingVertical: 12, alignItems: 'center', marginTop: 4 },
   dodajTekst: { color: '#1A1A1A', fontWeight: '800' },
   formularz: { gap: 8, marginTop: 8 },
-  etykieta: { fontSize: 13, fontWeight: '700' },
-  input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16 },
   btn: { flex: 1, borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
 });

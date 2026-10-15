@@ -1,13 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useColorScheme, View,
-} from 'react-native';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, useColorScheme, View } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppHeader } from '../../../../src/components/common/AppHeader';
+import { Etykieta, Pole, Wiersz, Wybor, stylFormularza } from '../../../../src/components/common/Formularz';
 import { KalendarzDnia } from '../../../../src/components/common/KalendarzDnia';
 import { etykietaZakresu } from '../../../../src/components/common/KalendarzZakresu';
-import { lightTheme, darkTheme, type AppTheme } from '../../../../src/constants/theme';
+import { lightTheme, darkTheme } from '../../../../src/constants/theme';
 import { formatLiczby } from '../../../../src/utils/calculations';
 import { okresNaDzien, parsujLiczbePola, stawkiObowiazujace, wczorajIso } from '../../../../src/budzet/rozliczenie';
 import { opisDnia } from '../../../../src/budzet/kalendarzPracy';
@@ -128,95 +127,118 @@ export default function RaportPracownikaScreen() {
       ) : (
         <ScrollView
           keyboardShouldPersistTaps="handled"
-          contentContainerStyle={[styles.formularz, { paddingBottom: insets.bottom + 28 }]}
+          contentContainerStyle={[stylFormularza.tresc, { paddingBottom: insets.bottom + 24 }]}
         >
-          <Text style={[styles.etykieta, { color: theme.colors.textSecondary }]}>Data</Text>
-          <KalendarzDnia wartosc={data} theme={theme} onZatwierdz={setData} />
-          <Text style={[styles.opis, { color: theme.colors.textSecondary }]}>
-            Domyślnie dzień poprzedni. Data zapisuje się po OK. {opisDnia(data)}.
-          </Text>
-
-          <Text style={[styles.etykieta, { color: theme.colors.textSecondary }]}>Budowa</Text>
-          {budowyKolejnosc.length === 0 ? (
-            <Text style={[styles.opis, { color: theme.colors.textSecondary }]}>Najpierw dodaj budowę w menu Budowa.</Text>
-          ) : budowyKolejnosc.map((budowa) => (
-            <Wybor
-              key={budowa.id}
-              theme={theme}
-              zaznaczony={budowa.id === budowaId}
-              etykieta={`${budowa.kodBudowy} · ${budowa.nazwaInwestycji}`}
-              accessibilityLabel={`Budowa ${budowa.kodBudowy}`}
-              onPress={() => setBudowaId(budowa.id)}
+          <View>
+            <Etykieta
+              tekst="Data"
+              info="Domyślnie dzień poprzedni. Data zapisuje się po OK w kalendarzu."
+              prawy={<Text style={[styles.typDnia, { color: podzial.wolny ? theme.colors.primary : theme.colors.textSecondary }]}>{opisDnia(data)}</Text>}
             />
-          ))}
-
-          <PoleLiczby theme={theme} etykieta="Godziny pracy (h)" value={godzinyTekst} onChangeText={setGodzinyTekst} accessibilityLabel="Godziny pracy" />
-          <Text style={[styles.opis, { color: theme.colors.text }]}>
-            {podzial.wolny
-              ? `${opisDnia(data)}: ${formatLiczby(podzial.nadgodziny)} h nadgodzin.`
-              : `W stawce 8h: ${formatLiczby(podzial.podstawowe)} h · nadgodziny: ${formatLiczby(podzial.nadgodziny)} h.`}
-          </Text>
-
-          <Text style={[styles.etykieta, { color: theme.colors.textSecondary }]}>Dojazd</Text>
-          <Text style={[styles.opis, { color: theme.colors.textSecondary }]}>
-            Godziny jazdy w tym dniu. Można wpisać obie, gdy pracownik prowadził w jedną stronę, a jechał jako pasażer w drugą.
-          </Text>
-          <View style={styles.wiersz}>
-            <View style={{ flex: 1 }}>
-              <PoleLiczby theme={theme} etykieta="Kierowca (h)" value={kierowcaTekst} onChangeText={setKierowcaTekst} accessibilityLabel="Godziny kierowcy" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <PoleLiczby theme={theme} etykieta="Pasażer (h)" value={pasazerTekst} onChangeText={setPasazerTekst} accessibilityLabel="Godziny pasażera" />
-            </View>
+            <KalendarzDnia wartosc={data} theme={theme} onZatwierdz={setData} />
           </View>
 
-          <Text style={[styles.etykieta, { color: theme.colors.textSecondary }]}>Stawki</Text>
-          <Text style={[styles.opis, { color: theme.colors.textSecondary }]}>
-            {okres
-              ? `Stawki z okresu ${etykietaZakresu(okres.od, okres.do)}. Można je zmienić w tym raporcie.`
-              : 'Stawki z karty pracownika. Można je zmienić w tym raporcie.'}
-          </Text>
-          {POLA_WYNAGRODZENIA.map((pole) => (
-            <PoleLiczby
-              key={pole.id}
-              theme={theme}
-              etykieta={`${pole.nazwa} (${pole.jednostka})`}
-              value={stawkiTekst[pole.id] ?? ''}
-              onChangeText={(tekst) => {
-                dotkniete.current.add(pole.id);
-                setStawkiTekst((prev) => ({ ...prev, [pole.id]: tekst }));
-              }}
-              accessibilityLabel={`Stawka ${pole.nazwa}`}
+          <View>
+            <Etykieta tekst="Budowa" wymagane />
+            {budowyKolejnosc.length === 0 ? (
+              <Text style={[styles.opis, { color: theme.colors.textSecondary }]}>Najpierw dodaj budowę w menu Budowa.</Text>
+            ) : (
+              <View style={stylFormularza.chipy}>
+                {budowyKolejnosc.map((budowa) => (
+                  <Wybor
+                    key={budowa.id}
+                    zaznaczony={budowa.id === budowaId}
+                    etykieta={`${budowa.kodBudowy} · ${budowa.nazwaInwestycji}`}
+                    accessibilityLabel={`Budowa ${budowa.kodBudowy}`}
+                    onPress={() => setBudowaId(budowa.id)}
+                  />
+                ))}
+              </View>
+            )}
+          </View>
+
+          <Wiersz>
+            <Pole
+              etykieta="Praca"
+              info="Pn–pt do 8 h liczy się stawką 8h, każda godzina ponad 8 h to nadgodzina. W soboty, niedziele i święta każda godzina to nadgodzina."
+              jednostka="h"
+              value={godzinyTekst}
+              onChangeText={setGodzinyTekst}
+              accessibilityLabel="Godziny pracy"
+              liczba
             />
+            <Pole
+              etykieta="Kierowca"
+              info="Godziny jazdy w tym dniu. Można wpisać kierowcę i pasażera naraz, gdy pracownik prowadził w jedną stronę, a jechał jako pasażer w drugą."
+              jednostka="h"
+              value={kierowcaTekst}
+              onChangeText={setKierowcaTekst}
+              accessibilityLabel="Godziny kierowcy"
+              placeholder="0"
+              liczba
+            />
+            <Pole
+              etykieta="Pasażer"
+              jednostka="h"
+              value={pasazerTekst}
+              onChangeText={setPasazerTekst}
+              accessibilityLabel="Godziny pasażera"
+              placeholder="0"
+              liczba
+            />
+          </Wiersz>
+          <Text style={[styles.opis, { color: theme.colors.text }]}>
+            Stawka 8h: {formatLiczby(podzial.podstawowe)} h · nadgodziny: {formatLiczby(podzial.nadgodziny)} h
+          </Text>
+
+          <Etykieta
+            tekst="STAWKI"
+            info={okres
+              ? `Stawki z okresu ${etykietaZakresu(okres.od, okres.do)}. Można je zmienić tylko w tym raporcie.`
+              : 'Stawki z karty pracownika. Można je zmienić tylko w tym raporcie.'}
+          />
+          {[['stawka8h', 'nadgodzina'], ['kierowca', 'pasazer'], ['zus']].map((ids) => (
+            <Wiersz key={ids.join()}>
+              {[...ids.map((pid) => {
+                const pole = POLA_WYNAGRODZENIA.find((p) => p.id === pid)!;
+                return (
+                  <Pole
+                    key={pid}
+                    etykieta={pole.nazwa}
+                    jednostka={pole.mnoznik ? '×' : pole.jednostka}
+                    value={stawkiTekst[pole.id] ?? ''}
+                    onChangeText={(tekst) => {
+                      dotkniete.current.add(pole.id);
+                      setStawkiTekst((prev) => ({ ...prev, [pole.id]: tekst }));
+                    }}
+                    accessibilityLabel={`Stawka ${pole.nazwa}`}
+                    liczba
+                  />
+                );
+              }), ids.length === 1 ? <View key="pusto" /> : null]}
+            </Wiersz>
           ))}
 
-          <Text style={[styles.etykieta, { color: theme.colors.textSecondary }]}>Uwagi (opcjonalnie)</Text>
-          <TextInput
-            value={uwagi}
-            onChangeText={setUwagi}
-            placeholder="Komentarz"
-            placeholderTextColor={theme.colors.textSecondary}
-            accessibilityLabel="Uwagi"
-            multiline
-            style={[styles.uwagi, { color: theme.colors.text, borderColor: theme.colors.border, backgroundColor: theme.colors.inputBackground }]}
-          />
+          <Pole etykieta="Uwagi" value={uwagi} onChangeText={setUwagi} placeholder="Komentarz" accessibilityLabel="Uwagi" />
 
           <View style={[styles.kwotaKarta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
             {liniePodsumowania(stawki, podzial.podstawowe, podzial.nadgodziny, dojazd, wynik).map((linia) => (
               <Text key={linia} style={[styles.opis, { color: theme.colors.text }]}>{linia}</Text>
             ))}
-            <Text style={[styles.etykieta, { color: theme.colors.textSecondary }]}>Koszt pracodawcy</Text>
-            <Text accessibilityLabel="Kwota raportu" style={[styles.kwota, { color: theme.colors.text }]}>{formatLiczby(wynik.koszt)} zł</Text>
+            <View style={styles.kosztWiersz}>
+              <Text style={[styles.kosztEtykieta, { color: theme.colors.textSecondary }]}>Koszt pracodawcy</Text>
+              <Text accessibilityLabel="Kwota raportu" style={[styles.kwota, { color: theme.colors.text }]}>{formatLiczby(wynik.koszt)} zł</Text>
+            </View>
           </View>
 
-          {blad ? <Text style={{ color: theme.colors.danger, fontWeight: '700' }}>{blad}</Text> : null}
+          {blad ? <Text style={[stylFormularza.blad, { color: theme.colors.danger }]}>{blad}</Text> : null}
           <TouchableOpacity
             accessibilityLabel="Zapisz raport"
             disabled={zapis}
             onPress={zapisz}
-            style={[styles.zapisz, { backgroundColor: theme.colors.primary, opacity: zapis ? 0.6 : 1 }]}
+            style={[stylFormularza.zapisz, { backgroundColor: theme.colors.primary, opacity: zapis ? 0.6 : 1 }]}
           >
-            <Text style={styles.zapiszTekst}>{zapis ? 'Zapis…' : 'Zapisz'}</Text>
+            <Text style={stylFormularza.zapiszTekst}>{zapis ? 'Zapis…' : 'Zapisz'}</Text>
           </TouchableOpacity>
         </ScrollView>
       )}
@@ -224,64 +246,13 @@ export default function RaportPracownikaScreen() {
   );
 }
 
-function Wybor({
-  theme, zaznaczony, etykieta, accessibilityLabel, onPress,
-}: {
-  theme: AppTheme;
-  zaznaczony: boolean;
-  etykieta: string;
-  accessibilityLabel: string;
-  onPress: () => void;
-}) {
-  return (
-    <TouchableOpacity
-      accessibilityLabel={accessibilityLabel}
-      onPress={onPress}
-      style={[styles.wybor, {
-        borderColor: zaznaczony ? theme.colors.primary : theme.colors.border,
-        backgroundColor: zaznaczony ? `${theme.colors.primary}22` : theme.colors.card,
-      }]}
-    >
-      <Text style={{ color: theme.colors.text, fontWeight: zaznaczony ? '800' : '600', textAlign: 'center' }}>{etykieta}</Text>
-    </TouchableOpacity>
-  );
-}
-
-function PoleLiczby({
-  theme, etykieta, value, onChangeText, accessibilityLabel,
-}: {
-  theme: AppTheme;
-  etykieta: string;
-  value: string;
-  onChangeText: (tekst: string) => void;
-  accessibilityLabel: string;
-}) {
-  return (
-    <View style={{ gap: 4 }}>
-      <Text style={[styles.etykieta, { color: theme.colors.textSecondary }]}>{etykieta}</Text>
-      <TextInput
-        value={value}
-        onChangeText={onChangeText}
-        keyboardType="decimal-pad"
-        accessibilityLabel={accessibilityLabel}
-        style={[styles.input, { color: theme.colors.text, borderColor: theme.colors.border, backgroundColor: theme.colors.inputBackground }]}
-      />
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   ekran: { flex: 1 },
   brak: { padding: 24 },
-  formularz: { padding: 16, gap: 8 },
-  etykieta: { fontSize: 13, fontWeight: '700', marginTop: 6 },
   opis: { fontSize: 13, lineHeight: 18 },
-  wiersz: { flexDirection: 'row', gap: 8 },
-  wybor: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12 },
-  input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16 },
-  uwagi: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16, minHeight: 80, textAlignVertical: 'top' },
-  kwotaKarta: { borderWidth: 1, borderRadius: 12, padding: 14, marginTop: 8, gap: 2 },
-  kwota: { fontSize: 28, fontWeight: '800' },
-  zapisz: { marginTop: 8, borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
-  zapiszTekst: { color: '#1A1A1A', fontWeight: '800', fontSize: 16 },
+  typDnia: { fontSize: 13, fontWeight: '800' },
+  kwotaKarta: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 2 },
+  kosztWiersz: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginTop: 4 },
+  kosztEtykieta: { fontSize: 13, fontWeight: '700' },
+  kwota: { fontSize: 24, fontWeight: '800' },
 });

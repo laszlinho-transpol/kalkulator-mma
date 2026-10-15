@@ -1,13 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useColorScheme, View,
-} from 'react-native';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, useColorScheme, View } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppHeader } from '../../../../src/components/common/AppHeader';
+import { Etykieta, Pole, Wiersz, Wybor, stylFormularza } from '../../../../src/components/common/Formularz';
 import { KalendarzDnia } from '../../../../src/components/common/KalendarzDnia';
 import { etykietaZakresu } from '../../../../src/components/common/KalendarzZakresu';
-import { lightTheme, darkTheme, type AppTheme } from '../../../../src/constants/theme';
+import { lightTheme, darkTheme } from '../../../../src/constants/theme';
 import { formatLiczby, round2 } from '../../../../src/utils/calculations';
 import { rodzajPoId } from '../../../../src/budzet/rodzajeSprzetu';
 import {
@@ -148,49 +147,66 @@ export default function RaportSprzetuScreen() {
       ) : (
         <ScrollView
           keyboardShouldPersistTaps="handled"
-          contentContainerStyle={[styles.formularz, { paddingBottom: insets.bottom + 28 }]}
+          contentContainerStyle={[stylFormularza.tresc, { paddingBottom: insets.bottom + 24 }]}
         >
-          <Text style={[styles.etykieta, { color: theme.colors.textSecondary }]}>Data</Text>
-          <KalendarzDnia wartosc={data} theme={theme} onZatwierdz={setData} />
-          <Text style={[styles.opis, { color: theme.colors.textSecondary }]}>Domyślnie dzień poprzedni. Data zapisuje się po OK.</Text>
+          <View>
+            <Etykieta tekst="Data" info="Domyślnie dzień poprzedni. Data zapisuje się po OK w kalendarzu." />
+            <KalendarzDnia wartosc={data} theme={theme} onZatwierdz={setData} />
+          </View>
 
-          <Text style={[styles.etykieta, { color: theme.colors.textSecondary }]}>Budowa</Text>
-          {budowyKolejnosc.length === 0 ? (
-            <Text style={[styles.opis, { color: theme.colors.textSecondary }]}>Najpierw dodaj budowę w menu Budowa.</Text>
-          ) : budowyKolejnosc.map((budowa) => (
-            <Wybor
-              key={budowa.id}
-              theme={theme}
-              zaznaczony={budowa.id === budowaId}
-              etykieta={`${budowa.kodBudowy} · ${budowa.nazwaInwestycji}`}
-              accessibilityLabel={`Budowa ${budowa.kodBudowy}`}
-              onPress={() => setBudowaId(budowa.id)}
+          <View>
+            <Etykieta tekst="Budowa" wymagane />
+            {budowyKolejnosc.length === 0 ? (
+              <Text style={[styles.opis, { color: theme.colors.textSecondary }]}>Najpierw dodaj budowę w menu Budowa.</Text>
+            ) : (
+              <View style={stylFormularza.chipy}>
+                {budowyKolejnosc.map((budowa) => (
+                  <Wybor
+                    key={budowa.id}
+                    zaznaczony={budowa.id === budowaId}
+                    etykieta={`${budowa.kodBudowy} · ${budowa.nazwaInwestycji}`}
+                    accessibilityLabel={`Budowa ${budowa.kodBudowy}`}
+                    onPress={() => setBudowaId(budowa.id)}
+                  />
+                ))}
+              </View>
+            )}
+          </View>
+
+          <View>
+            <Etykieta
+              tekst="Pracownik"
+              wymagane
+              prawy={(
+                <TouchableOpacity onPress={() => router.push('/budzet/pracownicy/nowy' as never)}>
+                  <Text style={{ color: theme.colors.primary, fontWeight: '800', fontSize: 13 }}>+ Nowy</Text>
+                </TouchableOpacity>
+              )}
             />
-          ))}
+            {pracownicy.length === 0 ? (
+              <Text style={[styles.opis, { color: theme.colors.textSecondary }]}>Najpierw dodaj pracownika w menu Pracownicy.</Text>
+            ) : (
+              <View style={stylFormularza.chipy}>
+                {pracownicyAlfabetycznie(pracownicy).map((pracownik) => (
+                  <Wybor
+                    key={pracownik.id}
+                    zaznaczony={pracownik.id === pracownikId}
+                    etykieta={nazwaPracownika(pracownik)}
+                    accessibilityLabel={`Pracownik ${nazwaPracownika(pracownik)}`}
+                    onPress={() => setPracownikId(pracownik.id)}
+                  />
+                ))}
+              </View>
+            )}
+          </View>
 
-          <Text style={[styles.etykieta, { color: theme.colors.textSecondary }]}>Pracownik</Text>
-          {pracownicy.length === 0 ? (
-            <Text style={[styles.opis, { color: theme.colors.textSecondary }]}>Najpierw dodaj pracownika w menu Pracownicy.</Text>
-          ) : pracownicyAlfabetycznie(pracownicy).map((pracownik) => (
-            <Wybor
-              key={pracownik.id}
-              theme={theme}
-              zaznaczony={pracownik.id === pracownikId}
-              etykieta={nazwaPracownika(pracownik)}
-              accessibilityLabel={`Pracownik ${nazwaPracownika(pracownik)}`}
-              onPress={() => setPracownikId(pracownik.id)}
-            />
-          ))}
-          <TouchableOpacity onPress={() => router.push('/budzet/pracownicy/nowy' as never)}>
-            <Text style={{ color: theme.colors.primary, fontWeight: '800' }}>Nowy pracownik</Text>
-          </TouchableOpacity>
-
-          <Text style={[styles.etykieta, { color: theme.colors.textSecondary }]}>Rozliczenie</Text>
-          <Text style={[styles.opis, { color: theme.colors.textSecondary }]}>
-            {okres
-              ? `Stawki z okresu ${etykietaZakresu(okres.od, okres.do)}. Można je zmienić w tym raporcie.`
-              : 'Kwota z karty maszyny. Można ją zmienić. Zaznacz jedną albo więcej pozycji.'}
-          </Text>
+          <Etykieta
+            tekst="ROZLICZENIE"
+            wymagane
+            info={okres
+              ? `Stawki z okresu ${etykietaZakresu(okres.od, okres.do)}. Można je zmienić tylko w tym raporcie. Zaznacz jedną albo więcej pozycji.`
+              : 'Stawki z karty maszyny. Można je zmienić tylko w tym raporcie. Zaznacz jedną albo więcej pozycji.'}
+          />
           {dostepne.length === 0 ? (
             <Text style={[styles.opis, { color: theme.colors.textSecondary }]}>Ta maszyna nie ma stawek.</Text>
           ) : dostepne.map((rodzaj) => {
@@ -198,83 +214,78 @@ export default function RaportSprzetuScreen() {
             const on = zaznaczone.includes(rodzaj);
             const pozycja = pozycje.find((p) => p.rodzaj === rodzaj);
             return (
-              <View key={rodzaj} style={[styles.blok, { borderColor: theme.colors.border, backgroundColor: theme.colors.card }]}>
+              <View key={rodzaj} style={[styles.blok, { borderColor: on ? theme.colors.primary : theme.colors.border, backgroundColor: theme.colors.card }]}>
                 <TouchableOpacity accessibilityLabel={`Rozliczenie ${opis.nazwa}`} onPress={() => przelacz(rodzaj)} style={styles.check}>
                   <Text style={[styles.ptaszek, { color: theme.colors.primary }]}>{on ? '☑' : '☐'}</Text>
                   <Text style={[styles.checkTekst, { color: theme.colors.text }]}>{opis.nazwa}</Text>
+                  {on ? <Text style={[styles.checkKwota, { color: theme.colors.text }]}>{formatLiczby(pozycja?.kwota ?? 0)} zł</Text> : null}
                 </TouchableOpacity>
                 {on ? (
-                  <View style={styles.pola}>
-                    <PoleLiczby
-                      theme={theme}
-                      etykieta={`Stawka (${opis.jednostkaStawki})`}
-                      value={stawkiTekst[rodzaj] ?? ''}
-                      onChangeText={(tekst) => {
-                        dotknieteStawki.current.add(rodzaj);
-                        setStawkiTekst((prev) => ({ ...prev, [rodzaj]: tekst }));
-                      }}
-                      accessibilityLabel={`Stawka ${opis.nazwa}`}
-                    />
-                    <PoleLiczby
-                      theme={theme}
-                      etykieta={`${opis.etykietaIlosci} (${opis.jednostkaIlosci})`}
-                      value={ilosciTekst[rodzaj] ?? ''}
-                      onChangeText={(tekst) => setIlosciTekst((prev) => ({ ...prev, [rodzaj]: tekst }))}
-                      accessibilityLabel={`Ilość ${opis.nazwa}`}
-                    />
-                    {rodzaj === 'miesieczny' ? (
-                      <>
-                        <PoleLiczby
-                          theme={theme}
-                          etykieta="Ilość dni pracujących"
+                  <>
+                    <Wiersz>
+                      <Pole
+                        etykieta="Stawka"
+                        jednostka={opis.jednostkaStawki.replace(' / ', '/')}
+                        value={stawkiTekst[rodzaj] ?? ''}
+                        onChangeText={(tekst) => {
+                          dotknieteStawki.current.add(rodzaj);
+                          setStawkiTekst((prev) => ({ ...prev, [rodzaj]: tekst }));
+                        }}
+                        accessibilityLabel={`Stawka ${opis.nazwa}`}
+                        liczba
+                      />
+                      <Pole
+                        etykieta={opis.etykietaIlosci}
+                        jednostka={opis.jednostkaIlosci}
+                        value={ilosciTekst[rodzaj] ?? ''}
+                        onChangeText={(tekst) => setIlosciTekst((prev) => ({ ...prev, [rodzaj]: tekst }))}
+                        accessibilityLabel={`Ilość ${opis.nazwa}`}
+                        liczba
+                      />
+                      {rodzaj === 'miesieczny' ? (
+                        <Pole
+                          etykieta="Dni prac."
+                          info={`Dzielnik kosztu miesięcznego. Podpowiedź na ${miesiac}: ${sugerowaneDni} dni robocze (pn–pt bez świąt). Można wpisać inną liczbę.`}
+                          jednostka="dni"
                           value={dniTekst}
                           onChangeText={(tekst) => { dniReczne.current = true; setDniTekst(tekst); }}
                           accessibilityLabel="Ilość dni pracujących"
+                          liczba
                         />
-                        <Text style={[styles.opis, { color: theme.colors.textSecondary }]}>
-                          Podpowiedź na {miesiac}: {sugerowaneDni} dni robocze (pn–pt bez świąt). Można wpisać inną liczbę.
-                        </Text>
-                        <TouchableOpacity
-                          accessibilityLabel="Przywróć dni robocze"
-                          onPress={() => { dniReczne.current = false; setDniTekst(String(sugerowaneDni)); }}
-                        >
-                          <Text style={{ color: theme.colors.primary, fontWeight: '800' }}>Użyj {sugerowaneDni} dni roboczych</Text>
-                        </TouchableOpacity>
-                      </>
+                      ) : null}
+                    </Wiersz>
+                    {rodzaj === 'miesieczny' && dniTekst !== String(sugerowaneDni) ? (
+                      <TouchableOpacity
+                        accessibilityLabel="Przywróć dni robocze"
+                        onPress={() => { dniReczne.current = false; setDniTekst(String(sugerowaneDni)); }}
+                      >
+                        <Text style={{ color: theme.colors.primary, fontWeight: '800', fontSize: 13 }}>Użyj {sugerowaneDni} dni roboczych</Text>
+                      </TouchableOpacity>
                     ) : null}
-                    <Text style={[styles.opis, { color: theme.colors.text }]}>
+                    <Text style={[styles.opis, { color: theme.colors.textSecondary }]}>
                       {tekstFormuly(rodzaj, pozycja?.stawka ?? 0, pozycja?.ilosc ?? 0, dni, pozycja?.kwota ?? 0)}
                     </Text>
-                  </View>
+                  </>
                 ) : null}
               </View>
             );
           })}
 
-          <Text style={[styles.etykieta, { color: theme.colors.textSecondary }]}>Uwagi (opcjonalnie)</Text>
-          <TextInput
-            value={uwagi}
-            onChangeText={setUwagi}
-            placeholder="Komentarz"
-            placeholderTextColor={theme.colors.textSecondary}
-            accessibilityLabel="Uwagi"
-            multiline
-            style={[styles.uwagi, { color: theme.colors.text, borderColor: theme.colors.border, backgroundColor: theme.colors.inputBackground }]}
-          />
+          <Pole etykieta="Uwagi" value={uwagi} onChangeText={setUwagi} placeholder="Komentarz" accessibilityLabel="Uwagi" />
 
           <View style={[styles.kwotaKarta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-            <Text style={[styles.etykieta, { color: theme.colors.textSecondary }]}>Kwota</Text>
+            <Text style={[styles.kosztEtykieta, { color: theme.colors.textSecondary }]}>Kwota</Text>
             <Text accessibilityLabel="Kwota raportu" style={[styles.kwota, { color: theme.colors.text }]}>{formatLiczby(suma)} zł</Text>
           </View>
 
-          {blad ? <Text style={{ color: theme.colors.danger, fontWeight: '700' }}>{blad}</Text> : null}
+          {blad ? <Text style={[stylFormularza.blad, { color: theme.colors.danger }]}>{blad}</Text> : null}
           <TouchableOpacity
             accessibilityLabel="Zapisz raport"
             disabled={zapis}
             onPress={zapisz}
-            style={[styles.zapisz, { backgroundColor: theme.colors.primary, opacity: zapis ? 0.6 : 1 }]}
+            style={[stylFormularza.zapisz, { backgroundColor: theme.colors.primary, opacity: zapis ? 0.6 : 1 }]}
           >
-            <Text style={styles.zapiszTekst}>{zapis ? 'Zapis…' : 'Zapisz'}</Text>
+            <Text style={stylFormularza.zapiszTekst}>{zapis ? 'Zapis…' : 'Zapisz'}</Text>
           </TouchableOpacity>
         </ScrollView>
       )}
@@ -290,68 +301,16 @@ function tekstFormuly(rodzaj: RodzajRozliczenia, stawka: number, ilosc: number, 
   return `${formatLiczby(stawka)} zł × ${formatLiczby(ilosc)} = ${wynik}`;
 }
 
-function Wybor({
-  theme, zaznaczony, etykieta, accessibilityLabel, onPress,
-}: {
-  theme: AppTheme;
-  zaznaczony: boolean;
-  etykieta: string;
-  accessibilityLabel: string;
-  onPress: () => void;
-}) {
-  return (
-    <TouchableOpacity
-      accessibilityLabel={accessibilityLabel}
-      onPress={onPress}
-      style={[styles.wybor, {
-        borderColor: zaznaczony ? theme.colors.primary : theme.colors.border,
-        backgroundColor: zaznaczony ? `${theme.colors.primary}22` : theme.colors.card,
-      }]}
-    >
-      <Text style={{ color: theme.colors.text, fontWeight: zaznaczony ? '800' : '600' }}>{etykieta}</Text>
-    </TouchableOpacity>
-  );
-}
-
-function PoleLiczby({
-  theme, etykieta, value, onChangeText, accessibilityLabel,
-}: {
-  theme: AppTheme;
-  etykieta: string;
-  value: string;
-  onChangeText: (tekst: string) => void;
-  accessibilityLabel: string;
-}) {
-  return (
-    <View style={{ gap: 4 }}>
-      <Text style={[styles.etykieta, { color: theme.colors.textSecondary }]}>{etykieta}</Text>
-      <TextInput
-        value={value}
-        onChangeText={onChangeText}
-        keyboardType="decimal-pad"
-        accessibilityLabel={accessibilityLabel}
-        style={[styles.input, { color: theme.colors.text, borderColor: theme.colors.border, backgroundColor: theme.colors.inputBackground }]}
-      />
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   ekran: { flex: 1 },
   brak: { padding: 24 },
-  formularz: { padding: 16, gap: 8 },
-  etykieta: { fontSize: 13, fontWeight: '700', marginTop: 6 },
   opis: { fontSize: 13, lineHeight: 18 },
-  wybor: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12 },
-  blok: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 8 },
+  blok: { borderWidth: 1, borderRadius: 12, padding: 10, gap: 8 },
   check: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   ptaszek: { fontSize: 20, fontWeight: '800' },
-  checkTekst: { fontSize: 16, fontWeight: '700', flex: 1 },
-  pola: { gap: 8 },
-  input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16 },
-  uwagi: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16, minHeight: 80, textAlignVertical: 'top' },
-  kwotaKarta: { borderWidth: 1, borderRadius: 12, padding: 14, marginTop: 8 },
-  kwota: { fontSize: 28, fontWeight: '800' },
-  zapisz: { marginTop: 8, borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
-  zapiszTekst: { color: '#1A1A1A', fontWeight: '800', fontSize: 16 },
+  checkTekst: { fontSize: 15, fontWeight: '700', flex: 1 },
+  checkKwota: { fontSize: 15, fontWeight: '800' },
+  kwotaKarta: { borderWidth: 1, borderRadius: 12, padding: 12, flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
+  kosztEtykieta: { fontSize: 13, fontWeight: '700' },
+  kwota: { fontSize: 24, fontWeight: '800' },
 });

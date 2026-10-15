@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import {
-  ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
+  ScrollView, StyleSheet, Text, TouchableOpacity, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppHeader } from '../common/AppHeader';
+import { Etykieta, Pole as PoleF, Wiersz, Wybor, stylFormularza } from '../common/Formularz';
 import type { AppTheme } from '../../constants/theme';
 import { GRUPY_SPRZETU, rodzajPoId } from '../../budzet/rodzajeSprzetu';
 import {
@@ -108,9 +109,9 @@ export function FormularzSprzetu({ theme, tytul, wsteczDo, etykietaZapisu, pocza
       />
       <ScrollView
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={[styles.formularz, { paddingBottom: insets.bottom + 28 }]}
+        contentContainerStyle={[stylFormularza.tresc, { paddingBottom: insets.bottom + 24 }]}
       >
-        <Text style={[styles.etykieta, { color: theme.colors.textSecondary }]}>Rodzaj sprzętu</Text>
+        <Etykieta tekst="Rodzaj sprzętu" wymagane />
         {GRUPY_SPRZETU.map((grupa) => (
           <View key={grupa.id} style={styles.grupa}>
             <Text style={[styles.grupaTytul, { color: theme.colors.textSecondary }]}>{grupa.nazwa}</Text>
@@ -135,98 +136,66 @@ export function FormularzSprzetu({ theme, tytul, wsteczDo, etykietaZapisu, pocza
           </View>
         ))}
 
-        <Pole theme={theme} etykieta="Numer" opcjonalne value={numer} onChangeText={setNumer} placeholder="np. R-12" accessibilityLabel="Numer sprzętu" />
-        <Pole theme={theme} etykieta="Firma" opcjonalne value={firma} onChangeText={setFirma} placeholder="Nazwa firmy" accessibilityLabel="Firma" />
-        <Text style={[styles.podpowiedz, { color: theme.colors.textSecondary }]}>
-          Firma trafi do bazy firm i będzie podpowiadana przy kolejnym sprzęcie.
-        </Text>
-        {podpowiedzi.map((f) => (
-          <TouchableOpacity
-            key={f.id}
-            accessibilityLabel={`Podpowiedź firmy ${f.nazwa}`}
-            onPress={() => setFirma(f.nazwa)}
-            style={[styles.podpowiedzBtn, { borderColor: theme.colors.border, backgroundColor: theme.colors.card }]}
-          >
-            <Text style={{ color: theme.colors.text, fontWeight: '700' }}>{f.nazwa}</Text>
-          </TouchableOpacity>
+        <Wiersz>
+          <PoleF etykieta="Numer" value={numer} onChangeText={setNumer} placeholder="np. R-12" accessibilityLabel="Numer sprzętu" />
+          <PoleF etykieta="Spalanie" jednostka="l/mth" value={spalanie} onChangeText={setSpalanie} placeholder="np. 4" accessibilityLabel="Spalanie" liczba />
+        </Wiersz>
+        <PoleF
+          etykieta="Firma"
+          info="Firma trafi do bazy firm i będzie podpowiadana przy kolejnym sprzęcie."
+          value={firma}
+          onChangeText={setFirma}
+          placeholder="Nazwa firmy"
+          accessibilityLabel="Firma"
+        />
+        {podpowiedzi.length > 0 ? (
+          <View style={stylFormularza.chipy}>
+            {podpowiedzi.map((f) => (
+              <Wybor key={f.id} zaznaczony={false} etykieta={f.nazwa} accessibilityLabel={`Podpowiedź firmy ${f.nazwa}`} onPress={() => setFirma(f.nazwa)} />
+            ))}
+          </View>
+        ) : null}
+
+        <Etykieta
+          tekst="ROZLICZENIE"
+          info="Można uzupełnić każdy rodzaj albo tylko jeden. Okres obowiązywania stawek ustawisz w zakładce Historia stawek."
+          wymagane
+        />
+        {[OPISY_ROZLICZENIA.slice(0, 2), OPISY_ROZLICZENIA.slice(2)].map((para) => (
+          <Wiersz key={para[0].id}>
+            {para.map((opis) => (
+              <PoleF
+                key={opis.id}
+                etykieta={opis.nazwa}
+                jednostka={opis.jednostkaStawki.replace(' / ', '/')}
+                value={stawkiTekst[opis.id]}
+                onChangeText={(tekst) => setStawkiTekst((prev) => ({ ...prev, [opis.id]: tekst }))}
+                placeholder={opis.id === 'kilometr' ? '3,5' : opis.id === 'miesieczny' ? '22300' : opis.id === 'dzienny' ? '350' : '150'}
+                accessibilityLabel={opis.nazwa}
+                liczba
+              />
+            ))}
+          </Wiersz>
         ))}
 
-        <Text style={[styles.etykieta, { color: theme.colors.textSecondary, marginTop: 8 }]}>Rozliczenie</Text>
-        <Text style={[styles.podpowiedz, { color: theme.colors.textSecondary }]}>
-          Można uzupełnić każdy rodzaj albo tylko jeden. Okres obowiązywania ustawisz w historii stawek.
-        </Text>
-        {OPISY_ROZLICZENIA.map((opis) => (
-          <Pole
-            key={opis.id}
-            theme={theme}
-            etykieta={`${opis.nazwa} (${opis.jednostkaStawki})`}
-            opcjonalne
-            value={stawkiTekst[opis.id]}
-            onChangeText={(tekst) => setStawkiTekst((prev) => ({ ...prev, [opis.id]: tekst }))}
-            placeholder={opis.id === 'kilometr' ? 'np. 3,5' : opis.id === 'miesieczny' ? 'np. 22300' : opis.id === 'dzienny' ? 'np. 350' : 'np. 150'}
-            accessibilityLabel={opis.nazwa}
-            klawiatura
-          />
-        ))}
-        <Pole theme={theme} etykieta="Spalanie (l/mth)" opcjonalne value={spalanie} onChangeText={setSpalanie} placeholder="np. 4" accessibilityLabel="Spalanie" klawiatura />
-
-        {blad ? <Text style={[styles.blad, { color: theme.colors.danger }]}>{blad}</Text> : null}
+        {blad ? <Text style={[stylFormularza.blad, { color: theme.colors.danger }]}>{blad}</Text> : null}
         <TouchableOpacity
           accessibilityLabel={etykietaZapisu}
           disabled={zapis}
           onPress={zapisz}
-          style={[styles.zapisz, { backgroundColor: theme.colors.primary, opacity: zapis ? 0.6 : 1 }]}
+          style={[stylFormularza.zapisz, { backgroundColor: theme.colors.primary, opacity: zapis ? 0.6 : 1 }]}
         >
-          <Text style={styles.zapiszTekst}>{zapis ? 'Zapis…' : 'Zapisz'}</Text>
+          <Text style={stylFormularza.zapiszTekst}>{zapis ? 'Zapis…' : 'Zapisz'}</Text>
         </TouchableOpacity>
       </ScrollView>
     </View>
   );
 }
 
-function Pole({
-  theme, etykieta, opcjonalne, value, onChangeText, placeholder, accessibilityLabel, klawiatura,
-}: {
-  theme: AppTheme;
-  etykieta: string;
-  opcjonalne?: boolean;
-  value: string;
-  onChangeText: (tekst: string) => void;
-  placeholder: string;
-  accessibilityLabel: string;
-  klawiatura?: boolean;
-}) {
-  return (
-    <View style={styles.pole}>
-      <Text style={[styles.etykieta, { color: theme.colors.textSecondary }]}>
-        {etykieta}{opcjonalne ? ' (opcjonalnie)' : ''}
-      </Text>
-      <TextInput
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor={theme.colors.textSecondary}
-        accessibilityLabel={accessibilityLabel}
-        keyboardType={klawiatura ? 'decimal-pad' : 'default'}
-        style={[styles.input, { color: theme.colors.text, borderColor: theme.colors.border, backgroundColor: theme.colors.inputBackground }]}
-      />
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   ekran: { flex: 1 },
-  formularz: { padding: 16, gap: 8 },
-  etykieta: { fontSize: 13, fontWeight: '700' },
-  grupa: { gap: 6, marginBottom: 4 },
+  grupa: { gap: 6 },
   grupaTytul: { fontSize: 12, fontWeight: '800', textTransform: 'uppercase' },
-  rodzaje: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  rodzaj: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
-  pole: { gap: 6, marginTop: 6 },
-  input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16 },
-  podpowiedz: { fontSize: 13, lineHeight: 18 },
-  podpowiedzBtn: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
-  blad: { fontWeight: '700', marginTop: 8 },
-  zapisz: { marginTop: 12, borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
-  zapiszTekst: { color: '#1A1A1A', fontWeight: '800', fontSize: 16 },
+  rodzaje: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  rodzaj: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
 });
