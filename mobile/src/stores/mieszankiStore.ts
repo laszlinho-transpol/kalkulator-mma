@@ -31,7 +31,7 @@ export const useMieszankiStore = create<MieszankiStore>((set, get) => ({
       if (json) {
         set({ mieszanki: JSON.parse(json), zaladowane: true });
       } else {
-        set({ zaladowane: true });
+        set({ mieszanki: [], zaladowane: true });
       }
     } catch {
       set({ zaladowane: true });

@@ -5,7 +5,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  useColorScheme, ScrollView, Switch, Alert, TextInput,
+  useColorScheme, ScrollView, Switch, Alert, TextInput, Platform,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -19,6 +19,9 @@ import { usePlanyStore } from '../src/stores/planyStore';
 import { useLiveStore } from '../src/stores/liveStore';
 import { WERSJA_APLIKACJI, CHANGELOG } from '../src/constants/version';
 import { pobierzUstawienia, zapiszUstawienia } from '../src/utils/ustawieniaAplikacji';
+import { formatujDateKopii, opisPodsumowania, podsumujKopie } from '../src/utils/kopiaZapasowa';
+import { przywrocKopie, wybierzPlikKopii, zapiszPlikKopii, zbierzKopie } from '../src/utils/kopiaZapasowaPlik';
+import { pokazKomunikat, potwierdzAkcje } from '../src/utils/dialog';
 
 const KLUCZ_ONBOARDING = '@mma:onboardingComplete';
 const KLUCZ_USTAWIEN = '@mma:settings';
@@ -32,6 +35,7 @@ export default function UstawieniaScreen() {
 
   const [tonazStr, setTonazStr] = useState('25.5');
   const [zapisano, setZapisano] = useState(false);
+  const [pracaKopii, setPracaKopii] = useState<'eksport' | 'import' | null>(null);
 
   const { mieszanki } = useMieszankiStore();
   const { plany } = usePlanyStore();
@@ -50,6 +54,51 @@ export default function UstawieniaScreen() {
     await zapiszUstawienia({ tonazDomyslny: tonaz });
     setZapisano(true);
     setTimeout(() => setZapisano(false), 2000);
+  };
+
+  const eksportujKopie = async () => {
+    if (pracaKopii) return;
+    setPracaKopii('eksport');
+    try {
+      const kopia = await zbierzKopie();
+      const nazwa = await zapiszPlikKopii(kopia);
+      if (Platform.OS === 'web') {
+        pokazKomunikat('Kopia zapisana', `Plik „${nazwa}” trafił do pobranych.\n\n${opisPodsumowania(podsumujKopie(kopia.dane))}`);
+      }
+    } catch (e) {
+      pokazKomunikat('Błąd', e instanceof Error ? e.message : 'Nie udało się zapisać kopii.');
+    } finally {
+      setPracaKopii(null);
+    }
+  };
+
+  const wczytajKopie = async () => {
+    if (pracaKopii) return;
+    const wynik = await wybierzPlikKopii();
+    if (!wynik) return;
+    if (!wynik.sukces) {
+      pokazKomunikat('Nie można wczytać kopii', wynik.blad);
+      return;
+    }
+    const { kopia } = wynik;
+    potwierdzAkcje(
+      'Wczytać kopię zapasową?',
+      `Kopia z ${formatujDateKopii(kopia.utworzono)} (wersja ${kopia.wersjaAplikacji}):\n${opisPodsumowania(podsumujKopie(kopia.dane))}\n\nObecne dane na tym urządzeniu zostaną zastąpione.`,
+      async () => {
+        setPracaKopii('import');
+        try {
+          await przywrocKopie(kopia);
+          const u = await pobierzUstawienia();
+          setTonazStr(String(u.tonazDomyslny));
+          pokazKomunikat('Gotowe', 'Dane z kopii zapasowej zostały wczytane.');
+        } catch (e) {
+          pokazKomunikat('Błąd', e instanceof Error ? e.message : 'Nie udało się wczytać kopii.');
+        } finally {
+          setPracaKopii(null);
+        }
+      },
+      'Wczytaj',
+    );
   };
 
   const resetujOnboarding = () => {
@@ -114,6 +163,34 @@ export default function UstawieniaScreen() {
             <StatRow ikona="📋" label="Planów" wartosc={plany.length} theme={theme} />
             <StatRow ikona="✓" label="Archiwalnych" wartosc={plany.filter(p => p.status === 'archiwalny').length} theme={theme} />
             <StatRow ikona="🚚" label="Wpisów Live" wartosc={wpisy.length} theme={theme} />
+          </View>
+        </AnimatedCard>
+
+        <AnimatedCard delay={40}>
+          <View style={[styles.sekcja, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Text style={[styles.sekcjaTytul, { color: theme.colors.textSecondary, flex: 1 }]}>KOPIA ZAPASOWA</Text>
+              <InfoTooltip
+                tresc={'Dane aplikacji są zapisane tylko na tym urządzeniu (w przeglądarce albo w telefonie). Kopia pozwala przenieść je na inne urządzenie lub zabezpieczyć przed utratą.\n\nKopia obejmuje budowy, mieszanki, wytwórnie, plany, wpisy Live, obmiary, notatki, Budżet (sprzęt, pracownicy, firmy, raporty) i ustawienia.\n\nNie obejmuje dołączonych plików PDF i zdjęć ani teł PZT – te trzeba dodać ponownie.\n\nWczytanie kopii zastępuje dane na tym urządzeniu.'}
+              />
+            </View>
+            <AkcjaRow
+              ikona="⬇"
+              label={pracaKopii === 'eksport' ? 'Zapisywanie…' : 'Eksportuj dane'}
+              opis="Zapisz wszystkie dane do pliku"
+              theme={theme}
+              onPress={eksportujKopie}
+              kolor={theme.colors.primary}
+            />
+            <View style={[styles.sep, { backgroundColor: theme.colors.border }]} />
+            <AkcjaRow
+              ikona="⬆"
+              label={pracaKopii === 'import' ? 'Wczytywanie…' : 'Wczytaj kopię'}
+              opis="Zastępuje dane na tym urządzeniu"
+              theme={theme}
+              onPress={wczytajKopie}
+              kolor={theme.colors.info}
+            />
           </View>
         </AnimatedCard>
 

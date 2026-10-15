@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.30';
+export const WERSJA_APLIKACJI = '1.8.31';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,15 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.31',
+    data: '2026-10-15',
+    tytul: 'Kopia zapasowa danych',
+    zmiany: [
+      'Ustawienia → Kopia zapasowa: „Eksportuj dane” zapisuje wszystkie dane do jednego pliku',
+      '„Wczytaj kopię” przenosi dane z pliku na to urządzenie – np. z przeglądarki do aplikacji w telefonie',
+    ],
+  },
   {
     wersja: '1.8.30',
     data: '2026-10-15',
