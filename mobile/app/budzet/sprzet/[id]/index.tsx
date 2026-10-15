@@ -77,9 +77,11 @@ export default function KartaSprzetuScreen() {
             <Wiersz etykieta="Rodzaj" wartosc={rodzaj?.nazwa ?? maszyna.rodzajId} kolor={theme.colors.text} etykietaKolor={theme.colors.textSecondary} />
             <Wiersz etykieta="Numer" wartosc={etykietaSprzetu(maszyna.numer)} kolor={theme.colors.text} etykietaKolor={theme.colors.textSecondary} />
             <Wiersz etykieta="Firma" wartosc={firma?.nazwa ?? '—'} kolor={theme.colors.text} etykietaKolor={theme.colors.textSecondary} />
-            {linieStawek(maszyna.stawki).map((linia) => (
-              <Text key={linia} style={[styles.stawka, { color: theme.colors.text }]}>{linia}</Text>
-            ))}
+            <View style={styles.siatka}>
+              {linieStawek(maszyna.stawki).map((linia) => (
+                <Text key={linia} style={[styles.stawka, styles.polowa, { color: theme.colors.text }]}>{linia}</Text>
+              ))}
+            </View>
             <Wiersz
               etykieta="Spalanie"
               wartosc={maszyna.spalanieLnaMth ? `${formatLiczby(maszyna.spalanieLnaMth)} l/mth` : '—'}
@@ -178,6 +180,8 @@ const styles = StyleSheet.create({
   wierszEtykieta: { fontSize: 14 },
   wierszWartosc: { fontSize: 15, fontWeight: '700', flexShrink: 1, textAlign: 'right' },
   stawka: { fontSize: 15, fontWeight: '600' },
+  siatka: { flexDirection: 'row', flexWrap: 'wrap', rowGap: 4 },
+  polowa: { width: '50%', paddingRight: 6 },
   dodaj: { borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
   dodajTekst: { color: '#1A1A1A', fontWeight: '800' },
   szukaj: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, fontSize: 16 },

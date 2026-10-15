@@ -16,6 +16,7 @@ import { useBudowyStore } from '../../stores/budowyStore';
 import { BudowaPicker } from '../common/BudowaPicker';
 import { lightTheme, darkTheme, type AppTheme } from '../../constants/theme';
 import { DatePickerButton } from '../common/DatePickerButton';
+import { Wiersz } from '../common/Formularz';
 import { NumericInput } from '../common/NumericInput';
 import { MieszankaPicker } from '../common/MieszankaPicker';
 import { ShapeModal } from '../shapes/ShapeModal';
@@ -469,12 +470,14 @@ function KartaDzialki({ dz, dzIdx, theme, tonazAuta, pobierzMieszanke, updateDzi
       </TouchableOpacity>
 
       {/* Grubości warstwy */}
-      <NumericInput label="Grubość projektowa *" value={dz.gruboscProjektowaStr} onChangeText={(v) => updateDzialka(dzIdx, 'gruboscProjektowaStr', v)} unit="cm"
-        tooltip="Grubość projektowa warstwy z dokumentacji (np. 4 cm)." required decimals={1} />
-      <NumericInput label="Tolerancja *" value={dz.tolerancjaStr} onChangeText={(v) => updateDzialka(dzIdx, 'tolerancjaStr', v)} unit="%"
-        tooltip="Dopuszczalna tolerancja grubości, domyślnie ±10%." required decimals={0} />
-      <NumericInput label="Grubość wbudowywania *" value={dz.gruboscWbudowywaniaStr} onChangeText={(v) => updateDzialka(dzIdx, 'gruboscWbudowywaniaStr', v)} unit="cm"
-        tooltip="Planowana grubość po wbudowaniu i zagęszczeniu (np. 3,8 cm). Używana w obliczeniach masy." required decimals={1} />
+      <Wiersz>
+        <NumericInput label="Gr. projekt." value={dz.gruboscProjektowaStr} onChangeText={(v) => updateDzialka(dzIdx, 'gruboscProjektowaStr', v)} unit="cm"
+          tooltip="Grubość projektowa warstwy z dokumentacji (np. 4 cm)." required decimals={1} />
+        <NumericInput label="Tolerancja" value={dz.tolerancjaStr} onChangeText={(v) => updateDzialka(dzIdx, 'tolerancjaStr', v)} unit="%"
+          tooltip="Dopuszczalna tolerancja grubości, domyślnie ±10%." required decimals={0} />
+        <NumericInput label="Gr. wbud." value={dz.gruboscWbudowywaniaStr} onChangeText={(v) => updateDzialka(dzIdx, 'gruboscWbudowywaniaStr', v)} unit="cm"
+          tooltip="Grubość wbudowywania: planowana grubość po wbudowaniu i zagęszczeniu (np. 3,8 cm). Używana w obliczeniach masy." required decimals={1} />
+      </Wiersz>
 
       {/* Opis */}
       <Text style={[styles.etykieta, { color: theme.colors.textSecondary }]}>Opis (opcjonalny)</Text>
@@ -488,37 +491,42 @@ function KartaDzialki({ dz, dzIdx, theme, tonazAuta, pobierzMieszanke, updateDzi
         numberOfLines={2}
       />
 
-      {/* Kilometraż */}
-      <View style={styles.rzadEtykiety}>
-        <Text style={[styles.etykieta, { color: theme.colors.textSecondary }]}>Kilometraż początkowy</Text>
-        <InfoTooltip tresc="Pikietaż punktu startowego. Format: km+mmm, np. 105+500." />
-      </View>
-      <PoleKilometraz
-        theme={theme}
-        km={dz.kmStr}
-        m={dz.mStr}
-        onKm={(v) => updateDzialka(dzIdx, 'kmStr', v)}
-        onM={(v) => updateDzialka(dzIdx, 'mStr', v)}
-      />
-
-      {/* Kierunek */}
-      <View style={styles.rzadEtykiety}>
-        <Text style={[styles.etykieta, { color: theme.colors.textSecondary }]}>Kierunek układania</Text>
-        <InfoTooltip tresc="Rosnący: km rośnie (od 105+000 do 105+500). Malejący: km maleje." />
-      </View>
-      <View style={styles.kierunekWrap}>
-        {(['rosnacy', 'malejacy'] as KierunekUkladania[]).map((k) => (
-          <TouchableOpacity
-            key={k}
-            style={[styles.btnKierunek, { borderColor: theme.colors.border, backgroundColor: dz.kierunek === k ? theme.colors.primary : theme.colors.inputBackground }]}
-            onPress={() => updateDzialka(dzIdx, 'kierunek', k)}
-          >
-            <Text style={[styles.btnKierunekTekst, { color: dz.kierunek === k ? '#fff' : theme.colors.text }]}>
-              {k === 'rosnacy' ? '↑ Rosnący' : '↓ Malejący'}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+      {/* Kilometraż i kierunek */}
+      <Wiersz style={{ alignItems: 'flex-start' }}>
+        <View>
+          <View style={styles.rzadEtykiety}>
+            <Text style={[styles.etykietaRzad, { color: theme.colors.textSecondary }]}>Km początkowy</Text>
+            <InfoTooltip tresc="Pikietaż punktu startowego. Format: km+mmm, np. 105+500." />
+          </View>
+          <PoleKilometraz
+            theme={theme}
+            km={dz.kmStr}
+            m={dz.mStr}
+            onKm={(v) => updateDzialka(dzIdx, 'kmStr', v)}
+            onM={(v) => updateDzialka(dzIdx, 'mStr', v)}
+          />
+        </View>
+        <View>
+          <View style={styles.rzadEtykiety}>
+            <Text style={[styles.etykietaRzad, { color: theme.colors.textSecondary }]}>Kierunek</Text>
+            <InfoTooltip tresc="Rosnący: km rośnie (od 105+000 do 105+500). Malejący: km maleje." />
+          </View>
+          <View style={styles.kierunekWrap}>
+            {(['rosnacy', 'malejacy'] as KierunekUkladania[]).map((k) => (
+              <TouchableOpacity
+                key={k}
+                accessibilityLabel={k === 'rosnacy' ? 'Kierunek rosnący' : 'Kierunek malejący'}
+                style={[styles.btnKierunek, { borderColor: theme.colors.border, backgroundColor: dz.kierunek === k ? theme.colors.primary : theme.colors.inputBackground }]}
+                onPress={() => updateDzialka(dzIdx, 'kierunek', k)}
+              >
+                <Text style={[styles.btnKierunekTekst, { color: dz.kierunek === k ? '#fff' : theme.colors.text }]}>
+                  {k === 'rosnacy' ? '↑ Rosnący' : '↓ Malejący'}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      </Wiersz>
 
       {/* Figury */}
       <View style={[styles.figurySep, { borderTopColor: theme.colors.border }]} />
@@ -608,9 +616,10 @@ const styles = StyleSheet.create({
   inputKm: { flex: 2, borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16, textAlign: 'center' },
   pikietazPlus: { fontSize: 20, fontWeight: '300' },
   inputM: { flex: 1, borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16, textAlign: 'center' },
-  kierunekWrap: { flexDirection: 'row', gap: 10 },
-  btnKierunek: { flex: 1, borderWidth: 1, borderRadius: 10, paddingVertical: 11, alignItems: 'center' },
-  btnKierunekTekst: { fontSize: 14, fontWeight: '600' },
+  kierunekWrap: { flexDirection: 'row', gap: 6 },
+  btnKierunek: { flex: 1, borderWidth: 1, borderRadius: 10, paddingVertical: 9, alignItems: 'center' },
+  btnKierunekTekst: { fontSize: 13, fontWeight: '600' },
+  etykietaRzad: { fontSize: 13, fontWeight: '600', flexShrink: 1 },
   figurySep: { borderTopWidth: 1, marginVertical: 14 },
   figuryTytul: { fontSize: 15, fontWeight: '700' },
   brakFigur: { fontSize: 13, fontStyle: 'italic', textAlign: 'center', marginVertical: 8 },

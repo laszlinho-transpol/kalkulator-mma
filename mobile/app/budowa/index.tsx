@@ -4,12 +4,13 @@
 
 import React, { useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, useColorScheme,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, useColorScheme,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppHeader } from '../../src/components/common/AppHeader';
 import { EmptyState } from '../../src/components/common/EmptyState';
+import { Pole } from '../../src/components/common/Formularz';
 import { SafeModal } from '../../src/components/common/SafeModal';
 import { lightTheme, darkTheme } from '../../src/constants/theme';
 import { karta, tekstTytul, tekstPodtytul } from '../../src/constants/layout';
@@ -112,24 +113,13 @@ export default function BudowaListaScreen() {
         onClose={() => setModal(false)}
         prawy={{ tekst: 'Utwórz', onPress: utworz, kolor: theme.colors.primary }}
       >
-        <View style={{ padding: 16, gap: 12 }}>
-          <Text style={{ color: theme.colors.textSecondary }}>Nazwa inwestycji</Text>
-          <TextInput
-            value={nazwa}
-            onChangeText={setNazwa}
-            placeholder="np. DK25 Mąkowarsko"
-            placeholderTextColor={theme.colors.textSecondary}
-            style={[styles.input, { color: theme.colors.text, borderColor: theme.colors.border, backgroundColor: theme.colors.inputBackground }]}
-          />
-          <Text style={{ color: theme.colors.textSecondary }}>Kod budowy</Text>
-          <TextInput
-            value={kod}
-            onChangeText={setKod}
-            autoCapitalize="characters"
-            placeholder="np. B128"
-            placeholderTextColor={theme.colors.textSecondary}
-            style={[styles.input, { color: theme.colors.text, borderColor: theme.colors.border, backgroundColor: theme.colors.inputBackground }]}
-          />
+        <View style={{ padding: 16, flexDirection: 'row', gap: 10 }}>
+          <View style={{ flex: 1 }}>
+            <Pole etykieta="Kod" value={kod} onChangeText={(t) => setKod(t.toUpperCase())} placeholder="B128" accessibilityLabel="Kod budowy" />
+          </View>
+          <View style={{ flex: 2.4 }}>
+            <Pole etykieta="Nazwa inwestycji" value={nazwa} onChangeText={setNazwa} placeholder="np. DK25 Mąkowarsko" accessibilityLabel="Nazwa inwestycji" />
+          </View>
         </View>
       </SafeModal>
     </View>
@@ -139,5 +129,4 @@ export default function BudowaListaScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   lista: { padding: 14, gap: 10 },
-  input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 12, fontSize: 16 },
 });

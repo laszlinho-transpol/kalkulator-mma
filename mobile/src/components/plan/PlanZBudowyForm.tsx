@@ -655,22 +655,29 @@ export function PlanZBudowyForm({ tytul, budowaId, initialPlan, onZapisz }: Prop
             style={[styl.podsum, { backgroundColor: `${theme.colors.primary}12`, borderColor: theme.colors.primary }]}
           >
             <Text style={{ color: theme.colors.primary, fontWeight: '800', marginBottom: 8 }}>AUTA I PODSUMOWANIE</Text>
-            <NumericInput label="Tonaż na auto" value={tonazStr} onChangeText={setTonazStr} unit="t" decimals={1} placeholder="25.5" />
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <Text style={[styl.etykieta, { color: theme.colors.textSecondary, flex: 1 }]}>Podział na rzuty (opcjonalnie)</Text>
-              <InfoTooltip tresc="Wpisz podział samochodów na partie, np. 6+6+4. Suma musi wynosić liczbę aut ze wszystkich działek. Puste pole oznacza jeden rzut." />
+            <View style={styl.dwa}>
+              <View style={{ flex: 1 }}>
+                <NumericInput label="Tonaż na auto" value={tonazStr} onChangeText={setTonazStr} unit="t" decimals={1} placeholder="25.5" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+                  <Text style={{ color: theme.colors.textSecondary, fontSize: 13, fontWeight: '600', flexShrink: 1 }}>Rzuty</Text>
+                  <InfoTooltip tresc="Podział samochodów na partie, np. 6+6+4. Suma musi wynosić liczbę aut ze wszystkich działek. Puste pole oznacza jeden rzut." />
+                </View>
+                <TextInput
+                  accessibilityLabel="Podział na rzuty"
+                  style={[styl.input, {
+                    backgroundColor: theme.colors.inputBackground,
+                    borderColor: rzutyStr && !walidujRzuty(rzutyStr, sumaAut) ? theme.colors.danger : theme.colors.border,
+                    color: theme.colors.text,
+                  }]}
+                  value={rzutyStr}
+                  onChangeText={setRzutyStr}
+                  placeholder={sumaAut > 0 ? `${Math.ceil(sumaAut / 2)}+${Math.floor(sumaAut / 2)}` : '6+6+4'}
+                  placeholderTextColor={theme.colors.textSecondary}
+                />
+              </View>
             </View>
-            <TextInput
-              style={[styl.input, {
-                backgroundColor: theme.colors.inputBackground,
-                borderColor: rzutyStr && !walidujRzuty(rzutyStr, sumaAut) ? theme.colors.danger : theme.colors.border,
-                color: theme.colors.text,
-              }]}
-              value={rzutyStr}
-              onChangeText={setRzutyStr}
-              placeholder={sumaAut > 0 ? `np. ${Math.ceil(sumaAut / 2)}+${Math.floor(sumaAut / 2)}  (suma = ${sumaAut})` : 'np. 6+6+4'}
-              placeholderTextColor={theme.colors.textSecondary}
-            />
             {rzutyStr && !walidujRzuty(rzutyStr, sumaAut) ? (
               <Text style={{ color: theme.colors.danger, marginTop: 4 }}>Suma rzutów musi wynosić {sumaAut}</Text>
             ) : null}

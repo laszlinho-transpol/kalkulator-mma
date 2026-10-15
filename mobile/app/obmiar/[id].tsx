@@ -11,6 +11,7 @@ import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppHeader } from '../../src/components/common/AppHeader';
 import { SafeModal } from '../../src/components/common/SafeModal';
+import { InfoTooltip } from '../../src/components/common/InfoTooltip';
 import { MieszankaPicker } from '../../src/components/common/MieszankaPicker';
 import { BudowaPicker } from '../../src/components/common/BudowaPicker';
 import { DatePickerButton } from '../../src/components/common/DatePickerButton';
@@ -451,9 +452,10 @@ export default function ObmiarDetailScreen() {
                     </TouchableOpacity>
 
                     <View style={{ gap: 8 }}>
-                      <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>
-                        Tło jak w PDF-XChange: ten sam PDF (strona z poligonami). Zoom rusza tło razem z obszarem.
-                      </Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <Text style={{ color: theme.colors.textSecondary, fontSize: 12, fontWeight: '700' }}>Tło PZT</Text>
+                        <InfoTooltip tresc="Tło jak w PDF-XChange: ten sam PDF (strona z poligonami). Zoom rusza tło razem z obszarem." />
+                      </View>
                       {rasterBusy ? (
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                           <ActivityIndicator color={theme.colors.primary} />
@@ -628,26 +630,31 @@ export default function ObmiarDetailScreen() {
               <Row label="Razem aut" v={String(podsumowanie.sumaAut)} theme={theme} bold />
             </View>
           )}
-          <View style={{ marginTop: 10 }}>
-            <Text style={{ color: theme.colors.textSecondary, fontSize: 11, marginBottom: 4 }}>Tonaż na auto [t]</Text>
-            <TextInput
-              value={tonazStr}
-              onChangeText={setTonazStr}
-              keyboardType="decimal-pad"
-              style={[styles.input, { borderColor: theme.colors.border, color: theme.colors.text, backgroundColor: theme.colors.inputBackground }]}
-            />
-          </View>
-          <View style={{ marginTop: 8 }}>
-            <Text style={{ color: theme.colors.textSecondary, fontSize: 11, marginBottom: 4 }}>
-              Podział na kursy (np. 6+6+4), suma = {podsumowanie?.sumaAut ?? 0}
-            </Text>
-            <TextInput
-              value={rzutyStr}
-              onChangeText={setRzutyStr}
-              placeholder="puste = jeden kurs"
-              placeholderTextColor={theme.colors.textSecondary}
-              style={[styles.input, { borderColor: theme.colors.border, color: theme.colors.text, backgroundColor: theme.colors.inputBackground }]}
-            />
+          <View style={{ marginTop: 10, flexDirection: 'row', gap: 10 }}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: theme.colors.textSecondary, fontSize: 11, marginBottom: 4 }}>Tonaż na auto [t]</Text>
+              <TextInput
+                value={tonazStr}
+                onChangeText={setTonazStr}
+                keyboardType="decimal-pad"
+                accessibilityLabel="Tonaż na auto"
+                style={[styles.input, { borderColor: theme.colors.border, color: theme.colors.text, backgroundColor: theme.colors.inputBackground }]}
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                <Text style={{ color: theme.colors.textSecondary, fontSize: 11 }}>Kursy (suma {podsumowanie?.sumaAut ?? 0})</Text>
+                <InfoTooltip tresc="Podział aut na kursy, np. 6+6+4. Suma musi równać się liczbie aut. Puste pole oznacza jeden kurs." />
+              </View>
+              <TextInput
+                value={rzutyStr}
+                onChangeText={setRzutyStr}
+                placeholder="6+6+4"
+                accessibilityLabel="Podział na kursy"
+                placeholderTextColor={theme.colors.textSecondary}
+                style={[styles.input, { borderColor: theme.colors.border, color: theme.colors.text, backgroundColor: theme.colors.inputBackground }]}
+              />
+            </View>
           </View>
         </View>
 

@@ -26,6 +26,7 @@ import { obszarZWpisamiLive } from '../../src/utils/obmiarDoPlanu';
 import { PlanCalySketch } from '../../src/components/sketch/PlanCalySketch';
 import { AppHeader } from '../../src/components/common/AppHeader';
 import { InfoTooltip } from '../../src/components/common/InfoTooltip';
+import { Wiersz } from '../../src/components/common/Formularz';
 import { AnimatedTabBar } from '../../src/components/common/AnimatedTabBar';
 import { SafeModal } from '../../src/components/common/SafeModal';
 import { ZalacznikiViewer } from '../../src/components/common/ZalacznikiViewer';
@@ -815,16 +816,18 @@ export default function WbudowywanieDetailScreen() {
                 <Text style={[styles.kartaTytul, { color: theme.colors.text, flex: 1 }]}>Kontrola całego dnia</Text>
                 <InfoTooltip tresc="Wpisz łączne tony i metry od startu pierwszej działki – program pokaże pozycję na całym odcinku." />
               </View>
-              <NumInput label="Wbudowane tony [Mg]" value={wbudowaneTonyStr} onChange={setWbudowaneTony} theme={theme} />
-              <View style={{ marginBottom: 10 }}>
-                <Text style={{ color: theme.colors.textSecondary, fontSize: 13, fontWeight: '600', marginBottom: 5 }}>Gdzie powinniśmy dojechać</Text>
-                <View style={[styles.poleSzare, { backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.border }]}>
-                  <Text style={{ color: theme.colors.textSecondary, fontSize: 16 }}>
-                    {metryPlanowane != null ? `${formatLiczby(metryPlanowane)} m od startu` : '— wpisz tony powyżej —'}
-                  </Text>
-                </View>
-              </View>
-              <NumInput label="Przejechane metry [m] od startu" value={przejechaneMetryStr} onChange={setPrzejechaneMetry} theme={theme} />
+              <Wiersz style={{ alignItems: 'flex-start' }}>
+                <NumInput label="Wbudowane [Mg]" value={wbudowaneTonyStr} onChange={setWbudowaneTony} theme={theme} />
+                <PoleWyliczone
+                  label="Gdzie dojechać"
+                  wartosc={metryPlanowane != null ? `${formatLiczby(metryPlanowane)} m` : '—'}
+                  theme={theme}
+                />
+              </Wiersz>
+              <Wiersz>
+                <NumInput label="Przejechane od startu [m]" value={przejechaneMetryStr} onChange={setPrzejechaneMetry} theme={theme} />
+                <View />
+              </Wiersz>
               {wynikiKontroli ? (
                 <View style={styles.wynikKontroli}>
                   <Text style={[styles.wynikNagl, { color: theme.colors.text, borderBottomColor: theme.colors.border }]}>Wyniki porównania:</Text>
@@ -1134,9 +1137,18 @@ export default function WbudowywanieDetailScreen() {
 
                 <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: edytowanyNumerAuta != null ? theme.colors.warning : theme.colors.border }]}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
-                    <Text style={[styles.kartaTytul, { color: theme.colors.text, marginBottom: 0, flex: 1 }]}>
-                      {edytowanyNumerAuta != null ? `Edycja auta #${edytowanyNumerAuta}` : `Auto #${kolejnyNumerAuta}`}
-                    </Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                      <Text style={[styles.kartaTytul, { color: theme.colors.text, marginBottom: 0, flexShrink: 1 }]}>
+                        {edytowanyNumerAuta != null ? `Edycja auta #${edytowanyNumerAuta}` : `Auto #${kolejnyNumerAuta}`}
+                      </Text>
+                      <InfoTooltip
+                        tresc={edytowanyNumerAuta != null
+                          ? 'Edytujesz całe auto: łączny tonaż i łączne metry. Tony wcześniejszych obszarów liczą się z grubości wbudowywania wpisanej w planie, nie z grubości projektowej. Na ostatnim obszarze wychodzi grubość z reszty ładunku i widać, czy trzyma założenie.'
+                          : aktywnaDzialka
+                            ? `Program sam liczy pozycję od „${aktywnaDzialka.dzialka.nazwa}”. Auto, które przechodzi na kolejny obszar, zachowuje ten sam numer.`
+                            : 'Wszystkie działki zakończone.'}
+                      />
+                    </View>
                     <View style={{ minWidth: 120 }}>
                       <TouchableOpacity
                         onPress={() => setRzutListaOtwarta((o) => !o)}
@@ -1165,27 +1177,25 @@ export default function WbudowywanieDetailScreen() {
                       )}
                     </View>
                   </View>
-                  <Text style={[styles.opisMaly, { color: theme.colors.textSecondary, marginBottom: 8 }]}>
-                    {edytowanyNumerAuta != null
-                      ? 'Edytujesz całe auto: łączny tonaż i łączne metry. Tony wcześniejszych obszarów liczą się z grubości wbudowywania wpisanej w planie, nie z grubości projektowej. Na ostatnim obszarze wychodzi grubość z reszty ładunku i widać, czy trzyma założenie.'
-                      : aktywnaDzialka
-                        ? `Program sam liczy pozycję od „${aktywnaDzialka.dzialka.nazwa}”. Auto, które przechodzi na kolejny obszar, zachowuje ten sam numer.`
-                        : 'Wszystkie działki zakończone.'}
-                    {dzialkaZakonczonaWpisu && edytowanyNumerAuta == null ? ' (aktywna działka zakończona – wznów lub dodaj metry na kolejnej)' : ''}
-                  </Text>
-                  <NumInput label="Tonaż [Mg]" value={nowyTonaz} onChange={setNowyTonaz} theme={theme} placeholder={String(plan.tonazAuta)} />
-                  {edytowanyNumerAuta == null && (
-                    <View style={{ marginBottom: 10 }}>
-                      <Text style={{ color: theme.colors.textSecondary, fontSize: 13, fontWeight: '600', marginBottom: 5 }}>Gdzie powinniśmy dojechać</Text>
-                      <View style={[styles.poleSzare, { backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.border }]}>
-                        <Text style={{ color: theme.colors.textSecondary, fontSize: 16 }}>
-                          {metryPlanowaneLive != null && metryZDojazduZAuta != null
-                            ? `${formatLiczby(metryPlanowaneLive)} m od startu / ${formatLiczby(metryZDojazduZAuta)} m z auta`
-                            : '— wpisz tonaż powyżej —'}
-                        </Text>
-                      </View>
-                    </View>
-                  )}
+                  {!aktywnaDzialka && edytowanyNumerAuta == null ? (
+                    <Text style={[styles.opisMaly, { color: theme.colors.textSecondary, marginBottom: 8 }]}>Wszystkie działki zakończone.</Text>
+                  ) : null}
+                  {dzialkaZakonczonaWpisu && edytowanyNumerAuta == null ? (
+                    <Text style={[styles.opisMaly, { color: theme.colors.warning, marginBottom: 8 }]}>Aktywna działka zakończona – wznów lub dodaj metry na kolejnej.</Text>
+                  ) : null}
+                  <Wiersz style={{ alignItems: 'flex-start' }}>
+                    <NumInput label="Tonaż [Mg]" value={nowyTonaz} onChange={setNowyTonaz} theme={theme} placeholder={String(plan.tonazAuta)} />
+                    {edytowanyNumerAuta == null ? (
+                      <PoleWyliczone
+                        label="Gdzie dojechać"
+                        info="Pozycja wyliczona z tonażu: metry od startu planu / metry z tego auta."
+                        wartosc={metryPlanowaneLive != null && metryZDojazduZAuta != null
+                          ? `${formatLiczby(metryPlanowaneLive)} / ${formatLiczby(metryZDojazduZAuta)} m`
+                          : '—'}
+                        theme={theme}
+                      />
+                    ) : null}
+                  </Wiersz>
                   {edytowanyNumerAuta == null && (
                     <View style={[styles.miniTabs, { borderColor: theme.colors.border, marginBottom: 8 }]}>
                       {([
@@ -1204,31 +1214,33 @@ export default function WbudowywanieDetailScreen() {
                       ))}
                     </View>
                   )}
-                  <NumInput
-                    label={edytowanyNumerAuta != null || trybMetrowLive === 'zAuta' ? 'Przejechane metry z auta [m]' : 'Odległość od startu [m]'}
-                    value={nowyMetry}
-                    onChange={setNowyMetry}
-                    theme={theme}
-                  />
-                  {edytowanyNumerAuta == null && (
-                    <View style={{ marginBottom: 10 }}>
-                      <Text style={{ color: theme.colors.textSecondary, fontSize: 13, fontWeight: '600', marginBottom: 5 }}>
-                        {trybMetrowLive === 'zAuta' ? 'Odległość od startu (auto)' : 'Metry z auta (auto)'}
-                      </Text>
-                      <View style={[styles.poleSzare, { backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.border }]}>
-                        <Text style={{ color: theme.colors.textSecondary, fontSize: 16 }}>
-                          {trybMetrowLive === 'zAuta'
-                            ? (metryOdStartuObliczone != null && !isNaN(wartoscMetrowNum) ? `${formatLiczby(metryOdStartuObliczone)} m` : '—')
-                            : (metryZAutaObliczone != null && !isNaN(wartoscMetrowNum) ? `${formatLiczby(metryZAutaObliczone)} m` : '—')}
-                        </Text>
-                      </View>
-                    </View>
-                  )}
+                  <Wiersz style={{ alignItems: 'flex-start' }}>
+                    <NumInput
+                      label={edytowanyNumerAuta != null || trybMetrowLive === 'zAuta' ? 'Metry z auta [m]' : 'Od startu [m]'}
+                      value={nowyMetry}
+                      onChange={setNowyMetry}
+                      theme={theme}
+                    />
+                    {edytowanyNumerAuta == null ? (
+                      <PoleWyliczone
+                        label={trybMetrowLive === 'zAuta' ? 'Od startu (auto)' : 'Z auta (auto)'}
+                        wartosc={trybMetrowLive === 'zAuta'
+                          ? (metryOdStartuObliczone != null && !isNaN(wartoscMetrowNum) ? `${formatLiczby(metryOdStartuObliczone)} m` : '—')
+                          : (metryZAutaObliczone != null && !isNaN(wartoscMetrowNum) ? `${formatLiczby(metryZAutaObliczone)} m` : '—')}
+                        theme={theme}
+                      />
+                    ) : null}
+                  </Wiersz>
                   <View style={styles.godzinWrap}>
-                    <Text style={[styles.godzLabel, { color: theme.colors.textSecondary }]}>Godz. wybudowania</Text>
-                    <TextInput style={[styles.godzInput, { backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.border, color: theme.colors.text }]} value={nowyGodzina} onChangeText={setNowyGodzina} maxLength={5} placeholder="HH:MM" placeholderTextColor={theme.colors.textSecondary} keyboardType="numbers-and-punctuation" />
+                    <View style={{ width: 92 }}>
+                      <Text style={[styles.godzLabel, { color: theme.colors.textSecondary }]}>Godzina</Text>
+                      <TextInput accessibilityLabel="Godzina wybudowania" style={[styles.godzInput, { backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.border, color: theme.colors.text }]} value={nowyGodzina} onChangeText={setNowyGodzina} maxLength={5} placeholder="HH:MM" placeholderTextColor={theme.colors.textSecondary} keyboardType="numbers-and-punctuation" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.godzLabel, { color: theme.colors.textSecondary }]}>Komentarz</Text>
+                      <TextInput accessibilityLabel="Komentarz" style={[styles.komentarzInput, { backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.border, color: theme.colors.text }]} value={nowyKomentarz} onChangeText={setNowyKomentarz} placeholder="opcjonalnie" placeholderTextColor={theme.colors.textSecondary} />
+                    </View>
                   </View>
-                  <TextInput style={[styles.komentarzInput, { backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.border, color: theme.colors.text }]} value={nowyKomentarz} onChangeText={setNowyKomentarz} placeholder="Komentarz / uwagi (opcjonalnie)" placeholderTextColor={theme.colors.textSecondary} multiline />
                   {podgladRozkladu.length > 0 && (
                     <View style={{ marginBottom: 10 }}>
                       <Text style={{ color: theme.colors.textSecondary, fontSize: 13, fontWeight: '600', marginBottom: 5 }}>Rozkład na obszary</Text>
@@ -1508,11 +1520,25 @@ function ModalRow({ label, v, theme }: { label: string; v: string; theme: AppThe
   );
 }
 
+function PoleWyliczone({ label, wartosc, info, theme }: { label: string; wartosc: string; info?: string; theme: AppTheme }) {
+  return (
+    <View style={{ marginBottom: 10 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 5 }}>
+        <Text style={{ color: theme.colors.textSecondary, fontSize: 13, fontWeight: '600', flexShrink: 1 }} numberOfLines={1}>{label}</Text>
+        {info ? <InfoTooltip tresc={info} /> : null}
+      </View>
+      <View style={[styles.poleSzare, { backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.border, paddingVertical: 11 }]}>
+        <Text style={{ color: theme.colors.textSecondary, fontSize: 16 }} numberOfLines={1}>{wartosc}</Text>
+      </View>
+    </View>
+  );
+}
+
 function NumInput({ label, value, onChange, theme, placeholder }: { label: string; value: string; onChange: (v: string) => void; theme: AppTheme; placeholder?: string }) {
   return (
     <View style={{ marginBottom: 10 }}>
-      <Text style={{ color: theme.colors.textSecondary, fontSize: 13, fontWeight: '600', marginBottom: 5 }}>{label}</Text>
-      <TextInput value={value} onChangeText={(t) => onChange(t.replace(',', '.'))} keyboardType="decimal-pad" placeholder={placeholder} placeholderTextColor={theme.colors.textSecondary} style={{ borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, fontSize: 16, backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.border, color: theme.colors.text }} />
+      <Text style={{ color: theme.colors.textSecondary, fontSize: 13, fontWeight: '600', marginBottom: 5 }} numberOfLines={1}>{label}</Text>
+      <TextInput accessibilityLabel={label} value={value} onChangeText={(t) => onChange(t.replace(',', '.'))} keyboardType="decimal-pad" placeholder={placeholder} placeholderTextColor={theme.colors.textSecondary} style={{ borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, fontSize: 16, backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.border, color: theme.colors.text }} />
     </View>
   );
 }
@@ -1574,10 +1600,10 @@ const styles = StyleSheet.create({
   tabelaSuma: { flexDirection: 'row', paddingVertical: 9, paddingHorizontal: 4, borderRadius: 8, marginTop: 4, alignItems: 'center' },
   livePodsumWrap: { borderWidth: 1, borderRadius: 10, padding: 12, marginTop: 12, gap: 2 },
   livePodsumTytul: { fontSize: 12, fontWeight: '700', marginBottom: 6, textTransform: 'uppercase' },
-  godzinWrap: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
-  godzLabel: { fontSize: 13, fontWeight: '600', flex: 1 },
-  godzInput: { width: 80, borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, textAlign: 'center' },
-  komentarzInput: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, fontSize: 14, minHeight: 48, marginBottom: 12 },
+  godzinWrap: { flexDirection: 'row', gap: 10, marginBottom: 10 },
+  godzLabel: { fontSize: 13, fontWeight: '600', marginBottom: 5 },
+  godzInput: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 11, fontSize: 16, textAlign: 'center' },
+  komentarzInput: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 11, fontSize: 15 },
   btnDodajAuto: { paddingVertical: 13, borderRadius: 12, alignItems: 'center' },
   btnDodajAutoTekst: { color: '#fff', fontSize: 15, fontWeight: '700' },
   poleSzare: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12 },

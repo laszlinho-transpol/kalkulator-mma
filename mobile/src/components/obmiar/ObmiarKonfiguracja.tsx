@@ -358,9 +358,12 @@ function SekcjaKrawedzi({
   return (
     <View style={{ gap: 8 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-        <Text style={{ color: theme.colors.text, fontWeight: '800', fontSize: 13, flex: 1 }}>
-          {strona === 'lewa' ? 'Lewa krawędź' : 'Prawa krawędź'}
-        </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+          <Text style={{ color: theme.colors.text, fontWeight: '800', fontSize: 13 }}>
+            {strona === 'lewa' ? 'Lewa krawędź' : 'Prawa krawędź'}
+          </Text>
+          <InfoTooltip tresc="Zaznacz „całość”, aby odsadzić całą krawędź, albo dodaj odcinek plusikiem i podaj kilometraż od–do." />
+        </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           <CheckMini on={calosc} theme={theme} disabled={zablokowana} onPress={toggleCalosc} />
           <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>całość</Text>
@@ -376,11 +379,7 @@ function SekcjaKrawedzi({
           <Text style={{ color: theme.colors.primary, fontWeight: '800', fontSize: 18 }}>+</Text>
         </TouchableOpacity>
       </View>
-      {tej.length === 0 ? (
-        <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>
-          Zaznacz „całość” albo dodaj odcinek plusikiem.
-        </Text>
-      ) : tej.map((o) => (
+      {tej.map((o) => (
         <WierszOdsadzki
           key={o.id}
           o={o}

@@ -222,7 +222,7 @@ export default function RaportSprzetuScreen() {
                 </TouchableOpacity>
                 {on ? (
                   <>
-                    <Wiersz>
+                    <Wiersz proporcje={rodzaj === 'miesieczny' ? [1.5, 1, 1] : undefined}>
                       <Pole
                         etykieta="Stawka"
                         jednostka={opis.jednostkaStawki.replace(' / ', '/')}
@@ -244,7 +244,7 @@ export default function RaportSprzetuScreen() {
                       />
                       {rodzaj === 'miesieczny' ? (
                         <Pole
-                          etykieta="Dni prac."
+                          etykieta="Dni rob."
                           info={`Dzielnik kosztu miesięcznego. Podpowiedź na ${miesiac}: ${sugerowaneDni} dni robocze (pn–pt bez świąt). Można wpisać inną liczbę.`}
                           jednostka="dni"
                           value={dniTekst}

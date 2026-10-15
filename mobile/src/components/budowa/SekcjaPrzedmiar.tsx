@@ -108,16 +108,14 @@ export function SekcjaPrzedmiar({ projekt, theme, kodBudowy, onZmien }: Props) {
         </TouchableOpacity>
       </View>
       {edycja ? (
-        <View style={{ gap: 8 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <TouchableOpacity
             onPress={scal}
             style={[styles.btn, { backgroundColor: theme.colors.primary, alignSelf: 'flex-start' }]}
           >
             <Text style={styles.btnTekst}>Scal zaznaczone</Text>
           </TouchableOpacity>
-          <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>
-            Zaznacz wiersze i scal. Scalone: zmień nazwę w polu albo wciśnij „Rozłącz”.
-          </Text>
+          <InfoTooltip tresc="Zaznacz wiersze i scal. Scalone: zmień nazwę w polu albo wciśnij „Rozłącz”." />
         </View>
       ) : null}
 

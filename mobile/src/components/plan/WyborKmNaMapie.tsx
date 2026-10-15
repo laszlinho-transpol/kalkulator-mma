@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { AppTheme } from '../../constants/theme';
 import type { ArkuszPzt, ProjektBudowy, TloArkuszaPzt } from '../../types';
 import { PztArkuszPodglad } from '../budowa/PztArkuszPodglad';
+import { InfoTooltip } from '../common/InfoTooltip';
 import { obszaryLegendy } from '../../utils/planZBudowy';
 import { etykietaZakladkiArkusza, formatujKmM, kluczLegendy } from '../../utils/projektBudowy';
 import { kilometrazZPunktuPdf } from '../../utils/osPzt';
@@ -77,12 +78,12 @@ export function WyborKmNaMapie({
           </TouchableOpacity>
         </View>
 
-        <Text style={[styl.km, { color: rola === 'start' ? '#16A34A' : '#DC2626' }]}>
-          {formatujKmM(km)}
-        </Text>
-        <Text style={{ color: theme.colors.textSecondary, fontSize: 13, marginBottom: 8 }}>
-          Widać tylko wybrany obszar. Przybliż tło i stuknij punkt, np. wpust za wjazdem.
-        </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+          <Text style={[styl.km, { color: rola === 'start' ? '#16A34A' : '#DC2626', marginBottom: 0 }]}>
+            {formatujKmM(km)}
+          </Text>
+          <InfoTooltip tresc="Widać tylko wybrany obszar. Przybliż tło i stuknij punkt, np. wpust za wjazdem." />
+        </View>
 
         {arkusze.length > 1 && (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ maxHeight: 44, marginBottom: 8 }}>

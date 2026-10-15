@@ -3,6 +3,7 @@ import { ScrollView, StyleSheet, Text, useColorScheme, View } from 'react-native
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppHeader } from '../../../src/components/common/AppHeader';
 import { lightTheme, darkTheme } from '../../../src/constants/theme';
+import { InfoTooltip } from '../../../src/components/common/InfoTooltip';
 import { karta } from '../../../src/constants/layout';
 import { wstecz } from '../../../src/budzet/nawigacja';
 import { useFirmyStore } from '../../../src/stores/firmyStore';
@@ -17,13 +18,13 @@ export default function FirmyScreen() {
     <View style={[styles.ekran, { backgroundColor: theme.colors.background }]}>
       <AppHeader
         tytul="Firmy"
-        podtytul="Baza z kart sprzętu"
         lewy={{ tekst: '‹ Wstecz', onPress: () => wstecz('/budzet') }}
       />
       <ScrollView contentContainerStyle={[styles.tresc, { paddingBottom: insets.bottom + 24 }]}>
-        <Text style={{ color: theme.colors.textSecondary, lineHeight: 20 }}>
-          Firma dopisuje się tutaj, gdy zapiszesz ją przy sprzęcie. Ta sama nazwa wskazuje jedną firmę i podpowiada się na kolejnej karcie.
-        </Text>
+        <View style={styles.naglowek}>
+          <Text style={[styles.sekcja, { color: theme.colors.textSecondary }]}>Firmy w bazie · {firmy.length}</Text>
+          <InfoTooltip tresc="Firma dopisuje się tutaj, gdy zapiszesz ją przy sprzęcie. Ta sama nazwa wskazuje jedną firmę i podpowiada się na kolejnej karcie." />
+        </View>
         {firmy.length === 0 ? (
           <Text style={{ color: theme.colors.textSecondary }}>Brak firm.</Text>
         ) : firmy.map((firma) => (
@@ -38,6 +39,8 @@ export default function FirmyScreen() {
 
 const styles = StyleSheet.create({
   ekran: { flex: 1 },
-  tresc: { padding: 16, gap: 10 },
+  tresc: { padding: 14, gap: 8 },
+  naglowek: { flexDirection: 'row', alignItems: 'center' },
+  sekcja: { fontSize: 13, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.4 },
   nazwa: { fontSize: 16, fontWeight: '700' },
 });

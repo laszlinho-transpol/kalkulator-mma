@@ -90,9 +90,13 @@ export default function KartaPracownikaScreen() {
               <Text style={[styles.podsekcja, { color: theme.colors.textSecondary }]}>Wynagrodzenie</Text>
               {linieWynagrodzenia(pracownik.stawki).length === 0 ? (
                 <Text style={{ color: theme.colors.textSecondary }}>Brak stawek.</Text>
-              ) : linieWynagrodzenia(pracownik.stawki).map((linia) => (
-                <Text key={linia} style={[styles.stawka, { color: theme.colors.text }]}>{linia}</Text>
-              ))}
+              ) : (
+                <View style={styles.siatka}>
+                  {linieWynagrodzenia(pracownik.stawki).map((linia) => (
+                    <Text key={linia} style={[styles.stawka, styles.polowa, { color: theme.colors.text }]}>{linia}</Text>
+                  ))}
+                </View>
+              )}
               <TouchableOpacity
                 accessibilityLabel="Edytuj pracownika"
                 onPress={() => router.push(`/budzet/pracownicy/${pracownik.id}/edytuj` as never)}
@@ -182,6 +186,8 @@ const styles = StyleSheet.create({
   wierszEtykieta: { fontSize: 14 },
   wierszWartosc: { fontSize: 15, fontWeight: '700', flexShrink: 1, textAlign: 'right' },
   stawka: { fontSize: 15, fontWeight: '600' },
+  siatka: { flexDirection: 'row', flexWrap: 'wrap', rowGap: 4 },
+  polowa: { width: '50%', paddingRight: 6 },
   dodaj: { borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
   dodajTekst: { color: '#1A1A1A', fontWeight: '800' },
   szukaj: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, fontSize: 16 },

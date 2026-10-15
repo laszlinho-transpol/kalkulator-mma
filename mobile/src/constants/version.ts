@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.29';
+export const WERSJA_APLIKACJI = '1.8.30';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,16 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.30',
+    data: '2026-10-15',
+    tytul: 'Poprawka wynagrodzenia i zwarte formularze',
+    zmiany: [
+      'Stawka 8h to stawka godzinowa: wynagrodzenie = stawka × godziny (bez dzielenia przez 8)',
+      'Krótkie pola formularzy stoją obok siebie w dwóch kolumnach – mniej przewijania',
+      'Opisy i podpowiedzi schowane pod ikonką „i” – kliknięcie pokazuje okienko z informacją',
+    ],
+  },
   {
     wersja: '1.8.29',
     data: '2026-10-15',

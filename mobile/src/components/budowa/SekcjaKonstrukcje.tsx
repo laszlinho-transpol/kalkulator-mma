@@ -139,6 +139,13 @@ export function SekcjaKonstrukcje({ projekt, theme, onZmien }: Props) {
               placeholderTextColor={theme.colors.textSecondary}
               style={[styles.input, { flex: 1, color: theme.colors.text, borderColor: theme.colors.border, backgroundColor: theme.colors.card }]}
             />
+            <TextInput
+              value={w.rodzajOpis}
+              onChangeText={(t) => patchKonstrukcja(k.legendaId, (kk) => patchWarstwy(kk, w.id, { rodzajOpis: t }, wyjatekId))}
+              placeholder="Rodzaj, np. KR 3-7"
+              placeholderTextColor={theme.colors.textSecondary}
+              style={[styles.input, { flex: 1, color: theme.colors.text, borderColor: theme.colors.border, backgroundColor: theme.colors.card }]}
+            />
             <TouchableOpacity
               onPress={() => patchKonstrukcja(k.legendaId, (kk) => {
                 if (wyjatekId) {
@@ -153,13 +160,6 @@ export function SekcjaKonstrukcje({ projekt, theme, onZmien }: Props) {
               <Text style={{ color: theme.colors.danger, fontWeight: '700' }}>Usuń</Text>
             </TouchableOpacity>
           </View>
-          <TextInput
-            value={w.rodzajOpis}
-            onChangeText={(t) => patchKonstrukcja(k.legendaId, (kk) => patchWarstwy(kk, w.id, { rodzajOpis: t }, wyjatekId))}
-            placeholder="Rodzaj (opis), np. KR 3-7"
-            placeholderTextColor={theme.colors.textSecondary}
-            style={[styles.input, { color: theme.colors.text, borderColor: theme.colors.border, backgroundColor: theme.colors.card }]}
-          />
           <View style={styles.rzad}>
             <View style={{ flex: 1 }}>
               <Text style={styles.miniLabel}>Grubość cm</Text>

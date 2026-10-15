@@ -15,6 +15,7 @@ import { useMieszankiStore } from '../../src/stores/mieszankiStore';
 import { useWytwornieStore } from '../../src/stores/wytwornieStore';
 import { lightTheme, darkTheme, type AppTheme } from '../../src/constants/theme';
 import { InfoTooltip } from '../../src/components/common/InfoTooltip';
+import { Pole, Wiersz } from '../../src/components/common/Formularz';
 import { EmptyState } from '../../src/components/common/EmptyState';
 import { AppHeader } from '../../src/components/common/AppHeader';
 import { SafeModal } from '../../src/components/common/SafeModal';
@@ -254,12 +255,14 @@ export default function MieszankiScreen() {
               </TouchableOpacity>
             ))}
           </View>
-          <EtykietaZTooltip label="Rodzaj mieszanki *" tooltip="Typ mieszanki, np. AC22P." theme={theme} />
-          <TextInput style={[styles.input, inp(theme)]} value={formMieszanka.rodzaj} onChangeText={(t) => setFormMieszanka((f) => ({ ...f, rodzaj: t }))} placeholder="np. AC22P" placeholderTextColor={theme.colors.textSecondary} autoCapitalize="characters" />
-          <EtykietaZTooltip label="Nr recepty" tooltip="Numer recepty wytwórni." theme={theme} />
-          <TextInput style={[styles.input, inp(theme)]} value={formMieszanka.nrRecepty} onChangeText={(t) => setFormMieszanka((f) => ({ ...f, nrRecepty: t }))} placeholder="opcjonalne" placeholderTextColor={theme.colors.textSecondary} />
-          <EtykietaZTooltip label="Ciężar objętościowy [t/m³] *" tooltip="Masa po zagęszczeniu, np. 2.455." theme={theme} />
-          <TextInput style={[styles.input, inp(theme)]} value={formMieszanka.ciezarObjetosciowy} onChangeText={(t) => setFormMieszanka((f) => ({ ...f, ciezarObjetosciowy: t }))} placeholder="2.455" placeholderTextColor={theme.colors.textSecondary} keyboardType="decimal-pad" />
+          <Wiersz style={{ marginTop: 14 }}>
+            <Pole etykieta="Rodzaj" wymagane info="Typ mieszanki, np. AC22P." value={formMieszanka.rodzaj} onChangeText={(t) => setFormMieszanka((f) => ({ ...f, rodzaj: t.toUpperCase() }))} placeholder="AC22P" accessibilityLabel="Rodzaj mieszanki" />
+            <Pole etykieta="Nr recepty" info="Numer recepty wytwórni (opcjonalnie)." value={formMieszanka.nrRecepty} onChangeText={(t) => setFormMieszanka((f) => ({ ...f, nrRecepty: t }))} placeholder="—" accessibilityLabel="Nr recepty" />
+          </Wiersz>
+          <Wiersz style={{ marginTop: 10 }}>
+            <Pole etykieta="Ciężar obj." wymagane info="Ciężar objętościowy – masa po zagęszczeniu, np. 2,455 t/m³." jednostka="t/m³" value={formMieszanka.ciezarObjetosciowy} onChangeText={(t) => setFormMieszanka((f) => ({ ...f, ciezarObjetosciowy: t }))} placeholder="2.455" accessibilityLabel="Ciężar objętościowy" liczba />
+            <View />
+          </Wiersz>
           {blad ? <Text style={[styles.blad, { color: theme.colors.danger }]}>{blad}</Text> : null}
         </ScrollView>
       </SafeModal>

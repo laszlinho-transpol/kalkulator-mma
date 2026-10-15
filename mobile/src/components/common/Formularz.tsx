@@ -11,12 +11,16 @@ function useMotyw() {
   return useColorScheme() === 'dark' ? darkTheme : lightTheme;
 }
 
-/** Pola obok siebie – każde dziecko dostaje równą szerokość. */
-export function Wiersz({ children, style }: { children: React.ReactNode; style?: StyleProp<ViewStyle> }) {
+/** Pola obok siebie – domyślnie równe kolumny, `proporcje` zmienia ich szerokość. */
+export function Wiersz({ children, style, proporcje }: {
+  children: React.ReactNode;
+  style?: StyleProp<ViewStyle>;
+  proporcje?: number[];
+}) {
   return (
     <View style={[styles.wiersz, style]}>
       {React.Children.toArray(children).filter(Boolean).map((dziecko, i) => (
-        <View key={i} style={styles.kolumna}>{dziecko}</View>
+        <View key={i} style={[styles.kolumna, proporcje?.[i] ? { flex: proporcje[i] } : null]}>{dziecko}</View>
       ))}
     </View>
   );
