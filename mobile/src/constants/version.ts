@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.26';
+export const WERSJA_APLIKACJI = '1.8.27';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,16 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.27',
+    data: '2026-10-15',
+    tytul: 'Budżet – edycja sprzętu i historia stawek',
+    zmiany: [
+      'Przy każdym sprzęcie jest Edytuj: rodzaj, numer, firma, stawki i spalanie',
+      'Zakładka Historia stawek ustawia zakres dat z kalendarza i stawki obowiązujące w tym okresie',
+      'Przy koszcie miesięcznym jest ilość dni pracujących: podpowiedź to dni robocze, liczbę można zmienić',
+    ],
+  },
   {
     wersja: '1.8.26',
     data: '2026-10-15',

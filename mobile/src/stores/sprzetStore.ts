@@ -2,7 +2,7 @@
 
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { RaportSprzetu, Sprzet } from '../budzet/typy';
+import type { OkresStawek, RaportSprzetu, Sprzet } from '../budzet/typy';
 import { round2 } from '../utils/calculations';
 
 const KLUCZ_SPRZET = '@mma:sprzet';
@@ -17,6 +17,10 @@ interface SprzetStore {
   zaladowane: boolean;
   zaladuj: () => Promise<void>;
   dodajSprzet: (dane: Omit<Sprzet, 'id' | 'createdAt' | 'updatedAt'>) => Promise<string>;
+  aktualizujSprzet: (id: string, zmiany: Partial<Omit<Sprzet, 'id' | 'createdAt'>>) => Promise<void>;
+  dodajOkresStawek: (sprzetId: string, okres: Omit<OkresStawek, 'id'>) => Promise<string | undefined>;
+  zmienOkresStawek: (sprzetId: string, okres: OkresStawek) => Promise<void>;
+  usunOkresStawek: (sprzetId: string, okresId: string) => Promise<void>;
   dodajRaport: (dane: Omit<RaportSprzetu, 'id' | 'createdAt' | 'kwota'> & { kwota?: number }) => Promise<string>;
   raportySprzetu: (sprzetId: string) => RaportSprzetu[];
 }
@@ -49,6 +53,39 @@ export const useSprzetStore = create<SprzetStore>((set, get) => ({
     set({ sprzet });
     await AsyncStorage.setItem(KLUCZ_SPRZET, JSON.stringify(sprzet));
     return nowy.id;
+  },
+
+  aktualizujSprzet: async (id, zmiany) => {
+    const sprzet = get().sprzet.map((pozycja) => (
+      pozycja.id === id
+        ? { ...pozycja, ...zmiany, id: pozycja.id, createdAt: pozycja.createdAt, updatedAt: new Date().toISOString() }
+        : pozycja
+    ));
+    set({ sprzet });
+    await AsyncStorage.setItem(KLUCZ_SPRZET, JSON.stringify(sprzet));
+  },
+
+  dodajOkresStawek: async (sprzetId, okres) => {
+    const maszyna = get().sprzet.find((pozycja) => pozycja.id === sprzetId);
+    if (!maszyna) return undefined;
+    const nowy: OkresStawek = { ...okres, id: generujId() };
+    await get().aktualizujSprzet(sprzetId, { historiaStawek: [...(maszyna.historiaStawek ?? []), nowy] });
+    return nowy.id;
+  },
+
+  zmienOkresStawek: async (sprzetId, okres) => {
+    const maszyna = get().sprzet.find((pozycja) => pozycja.id === sprzetId);
+    if (!maszyna) return;
+    const historia = (maszyna.historiaStawek ?? []).map((jest) => (jest.id === okres.id ? okres : jest));
+    await get().aktualizujSprzet(sprzetId, { historiaStawek: historia });
+  },
+
+  usunOkresStawek: async (sprzetId, okresId) => {
+    const maszyna = get().sprzet.find((pozycja) => pozycja.id === sprzetId);
+    if (!maszyna) return;
+    await get().aktualizujSprzet(sprzetId, {
+      historiaStawek: (maszyna.historiaStawek ?? []).filter((okres) => okres.id !== okresId),
+    });
   },
 
   dodajRaport: async (dane) => {

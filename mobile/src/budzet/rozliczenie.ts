@@ -2,6 +2,13 @@
 
 import { round2 } from '../utils/calculations';
 
+interface ZakresStawek {
+  id: string;
+  od: string;
+  do: string;
+  stawki: StawkiSprzetu;
+}
+
 export type RodzajRozliczenia = 'miesieczny' | 'dzienny' | 'godzinowy' | 'kilometr';
 
 export interface OpisRozliczenia {
@@ -32,6 +39,34 @@ export function opisRozliczenia(id: RodzajRozliczenia): OpisRozliczenia {
 
 export function dostepneRozliczenia(stawki: StawkiSprzetu): RodzajRozliczenia[] {
   return OPISY_ROZLICZENIA.map((o) => o.id).filter((id) => (stawki[id] ?? 0) > 0);
+}
+
+/** Okres o najpóźniejszym początku, który obejmuje dzień. */
+export function okresNaDzien(historia: ZakresStawek[] | undefined, iso: string): ZakresStawek | undefined {
+  return (historia ?? [])
+    .filter((okres) => okres.od <= iso && iso <= okres.do)
+    .sort((a, b) => b.od.localeCompare(a.od) || b.do.localeCompare(a.do))[0];
+}
+
+export function stawkiObowiazujace(
+  bazowe: StawkiSprzetu,
+  historia: ZakresStawek[] | undefined,
+  iso: string,
+): StawkiSprzetu {
+  return okresNaDzien(historia, iso)?.stawki ?? bazowe;
+}
+
+export function zakresNachodzi(
+  historia: ZakresStawek[] | undefined,
+  od: string,
+  dokad: string,
+  pominId?: string,
+): boolean {
+  return (historia ?? []).some((okres) => okres.id !== pominId && okres.od <= dokad && od <= okres.do);
+}
+
+export function tekstZapisanejStawki(stawka?: number): string {
+  return stawka ? String(stawka).replace('.', ',') : '';
 }
 
 /** Poniedziałek–piątek w miesiącu daty raportu. */

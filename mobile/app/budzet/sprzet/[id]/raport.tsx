@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useColorScheme, View,
 } from 'react-native';
@@ -6,12 +6,13 @@ import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppHeader } from '../../../../src/components/common/AppHeader';
 import { KalendarzDnia } from '../../../../src/components/common/KalendarzDnia';
+import { etykietaZakresu } from '../../../../src/components/common/KalendarzZakresu';
 import { lightTheme, darkTheme, type AppTheme } from '../../../../src/constants/theme';
 import { formatLiczby, round2 } from '../../../../src/utils/calculations';
 import { rodzajPoId } from '../../../../src/budzet/rodzajeSprzetu';
 import {
-  dniRoboczeMiesiaca, dostepneRozliczenia, kwotaRozliczenia, opisRozliczenia,
-  parsujLiczbePola, wczorajIso, type RodzajRozliczenia,
+  dniRoboczeMiesiaca, dostepneRozliczenia, kwotaRozliczenia, okresNaDzien, opisRozliczenia,
+  parsujLiczbePola, stawkiObowiazujace, wczorajIso, type RodzajRozliczenia, type StawkiSprzetu,
 } from '../../../../src/budzet/rozliczenie';
 import { etykietaSprzetu } from '../../../../src/budzet/wyswietlanie';
 import { wstecz } from '../../../../src/budzet/nawigacja';
@@ -45,25 +46,36 @@ export default function RaportSprzetuScreen() {
   const [uwagi, setUwagi] = useState('');
   const [blad, setBlad] = useState('');
   const [zapis, setZapis] = useState(false);
-  const [stawkiGotowe, setStawkiGotowe] = useState(false);
+  const dotknieteStawki = useRef(new Set<RodzajRozliczenia>());
+  const dniReczne = useRef(false);
+  const sugerowaneDni = dniRoboczeMiesiaca(data);
+  const [dniTekst, setDniTekst] = useState(() => String(dniRoboczeMiesiaca(wczorajIso())));
 
-  const dostepne = useMemo(
-    () => (maszyna ? dostepneRozliczenia(maszyna.stawki) : []),
-    [maszyna],
+  const obowiazujace = useMemo(
+    () => (maszyna ? stawkiObowiazujace(maszyna.stawki, maszyna.historiaStawek, data) : {} as StawkiSprzetu),
+    [maszyna, data],
   );
+  const dostepne = useMemo(() => dostepneRozliczenia(obowiazujace), [obowiazujace]);
+  const okres = maszyna ? okresNaDzien(maszyna.historiaStawek, data) : undefined;
 
   useEffect(() => {
-    if (!maszyna || stawkiGotowe) return;
-    const start: Partial<Record<RodzajRozliczenia, string>> = {};
-    for (const rodzaj of dostepneRozliczenia(maszyna.stawki)) {
-      const stawka = maszyna.stawki[rodzaj];
-      if (stawka) start[rodzaj] = String(stawka).replace('.', ',');
-    }
-    setStawkiTekst(start);
-    setStawkiGotowe(true);
-  }, [maszyna, stawkiGotowe]);
+    if (!dniReczne.current) setDniTekst(String(sugerowaneDni));
+  }, [sugerowaneDni]);
 
-  const dni = dniRoboczeMiesiaca(data);
+  useEffect(() => {
+    setStawkiTekst((prev) => {
+      const next = { ...prev };
+      (['miesieczny', 'dzienny', 'godzinowy', 'kilometr'] as RodzajRozliczenia[]).forEach((rodzaj) => {
+        if (dotknieteStawki.current.has(rodzaj)) return;
+        const stawka = obowiazujace[rodzaj];
+        next[rodzaj] = stawka ? String(stawka).replace('.', ',') : '';
+      });
+      return next;
+    });
+    setZaznaczone((prev) => prev.filter((rodzaj) => (obowiazujace[rodzaj] ?? 0) > 0));
+  }, [obowiazujace]);
+
+  const dni = parsujLiczbePola(dniTekst) ?? 0;
   const miesiac = MIESIACE[(Number(data.split('-')[1]) || 1) - 1];
   const budowyKolejnosc = [...budowy].sort((a, b) => {
     const archiwum = (status?: string) => (status === 'archiwalna' ? 1 : 0);
@@ -73,7 +85,13 @@ export default function RaportSprzetuScreen() {
   const pozycje: PozycjaRaportuSprzetu[] = zaznaczone.map((rodzaj) => {
     const stawka = parsujLiczbePola(stawkiTekst[rodzaj] ?? '') ?? 0;
     const ilosc = parsujLiczbePola(ilosciTekst[rodzaj] ?? '') ?? 0;
-    return { rodzaj, stawka, ilosc, kwota: kwotaRozliczenia(rodzaj, stawka, ilosc, dni) };
+    return {
+      rodzaj,
+      stawka,
+      ilosc,
+      kwota: kwotaRozliczenia(rodzaj, stawka, ilosc, dni),
+      ...(rodzaj === 'miesieczny' ? { dniRobocze: dni } : {}),
+    };
   });
   const suma = round2(pozycje.reduce((s, p) => s + p.kwota, 0));
 
@@ -97,6 +115,7 @@ export default function RaportSprzetuScreen() {
       const opis = opisRozliczenia(pozycja.rodzaj);
       if (!(pozycja.stawka > 0)) { setBlad(`Podaj stawkę: ${opis.nazwa}.`); return; }
       if (!(pozycja.ilosc > 0)) { setBlad(`Podaj ilość: ${opis.etykietaIlosci.toLowerCase()}.`); return; }
+      if (pozycja.rodzaj === 'miesieczny' && !(dni > 0)) { setBlad('Podaj ilość dni pracujących.'); return; }
     }
     if (!(suma > 0)) { setBlad('Kwota raportu wyszła zerowa.'); return; }
     setBlad('');
@@ -167,7 +186,9 @@ export default function RaportSprzetuScreen() {
 
           <Text style={[styles.etykieta, { color: theme.colors.textSecondary }]}>Rozliczenie</Text>
           <Text style={[styles.opis, { color: theme.colors.textSecondary }]}>
-            Kwota z karty maszyny. Można ją zmienić. Zaznacz jedną albo więcej pozycji.
+            {okres
+              ? `Stawki z okresu ${etykietaZakresu(okres.od, okres.do)}. Można je zmienić w tym raporcie.`
+              : 'Kwota z karty maszyny. Można ją zmienić. Zaznacz jedną albo więcej pozycji.'}
           </Text>
           {dostepne.length === 0 ? (
             <Text style={[styles.opis, { color: theme.colors.textSecondary }]}>Ta maszyna nie ma stawek.</Text>
@@ -187,7 +208,10 @@ export default function RaportSprzetuScreen() {
                       theme={theme}
                       etykieta={`Stawka (${opis.jednostkaStawki})`}
                       value={stawkiTekst[rodzaj] ?? ''}
-                      onChangeText={(tekst) => setStawkiTekst((prev) => ({ ...prev, [rodzaj]: tekst }))}
+                      onChangeText={(tekst) => {
+                        dotknieteStawki.current.add(rodzaj);
+                        setStawkiTekst((prev) => ({ ...prev, [rodzaj]: tekst }));
+                      }}
                       accessibilityLabel={`Stawka ${opis.nazwa}`}
                     />
                     <PoleLiczby
@@ -197,14 +221,29 @@ export default function RaportSprzetuScreen() {
                       onChangeText={(tekst) => setIlosciTekst((prev) => ({ ...prev, [rodzaj]: tekst }))}
                       accessibilityLabel={`Ilość ${opis.nazwa}`}
                     />
+                    {rodzaj === 'miesieczny' ? (
+                      <>
+                        <PoleLiczby
+                          theme={theme}
+                          etykieta="Ilość dni pracujących"
+                          value={dniTekst}
+                          onChangeText={(tekst) => { dniReczne.current = true; setDniTekst(tekst); }}
+                          accessibilityLabel="Ilość dni pracujących"
+                        />
+                        <Text style={[styles.opis, { color: theme.colors.textSecondary }]}>
+                          Podpowiedź na {miesiac}: {sugerowaneDni} dni robocze (pn–pt). Można wpisać inną liczbę.
+                        </Text>
+                        <TouchableOpacity
+                          accessibilityLabel="Przywróć dni robocze"
+                          onPress={() => { dniReczne.current = false; setDniTekst(String(sugerowaneDni)); }}
+                        >
+                          <Text style={{ color: theme.colors.primary, fontWeight: '800' }}>Użyj {sugerowaneDni} dni roboczych</Text>
+                        </TouchableOpacity>
+                      </>
+                    ) : null}
                     <Text style={[styles.opis, { color: theme.colors.text }]}>
                       {tekstFormuly(rodzaj, pozycja?.stawka ?? 0, pozycja?.ilosc ?? 0, dni, pozycja?.kwota ?? 0)}
                     </Text>
-                    {rodzaj === 'miesieczny' ? (
-                      <Text style={[styles.opis, { color: theme.colors.textSecondary }]}>
-                        {miesiac}: {dni} dni robocze (pn–pt)
-                      </Text>
-                    ) : null}
                   </View>
                 ) : null}
               </View>
@@ -245,7 +284,7 @@ export default function RaportSprzetuScreen() {
 function tekstFormuly(rodzaj: RodzajRozliczenia, stawka: number, ilosc: number, dni: number, kwota: number): string {
   const wynik = `${formatLiczby(kwota)} zł`;
   if (rodzaj === 'miesieczny') {
-    return `${formatLiczby(stawka)} zł ÷ ${dni} dni robocze × ${formatLiczby(ilosc)} = ${wynik}`;
+    return `${formatLiczby(stawka)} zł ÷ ${dni} dni pracujących × ${formatLiczby(ilosc)} = ${wynik}`;
   }
   return `${formatLiczby(stawka)} zł × ${formatLiczby(ilosc)} = ${wynik}`;
 }

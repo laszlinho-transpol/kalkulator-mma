@@ -153,6 +153,7 @@ export function KalendarzZakresu({ od, doDnia, theme, onZatwierdz }: Props) {
                 <Text style={{ color: theme.colors.textSecondary, fontWeight: '700' }}>Anuluj</Text>
               </TouchableOpacity>
               <TouchableOpacity
+                accessibilityLabel="Zatwierdź zakres dat"
                 onPress={() => {
                   onZatwierdz(robOd, robDo);
                   setOtwarty(false);

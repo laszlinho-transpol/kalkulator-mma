@@ -3,6 +3,7 @@ import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useColorSche
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppHeader } from '../../../../src/components/common/AppHeader';
+import { HistoriaStawek } from '../../../../src/components/budzet/HistoriaStawek';
 import { lightTheme, darkTheme } from '../../../../src/constants/theme';
 import { formatLiczby } from '../../../../src/utils/calculations';
 import { rodzajPoId } from '../../../../src/budzet/rodzajeSprzetu';
@@ -21,6 +22,7 @@ export default function KartaSprzetuScreen() {
   const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
   const insets = useSafeAreaInsets();
   const [szukaj, setSzukaj] = useState('');
+  const [zakladka, setZakladka] = useState<'dane' | 'historia' | 'raporty'>('dane');
   const maszyna = useSprzetStore((s) => s.sprzet.find((pozycja) => pozycja.id === id));
   const raporty = useSprzetStore((s) => s.raporty);
   const firmy = useFirmyStore((s) => s.firmy);
@@ -56,11 +58,35 @@ export default function KartaSprzetuScreen() {
         tytul={rodzaj?.nazwa ?? 'Sprzęt'}
         podtytul={maszyna ? etykietaSprzetu(maszyna.numer) : ''}
         lewy={{ tekst: '‹ Wstecz', onPress: () => wstecz(maszyna ? `/budzet/sprzet/rodzaj/${maszyna.rodzajId}` : '/budzet/sprzet') }}
+        prawy={maszyna ? { tekst: 'Edytuj', onPress: () => router.push(`/budzet/sprzet/${maszyna.id}/edytuj` as never) } : undefined}
       />
       {!maszyna ? (
         <Text style={[styles.brak, { color: theme.colors.textSecondary }]}>Nie znaleziono sprzętu.</Text>
       ) : (
         <ScrollView contentContainerStyle={[styles.tresc, { paddingBottom: insets.bottom + 24 }]}>
+          <View style={styles.zakladki}>
+            {([
+              ['dane', 'Dane'],
+              ['historia', 'Historia stawek'],
+              ['raporty', 'Raporty'],
+            ] as const).map(([idZakladki, nazwa]) => {
+              const on = zakladka === idZakladki;
+              return (
+                <TouchableOpacity
+                  key={idZakladki}
+                  accessibilityLabel={`Zakładka ${nazwa}`}
+                  onPress={() => setZakladka(idZakladki)}
+                  style={[styles.zakladka, {
+                    borderColor: on ? theme.colors.primary : theme.colors.border,
+                    backgroundColor: on ? `${theme.colors.primary}22` : theme.colors.card,
+                  }]}
+                >
+                  <Text style={{ color: theme.colors.text, fontWeight: on ? '800' : '600', textAlign: 'center', fontSize: 13 }}>{nazwa}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          {zakladka === 'dane' ? (
           <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
             <Wiersz etykieta="Rodzaj" wartosc={rodzaj?.nazwa ?? maszyna.rodzajId} kolor={theme.colors.text} etykietaKolor={theme.colors.textSecondary} />
             <Wiersz etykieta="Numer" wartosc={etykietaSprzetu(maszyna.numer)} kolor={theme.colors.text} etykietaKolor={theme.colors.textSecondary} />
@@ -74,8 +100,17 @@ export default function KartaSprzetuScreen() {
               kolor={theme.colors.text}
               etykietaKolor={theme.colors.textSecondary}
             />
+            <TouchableOpacity
+              accessibilityLabel="Edytuj sprzęt"
+              onPress={() => router.push(`/budzet/sprzet/${maszyna.id}/edytuj` as never)}
+              style={[styles.dodaj, { backgroundColor: theme.colors.primary }]}
+            >
+              <Text style={styles.dodajTekst}>Edytuj</Text>
+            </TouchableOpacity>
           </View>
-
+          ) : null}
+          {zakladka === 'historia' ? <HistoriaStawek maszyna={maszyna} theme={theme} /> : null}
+          {zakladka === 'raporty' ? (
           <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
             <Text style={[styles.sekcja, { color: theme.colors.text }]}>Raporty</Text>
             <TouchableOpacity
@@ -109,7 +144,9 @@ export default function KartaSprzetuScreen() {
                   <Text style={{ color: theme.colors.textSecondary }}>{pracownik?.imieNazwisko ?? 'Pracownik usunięty'}</Text>
                   {raport.pozycje.map((pozycja) => (
                     <Text key={pozycja.rodzaj} style={{ color: theme.colors.text, marginTop: 4 }}>
-                      {opisRozliczenia(pozycja.rodzaj).nazwa}: {formatLiczby(pozycja.ilosc)} × {formatLiczby(pozycja.stawka)} zł = {formatLiczby(pozycja.kwota)} zł
+                      {pozycja.rodzaj === 'miesieczny' && pozycja.dniRobocze
+                        ? `${opisRozliczenia(pozycja.rodzaj).nazwa}: ${formatLiczby(pozycja.stawka)} zł ÷ ${pozycja.dniRobocze} × ${formatLiczby(pozycja.ilosc)} = ${formatLiczby(pozycja.kwota)} zł`
+                        : `${opisRozliczenia(pozycja.rodzaj).nazwa}: ${formatLiczby(pozycja.ilosc)} × ${formatLiczby(pozycja.stawka)} zł = ${formatLiczby(pozycja.kwota)} zł`}
                     </Text>
                   ))}
                   <Text style={[styles.kwota, { color: theme.colors.text }]}>Kwota: {formatLiczby(raport.kwota)} zł</Text>
@@ -118,6 +155,7 @@ export default function KartaSprzetuScreen() {
               );
             })}
           </View>
+          ) : null}
         </ScrollView>
       )}
     </View>
@@ -137,6 +175,8 @@ const styles = StyleSheet.create({
   ekran: { flex: 1 },
   brak: { padding: 24, fontSize: 16 },
   tresc: { padding: 16, gap: 12 },
+  zakladki: { flexDirection: 'row', gap: 8 },
+  zakladka: { flex: 1, borderWidth: 1, borderRadius: 12, paddingHorizontal: 8, paddingVertical: 10, alignItems: 'center', justifyContent: 'center', minHeight: 48 },
   karta: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 8 },
   sekcja: { fontSize: 18, fontWeight: '800' },
   wiersz: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },

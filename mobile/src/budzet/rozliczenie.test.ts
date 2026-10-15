@@ -5,7 +5,9 @@ import {
   dostepneRozliczenia,
   kwotaRozliczenia,
   parsujLiczbePola,
+  stawkiObowiazujace,
   wczorajIso,
+  zakresNachodzi,
 } from './rozliczenie';
 
 describe('rozliczenie sprzętu', () => {
@@ -34,6 +36,23 @@ describe('rozliczenie sprzętu', () => {
     assert.equal(parsujLiczbePola('3,5'), 3.5);
     assert.equal(parsujLiczbePola('22 300'), 22300);
     assert.equal(parsujLiczbePola('4 l/mth'), null);
+  });
+
+  it('własna liczba dni pracujących zmienia koszt miesięczny', () => {
+    assert.equal(kwotaRozliczenia('miesieczny', 22300, 1, 20), 1115);
+  });
+
+  it('okres stawek obejmuje tylko swój zakres dat', () => {
+    const historia = [
+      { id: 'a', od: '2026-10-01', do: '2026-10-15', stawki: { miesieczny: 20000 } },
+      { id: 'b', od: '2026-10-16', do: '2026-10-31', stawki: { miesieczny: 25000 } },
+    ];
+    assert.equal(stawkiObowiazujace({ miesieczny: 22300 }, historia, '2026-10-14').miesieczny, 20000);
+    assert.equal(stawkiObowiazujace({ miesieczny: 22300 }, historia, '2026-10-20').miesieczny, 25000);
+    assert.equal(stawkiObowiazujace({ miesieczny: 22300 }, historia, '2026-11-01').miesieczny, 22300);
+    assert.equal(zakresNachodzi(historia, '2026-10-10', '2026-10-20'), true);
+    assert.equal(zakresNachodzi(historia, '2026-11-01', '2026-11-30'), false);
+    assert.equal(zakresNachodzi(historia, '2026-10-01', '2026-10-15', 'a'), false);
   });
 
   it('wczoraj jest dniem kalendarzowym przed podaną datą', () => {

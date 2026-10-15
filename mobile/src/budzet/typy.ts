@@ -13,6 +13,14 @@ export interface Pracownik {
   updatedAt: string;
 }
 
+/** Stawki obowiązujące od–do. Raport z daty w zakresie bierze te kwoty zamiast stawek z karty. */
+export interface OkresStawek {
+  id: string;
+  od: string;
+  do: string;
+  stawki: StawkiSprzetu;
+}
+
 export interface Sprzet {
   id: string;
   rodzajId: string;
@@ -20,6 +28,7 @@ export interface Sprzet {
   firmaId?: string;
   stawki: StawkiSprzetu;
   spalanieLnaMth?: number;
+  historiaStawek?: OkresStawek[];
   createdAt: string;
   updatedAt: string;
 }
@@ -29,6 +38,8 @@ export interface PozycjaRaportuSprzetu {
   stawka: number;
   ilosc: number;
   kwota: number;
+  /** Dzielnik kosztu miesięcznego. Użytkownik może zmienić podpowiedź dni roboczych. */
+  dniRobocze?: number;
 }
 
 export interface RaportSprzetu {

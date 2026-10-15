@@ -54,18 +54,25 @@ export default function ListaRodzajuScreen() {
           {lista.map((maszyna) => {
             const firma = firmy.find((f) => f.id === maszyna.firmaId);
             return (
-              <TouchableOpacity
-                key={maszyna.id}
-                accessibilityLabel={`Sprzęt ${etykietaSprzetu(maszyna.numer)}`}
-                style={[karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}
-                onPress={() => router.push(`/budzet/sprzet/${maszyna.id}` as never)}
-              >
-                <Text style={[styles.numer, { color: theme.colors.text }]}>{etykietaSprzetu(maszyna.numer)}</Text>
-                <Text style={{ color: theme.colors.textSecondary, marginTop: 4 }}>{firma?.nazwa ?? 'Bez firmy'}</Text>
-                {linieStawek(maszyna.stawki).map((linia) => (
-                  <Text key={linia} style={{ color: theme.colors.text, marginTop: 4 }}>{linia}</Text>
-                ))}
-              </TouchableOpacity>
+              <View key={maszyna.id} style={[karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border, gap: 8 }]}>
+                <TouchableOpacity
+                  accessibilityLabel={`Sprzęt ${etykietaSprzetu(maszyna.numer)}`}
+                  onPress={() => router.push(`/budzet/sprzet/${maszyna.id}` as never)}
+                >
+                  <Text style={[styles.numer, { color: theme.colors.text }]}>{etykietaSprzetu(maszyna.numer)}</Text>
+                  <Text style={{ color: theme.colors.textSecondary, marginTop: 4 }}>{firma?.nazwa ?? 'Bez firmy'}</Text>
+                  {linieStawek(maszyna.stawki).map((linia) => (
+                    <Text key={linia} style={{ color: theme.colors.text, marginTop: 4 }}>{linia}</Text>
+                  ))}
+                </TouchableOpacity>
+                <TouchableOpacity
+                  accessibilityLabel={`Edytuj sprzęt ${etykietaSprzetu(maszyna.numer)}`}
+                  onPress={() => router.push(`/budzet/sprzet/${maszyna.id}/edytuj` as never)}
+                  style={[styles.edytuj, { borderColor: theme.colors.primary }]}
+                >
+                  <Text style={{ color: theme.colors.primary, fontWeight: '800' }}>Edytuj</Text>
+                </TouchableOpacity>
+              </View>
             );
           })}
         </ScrollView>
@@ -78,4 +85,5 @@ const styles = StyleSheet.create({
   ekran: { flex: 1 },
   lista: { padding: 16, gap: 10 },
   numer: { fontSize: 18, fontWeight: '800' },
+  edytuj: { borderWidth: 1, borderRadius: 10, paddingVertical: 8, alignItems: 'center' },
 });
