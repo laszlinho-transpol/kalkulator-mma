@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.31';
+export const WERSJA_APLIKACJI = '1.8.32';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,18 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.32',
+    data: '2026-10-15',
+    tytul: 'Wytwórnie – mapa, kontakty, recepty z ceną',
+    zmiany: [
+      'Przycisk Edytuj przy każdej wytwórni na liście mieszanek',
+      'Karta wytwórni z zakładkami Info (nazwa, mapa, numery kontaktowe) i Recepty',
+      'Link Google Maps pokazuje podgląd mapy. W aplikacji skrócony link odczytuje się sam, w przeglądarce wpisz adres',
+      'Kontakty z telefonu albo wpisane ręcznie: zadzwoń, kopiuj i udostępnij numer',
+      'Recepta ma cenę za tonę i zakładkę Historia ceny',
+    ],
+  },
   {
     wersja: '1.8.31',
     data: '2026-10-15',

@@ -10,14 +10,15 @@ const ZAKLADKI: [ZakladkaKarty, string][] = [
   ['raporty', 'Raporty'],
 ];
 
-export function Zakladki({ theme, aktywna, onZmien }: {
+export function Zakladki<T extends string = ZakladkaKarty>({ theme, aktywna, onZmien, zakladki }: {
   theme: AppTheme;
-  aktywna: ZakladkaKarty;
-  onZmien: (zakladka: ZakladkaKarty) => void;
+  aktywna: T;
+  onZmien: (zakladka: T) => void;
+  zakladki?: [T, string][];
 }) {
   return (
     <View style={styles.zakladki}>
-      {ZAKLADKI.map(([id, nazwa]) => {
+      {(zakladki ?? (ZAKLADKI as [T, string][])).map(([id, nazwa]) => {
         const on = aktywna === id;
         return (
           <TouchableOpacity

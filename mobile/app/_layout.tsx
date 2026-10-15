@@ -124,6 +124,12 @@ export default function RootLayout() {
             options={{ headerShown: false, animation: 'fade', gestureEnabled: false }}
           />
           <Stack.Screen name="mieszanki/index" options={{ headerShown: false }} />
+          <Stack.Screen name="mieszanki/wytwornia/nowa" options={{ headerShown: false }} />
+          <Stack.Screen name="mieszanki/wytwornia/[id]/index" options={{ headerShown: false }} />
+          <Stack.Screen name="mieszanki/wytwornia/[id]/edytuj" options={{ headerShown: false }} />
+          <Stack.Screen name="mieszanki/recepta/nowa" options={{ headerShown: false }} />
+          <Stack.Screen name="mieszanki/recepta/[id]/index" options={{ headerShown: false }} />
+          <Stack.Screen name="mieszanki/recepta/[id]/edytuj" options={{ headerShown: false }} />
           <Stack.Screen
             name="ustawienia"
             options={{ headerShown: false, animation: 'slide_from_right' }}

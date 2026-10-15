@@ -4,11 +4,23 @@
 
 // --- Wytwórnia (zakład produkcyjny) ---
 
+import type { OkresStawek } from '../budzet/typy';
+
+export interface KontaktWytworni {
+  id: string;
+  nazwa: string;
+  telefon: string;
+  stanowisko?: string;
+}
+
 export interface Wytwornia {
   id: string;
   nazwa: string;
   /** Link Google Maps (np. maps.app.goo.gl/...) */
   linkGoogleMaps?: string;
+  /** Adres lub współrzędne „lat,lng” do podglądu mapy – odczytane z linku albo wpisane ręcznie. */
+  adresMapy?: string;
+  kontakty?: KontaktWytworni[];
   createdAt: string;
   updatedAt: string;
 }
@@ -42,6 +54,10 @@ export interface ZalacznikPlanu {
 
 // --- Mieszanki (Mixes) ---
 
+export interface CenaRecepty {
+  cena?: number;
+}
+
 export interface Mieszanka {
   id: string;
   rodzaj: string;               // np. AC22P, SMA11
@@ -50,6 +66,9 @@ export interface Mieszanka {
   wytworniaId?: string;
   /** @deprecated użyj wytworniaId – zachowane dla importu starych danych */
   wytwórnia?: string;
+  /** Cena netto [zł/t] obowiązująca poza okresami z historii. */
+  cena?: number;
+  historiaCen?: OkresStawek<CenaRecepty>[];
   createdAt: string;
   updatedAt: string;
 }

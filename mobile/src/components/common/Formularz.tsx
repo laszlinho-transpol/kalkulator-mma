@@ -46,7 +46,7 @@ export function Etykieta({ tekst, info, wymagane, prawy }: {
 }
 
 export function Pole({
-  etykieta, value, onChangeText, placeholder, accessibilityLabel, liczba, info, jednostka, wymagane, multiline,
+  etykieta, value, onChangeText, placeholder, accessibilityLabel, liczba, info, jednostka, wymagane, multiline, klawiatura,
 }: {
   etykieta?: string;
   value: string;
@@ -58,6 +58,7 @@ export function Pole({
   jednostka?: string;
   wymagane?: boolean;
   multiline?: boolean;
+  klawiatura?: 'url' | 'phone-pad';
 }) {
   const theme = useMotyw();
   return (
@@ -70,7 +71,9 @@ export function Pole({
           placeholder={placeholder}
           placeholderTextColor={theme.colors.textSecondary}
           accessibilityLabel={accessibilityLabel ?? etykieta}
-          keyboardType={liczba ? 'decimal-pad' : 'default'}
+          keyboardType={klawiatura ?? (liczba ? 'decimal-pad' : 'default')}
+          autoCapitalize={klawiatura === 'url' ? 'none' : undefined}
+          autoCorrect={klawiatura ? false : undefined}
           multiline={multiline}
           style={[styles.input, multiline && styles.inputWiele, { color: theme.colors.text }]}
         />

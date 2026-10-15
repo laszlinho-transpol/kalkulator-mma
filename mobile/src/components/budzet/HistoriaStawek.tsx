@@ -26,10 +26,18 @@ interface Props<T extends object> {
   onDodaj: (okres: Omit<OkresStawek<T>, 'id'>) => Promise<unknown>;
   onZmien: (okres: OkresStawek<T>) => Promise<void>;
   onUsun: (okresId: string) => Promise<void>;
+  tytul?: string;
+  info?: string;
+  etykietaBazowych?: string;
+  brakOkresow?: string;
 }
 
 export function HistoriaStawek<T extends object>({
   theme, pola, bazowe, historia: zapisana, linie, onDodaj, onZmien, onUsun,
+  tytul = 'Historia stawek',
+  info = 'Każdy okres ma własne stawki. Raport z daty w zakresie bierze je z tego okresu. Poza zakresami zostają stawki z karty.',
+  etykietaBazowych = 'Stawki z karty',
+  brakOkresow = 'Brak okresów. Stawki z karty obowiązują cały czas.',
 }: Props<T>) {
   const [formularz, setFormularz] = useState<string | null>(null);
   const historia = [...(zapisana ?? [])].sort((a, b) => b.od.localeCompare(a.od));
@@ -37,16 +45,16 @@ export function HistoriaStawek<T extends object>({
   return (
     <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
       <View style={styles.tytulWiersz}>
-        <Text style={[styles.sekcja, { color: theme.colors.text }]}>Historia stawek</Text>
-        <InfoTooltip tresc="Każdy okres ma własne stawki. Raport z daty w zakresie bierze je z tego okresu. Poza zakresami zostają stawki z karty." />
+        <Text style={[styles.sekcja, { color: theme.colors.text }]}>{tytul}</Text>
+        <InfoTooltip tresc={info} />
       </View>
-      <Text style={{ color: theme.colors.text, fontWeight: '700' }}>Stawki z karty</Text>
+      <Text style={{ color: theme.colors.text, fontWeight: '700' }}>{etykietaBazowych}</Text>
       {linie(bazowe).map((linia) => (
         <Text key={linia} style={{ color: theme.colors.textSecondary }}>{linia}</Text>
       ))}
 
       {historia.length === 0 ? (
-        <Text style={{ color: theme.colors.textSecondary }}>Brak okresów. Stawki z karty obowiązują cały czas.</Text>
+        <Text style={{ color: theme.colors.textSecondary }}>{brakOkresow}</Text>
       ) : historia.map((okres) => (
         <View key={okres.id} style={[styles.okres, { borderColor: theme.colors.border }]}>
           <Text style={[styles.zakres, { color: theme.colors.text }]}>{etykietaZakresu(okres.od, okres.do)}</Text>
