@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView, Switch, Platform, TextInput, Alert,
 } from 'react-native';
@@ -22,7 +22,6 @@ import {
   zastosujKilometrazArkuszy,
   zmienNazweArkusza,
 } from '../../utils/projektBudowy';
-import { MMA_WEB_BUILD } from '../../constants/version';
 import { karta } from '../../constants/layout';
 import { Z_METROW_BIEZACYCH } from '../../constants';
 import type { WynikParsowaniaXfdf } from '../../utils/xfdfParser';
@@ -40,7 +39,6 @@ import {
   ustawBuforTla,
   zapiszBuforPliku,
 } from '../../utils/tloPdfPamiec';
-import { CALY_PZT_ID, scalPztDoArkusza } from '../../utils/pztPloter';
 import { dlugoscPolilinii } from '../../utils/osPzt';
 import { wymiaryStronyPdf } from '../../utils/pdfjsWeb';
 import type { PlikWebImport } from './PrzyciskImportuXfdf';
@@ -59,16 +57,6 @@ function potwierdzWeb(pytanie: string): boolean {
   return true;
 }
 
-function tekstPikietazuOsi(os: ReturnType<typeof podsumowanieOsiTrasy>): string {
-  if (os.nEtykiet === os.nArkuszy && os.nEtykiet > 0) {
-    return `Pikietaż = suma długości osi z XFDF (${os.nArkuszy} ark. = ${os.kmM.toLocaleString('pl-PL', { maximumFractionDigits: 2 })} m).`;
-  }
-  if (os.nEtykiet === 0) {
-    return 'Nie odczytano wymiaru osi z XFDF (np. „422,07 m” na kresce). Wgraj te same XFDF ponownie — program podmieni arkusze w pamięci przeglądarki.';
-  }
-  return `Wymiar osi odczytany na ${os.nEtykiet}/${os.nArkuszy} ark. Wgraj XFDF ponownie, żeby pikietaż był pełną długością osi.`;
-}
-
 function pokazKomunikat(tytul: string, tresc: string) {
   if (Platform.OS === 'web' && typeof window !== 'undefined') {
     window.alert(`${tytul}\n\n${tresc}`);
@@ -80,7 +68,7 @@ function pokazKomunikat(tytul: string, tresc: string) {
 export function SekcjaPzt({
   projekt, theme, onZmien, blokadaPodgladu = false, onBlokadaPodgladu, onDotykZmiana,
 }: Props) {
-  const [arkuszId, setArkuszId] = useState<string>(CALY_PZT_ID);
+  const [arkuszId, setArkuszId] = useState<string | undefined>(projekt.arkusze[0]?.id);
   const [busy, setBusy] = useState(false);
   const [blad, setBlad] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -94,14 +82,7 @@ export function SekcjaPzt({
   const [kmStr, setKmStr] = useState(startInit.km);
   const [mStr, setMStr] = useState(startInit.m);
   const [podzStr, setPodzStr] = useState(String(projekt.podzialkaKilometrazuM ?? 50));
-  const aktywny = projekt.arkusze.find((a) => a.id === arkuszId) ?? (
-    arkuszId === CALY_PZT_ID ? undefined : projekt.arkusze[0]
-  );
-  const widokCaly = arkuszId === CALY_PZT_ID || (!aktywny && projekt.arkusze.length > 0);
-  const calyArkusz = useMemo(
-    () => (projekt.arkusze.length > 0 ? scalPztDoArkusza(projekt.arkusze) : null),
-    [projekt.arkusze],
-  );
+  const aktywny = projekt.arkusze.find((a) => a.id === arkuszId) ?? projekt.arkusze[0];
   const idxAktywny = aktywny ? projekt.arkusze.findIndex((a) => a.id === aktywny.id) : -1;
   const kmKoniecTrasy = projekt.arkusze[projekt.arkusze.length - 1]?.kilometrazKoncowyM;
   const sumaOsi = podsumowanieOsiTrasy(projekt);
@@ -250,7 +231,7 @@ export function SekcjaPzt({
     setBlad(null);
     const next = dodajArkuszeDoProjektu(projekt, r.wyniki);
     onZmien(next);
-    setArkuszId(next.arkusze.length > 1 ? CALY_PZT_ID : (next.arkusze[0]?.id ?? CALY_PZT_ID));
+    setArkuszId(next.arkusze[0]?.id);
     setInfo(komunikatPoImporcieXfdf(projekt, next, r.wyniki.map((w) => w.zrodloNazwa)));
     if (r.pominiete.length > 0) {
       const msg = r.pominiete.slice(0, 6).join('\n');
@@ -288,7 +269,7 @@ export function SekcjaPzt({
           return;
         }
         next = dodajArkuszeDoProjektu(projekt, r.wyniki);
-        setArkuszId(next.arkusze.length > 1 ? CALY_PZT_ID : (next.arkusze[0]?.id ?? CALY_PZT_ID));
+        setArkuszId(next.arkusze[0]?.id);
         setInfo(komunikatPoImporcieXfdf(projekt, next, r.wyniki.map((w) => w.zrodloNazwa)));
         if (r.pominiete.length > 0) {
           const msg = r.pominiete.slice(0, 6).join('\n');
@@ -334,7 +315,7 @@ export function SekcjaPzt({
       const next = usunArkusz(projekt, id);
       onZmien(next);
       if (arkuszId === id) {
-        setArkuszId(next.arkusze.length > 1 ? CALY_PZT_ID : next.arkusze[0]?.id);
+        setArkuszId(next.arkusze[0]?.id);
       }
       setInfo(`Usunięto arkusz „${nazwa}”.`);
     };
@@ -442,34 +423,21 @@ export function SekcjaPzt({
             {kmKoniecTrasy != null ? ` → ${formatujKmM(kmKoniecTrasy)}` : ''}
           </Text>
         </View>
-        {projekt.arkusze.length > 0 ? (
-          <View style={{ gap: 4 }}>
-            <Text style={{ color: theme.colors.text, fontSize: 12, fontWeight: '700' }}>
-              {formatujKmM(projekt.kilometrazPoczatkowyM)}
-              {` + ${sumaOsi.kmM.toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m`}
-              {kmKoniecTrasy != null ? ` = ${formatujKmM(kmKoniecTrasy)}` : ''}
-            </Text>
-            <Text style={{ color: theme.colors.textSecondary, fontSize: 11, lineHeight: 16 }}>
-              {tekstPikietazuOsi(sumaOsi)}
-            </Text>
-            {sumaOsi.lukaNumeracji ? (
-              <Text style={{ color: theme.colors.textSecondary, fontSize: 11, lineHeight: 16 }}>{sumaOsi.lukaNumeracji}</Text>
-            ) : null}
-            {sumaOsi.wymiary.length > 1 ? (
-              <Text style={{ color: theme.colors.textSecondary, fontSize: 11, lineHeight: 16 }}>
-                Wymiary ark.: {sumaOsi.wymiary.slice(0, 4).map((n) => n.toLocaleString('pl-PL', { maximumFractionDigits: 2 })).join(' + ')}
-                {sumaOsi.wymiary.length > 4 ? ' + …' : ''}
-                {`  (${sumaOsi.nArkuszy} ark.)`}
-              </Text>
-            ) : null}
-            {sumaOsi.nEtykiet > 0 && Math.abs(sumaOsi.geomM - sumaOsi.kmM) > 1 ? (
-              <Text style={{ color: theme.colors.textSecondary, fontSize: 11, lineHeight: 16 }}>
-                Rysunek 1:500 ≈ {sumaOsi.geomM.toLocaleString('pl-PL', { maximumFractionDigits: 2 })} m;
-                pikietaż XFDF = {sumaOsi.kmM.toLocaleString('pl-PL', { maximumFractionDigits: 2 })} m.
-              </Text>
-            ) : null}
-          </View>
-        ) : null}
+      </View>
+
+      <View style={styles.rzad}>
+        <View style={{ flex: 1 }}>
+          <PrzyciskImportuXfdf
+            etykieta={busy ? 'Wczytywanie…' : '+ Dodaj arkusze XFDF / PDF'}
+            kolorTla={theme.colors.primary}
+            disabled={busy}
+            onPressNative={importujNative}
+            onWebFiles={(files) => { void importujWeb(files); }}
+          />
+        </View>
+        <InfoTooltip tresc="Wgraj arkusze XFDF (możesz zaznaczyć też PDF tła). W oknie plików zaznacz kilka arkuszy naraz (Shift / Ctrl). Zakładki to odcinki trasy z kilometrażem od–do. Kolejność zmienisz dopiero po otwarciu kłódki. PDF nie musi mieć tej samej nazwy co XFDF – dopasowanie idzie po numerze arkusza (np. Ark_2_1); jeden PDF przy otwartej zakładce trafia na nią." />
+      </View>
+      <View style={[karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border, gap: 8 }]}>
         <View style={styles.rzad}>
           <Text style={[styles.label, { color: theme.colors.text }]}>Podziałka kilometrażu osi</Text>
           <InfoTooltip tresc={`Kreska z pikietą co pełne ${projekt.podzialkaKilometrazuM ?? 50} m od startu. Oś i kilometraż biorą się z XFDF: suma długości linii osi (np. „422,07 m” na kresce). Pominięty arkusz drogi bocznej (np. 2_9) nie robi dziury: 2_8 styka się z 2_10. Ponowne wgranie tego samego arkusza podmienia geometrię w pamięci przeglądarki.`} />
@@ -494,23 +462,6 @@ export function SekcjaPzt({
           />
           <Text style={{ color: theme.colors.textSecondary, fontSize: 13 }}>m</Text>
         </View>
-        <Text style={{ color: theme.colors.textSecondary, fontSize: 10 }}>
-          Wdrożenie {MMA_WEB_BUILD === 'dev' ? 'dev' : MMA_WEB_BUILD.slice(0, 7)}
-          {MMA_WEB_BUILD === 'dev' ? '' : ' — jeśli po odświeżeniu widać inną wartość, to stara kopia strony.'}
-        </Text>
-      </View>
-
-      <View style={styles.rzad}>
-        <View style={{ flex: 1 }}>
-          <PrzyciskImportuXfdf
-            etykieta={busy ? 'Wczytywanie…' : '+ Dodaj arkusze XFDF / PDF'}
-            kolorTla={theme.colors.primary}
-            disabled={busy}
-            onPressNative={importujNative}
-            onWebFiles={(files) => { void importujWeb(files); }}
-          />
-        </View>
-        <InfoTooltip tresc="Wgraj arkusze XFDF (możesz zaznaczyć też PDF tła). W oknie plików zaznacz kilka arkuszy naraz (Shift / Ctrl). Zakładki to odcinki trasy z kilometrażem od–do. Kolejność zmienisz dopiero po otwarciu kłódki. PDF nie musi mieć tej samej nazwy co XFDF – dopasowanie idzie po numerze arkusza (np. Ark_2_1); jeden PDF przy otwartej zakładce trafia na nią." />
       </View>
       {projekt.arkusze.length > 0 || wgranePdf.length > 0 ? (
         <View style={styles.rzad}>
@@ -551,32 +502,6 @@ export function SekcjaPzt({
             showsHorizontalScrollIndicator
             contentContainerStyle={styles.tabLista}
           >
-            {calyArkusz ? (
-              <View style={styles.tabWrap}>
-                <View
-                  style={[
-                    styles.tab,
-                    {
-                      backgroundColor: widokCaly ? `${theme.colors.primary}22` : theme.colors.card,
-                      borderColor: widokCaly ? theme.colors.primary : theme.colors.border,
-                      minWidth: 168,
-                    },
-                  ]}
-                >
-                  <TouchableOpacity onPress={() => setArkuszId(CALY_PZT_ID)} style={{ flex: 1 }}>
-                    <Text style={{ color: theme.colors.text, fontWeight: '800', fontSize: 13 }} numberOfLines={1}>
-                      Cały PZT
-                    </Text>
-                    <Text style={{ color: theme.colors.primary, fontSize: 11, fontWeight: '700', marginTop: 2 }}>
-                      {formatujKmM(calyArkusz.kilometrazPoczatkowyM)} → {formatujKmM(calyArkusz.kilometrazKoncowyM)}
-                    </Text>
-                    <Text style={{ color: theme.colors.textSecondary, fontSize: 10, marginTop: 2 }}>
-                      {projekt.arkusze.length} ark. · ploter
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            ) : null}
             {projekt.arkusze.map((a, i) => {
               const sel = a.id === aktywny?.id;
               return (
@@ -639,41 +564,7 @@ export function SekcjaPzt({
             })}
           </ScrollView>
 
-          {widokCaly && calyArkusz ? (
-            <>
-              <PztArkuszPodglad
-                arkusz={calyArkusz}
-                theme={theme}
-                wysokosc={440}
-                blokadaPodgladu={blokadaPodgladu}
-                onBlokadaPodgladu={onBlokadaPodgladu}
-                onDotykZmiana={onDotykZmiana}
-                podzialkaM={projekt.podzialkaKilometrazuM ?? 50}
-              />
-              <View style={[karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border, gap: 8 }]}>
-                <View style={styles.rzad}>
-                  <Text style={{ color: theme.colors.text, fontWeight: '800', fontSize: 14, flex: 1 }}>Cały PZT – ciągłość trasy</Text>
-                  <InfoTooltip tresc="Styk: ostatnie węzły żółtego (L) i różowego (P) arkusza N są pierwsze na arkuszu N+1 (poprzeczka i tyczenie wstecz). Zakładki stron służą do porównania z PDF." />
-                </View>
-                <Text style={{ color: theme.colors.primary, fontWeight: '800', fontSize: 13 }}>
-                  {formatujKmM(calyArkusz.kilometrazPoczatkowyM)} + {sumaOsi.kmM.toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m
-                  {`  =  ${formatujKmM(calyArkusz.kilometrazKoncowyM)}`}
-                </Text>
-                {sumaOsi.nEtykiet < sumaOsi.nArkuszy ? (
-                  <Text style={{ color: theme.colors.danger, fontSize: 12, lineHeight: 17 }}>
-                    Wymiar osi odczytany na {sumaOsi.nEtykiet}/{sumaOsi.nArkuszy} arkuszach
-                    (geometria 1:500 ≈ {sumaOsi.geomM.toLocaleString('pl-PL', { maximumFractionDigits: 2 })} m).
-                    Wgraj XFDF ponownie — arkusze zostaną podmienione, nie zdublowane.
-                  </Text>
-                ) : (
-                  <Text style={{ color: theme.colors.textSecondary, fontSize: 12, lineHeight: 17 }}>
-                    {`Pikietaż z XFDF: ${sumaOsi.kmM.toLocaleString('pl-PL', { maximumFractionDigits: 2 })} m (${sumaOsi.nArkuszy} ark.).`}
-                    {sumaOsi.lukaNumeracji ? ` ${sumaOsi.lukaNumeracji}` : ''}
-                  </Text>
-                )}
-              </View>
-            </>
-          ) : aktywny ? (
+          {aktywny ? (
             <>
               <PztArkuszPodglad
                 arkusz={aktywny}
