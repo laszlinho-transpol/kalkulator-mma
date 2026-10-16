@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.34';
+export const WERSJA_APLIKACJI = '1.8.35';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,18 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.35',
+    data: '2026-10-16',
+    tytul: 'PZT i Konstrukcje budowy',
+    zmiany: [
+      'PZT: tylko oryginalne arkusze, bez połączonego widoku całego PZT',
+      'PZT: w pierwszym oknie tylko kilometraż początkowy trasy',
+      'Kod wdrożenia przeniesiony do Ustawień → O aplikacji, obok numeru wersji',
+      'Konstrukcje: przy każdym odcinku przycisk Warstwy otwiera okno z warstwami tego odcinka',
+      'Przycisk „Zmiana konstrukcji” zamiast „+ Wyjątek od–do”',
+    ],
+  },
   {
     wersja: '1.8.34',
     data: '2026-10-16',
