@@ -5,7 +5,9 @@ import { formatLiczby, round2, round3 } from '../utils/calculations';
 import { GESTOSC_KLSM_DOMYSLNA, GESTOSC_MMA_DOMYSLNA } from '../utils/projektBudowy';
 import type { RaportPracownika, RaportSprzetu } from '../budzet/typy';
 import type { KategoriaWarstwy, Mieszanka, ProjektBudowy, WarstwaKonstrukcji } from '../types';
-import type { PozycjaRaportu, Przerzut, RaportDzienny, RozliczenieSamochodu, WpisSamochodow } from './typy';
+import type {
+  PozycjaRaportu, Przerzut, RaportDzienny, RodzajRozliczeniaTransportu, RozliczenieTransportu, WpisSamochodow,
+} from './typy';
 
 const MIESIACE_MIANOWNIK = [
   'Styczeń', 'Luty', 'Marzec', 'Kwiecień', 'Maj', 'Czerwiec',
@@ -268,28 +270,60 @@ export const sumaKwot = (wiersze: { kwota: number }[]): number => round2(wiersze
 
 // --- Transport ---
 
-export const kwotaPrzerzutu = (p: Pick<Przerzut, 'stawka' | 'km'>): number => round2((p.stawka || 0) * (p.km || 0));
-
-export function kwotaSamochodow(s: Pick<WpisSamochodow, 'rozliczenie' | 'stawka' | 'kursy' | 'km' | 'tony'>): number {
-  const stawka = s.stawka || 0;
-  if (s.rozliczenie === 'kurs') return round2(stawka * (s.kursy || 0));
-  if (s.rozliczenie === 'tkm') return round2(stawka * (s.tony || 0) * (s.km || 0));
-  return round2(stawka * (s.km || 0) * (s.kursy || 0));
-}
-
-export const OPISY_ROZLICZENIA_SAMOCHODOW: { id: RozliczenieSamochodu; nazwa: string; jednostka: string }[] = [
+export const OPISY_ROZLICZENIA_TRANSPORTU: { id: RodzajRozliczeniaTransportu; nazwa: string; jednostka: string }[] = [
   { id: 'km', nazwa: 'Stawka za km', jednostka: 'zł/km' },
   { id: 'kurs', nazwa: 'Stawka za kurs', jednostka: 'zł/kurs' },
   { id: 'tkm', nazwa: 'Stawka t × km', jednostka: 'zł/t·km' },
+  { id: 'godz', nazwa: 'Stawka godzinowa', jednostka: 'zł/h' },
 ];
+
+/** Przerzut: km łącznie, ryczałt za przewiezienie albo godziny. */
+export const RODZAJE_PRZERZUTU: RodzajRozliczeniaTransportu[] = ['km', 'kurs', 'godz'];
+
+export const nazwaRozliczeniaTransportu = (r: RodzajRozliczeniaTransportu): string =>
+  OPISY_ROZLICZENIA_TRANSPORTU.find((o) => o.id === r)?.nazwa ?? r;
+
+/** Rozliczenia przerzutu – także ze starego zapisu (stawka × km). */
+export function rozliczeniaPrzerzutu(p: Pick<Przerzut, 'rozliczenia' | 'stawka' | 'km'>): RozliczenieTransportu[] {
+  if (p.rozliczenia) return p.rozliczenia;
+  return p.stawka ? [{ rodzaj: 'km', stawka: p.stawka, km: p.km ?? 0 }] : [];
+}
+
+export function rozliczeniaSamochodow(
+  s: Pick<WpisSamochodow, 'rozliczenia' | 'rozliczenie' | 'stawka' | 'km' | 'tony'>,
+): RozliczenieTransportu[] {
+  if (s.rozliczenia) return s.rozliczenia;
+  return s.rozliczenie && s.stawka ? [{ rodzaj: s.rozliczenie, stawka: s.stawka, km: s.km, tony: s.tony }] : [];
+}
+
+/**
+ * km: stawka × km × kursy; kurs: stawka × kursy; t × km: stawka × tony × km; godzinowa: stawka × godziny.
+ * Przerzut liczy się jak jeden kurs.
+ */
+export function kwotaRozliczeniaTransportu(r: RozliczenieTransportu, kursy = 1): number {
+  const stawka = r.stawka || 0;
+  if (r.rodzaj === 'kurs') return round2(stawka * (kursy || 0));
+  if (r.rodzaj === 'tkm') return round2(stawka * (r.tony || 0) * (r.km || 0));
+  if (r.rodzaj === 'godz') return round2(stawka * (r.godziny || 0));
+  return round2(stawka * (r.km || 0) * (kursy || 0));
+}
 
 const liczba = (n: number) => String(round3(n)).replace('.', ',');
 
-export function wzorSamochodow(s: Pick<WpisSamochodow, 'rozliczenie' | 'stawka' | 'kursy' | 'km' | 'tony'>): string {
-  const wynik = `${formatLiczby(kwotaSamochodow(s))} zł`;
-  if (s.rozliczenie === 'kurs') return `${liczba(s.stawka)} zł × ${s.kursy} kursów = ${wynik}`;
-  if (s.rozliczenie === 'tkm') return `${liczba(s.stawka)} zł × ${liczba(s.tony ?? 0)} t × ${liczba(s.km ?? 0)} km = ${wynik}`;
-  return `${liczba(s.stawka)} zł × ${liczba(s.km ?? 0)} km × ${s.kursy} kursów = ${wynik}`;
+export function wzorRozliczeniaTransportu(r: RozliczenieTransportu, kursy?: number): string {
+  const wynik = `${formatLiczby(kwotaRozliczeniaTransportu(r, kursy ?? 1))} zł`;
+  const razyKursy = kursy != null ? ` × ${kursy} kursów` : '';
+  if (r.rodzaj === 'kurs') return `${liczba(r.stawka)} zł${razyKursy} = ${wynik}`;
+  if (r.rodzaj === 'tkm') return `${liczba(r.stawka)} zł × ${liczba(r.tony ?? 0)} t × ${liczba(r.km ?? 0)} km = ${wynik}`;
+  if (r.rodzaj === 'godz') return `${liczba(r.stawka)} zł/h × ${liczba(r.godziny ?? 0)} h = ${wynik}`;
+  return `${liczba(r.stawka)} zł × ${liczba(r.km ?? 0)} km${razyKursy} = ${wynik}`;
+}
+
+export const kwotaPrzerzutu = (p: Pick<Przerzut, 'rozliczenia' | 'stawka' | 'km'>): number =>
+  round2(rozliczeniaPrzerzutu(p).reduce((s, r) => s + kwotaRozliczeniaTransportu(r, 1), 0));
+
+export function kwotaSamochodow(s: Pick<WpisSamochodow, 'rozliczenia' | 'rozliczenie' | 'stawka' | 'kursy' | 'km' | 'tony'>): number {
+  return round2(rozliczeniaSamochodow(s).reduce((suma, r) => suma + kwotaRozliczeniaTransportu(r, s.kursy), 0));
 }
 
 export function kwotaTransportu(raport: Pick<RaportDzienny, 'przerzuty' | 'samochody'>): number {

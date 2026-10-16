@@ -1,26 +1,150 @@
 import React, { useState } from 'react';
-import { Linking, ScrollView, Text, View } from 'react-native';
-import { Etykieta, Karta, Pole, Przycisk, Sekcja, SiatkaDanych, Wiersz, Wybor, useMotyw, ODSTEP, TYPOGRAFIA, stylFormularza } from '../ui';
+import { Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  Etykieta, Karta, Naciskany, Pole, Przycisk, Sekcja, SiatkaDanych, Wiersz, Wybor, useMotyw, ODSTEP, PROMIEN, TYPOGRAFIA,
+  stylFormularza,
+} from '../ui';
 import { SafeModal } from '../common/SafeModal';
 import { parsujLiczbePola } from '../../budzet/rozliczenie';
 import { formatLiczby } from '../../utils/calculations';
 import { potwierdzAkcje } from '../../utils/dialog';
 import {
-  OPISY_ROZLICZENIA_SAMOCHODOW, kwotaPrzerzutu, kwotaSamochodow, kwotaTransportu, linkTrasy, przerobRaportu, sumaPrzerobu,
-  wzorSamochodow,
+  OPISY_ROZLICZENIA_TRANSPORTU, RODZAJE_PRZERZUTU, kwotaPrzerzutu, kwotaRozliczeniaTransportu, kwotaSamochodow,
+  kwotaTransportu, linkTrasy, nazwaRozliczeniaTransportu, przerobRaportu, rozliczeniaPrzerzutu, rozliczeniaSamochodow,
+  sumaPrzerobu, wzorRozliczeniaTransportu,
 } from '../../raportyBudowy/raporty';
 import { generujIdRaportu } from '../../stores/raportyBudowyStore';
 import { useFirmyStore } from '../../stores/firmyStore';
-import type { Przerzut, RaportDzienny, RozliczenieSamochodu, TypSamochodu, WpisSamochodow } from '../../raportyBudowy/typy';
+import type {
+  Przerzut, RaportDzienny, RodzajRozliczeniaTransportu, RozliczenieTransportu, TypSamochodu, WpisSamochodow,
+} from '../../raportyBudowy/typy';
 import { PoleFirmy } from './wspolne';
 
 const TYPY: [TypSamochodu, string][] = [['wanna', 'Wanna'], ['oska', 'Ośka']];
 const nazwaTypu = (t: TypSamochodu) => TYPY.find(([id]) => id === t)?.[1] ?? t;
 const tekst = (n?: number) => (n ? String(n).replace('.', ',') : '');
+const RODZAJE_SAMOCHODOW = OPISY_ROZLICZENIA_TRANSPORTU.map((o) => o.id);
 
 const otworzLink = (url?: string) => {
   if (url) void Linking.openURL(url);
 };
+
+interface SzkicRozliczenia {
+  stawka: string;
+  km: string;
+  tony: string;
+  godziny: string;
+}
+type Szkice = Partial<Record<RodzajRozliczeniaTransportu, SzkicRozliczenia>>;
+
+const pustySzkic = (tony = ''): SzkicRozliczenia => ({ stawka: '', km: '', tony, godziny: '' });
+
+function szkiceZ(rozliczenia: RozliczenieTransportu[]): Szkice {
+  const wynik: Szkice = {};
+  for (const r of rozliczenia) {
+    wynik[r.rodzaj] = { stawka: tekst(r.stawka), km: tekst(r.km), tony: tekst(r.tony), godziny: tekst(r.godziny) };
+  }
+  return wynik;
+}
+
+function rozliczeniaZ(szkice: Szkice, kolejnosc: RodzajRozliczeniaTransportu[]): RozliczenieTransportu[] {
+  return kolejnosc.filter((r) => szkice[r]).map((rodzaj) => {
+    const s = szkice[rodzaj]!;
+    return {
+      rodzaj,
+      stawka: parsujLiczbePola(s.stawka) ?? 0,
+      ...(rodzaj === 'km' || rodzaj === 'tkm' ? { km: parsujLiczbePola(s.km) ?? 0 } : {}),
+      ...(rodzaj === 'tkm' ? { tony: parsujLiczbePola(s.tony) ?? 0 } : {}),
+      ...(rodzaj === 'godz' ? { godziny: parsujLiczbePola(s.godziny) ?? 0 } : {}),
+    };
+  });
+}
+
+function bladRozliczen(rozliczenia: RozliczenieTransportu[]): string | undefined {
+  if (rozliczenia.length === 0) return 'Zaznacz choć jeden rodzaj rozliczenia.';
+  for (const r of rozliczenia) {
+    const nazwa = nazwaRozliczeniaTransportu(r.rodzaj);
+    if (!(r.stawka > 0)) return `Podaj stawkę: ${nazwa}.`;
+    if ((r.rodzaj === 'km' || r.rodzaj === 'tkm') && !((r.km ?? 0) > 0)) return `Podaj kilometry: ${nazwa}.`;
+    if (r.rodzaj === 'tkm' && !((r.tony ?? 0) > 0)) return 'Podaj ilość ton.';
+    if (r.rodzaj === 'godz' && !((r.godziny ?? 0) > 0)) return 'Podaj ilość godzin.';
+  }
+  return undefined;
+}
+
+/** Pola wyboru rozliczeń ☑/☐ – zaznaczone pozycje sumują się w jednym wpisie transportu. */
+function EdytorRozliczen({ rodzaje, szkice, onZmien, kursy, etykietaKm, tonyPodpowiedz }: {
+  rodzaje: RodzajRozliczeniaTransportu[];
+  szkice: Szkice;
+  onZmien: (s: Szkice) => void;
+  /** Samochody – liczba kursów; przerzut – brak (jeden przejazd). */
+  kursy?: number;
+  etykietaKm: string;
+  tonyPodpowiedz: string;
+}) {
+  const theme = useMotyw();
+  const zmien = (rodzaj: RodzajRozliczeniaTransportu, pole: keyof SzkicRozliczenia, v: string) =>
+    onZmien({ ...szkice, [rodzaj]: { ...(szkice[rodzaj] ?? pustySzkic()), [pole]: v } });
+  const przelacz = (rodzaj: RodzajRozliczeniaTransportu) => {
+    const { [rodzaj]: jest, ...reszta } = szkice;
+    onZmien(jest ? reszta : { ...szkice, [rodzaj]: pustySzkic(rodzaj === 'tkm' ? tonyPodpowiedz : '') });
+  };
+  return (
+    <View style={{ gap: ODSTEP.s }}>
+      <Etykieta
+        tekst="Rozliczenie"
+        wymagane
+        info="Zaznacz jeden albo kilka rodzajów – kwoty się sumują (np. stawka za kurs + godziny postoju)."
+      />
+      {rodzaje.map((rodzaj) => {
+        const opis = OPISY_ROZLICZENIA_TRANSPORTU.find((o) => o.id === rodzaj)!;
+        const s = szkice[rodzaj];
+        const r = s ? rozliczeniaZ({ [rodzaj]: s }, [rodzaj])[0] : undefined;
+        return (
+          <View key={rodzaj} style={[styles.blok, { borderColor: s ? theme.colors.primary : theme.colors.border, backgroundColor: theme.colors.card }]}>
+            <Naciskany accessibilityRole="checkbox" accessibilityState={{ checked: !!s }} accessibilityLabel={`Rozliczenie ${opis.nazwa}`} onPress={() => przelacz(rodzaj)} style={styles.check}>
+              <Text style={[styles.ptaszek, { color: theme.colors.primary }]}>{s ? '☑' : '☐'}</Text>
+              <Text style={[TYPOGRAFIA.wartosc, { color: theme.colors.text, flex: 1 }]}>{opis.nazwa}</Text>
+              {r ? <Text style={[TYPOGRAFIA.wartosc, { color: theme.colors.text }]}>{formatLiczby(kwotaRozliczeniaTransportu(r, kursy ?? 1))} zł</Text> : null}
+            </Naciskany>
+            {s && r ? (
+              <>
+                <Wiersz>
+                  <Pole
+                    etykieta="Stawka"
+                    jednostka={opis.jednostka}
+                    liczba
+                    value={s.stawka}
+                    onChangeText={(v) => zmien(rodzaj, 'stawka', v)}
+                    accessibilityLabel={`Stawka ${opis.nazwa}`}
+                  />
+                  {rodzaj === 'km' || rodzaj === 'tkm' ? (
+                    <Pole etykieta={etykietaKm} jednostka="km" liczba value={s.km} onChangeText={(v) => zmien(rodzaj, 'km', v)} accessibilityLabel={`Kilometry ${opis.nazwa}`} />
+                  ) : null}
+                  {rodzaj === 'godz' ? (
+                    <Pole etykieta="Ilość godzin" jednostka="h" liczba value={s.godziny} onChangeText={(v) => zmien(rodzaj, 'godziny', v)} accessibilityLabel="Ilość godzin" />
+                  ) : null}
+                </Wiersz>
+                {rodzaj === 'tkm' ? (
+                  <Pole
+                    etykieta="Ilość ton"
+                    jednostka="t"
+                    liczba
+                    value={s.tony}
+                    onChangeText={(v) => zmien(rodzaj, 'tony', v)}
+                    info="Podpowiedź: ilość z przerobu tego dnia. Dla kilku przewoźników wpisz tony każdego z nich."
+                    accessibilityLabel="Ilość ton"
+                  />
+                ) : null}
+                <Text style={[TYPOGRAFIA.opis, { color: theme.colors.textSecondary }]}>{wzorRozliczeniaTransportu(r, kursy)}</Text>
+              </>
+            ) : null}
+          </View>
+        );
+      })}
+    </View>
+  );
+}
 
 type Okno = { rodzaj: 'przerzut'; wpis?: Przerzut } | { rodzaj: 'samochody'; wpis?: WpisSamochodow };
 
@@ -33,22 +157,21 @@ export function ZakladkaTransport({ raport, onZmien }: {
   const [okno, setOkno] = useState<Okno | null>(null);
   const [blad, setBlad] = useState('');
   const [firma, setFirma] = useState('');
-  const [stawka, setStawka] = useState('');
-  const [km, setKm] = useState('');
+  const [szkice, setSzkice] = useState<Szkice>({});
   const [trasa, setTrasa] = useState('');
   const [mapaUrl, setMapaUrl] = useState('');
   const [ladunek, setLadunek] = useState('');
   const [zbiorczo, setZbiorczo] = useState(false);
   const [typ, setTyp] = useState<TypSamochodu>('wanna');
   const [kursy, setKursy] = useState('');
-  const [rozliczenie, setRozliczenie] = useState<RozliczenieSamochodu>('kurs');
-  const [tony, setTony] = useState('');
 
-  const tonyPrzerobu = sumaPrzerobu(przerobRaportu(raport)).ilosc;
+  const tonyPrzerobu = tekst(sumaPrzerobu(przerobRaportu(raport)).ilosc);
+  const kursyL = Math.round(parsujLiczbePola(kursy) ?? 0);
 
   const otworzPrzerzut = (wpis?: Przerzut) => {
     setBlad('');
-    setFirma(wpis?.firma ?? ''); setStawka(tekst(wpis?.stawka)); setKm(tekst(wpis?.km));
+    setFirma(wpis?.firma ?? '');
+    setSzkice(wpis ? szkiceZ(rozliczeniaPrzerzutu(wpis)) : { km: pustySzkic() });
     setTrasa(wpis?.trasa ?? ''); setMapaUrl(wpis?.mapaUrl ?? ''); setLadunek(wpis?.ladunek ?? '');
     setOkno({ rodzaj: 'przerzut', wpis });
   };
@@ -57,34 +180,21 @@ export function ZakladkaTransport({ raport, onZmien }: {
     setBlad('');
     setZbiorczo(wpis ? !wpis.firma : false);
     setFirma(wpis?.firma ?? ''); setTyp(wpis?.typ ?? 'wanna'); setKursy(wpis ? String(wpis.kursy) : '');
-    setRozliczenie(wpis?.rozliczenie ?? 'kurs'); setStawka(tekst(wpis?.stawka)); setKm(tekst(wpis?.km));
-    setTony(wpis ? tekst(wpis.tony) : tekst(tonyPrzerobu));
+    setSzkice(wpis ? szkiceZ(rozliczeniaSamochodow(wpis)) : { kurs: pustySzkic() });
     setOkno({ rodzaj: 'samochody', wpis });
   };
 
-  const szkicSamochodow = (): Omit<WpisSamochodow, 'id'> => ({
-    ...(zbiorczo || !firma.trim() ? {} : { firma: firma.trim() }),
-    typ,
-    kursy: Math.round(parsujLiczbePola(kursy) ?? 0),
-    rozliczenie,
-    stawka: parsujLiczbePola(stawka) ?? 0,
-    ...(rozliczenie !== 'kurs' ? { km: parsujLiczbePola(km) ?? 0 } : {}),
-    ...(rozliczenie === 'tkm' ? { tony: parsujLiczbePola(tony) ?? 0 } : {}),
-  });
-
   const zapisz = () => {
     if (!okno) return;
-    const st = parsujLiczbePola(stawka) ?? 0;
-    const kmL = parsujLiczbePola(km) ?? 0;
     if (okno.rodzaj === 'przerzut') {
       if (!firma.trim()) { setBlad('Podaj firmę.'); return; }
-      if (!(st > 0)) { setBlad('Podaj stawkę.'); return; }
-      if (!(kmL > 0)) { setBlad('Podaj kilometry.'); return; }
+      const rozliczenia = rozliczeniaZ(szkice, RODZAJE_PRZERZUTU);
+      const b = bladRozliczen(rozliczenia);
+      if (b) { setBlad(b); return; }
       const wpis: Przerzut = {
         id: okno.wpis?.id ?? generujIdRaportu(),
         firma: firma.trim(),
-        stawka: st,
-        km: kmL,
+        rozliczenia,
         trasa: trasa.trim(),
         ...(mapaUrl.trim() ? { mapaUrl: mapaUrl.trim() } : {}),
         ladunek: ladunek.trim(),
@@ -94,13 +204,19 @@ export function ZakladkaTransport({ raport, onZmien }: {
       setOkno(null);
       return;
     }
-    const szkic = szkicSamochodow();
-    if (!zbiorczo && !szkic.firma) { setBlad('Podaj przewoźnika albo wybierz „Zbiorczo”.'); return; }
-    if (!(szkic.kursy > 0)) { setBlad('Podaj ilość kursów.'); return; }
-    if (!(szkic.stawka > 0)) { setBlad('Podaj stawkę.'); return; }
-    if (rozliczenie !== 'kurs' && !(kmL > 0)) { setBlad('Podaj kilometry.'); return; }
-    if (rozliczenie === 'tkm' && !((szkic.tony ?? 0) > 0)) { setBlad('Podaj ilość ton.'); return; }
-    const wpis: WpisSamochodow = { ...szkic, id: okno.wpis?.id ?? generujIdRaportu() };
+    if (!zbiorczo && !firma.trim()) { setBlad('Podaj przewoźnika albo wybierz „Zbiorczo”.'); return; }
+    const rozliczenia = rozliczeniaZ(szkice, RODZAJE_SAMOCHODOW);
+    const potrzebaKursow = rozliczenia.some((r) => r.rodzaj === 'km' || r.rodzaj === 'kurs');
+    if (potrzebaKursow && !(kursyL > 0)) { setBlad('Podaj ilość kursów.'); return; }
+    const b = bladRozliczen(rozliczenia);
+    if (b) { setBlad(b); return; }
+    const wpis: WpisSamochodow = {
+      id: okno.wpis?.id ?? generujIdRaportu(),
+      ...(zbiorczo ? {} : { firma: firma.trim() }),
+      typ,
+      kursy: kursyL,
+      rozliczenia,
+    };
     if (wpis.firma) void znajdzLubDodajFirme(wpis.firma);
     onZmien({ samochody: okno.wpis ? raport.samochody.map((s) => (s.id === wpis.id ? wpis : s)) : [...raport.samochody, wpis] });
     setOkno(null);
@@ -115,11 +231,13 @@ export function ZakladkaTransport({ raport, onZmien }: {
 
   const sumaPrzerzutow = raport.przerzuty.reduce((s, p) => s + kwotaPrzerzutu(p), 0);
   const sumaSamochodow = raport.samochody.reduce((s, w) => s + kwotaSamochodow(w), 0);
-  const podglad = okno?.rodzaj === 'samochody' ? szkicSamochodow() : undefined;
+  const kwotaOkna = okno?.rodzaj === 'przerzut'
+    ? rozliczeniaZ(szkice, RODZAJE_PRZERZUTU).reduce((s, r) => s + kwotaRozliczeniaTransportu(r, 1), 0)
+    : rozliczeniaZ(szkice, RODZAJE_SAMOCHODOW).reduce((s, r) => s + kwotaRozliczeniaTransportu(r, kursyL), 0);
 
   return (
     <View style={{ gap: ODSTEP.m }}>
-      <Sekcja tytul="Dodaj transport" info="Przerzut – przewiezienie sprzętu (stawka × km). Samochody – dowóz mieszanki zbiorczo albo osobno dla każdego przewoźnika.">
+      <Sekcja tytul="Dodaj transport" info="Przerzut – przewiezienie sprzętu. Samochody – dowóz mieszanki zbiorczo albo osobno dla każdego przewoźnika. W jednym wpisie można połączyć kilka rodzajów rozliczenia.">
         <Wiersz>
           <Przycisk tekst="Przerzut" ikona="plus" wariant="drugi" onPress={() => otworzPrzerzut()} accessibilityLabel="Dodaj przerzut" />
           <Przycisk tekst="Samochody" ikona="plus" wariant="drugi" onPress={() => otworzSamochody()} accessibilityLabel="Dodaj samochody" />
@@ -132,8 +250,8 @@ export function ZakladkaTransport({ raport, onZmien }: {
             <Karta
               key={p.id}
               tytul={p.firma}
-              podtytul={[p.trasa, p.ladunek ? `Ładunek: ${p.ladunek}` : ''].filter(Boolean).join('\n')}
-              podsumowanie={`${formatLiczby(p.stawka)} zł/km × ${formatLiczby(p.km)} km = ${formatLiczby(kwotaPrzerzutu(p))} zł`}
+              podtytul={[p.trasa, p.ladunek ? `Ładunek: ${p.ladunek}` : '', ...rozliczeniaPrzerzutu(p).map((r) => wzorRozliczeniaTransportu(r))].filter(Boolean).join('\n')}
+              podsumowanie={`Razem ${formatLiczby(kwotaPrzerzutu(p))} zł`}
               akcje={[
                 ...(p.mapaUrl || linkTrasy(p.trasa) ? [{ tekst: 'Mapa', onPress: () => otworzLink(p.mapaUrl ?? linkTrasy(p.trasa)), accessibilityLabel: `Mapa przerzutu ${p.firma}` }] : []),
                 { tekst: 'Edytuj', onPress: () => otworzPrzerzut(p), accessibilityLabel: `Edytuj przerzut ${p.firma}` },
@@ -151,8 +269,8 @@ export function ZakladkaTransport({ raport, onZmien }: {
               key={s.id}
               tytul={s.firma ?? 'Zbiorczo'}
               znaczek={{ tekst: nazwaTypu(s.typ), kolor: theme.colors.info }}
-              podtytul={`${OPISY_ROZLICZENIA_SAMOCHODOW.find((o) => o.id === s.rozliczenie)?.nazwa} · ${s.kursy} kursów`}
-              podsumowanie={wzorSamochodow(s)}
+              podtytul={[`${s.kursy} kursów`, ...rozliczeniaSamochodow(s).map((r) => `${nazwaRozliczeniaTransportu(r.rodzaj)}: ${wzorRozliczeniaTransportu(r, s.kursy)}`)].join('\n')}
+              podsumowanie={`Razem ${formatLiczby(kwotaSamochodow(s))} zł`}
               akcje={[
                 { tekst: 'Edytuj', onPress: () => otworzSamochody(s), accessibilityLabel: `Edytuj samochody ${s.firma ?? 'zbiorczo'}` },
                 { tekst: 'Usuń', rodzaj: 'niebezpieczna' as const, onPress: () => usunSamochody(s), accessibilityLabel: `Usuń samochody ${s.firma ?? 'zbiorczo'}` },
@@ -185,10 +303,6 @@ export function ZakladkaTransport({ raport, onZmien }: {
           {okno?.rodzaj === 'przerzut' ? (
             <>
               <PoleFirmy value={firma} onChangeText={setFirma} />
-              <Wiersz>
-                <Pole etykieta="Stawka" jednostka="zł/km" liczba value={stawka} onChangeText={setStawka} accessibilityLabel="Stawka przerzutu" />
-                <Pole etykieta="Kilometry" jednostka="km" liczba value={km} onChangeText={setKm} accessibilityLabel="Kilometry przerzutu" />
-              </Wiersz>
               <Pole
                 etykieta="Trasa"
                 value={trasa}
@@ -211,11 +325,9 @@ export function ZakladkaTransport({ raport, onZmien }: {
               />
               {mapaUrl.trim() ? <Przycisk tekst="Otwórz mapę" ikona="mapa" wariant="tekst" onPress={() => otworzLink(mapaUrl.trim())} /> : null}
               <Pole etykieta="Ładunek" value={ladunek} onChangeText={setLadunek} placeholder="np. rozściełacz, walec" accessibilityLabel="Ładunek przerzutu" />
-              <Text style={[TYPOGRAFIA.podsumowanie, { color: theme.colors.primary }]}>
-                Kwota: {formatLiczby(kwotaPrzerzutu({ stawka: parsujLiczbePola(stawka) ?? 0, km: parsujLiczbePola(km) ?? 0 }))} zł
-              </Text>
+              <EdytorRozliczen rodzaje={RODZAJE_PRZERZUTU} szkice={szkice} onZmien={setSzkice} etykietaKm="Kilometry" tonyPodpowiedz="" />
             </>
-          ) : okno?.rodzaj === 'samochody' && podglad ? (
+          ) : okno?.rodzaj === 'samochody' ? (
             <>
               <View>
                 <Etykieta tekst="Wpis" info="Zbiorczo – wszystkie samochody jedną pozycją. Przewoźnik – osobna stawka i kilometry dla każdej firmy." />
@@ -236,44 +348,28 @@ export function ZakladkaTransport({ raport, onZmien }: {
                 </View>
                 <Pole etykieta="Ilość kursów" liczba value={kursy} onChangeText={setKursy} accessibilityLabel="Ilość kursów" />
               </Wiersz>
-              <View>
-                <Etykieta tekst="Rozliczenie" />
-                <View style={stylFormularza.chipy}>
-                  {OPISY_ROZLICZENIA_SAMOCHODOW.map((o) => (
-                    <Wybor key={o.id} zaznaczony={rozliczenie === o.id} etykieta={o.nazwa} accessibilityLabel={`Rozliczenie ${o.nazwa}`} onPress={() => setRozliczenie(o.id)} />
-                  ))}
-                </View>
-              </View>
-              <Wiersz>
-                <Pole
-                  etykieta="Stawka"
-                  jednostka={OPISY_ROZLICZENIA_SAMOCHODOW.find((o) => o.id === rozliczenie)?.jednostka}
-                  liczba
-                  value={stawka}
-                  onChangeText={setStawka}
-                  accessibilityLabel="Stawka samochodów"
-                />
-                {rozliczenie !== 'kurs' ? (
-                  <Pole etykieta="Km / kurs" jednostka="km" liczba value={km} onChangeText={setKm} info="Długość jednego kursu." accessibilityLabel="Kilometry na kurs" />
-                ) : null}
-              </Wiersz>
-              {rozliczenie === 'tkm' ? (
-                <Pole
-                  etykieta="Ilość ton"
-                  jednostka="t"
-                  liczba
-                  value={tony}
-                  onChangeText={setTony}
-                  info="Podpowiedź: ilość z przerobu tego dnia. Dla kilku przewoźników wpisz tony każdego z nich."
-                  accessibilityLabel="Ilość ton"
-                />
-              ) : null}
-              <Text style={[TYPOGRAFIA.podsumowanie, { color: theme.colors.primary }]}>{wzorSamochodow(podglad)}</Text>
+              <EdytorRozliczen
+                rodzaje={RODZAJE_SAMOCHODOW}
+                szkice={szkice}
+                onZmien={setSzkice}
+                kursy={kursyL}
+                etykietaKm="Km / kurs"
+                tonyPodpowiedz={tonyPrzerobu}
+              />
             </>
           ) : null}
+          <Text accessibilityLabel="Kwota wpisu" style={[TYPOGRAFIA.podsumowanie, { color: theme.colors.primary, fontSize: 15 }]}>
+            Razem: {formatLiczby(kwotaOkna)} zł
+          </Text>
           {blad ? <Text style={[stylFormularza.blad, { color: theme.colors.danger }]}>{blad}</Text> : null}
         </ScrollView>
       </SafeModal>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  blok: { borderWidth: 1, borderRadius: PROMIEN.m, padding: ODSTEP.s + 2, gap: ODSTEP.s },
+  check: { flexDirection: 'row', alignItems: 'center', gap: ODSTEP.s },
+  ptaszek: { fontSize: 20, fontWeight: '800' },
+});

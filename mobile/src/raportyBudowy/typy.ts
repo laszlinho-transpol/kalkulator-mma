@@ -40,20 +40,36 @@ export interface MaterialDodatkowy {
   uwagi?: string;
 }
 
+export type RodzajRozliczeniaTransportu = 'km' | 'kurs' | 'tkm' | 'godz';
+
+/** Jedna pozycja rozliczenia transportu. Kilka pozycji w jednym wpisie się sumuje. */
+export interface RozliczenieTransportu {
+  rodzaj: RodzajRozliczeniaTransportu;
+  stawka: number;
+  /** km na kurs (samochody) albo łącznie (przerzut). */
+  km?: number;
+  /** Tony łącznie (t × km). */
+  tony?: number;
+  godziny?: number;
+}
+
 export interface Przerzut {
   id: string;
   firma: string;
-  /** zł / km */
-  stawka: number;
-  km: number;
+  rozliczenia: RozliczenieTransportu[];
   trasa: string;
   /** Link Google Maps z pinezkami. */
   mapaUrl?: string;
   ladunek: string;
+  /** @deprecated zapis sprzed rozliczeń: stawka zł/km × km */
+  stawka?: number;
+  /** @deprecated */
+  km?: number;
 }
 
 export type TypSamochodu = 'wanna' | 'oska';
-export type RozliczenieSamochodu = 'km' | 'kurs' | 'tkm';
+/** @deprecated użyj RodzajRozliczeniaTransportu */
+export type RozliczenieSamochodu = Exclude<RodzajRozliczeniaTransportu, 'godz'>;
 
 export interface WpisSamochodow {
   id: string;
@@ -61,11 +77,14 @@ export interface WpisSamochodow {
   firma?: string;
   typ: TypSamochodu;
   kursy: number;
-  rozliczenie: RozliczenieSamochodu;
-  stawka: number;
-  /** km na kurs (rozliczenie km i t×km). */
+  rozliczenia: RozliczenieTransportu[];
+  /** @deprecated zapis sprzed listy rozliczeń */
+  rozliczenie?: RozliczenieSamochodu;
+  /** @deprecated */
+  stawka?: number;
+  /** @deprecated */
   km?: number;
-  /** Tony łącznie (rozliczenie t×km). */
+  /** @deprecated */
   tony?: number;
 }
 

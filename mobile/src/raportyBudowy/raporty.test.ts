@@ -1,7 +1,8 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  etykietaMiesiaca, gruboscZMasy, kwotaPrzerzutu, kwotaSamochodow, kwotaTransportu, linkTrasy, materialyRaportu,
+  etykietaMiesiaca, gruboscZMasy, kwotaPrzerzutu, kwotaRozliczeniaTransportu, kwotaSamochodow, kwotaTransportu, linkTrasy,
+  materialyRaportu, wzorRozliczeniaTransportu,
   miesiaceRaportow, podsumowanieDnia, przerobRaportu, raportyMiesiaca, robociznaDnia, statystykiRaportow, sumaPrzerobu,
   warstwyBudowy,
 } from './raporty';
@@ -123,14 +124,21 @@ describe('raporty dzienne budowy', () => {
     ]);
   });
 
-  it('transport: przerzuty i trzy rozliczenia samochodów', () => {
-    assert.equal(kwotaPrzerzutu({ stawka: 12, km: 45 }), 540);
-    assert.equal(kwotaSamochodow({ rozliczenie: 'km', stawka: 5, km: 30, kursy: 4 }), 600);
-    assert.equal(kwotaSamochodow({ rozliczenie: 'kurs', stawka: 350, kursy: 6 }), 2100);
-    assert.equal(kwotaSamochodow({ rozliczenie: 'tkm', stawka: 0.5, tony: 200, km: 25, kursy: 8 }), 2500);
+  it('transport: rozliczenia łączone w jednym wpisie, godzinowa i stary zapis', () => {
+    assert.equal(kwotaRozliczeniaTransportu({ rodzaj: 'km', stawka: 5, km: 30 }, 4), 600);
+    assert.equal(kwotaRozliczeniaTransportu({ rodzaj: 'kurs', stawka: 350 }, 6), 2100);
+    assert.equal(kwotaRozliczeniaTransportu({ rodzaj: 'tkm', stawka: 0.5, tony: 200, km: 25 }, 8), 2500);
+    assert.equal(kwotaRozliczeniaTransportu({ rodzaj: 'godz', stawka: 180, godziny: 3.5 }, 8), 630);
+    assert.equal(kwotaPrzerzutu({ rozliczenia: [{ rodzaj: 'km', stawka: 12, km: 45 }, { rodzaj: 'godz', stawka: 150, godziny: 2 }] }), 840);
+    assert.equal(kwotaPrzerzutu({ stawka: 12, km: 45 } as never), 540);
+    assert.equal(kwotaSamochodow({
+      kursy: 6, rozliczenia: [{ rodzaj: 'kurs', stawka: 350 }, { rodzaj: 'godz', stawka: 120, godziny: 1.5 }],
+    }), 2280);
+    assert.equal(kwotaSamochodow({ kursy: 4, rozliczenie: 'km', stawka: 5, km: 30 } as never), 600);
+    assert.equal(wzorRozliczeniaTransportu({ rodzaj: 'godz', stawka: 180, godziny: 3.5 }), '180 zł/h × 3,5 h = 630,00 zł');
     const r = raport('2025-04-02', {
-      przerzuty: [{ id: 'p', firma: 'X', stawka: 12, km: 45, trasa: 'A - B', ladunek: 'rozściełacz' }],
-      samochody: [{ id: 's', typ: 'wanna', rozliczenie: 'kurs', stawka: 350, kursy: 6 }],
+      przerzuty: [{ id: 'p', firma: 'X', rozliczenia: [{ rodzaj: 'km', stawka: 12, km: 45 }], trasa: 'A - B', ladunek: 'rozściełacz' }],
+      samochody: [{ id: 's', typ: 'wanna', kursy: 6, rozliczenia: [{ rodzaj: 'kurs', stawka: 350 }] }],
     });
     assert.equal(kwotaTransportu(r), 2640);
   });
@@ -161,7 +169,7 @@ describe('raporty dzienne budowy', () => {
     assert.equal(wynik.kwotaPracownikow, 400);
     assert.equal(wynik.kwotaSprzetu, 1200);
     const dzien = podsumowanieDnia(
-      { ...r, samochody: [{ id: 's', typ: 'oska', rozliczenie: 'kurs', stawka: 100, kursy: 2 }] },
+      { ...r, samochody: [{ id: 's', typ: 'oska', kursy: 2, rozliczenia: [{ rodzaj: 'kurs', stawka: 100 }] }] },
       [],
       [rp('a', '2025-04-02', 'b1', 400)],
       [rs('x', '2025-04-02', 'b1', 1200)],
