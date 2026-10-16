@@ -100,8 +100,10 @@ export function Sekcja({ tytul, info, prawy, children, style }: {
 }
 
 /** Wiersz-przycisk przenoszący na inną stronę (wytwórnia, pracownik, recepta…). */
-export function PozycjaListy({ tytul, podtytul, ikona, prawy, onPress, accessibilityLabel, plaska }: {
+export function PozycjaListy({ tytul, podtytul, ikona, prawy, onPress, accessibilityLabel, plaska, kolor }: {
   tytul: string;
+  /** Kolor działu: tło ikony i podpis (np. kafelki Niezbędnika). */
+  kolor?: string;
   /** Wewnątrz Sekcji/Karty – bez cienia, tło pola. */
   plaska?: boolean;
   podtytul?: string;
@@ -125,13 +127,13 @@ export function PozycjaListy({ tytul, podtytul, ikona, prawy, onPress, accessibi
       ]}
     >
       {ikona ? (
-        <View style={[styles.ikonaTlo, { backgroundColor: `${theme.colors.primary}18` }]}>
+        <View style={[styles.ikonaTlo, { backgroundColor: `${kolor ?? theme.colors.primary}${kolor ? '20' : '18'}` }]}>
           <Text style={styles.ikona}>{ikona}</Text>
         </View>
       ) : null}
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text style={[TYPOGRAFIA.tytulKarty, { color: theme.colors.text }]} numberOfLines={1}>{tytul}</Text>
-        {podtytul ? <Text style={[TYPOGRAFIA.opis, { color: theme.colors.textSecondary }]} numberOfLines={1}>{podtytul}</Text> : null}
+        {podtytul ? <Text style={[TYPOGRAFIA.opis, { color: kolor ?? theme.colors.textSecondary }, kolor ? { fontWeight: '600' } : null]} numberOfLines={1}>{podtytul}</Text> : null}
       </View>
       {prawy ? <Text style={[TYPOGRAFIA.wartosc, { color: theme.colors.text }]} numberOfLines={1}>{prawy}</Text> : null}
       <Ikona nazwa="dalej" kolor={theme.colors.textSecondary} rozmiar={18} />

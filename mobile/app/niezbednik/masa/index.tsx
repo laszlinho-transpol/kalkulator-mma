@@ -1,9 +1,10 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, useColorScheme } from 'react-native';
+import { View, StyleSheet, ScrollView, useColorScheme } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { lightTheme, darkTheme } from '../../../src/constants/theme';
 import { AppHeader } from '../../../src/components/common/AppHeader';
+import { PozycjaListy } from '../../../src/components/ui/Karta';
 
 const KALKULATORY = [
   { tytul: 'Wydajność powierzchniowa', opis: 'Metry z tony', sciezka: '/niezbednik/masa/wydajnosc-powierzchniowa' },
@@ -21,10 +22,7 @@ export default function MasaISprzetScreen() {
       <AppHeader tytul="Masa i sprzęt" lewy={{ tekst: '‹ Wstecz', onPress: () => router.back() }} />
       <ScrollView contentContainerStyle={{ padding: 14, paddingBottom: insets.bottom + 16, gap: 10 }}>
         {KALKULATORY.map((k) => (
-          <TouchableOpacity key={k.sciezka} style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]} onPress={() => router.push(k.sciezka as any)}>
-            <Text style={[styles.tytul, { color: theme.colors.text }]}>{k.tytul}</Text>
-            <Text style={{ color: theme.colors.textSecondary, fontSize: 13 }}>{k.opis}</Text>
-          </TouchableOpacity>
+          <PozycjaListy key={k.sciezka} tytul={k.tytul} podtytul={k.opis} onPress={() => router.push(k.sciezka as never)} />
         ))}
       </ScrollView>
     </View>
@@ -33,6 +31,4 @@ export default function MasaISprzetScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  karta: { borderRadius: 12, borderWidth: 1, padding: 14, gap: 4 },
-  tytul: { fontSize: 15, fontWeight: '700' },
 });

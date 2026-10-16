@@ -21,6 +21,7 @@ import { formatujDatePl } from '../../../src/utils/dates';
 import { infoAutaWz, dlugoscUkladaniaObszaru } from '../../../src/utils/obmiarLive';
 import { formatujKilometraz } from '../../../src/utils/obmiarFigura';
 import { generujRaportObmiaruPDF, stworzRaportObmiaruPDF } from '../../../src/utils/pdfGenerator';
+import { karta as kartaWspolna } from '../../../src/constants/layout';
 
 export default function ArchiwumObmiarScreen() {
   const colorScheme = useColorScheme();
@@ -185,7 +186,7 @@ function IR({ label, v, theme, bold }: { label: string; v: string; theme: AppThe
 const styles = StyleSheet.create({
   container: { flex: 1 },
   zawartosc: { padding: 14, gap: 12 },
-  karta: { borderRadius: 14, padding: 14, borderWidth: 1 },
+  karta: { ...kartaWspolna },
   kartaTytul: { fontSize: 13, fontWeight: '800', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.4 },
   btn: { paddingVertical: 13, borderRadius: 12, alignItems: 'center' },
   btnTekst: { color: '#fff', fontWeight: '700', fontSize: 15 },

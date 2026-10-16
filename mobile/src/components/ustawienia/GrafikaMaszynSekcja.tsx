@@ -7,6 +7,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { oczyscSvg, type WygladMaszyny } from '../../utils/grafikaMaszyn';
 import { RysunekMaszyny, wymiaryMaszyny } from '../sketch/MaszynyObmiaru';
 import { InfoTooltip } from '../common/InfoTooltip';
+import { karta as kartaWspolna } from '../../constants/layout';
 
 const WYGLADY: { id: WygladMaszyny; nazwa: string; opis: string }[] = [
   { id: 'obmiar', nazwa: 'Obmiar z góry', opis: 'Uproszczony rysunek z obmiaru PZT' },
@@ -197,7 +198,7 @@ const styl = StyleSheet.create({
   btn: { borderRadius: 10, paddingVertical: 11, alignItems: 'center' },
   btnTekst: { color: '#fff', fontWeight: '700', fontSize: 14 },
   tlo: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', padding: 20 },
-  karta: { borderRadius: 16, borderWidth: 1, padding: 16 },
+  karta: { ...kartaWspolna, padding: 16 },
   kartaTytul: { fontSize: 17, fontWeight: '700', marginBottom: 6 },
   opcja: { borderWidth: 1, borderRadius: 10, padding: 12, marginBottom: 8 },
   opcjaNazwa: { fontSize: 15, fontWeight: '700' },

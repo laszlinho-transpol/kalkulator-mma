@@ -36,6 +36,7 @@ import { pobierzUstawienia } from '../ustawienia';
 import { PRESETY_SKALI_PZT, skalaZMianownika, type ObszarObmiaru, type OdsadzkaObmiaru, type TrybWyboruWezla } from '../../src/types';
 import { wybierzPlikTlaPzt, rozmiarObrazu, zapiszJpegTla } from '../../src/utils/tloPztImport';
 import { PdfRasterizer } from '../../src/components/obmiar/PdfRasterizer';
+import { karta as kartaWspolna } from '../../src/constants/layout';
 
 type SekcjaNr = 'start' | 'odsadzka' | 'konstrukcja' | null;
 
@@ -895,7 +896,7 @@ function Pole({
 const styles = StyleSheet.create({
   container: { flex: 1 },
   zawartosc: { padding: 14, gap: 12 },
-  karta: { borderRadius: 14, padding: 14, borderWidth: 1 },
+  karta: { ...kartaWspolna },
   kartaTytul: { fontSize: 13, fontWeight: '800', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.4 },
   rzadAkcji: { flexDirection: 'row', gap: 8, marginTop: 10 },
   btnMini: { width: 40, height: 36, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },

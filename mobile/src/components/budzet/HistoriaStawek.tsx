@@ -9,6 +9,7 @@ import type { OpisPolaStawki } from '../../budzet/pracownicy';
 import type { OkresStawek } from '../../budzet/typy';
 import { potwierdzAkcje } from '../../utils/dialog';
 import { dzisIso } from '../../utils/zakresDat';
+import { karta as kartaWspolna } from '../../constants/layout';
 
 function zakresMiesiaca(iso: string): { od: string; do: string } {
   const [rok, miesiac] = iso.split('-').map(Number);
@@ -207,7 +208,7 @@ function FormularzOkresu<T extends object>({
 }
 
 const styles = StyleSheet.create({
-  karta: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 8 },
+  karta: { ...kartaWspolna, gap: 8 },
   sekcja: { fontSize: 18, fontWeight: '800' },
   tytulWiersz: { flexDirection: 'row', alignItems: 'center' },
   okres: { borderTopWidth: 1, paddingTop: 10, gap: 4 },

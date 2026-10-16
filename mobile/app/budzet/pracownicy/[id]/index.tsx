@@ -18,6 +18,7 @@ import { useBudowyStore } from '../../../../src/stores/budowyStore';
 import { useGrupyPracownikowStore } from '../../../../src/stores/grupyPracownikowStore';
 import { usePracownicyStore } from '../../../../src/stores/pracownicyStore';
 import { AkcjeTelefonu, Przycisk, Sekcja, SiatkaDanych, WierszDanych } from '../../../../src/components/ui';
+import { karta as kartaWspolna } from '../../../../src/constants/layout';
 
 const linieWynagrodzenia = (stawki: StawkiPracownika) => linieStawekPola(POLA_WYNAGRODZENIA, stawki);
 const liniaNaKafelek = (linia: string) => {
@@ -185,7 +186,7 @@ const styles = StyleSheet.create({
   ekran: { flex: 1 },
   brak: { padding: 24, fontSize: 16 },
   tresc: { padding: 16, gap: 12 },
-  karta: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 8 },
+  karta: { ...kartaWspolna, gap: 8 },
   sekcja: { fontSize: 18, fontWeight: '800' },
   akcjeSekcji: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   numer: { fontSize: 20, fontWeight: '800', letterSpacing: 0.3 },

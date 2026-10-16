@@ -17,6 +17,7 @@ import { useBudowyStore } from '../../../../src/stores/budowyStore';
 import { useFirmyStore } from '../../../../src/stores/firmyStore';
 import { usePracownicyStore } from '../../../../src/stores/pracownicyStore';
 import { useSprzetStore } from '../../../../src/stores/sprzetStore';
+import { karta as kartaWspolna } from '../../../../src/constants/layout';
 
 const POLA_SPRZETU = OPISY_ROZLICZENIA.map((o) => ({ id: o.id, nazwa: o.nazwa, jednostka: o.jednostkaStawki }));
 
@@ -174,7 +175,7 @@ const styles = StyleSheet.create({
   ekran: { flex: 1 },
   brak: { padding: 24, fontSize: 16 },
   tresc: { padding: 16, gap: 12 },
-  karta: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 8 },
+  karta: { ...kartaWspolna, gap: 8 },
   sekcja: { fontSize: 18, fontWeight: '800' },
   wiersz: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
   wierszEtykieta: { fontSize: 14 },

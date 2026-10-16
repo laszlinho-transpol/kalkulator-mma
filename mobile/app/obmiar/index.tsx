@@ -15,6 +15,7 @@ import { useObmiarStore } from '../../src/stores/obmiarStore';
 import { formatujDatePl } from '../../src/utils/dates';
 import { formatLiczby } from '../../src/utils/calculations';
 import { SafeModal } from '../../src/components/common/SafeModal';
+import { karta as kartaWspolna } from '../../src/constants/layout';
 
 export default function ObmiarIndexScreen() {
   const colorScheme = useColorScheme();
@@ -110,6 +111,6 @@ export default function ObmiarIndexScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   zawartosc: { padding: 14, gap: 12 },
-  karta: { borderRadius: 14, padding: 14, borderWidth: 1 },
+  karta: { ...kartaWspolna },
   tytul: { fontSize: 15, fontWeight: '800', marginBottom: 4 },
 });

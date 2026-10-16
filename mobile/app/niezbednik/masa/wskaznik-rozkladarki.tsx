@@ -13,6 +13,7 @@ import {
 } from '../../../src/components/niezbednik/KonfiguracjaStolu';
 import { DOMYSLNA_SZER_POSZERZENIA, MAX_POSZERZEN_STRONA, obliczWskaznikRozkladarki } from '../../../src/utils/kalkulatoryMasiarza';
 import { useNotatnikStore } from '../../../src/stores/notatnikStore';
+import { karta as kartaWspolna } from '../../../src/constants/layout';
 
 const ZOLTY_TLO = '#F8E7A0';
 const ZOLTY_TEKST = '#5C4A12';
@@ -180,7 +181,7 @@ function WierszWyniku({
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  karta: { borderRadius: 16, borderWidth: 1, padding: 12, gap: 10 },
+  karta: { ...kartaWspolna, padding: 12, gap: 10 },
   parametryRow: { flexDirection: 'row', gap: 10, alignItems: 'center' },
   sekcja: { fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.4 },
   wiersz: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },

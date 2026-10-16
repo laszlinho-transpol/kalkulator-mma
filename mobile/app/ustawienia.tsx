@@ -24,6 +24,7 @@ import { przywrocKopie, wybierzPlikKopii, zapiszPlikKopii, zbierzKopie } from '.
 import { pokazKomunikat, potwierdzAkcje } from '../src/utils/dialog';
 import { AppHeader } from '../src/components/common/AppHeader';
 import { wstecz } from '../src/budzet/nawigacja';
+import { karta as kartaWspolna } from '../src/constants/layout';
 
 const KLUCZ_ONBOARDING = '@mma:onboardingComplete';
 const KLUCZ_USTAWIEN = '@mma:settings';
@@ -328,7 +329,7 @@ function AkcjaRow({ ikona, label, opis, theme, onPress, kolor }: {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   zawartosc: { padding: 16, gap: 12 },
-  sekcja: { borderRadius: 14, padding: 16, borderWidth: 1 },
+  sekcja: { ...kartaWspolna, padding: 16 },
   sekcjaTytul: { fontSize: 11, fontWeight: '700', letterSpacing: 0.5, marginBottom: 12 },
   opisSekcji: { fontSize: 13, lineHeight: 19, marginBottom: 12 },
   statRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, gap: 12 },

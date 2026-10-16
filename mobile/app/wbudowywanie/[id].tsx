@@ -68,6 +68,7 @@ import {
 } from '../../src/utils/liveProgress';
 import { potwierdzAkcje } from '../../src/utils/dialog';
 import type { DzialkaRobocza, Plan, WpisLive } from '../../src/types';
+import { karta as kartaWspolna } from '../../src/constants/layout';
 
 type ZakladkaTyp = 'plan' | 'kontrola' | 'live' | 'pzt';
 
@@ -1582,7 +1583,7 @@ const styles = StyleSheet.create({
   selectorScroll: { paddingHorizontal: 14, paddingVertical: 8, maxHeight: 50 },
   selectorBtn: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1, marginRight: 8 },
   zawartosc: { padding: 14, gap: 12 },
-  karta: { borderRadius: 14, padding: 14, borderWidth: 1 },
+  karta: { ...kartaWspolna },
   kartaTytul: { fontSize: 13, fontWeight: '800', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
   opisMaly: { fontSize: 13, lineHeight: 18 },
   sep: { height: 1, marginVertical: 10 },

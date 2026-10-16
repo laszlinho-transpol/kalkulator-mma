@@ -31,6 +31,7 @@ import { obszarySzkicuPlanu } from '../../src/utils/planZBudowy';
 import type { AppTheme } from '../../src/constants/theme';
 import { AppHeader } from '../../src/components/common/AppHeader';
 import { wstecz } from '../../src/budzet/nawigacja';
+import { karta as kartaWspolna } from '../../src/constants/layout';
 
 type ZakladkaTyp = 'podsumowanie' | 'live' | 'szkic';
 
@@ -325,7 +326,7 @@ const styles = StyleSheet.create({
   selectorScroll: { paddingHorizontal: 16, paddingVertical: 10, maxHeight: 56 },
   selectorBtn: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1, marginRight: 8 },
   zawartosc: { padding: 16, gap: 12 },
-  karta: { borderRadius: 14, padding: 16, borderWidth: 1 },
+  karta: { ...kartaWspolna, padding: 16 },
   kartaTytul: { fontSize: 14, fontWeight: '800', marginBottom: 10, textTransform: 'uppercase' },
   bilansBoks: { borderWidth: 1, borderRadius: 10, padding: 12, marginTop: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   bilansLabel: { fontSize: 14, fontWeight: '600' },

@@ -37,6 +37,7 @@ import {
   type ZakladkaDoZbudowania,
 } from '../../utils/planZBudowy';
 import type { KategoriaWarstwy, Plan, ProjektBudowy } from '../../types';
+import { karta as kartaWspolna } from '../../constants/layout';
 
 const MAX_DZIALEK = 20;
 
@@ -799,7 +800,7 @@ function Sekcja({ tytul, info, children, theme }: { tytul: string; info?: string
 const styl = StyleSheet.create({
   container: { flex: 1 },
   zawartosc: { padding: 16 },
-  sekcja: { borderWidth: 1, borderRadius: 14, padding: 16, marginBottom: 14 },
+  sekcja: { ...kartaWspolna, padding: 16, marginBottom: 14 },
   sekcjaTytul: { fontSize: 11, fontWeight: '700', letterSpacing: 0.5, marginBottom: 10 },
   etykieta: { fontSize: 13, fontWeight: '600', marginTop: 10, marginBottom: 6 },
   hint: { fontSize: 13, lineHeight: 18, marginBottom: 8 },
