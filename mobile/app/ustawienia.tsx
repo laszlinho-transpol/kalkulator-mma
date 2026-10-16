@@ -17,7 +17,7 @@ import { GrafikaMaszynSekcja } from '../src/components/ustawienia/GrafikaMaszynS
 import { useMieszankiStore } from '../src/stores/mieszankiStore';
 import { usePlanyStore } from '../src/stores/planyStore';
 import { useLiveStore } from '../src/stores/liveStore';
-import { WERSJA_APLIKACJI, CHANGELOG } from '../src/constants/version';
+import { WERSJA_APLIKACJI, CHANGELOG, MMA_WEB_BUILD } from '../src/constants/version';
 import { pobierzUstawienia, zapiszUstawienia } from '../src/utils/ustawieniaAplikacji';
 import { formatujDateKopii, opisPodsumowania, podsumujKopie } from '../src/utils/kopiaZapasowa';
 import { przywrocKopie, wybierzPlikKopii, zapiszPlikKopii, zbierzKopie } from '../src/utils/kopiaZapasowaPlik';
@@ -261,6 +261,9 @@ export default function UstawieniaScreen() {
             <View style={[styles.appInfo, { backgroundColor: theme.colors.background, borderRadius: 12 }]}>
               <Text style={[styles.appNazwa, { color: theme.colors.primary }]}>⬛ Kalkulator MMA</Text>
               <Text style={[styles.appWersja, { color: theme.colors.textSecondary }]}>Wersja {WERSJA_APLIKACJI}</Text>
+              <Text style={[styles.appWersja, { color: theme.colors.textSecondary }]} accessibilityLabel="Kod wdrożenia">
+                Kod wdrożenia: {MMA_WEB_BUILD === 'dev' ? 'dev' : MMA_WEB_BUILD.slice(0, 7)}
+              </Text>
               <Text style={[styles.appOpis, { color: theme.colors.textSecondary, marginTop: 8 }]}>
                 Co nowego w {CHANGELOG[0].wersja}:
               </Text>
