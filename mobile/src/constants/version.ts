@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.36';
+export const WERSJA_APLIKACJI = '1.8.37';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,18 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.37',
+    data: '2026-10-16',
+    tytul: 'Dozowanie sprzętu i łączone rozliczenia transportu',
+    zmiany: [
+      'Sprzęt: rozliczenie dozowaniem – stawka zł/kg × dozowanie kg/m² × powierzchnia m² (od razu przy skrapiarce, inny sprzęt może je włączyć)',
+      'Raport sprzętu łączy dowolne rozliczenia z jednego dnia, w tym dozowanie',
+      'Stawki na karcie sprzętu z jednostką (zł/dzień, zł/kg…)',
+      'Transport raportu budowy: nowa stawka godzinowa (stawka × godziny)',
+      'Przerzut i samochody: w jednym wpisie można zaznaczyć kilka rodzajów rozliczenia – kwoty się sumują',
+    ],
+  },
   {
     wersja: '1.8.36',
     data: '2026-10-16',
