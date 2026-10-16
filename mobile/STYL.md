@@ -53,7 +53,7 @@ opisanych niżej** – bez własnych kolorów, odstępów i nagłówków. Zmiana
 | `Karta` | element listy z podsumowaniem i akcjami (wzór: karta planu dnia) |
 | `PozycjaListy` | wiersz-przycisk do innej strony; `plaska` wewnątrz `Sekcja`/`Karta` |
 | `WierszDanych` | etykieta po lewej, wartość po prawej |
-| `SiatkaDanych` | kafelki „etykieta nad wartością” w 2 kolumnach |
+| `SiatkaDanych` | kafelki „etykieta nad wartością” w 2 kolumnach; `dopisek` + `kolor` – np. odchyłka od planu |
 | `Przycisk` | `glowny` (jeden na kartę), `drugi`, `niebezpieczny`, `tekst`; `ikona`, `maly` |
 | `PrzyciskIkony` | okrągły przycisk z ikoną (`plus`, `edytuj`, `wstecz`, `dom`…) – zawsze z `accessibilityLabel` |
 | `Ikona` | ikony SVG: wstecz, dom, dalej, telefon, kopiuj, udostepnij, plus, edytuj, usun, mapa |
