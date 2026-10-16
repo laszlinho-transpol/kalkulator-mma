@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { cenaReceptyNaDzien, linieCeny, receptyWytworni } from './recepty';
+import { cenaReceptyNaDzien, linieCeny, numerDnia, punktyHistoriiCeny, receptyWytworni } from './recepty';
 import { oczyscNumer } from '../utils/kontaktyTelefonuFormat';
 import type { Mieszanka } from '../types';
 
@@ -28,6 +28,23 @@ describe('recepty wytwórni', () => {
     assert.deepEqual(linieCeny({}), []);
     const lista = receptyWytworni([recepta('1', 'SMA11', 'w'), recepta('2', 'AC22P', 'w'), recepta('3', 'AC16W', 'x')], 'w');
     assert.deepEqual(lista.map((m) => m.rodzaj), ['AC22P', 'SMA11']);
+  });
+
+  it('punkty wykresu historii ceny w kolejności dat', () => {
+    const punkty = punktyHistoriiCeny([
+      { id: 'b', od: '2026-04-01', do: '2026-06-30', stawki: { cena: 320 } },
+      { id: 'a', od: '2026-01-01', do: '2026-03-31', stawki: { cena: 280 } },
+      { id: 'c', od: '2026-07-01', do: '2026-07-01', stawki: { cena: 330 } },
+      { id: 'd', od: '2026-08-01', do: '2026-08-31', stawki: {} },
+    ]);
+    assert.deepEqual(punkty, [
+      { iso: '2026-01-01', cena: 280, poczatek: true },
+      { iso: '2026-03-31', cena: 280, poczatek: false },
+      { iso: '2026-04-01', cena: 320, poczatek: true },
+      { iso: '2026-06-30', cena: 320, poczatek: false },
+      { iso: '2026-07-01', cena: 330, poczatek: true },
+    ]);
+    assert.equal(numerDnia('2026-01-02') - numerDnia('2026-01-01'), 1);
   });
 
   it('numer telefonu do schowka bez spacji i myślników', () => {

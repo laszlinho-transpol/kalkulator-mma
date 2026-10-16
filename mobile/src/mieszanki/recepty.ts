@@ -16,6 +16,31 @@ export function cenaReceptyNaDzien(recepta: Pick<Mieszanka, 'cena' | 'historiaCe
   return cena && cena > 0 ? cena : undefined;
 }
 
+export interface PunktCeny {
+  iso: string;
+  cena: number;
+  /** Początek okresu – na wykresie punkt z wartością. */
+  poczatek: boolean;
+}
+
+/** Punkty wykresu historii ceny: początek i koniec każdego okresu, chronologicznie. */
+export function punktyHistoriiCeny(historia: Mieszanka['historiaCen']): PunktCeny[] {
+  const punkty: PunktCeny[] = [];
+  for (const okres of [...(historia ?? [])].sort((a, b) => a.od.localeCompare(b.od))) {
+    const cena = okres.stawki.cena;
+    if (!cena || cena <= 0) continue;
+    punkty.push({ iso: okres.od, cena, poczatek: true });
+    if (okres.do !== okres.od) punkty.push({ iso: okres.do, cena, poczatek: false });
+  }
+  return punkty;
+}
+
+/** Numer dnia (oś X wykresów dat). */
+export function numerDnia(iso: string): number {
+  const [r, m, d] = iso.split('-').map(Number);
+  return Math.round(Date.UTC(r, m - 1, d) / 86400000);
+}
+
 export function receptyWytworni(mieszanki: Mieszanka[], wytworniaId: string): Mieszanka[] {
   return mieszanki
     .filter((m) => m.wytworniaId === wytworniaId)

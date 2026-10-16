@@ -20,6 +20,7 @@ import { useSprzetStore } from '../src/stores/sprzetStore';
 import { lightTheme, darkTheme } from '../src/constants/theme';
 import { LoadingScreen } from '../src/components/common/LoadingScreen';
 import { ErrorBoundary } from '../src/components/common/ErrorBoundary';
+import { PrzejscieEkranu } from '../src/components/ui/PrzejscieEkranu';
 
 const KLUCZ_ONBOARDING = '@mma:onboardingComplete';
 
@@ -117,7 +118,7 @@ export default function RootLayout() {
     <ErrorBoundary>
       <SafeAreaProvider>
         <StatusBar style={theme.colors.statusBar} />
-        <Stack screenOptions={headerOpacje}>
+        <Stack screenOptions={headerOpacje} screenLayout={({ children }) => <PrzejscieEkranu>{children}</PrzejscieEkranu>}>
           <Stack.Screen name="index" options={{ headerShown: false, animation: 'fade' }} />
           <Stack.Screen
             name="onboarding"

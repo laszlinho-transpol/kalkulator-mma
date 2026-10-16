@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
-import { Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import * as Clipboard from 'expo-clipboard';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import type { AppTheme } from '../../constants/theme';
 import type { KontaktWytworni } from '../../types';
 import { Etykieta, Pole, Wiersz, Wybor, stylFormularza } from '../common/Formularz';
 import { InfoTooltip } from '../common/InfoTooltip';
-import { pokazKomunikat, potwierdzAkcje } from '../../utils/dialog';
-import { czyMoznaWybracKontakt, udostepnijTekst, wybierzKontaktZTelefonu } from '../../utils/kontaktyTelefonu';
+import { potwierdzAkcje } from '../../utils/dialog';
+import { czyMoznaWybracKontakt, wybierzKontaktZTelefonu } from '../../utils/kontaktyTelefonu';
+import { AkcjeTelefonu } from '../ui/AkcjeTelefonu';
+import { PrzyciskIkony } from '../ui/Przycisk';
 import { oczyscNumer } from '../../utils/kontaktyTelefonuFormat';
 
 const generujId = () => Date.now().toString(36) + Math.random().toString(36).slice(2);
@@ -35,13 +36,9 @@ export function KontaktyWytworni({ theme, nazwaWytworni, kontakty, onZmien }: Pr
         <Text style={[styles.tytul, { color: theme.colors.text }]}>Numery kontaktowe</Text>
         <InfoTooltip tresc="Plusem dodasz numer z kontaktów telefonu albo wpiszesz go ręcznie. Przyciski pod numerem: zadzwoń, kopiuj, udostępnij." />
         {edytowany !== 'nowy' ? (
-          <TouchableOpacity
-            accessibilityLabel="Dodaj kontakt"
-            onPress={() => setEdytowany('nowy')}
-            style={[styles.plus, { backgroundColor: theme.colors.primary }]}
-          >
-            <Text style={styles.plusTekst}>+</Text>
-          </TouchableOpacity>
+          <View style={styles.plus}>
+            <PrzyciskIkony ikona="plus" accessibilityLabel="Dodaj kontakt" onPress={() => setEdytowany('nowy')} kolor="#1A1A1A" tlo={theme.colors.primary} />
+          </View>
         ) : null}
       </View>
 
@@ -69,18 +66,7 @@ export function KontaktyWytworni({ theme, nazwaWytworni, kontakty, onZmien }: Pr
             </TouchableOpacity>
           </View>
           <Text style={[styles.numer, { color: theme.colors.text }]} selectable>{k.telefon}</Text>
-          <View style={styles.akcje}>
-            <Akcja theme={theme} etykieta="Zadzwoń" opis={`Zadzwoń do ${k.nazwa}`} onPress={() => {
-              Linking.openURL(`tel:${oczyscNumer(k.telefon)}`).catch(() => pokazKomunikat('Błąd', 'Nie udało się rozpocząć połączenia.'));
-            }} />
-            <Akcja theme={theme} etykieta="Kopiuj" opis={`Kopiuj numer ${k.nazwa}`} onPress={async () => {
-              await Clipboard.setStringAsync(oczyscNumer(k.telefon));
-              pokazKomunikat('Skopiowano', `Numer ${k.telefon} jest w schowku.`);
-            }} />
-            <Akcja theme={theme} etykieta="Udostępnij" opis={`Udostępnij numer ${k.nazwa}`} onPress={async () => {
-              if (await udostepnijTekst(opis(k))) pokazKomunikat('Skopiowano', 'Udostępnianie jest niedostępne – kontakt skopiowano do schowka.');
-            }} />
-          </View>
+          <AkcjeTelefonu telefon={k.telefon} nazwa={k.nazwa} opisDoUdostepnienia={opis(k)} />
         </View>
       )))}
 
@@ -88,18 +74,6 @@ export function KontaktyWytworni({ theme, nazwaWytworni, kontakty, onZmien }: Pr
         <FormularzKontaktu theme={theme} onAnuluj={() => setEdytowany(null)} onZapisz={zapisz} />
       ) : null}
     </View>
-  );
-}
-
-function Akcja({ theme, etykieta, opis, onPress }: { theme: AppTheme; etykieta: string; opis: string; onPress: () => void }) {
-  return (
-    <TouchableOpacity
-      accessibilityLabel={opis}
-      onPress={onPress}
-      style={[styles.akcja, { borderColor: theme.colors.info, backgroundColor: `${theme.colors.info}12` }]}
-    >
-      <Text style={{ color: theme.colors.info, fontWeight: '800', fontSize: 13 }}>{etykieta}</Text>
-    </TouchableOpacity>
   );
 }
 
@@ -182,13 +156,10 @@ const styles = StyleSheet.create({
   sekcja: { gap: 8 },
   naglowek: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   tytul: { fontSize: 13, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.4 },
-  plus: { marginLeft: 'auto', width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
-  plusTekst: { color: '#1A1A1A', fontSize: 22, fontWeight: '800', lineHeight: 24 },
+  plus: { marginLeft: 'auto' },
   kontakt: { borderTopWidth: 1, paddingTop: 10, gap: 6 },
   nazwa: { fontSize: 15, fontWeight: '800' },
   numer: { fontSize: 18, fontWeight: '700', letterSpacing: 0.3 },
-  akcje: { flexDirection: 'row', gap: 6 },
-  akcja: { flex: 1, borderWidth: 1, borderRadius: 10, paddingVertical: 8, alignItems: 'center' },
   formularz: { borderWidth: 1, borderRadius: 12, padding: 10, gap: 8 },
   zKontaktow: { borderWidth: 1, borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
   przyciski: { flexDirection: 'row', gap: 10 },
