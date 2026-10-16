@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.35';
+export const WERSJA_APLIKACJI = '1.8.36';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,20 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.36',
+    data: '2026-10-16',
+    tytul: 'Raporty dzienne z budowy',
+    zmiany: [
+      'Budowa → Raporty: przycisk „Dodaj raport”, raporty pogrupowane w miesiące od najnowszego',
+      'Kalendarz raportów – dni z raportem na zielono; pod nim statystyki: liczba raportów i zakres dat',
+      'Formularz raportu: data, warstwa z Konstrukcji z grubością projektową, recepta, kilka odcinków z kilometrażem od–do i powierzchnią, ilość masy / kruszywa, uwagi',
+      'Raport: zakładka Przerób – suma warstw osobno dla każdej recepty i grubość wychodząca na odcinku',
+      'Zakładka Materiał – tabela mieszanek z ceną z recepty (do zmiany w raporcie) i materiał dodatkowy',
+      'Zakładka Transport – przerzuty (trasa, link Google Maps z pinezkami) i samochody: zbiorczo lub przewoźnikami, stawka za km, za kurs albo t × km',
+      'Zakładka Robocizna – raporty pracowników i sprzętu z tego dnia na budowie do zatwierdzenia; zatwierdzone wchodzą do kwoty dnia',
+    ],
+  },
   {
     wersja: '1.8.35',
     data: '2026-10-16',
