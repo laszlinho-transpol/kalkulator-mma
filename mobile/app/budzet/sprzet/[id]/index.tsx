@@ -18,8 +18,14 @@ import { useFirmyStore } from '../../../../src/stores/firmyStore';
 import { usePracownicyStore } from '../../../../src/stores/pracownicyStore';
 import { useSprzetStore } from '../../../../src/stores/sprzetStore';
 import { karta as kartaWspolna } from '../../../../src/constants/layout';
+import { Sekcja, SiatkaDanych, WierszDanych } from '../../../../src/components/ui';
 
 const POLA_SPRZETU = OPISY_ROZLICZENIA.map((o) => ({ id: o.id, nazwa: o.nazwa, jednostka: o.jednostkaStawki }));
+
+const liniaNaKafelek = (linia: string) => {
+  const i = linia.indexOf(': ');
+  return i < 0 ? { etykieta: linia, wartosc: '' } : { etykieta: linia.slice(0, i), wartosc: linia.slice(i + 2) };
+};
 
 export default function KartaSprzetuScreen() {
   const id = useRouteId();
@@ -74,29 +80,21 @@ export default function KartaSprzetuScreen() {
         <ScrollView contentContainerStyle={[styles.tresc, { paddingBottom: insets.bottom + 24 }]}>
           <Zakladki theme={theme} aktywna={zakladka} onZmien={setZakladka} />
           {zakladka === 'dane' ? (
-          <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-            <Wiersz etykieta="Rodzaj" wartosc={rodzaj?.nazwa ?? maszyna.rodzajId} kolor={theme.colors.text} etykietaKolor={theme.colors.textSecondary} />
-            <Wiersz etykieta="Numer" wartosc={etykietaSprzetu(maszyna.numer)} kolor={theme.colors.text} etykietaKolor={theme.colors.textSecondary} />
-            <Wiersz etykieta="Firma" wartosc={firma?.nazwa ?? '—'} kolor={theme.colors.text} etykietaKolor={theme.colors.textSecondary} />
-            <View style={styles.siatka}>
-              {linieStawek(maszyna.stawki).map((linia) => (
-                <Text key={linia} style={[styles.stawka, styles.polowa, { color: theme.colors.text }]}>{linia}</Text>
-              ))}
-            </View>
-            <Wiersz
-              etykieta="Spalanie"
-              wartosc={maszyna.spalanieLnaMth ? `${formatLiczby(maszyna.spalanieLnaMth)} l/mth` : '—'}
-              kolor={theme.colors.text}
-              etykietaKolor={theme.colors.textSecondary}
-            />
-            <TouchableOpacity
-              accessibilityLabel="Edytuj sprzęt"
-              onPress={() => router.push(`/budzet/sprzet/${maszyna.id}/edytuj` as never)}
-              style={[styles.dodaj, { backgroundColor: theme.colors.primary }]}
-            >
-              <Text style={styles.dodajTekst}>Edytuj</Text>
-            </TouchableOpacity>
-          </View>
+            <>
+              <Sekcja tytul="Dane">
+                <WierszDanych etykieta="Rodzaj" wartosc={rodzaj?.nazwa ?? maszyna.rodzajId} />
+                <WierszDanych etykieta="Numer" wartosc={etykietaSprzetu(maszyna.numer)} />
+                <WierszDanych etykieta="Firma" wartosc={firma?.nazwa ?? '—'} />
+              </Sekcja>
+              <Sekcja tytul="Stawki i spalanie" info="Stawki z karty. Okresy z innymi stawkami ustawisz w zakładce Historia stawek.">
+                <SiatkaDanych
+                  pozycje={[
+                    ...linieStawek(maszyna.stawki).map(liniaNaKafelek),
+                    { etykieta: 'Spalanie', wartosc: maszyna.spalanieLnaMth ? `${formatLiczby(maszyna.spalanieLnaMth)} l/mth` : '—' },
+                  ]}
+                />
+              </Sekcja>
+            </>
           ) : null}
           {zakladka === 'historia' ? (
             <HistoriaStawek
@@ -162,27 +160,12 @@ export default function KartaSprzetuScreen() {
   );
 }
 
-function Wiersz({ etykieta, wartosc, kolor, etykietaKolor }: { etykieta: string; wartosc: string; kolor: string; etykietaKolor: string }) {
-  return (
-    <View style={styles.wiersz}>
-      <Text style={[styles.wierszEtykieta, { color: etykietaKolor }]}>{etykieta}</Text>
-      <Text style={[styles.wierszWartosc, { color: kolor }]}>{wartosc}</Text>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   ekran: { flex: 1 },
   brak: { padding: 24, fontSize: 16 },
   tresc: { padding: 16, gap: 12 },
   karta: { ...kartaWspolna, gap: 8 },
   sekcja: { fontSize: 18, fontWeight: '800' },
-  wiersz: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
-  wierszEtykieta: { fontSize: 14 },
-  wierszWartosc: { fontSize: 15, fontWeight: '700', flexShrink: 1, textAlign: 'right' },
-  stawka: { fontSize: 15, fontWeight: '600' },
-  siatka: { flexDirection: 'row', flexWrap: 'wrap', rowGap: 4 },
-  polowa: { width: '50%', paddingRight: 6 },
   dodaj: { borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
   dodajTekst: { color: '#1A1A1A', fontWeight: '800' },
   szukaj: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, fontSize: 16 },

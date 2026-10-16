@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.32';
+export const WERSJA_APLIKACJI = '1.8.33';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,19 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.33',
+    data: '2026-10-15',
+    tytul: 'Jeden styl w całej aplikacji',
+    zmiany: [
+      'W nagłówku każdego ekranu strzałka wstecz i domek do menu głównego',
+      'Mieszanki: wytwórnia to przycisk do jej karty z zakładkami Info i Mieszanki',
+      'Historia ceny recepty z wykresem liniowym',
+      'Pracownik: numer telefonu z przyciskami Zadzwoń, Kopiuj i Udostępnij',
+      'Jeden kalendarz dla wszystkich dat – soboty, niedziele i święta w kolorach',
+      'Nowocześniejsze karty, kafelki i przyciski z animacją wciśnięcia',
+    ],
+  },
   {
     wersja: '1.8.32',
     data: '2026-10-15',

@@ -785,3 +785,21 @@ Użytkownik wpisuje **auto + metry**, a program:
 3. LIVE: metry + tony → postęp %, zakryte m², pozostało m/m²/Mg, zielone zamalowanie od START
 
 ---
+
+## ETAP 22 – Wspólny styl aplikacji, karta wytwórni, telefon pracownika (1.8.33)
+**Data:** 2026-10-15
+**Status:** ✅ UKOŃCZONY
+**Branch:** `cursor/kalkulator-mma-budzet-sprzet-0a0b`
+
+### Styl (jedno źródło dla wszystkich ekranów)
+1. `mobile/STYL.md` – zasady wyglądu i lista kontrolna; reguła `.cursor/rules/styl-aplikacji.mdc`, wpis w `.clinerules`, `AGENTS.md`
+2. Tokeny `src/constants/styl.ts`, klocki `src/components/ui` (Karta, Sekcja, PozycjaListy, WierszDanych, SiatkaDanych,
+   Przycisk, PrzyciskIkony, Ikona SVG, Naciskany, KafelekMenu, AkcjeTelefonu, WykresLiniowy, Kalendarz)
+3. `AppHeader`: strzałka wstecz + domek do menu głównego na każdym ekranie; płynne wejście ekranów (web)
+4. Jeden kalendarz: soboty niebieskie, niedziele i święta czerwone, legenda; `DatePickerButton` na wspólnej siatce
+5. Kafelki menu głównego i Budżetu z jednego komponentu; listy Niezbędnika jako przyciski; karty z cieniem (`layout.karta`)
+
+### Funkcje
+1. Mieszanki: wytwórnie jako przyciski → karta wytwórni z zakładkami Info | Mieszanki
+2. Historia ceny recepty z wykresem liniowym (linia ceny z karty przerywana)
+3. Pracownik: numer telefonu (wpis lub z kontaktów), na karcie Zadzwoń / Kopiuj / Udostępnij
