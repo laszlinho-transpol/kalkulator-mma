@@ -37,7 +37,7 @@ import {
   type ZakladkaDoZbudowania,
 } from '../../utils/planZBudowy';
 import type { KategoriaWarstwy, Plan, ProjektBudowy } from '../../types';
-import { karta as kartaWspolna } from '../../constants/layout';
+import { Sekcja as SekcjaUi } from '../ui';
 import { pokazKomunikat } from '../../utils/dialog';
 
 const MAX_DZIALEK = 20;
@@ -786,23 +786,14 @@ function roundSum3(xs: number[]): number {
   return Math.round(xs.reduce((a, b) => a + b, 0) * 1000) / 1000;
 }
 
-function Sekcja({ tytul, info, children, theme }: { tytul: string; info?: string; children: React.ReactNode; theme: AppTheme }) {
-  return (
-    <View style={[styl.sekcja, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-        <Text style={[styl.sekcjaTytul, { color: theme.colors.textSecondary, flex: 1 }]}>{tytul.toUpperCase()}</Text>
-        {info ? <InfoTooltip tresc={info} /> : null}
-      </View>
-      {children}
-    </View>
-  );
+function Sekcja({ tytul, info, children }: { tytul: string; info?: string; children: React.ReactNode; theme: AppTheme }) {
+  return <SekcjaUi tytul={tytul} info={info} style={styl.sekcja}>{children}</SekcjaUi>;
 }
 
 const styl = StyleSheet.create({
   container: { flex: 1 },
   zawartosc: { padding: 16 },
-  sekcja: { ...kartaWspolna, padding: 16, marginBottom: 14 },
-  sekcjaTytul: { fontSize: 11, fontWeight: '700', letterSpacing: 0.5, marginBottom: 10 },
+  sekcja: { marginBottom: 14 },
   etykieta: { fontSize: 13, fontWeight: '600', marginTop: 10, marginBottom: 6 },
   hint: { fontSize: 13, lineHeight: 18, marginBottom: 8 },
   chip: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 12, marginBottom: 8 },

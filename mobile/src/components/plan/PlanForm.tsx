@@ -17,6 +17,7 @@ import { BudowaPicker } from '../common/BudowaPicker';
 import { lightTheme, darkTheme, type AppTheme } from '../../constants/theme';
 import { DatePickerButton } from '../common/DatePickerButton';
 import { Wiersz } from '../common/Formularz';
+import { Przycisk, Sekcja as SekcjaUi, SiatkaDanych } from '../ui';
 import { NumericInput } from '../common/NumericInput';
 import { MieszankaPicker } from '../common/MieszankaPicker';
 import { ShapeModal } from '../shapes/ShapeModal';
@@ -331,14 +332,12 @@ export function PlanForm({ tytul, initialPlan, onZapisz }: PlanFormProps) {
           {/* Rzuty */}
           {sumaAut > 0 && (
             <Sekcja tytul="Podział na rzuty" theme={theme}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-                <Text style={[styles.podsumRow, { color: theme.colors.text }]}>
-                  Łączna masa: <Text style={{ fontWeight: '700', color: theme.colors.primary }}>{formatLiczby(sumaMasy, 2)} Mg</Text>
-                </Text>
-                <Text style={[styles.podsumRow, { color: theme.colors.text }]}>
-                  Aut: <Text style={{ fontWeight: '700', color: theme.colors.primary }}>{sumaAut}</Text>
-                </Text>
-              </View>
+              <SiatkaDanych
+                pozycje={[
+                  { etykieta: 'Łączna masa', wartosc: `${formatLiczby(sumaMasy, 2)} Mg` },
+                  { etykieta: 'Aut', wartosc: String(sumaAut) },
+                ]}
+              />
               <View style={styles.rzadEtykiety}>
                 <Text style={[styles.etykieta, { color: theme.colors.textSecondary }]}>Podział rzutów</Text>
                 <InfoTooltip tresc={`Wpisz podział samochodów na partie (rzuty), np. "6+6+4". Suma musi wynosić ${sumaAut}. Jeśli puste – jeden rzut.`} />
@@ -441,10 +440,7 @@ function KartaDzialki({ dz, dzIdx, theme, tonazAuta, pobierzMieszanke, updateDzi
     : [];
 
   return (
-    <View style={[styles.kartaDzialki, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-      <Text style={[styles.kartaDzialkiTytul, { color: theme.colors.primary }]}>
-        Działka {dzIdx + 1}
-      </Text>
+    <SekcjaUi tytul={`Działka ${dzIdx + 1}`} style={styles.sekcja}>
 
       {/* Nazwa */}
       <Text style={[styles.etykieta, { color: theme.colors.textSecondary }]}>Nazwa</Text>
@@ -568,46 +564,33 @@ function KartaDzialki({ dz, dzIdx, theme, tonazAuta, pobierzMieszanke, updateDzi
         );
       })}
 
-      <TouchableOpacity
-        style={[styles.btnDodajFigure, { borderColor: theme.colors.primary, backgroundColor: `${theme.colors.primary}10` }]}
-        onPress={onAddShape}
-      >
-        <Text style={[styles.btnDodajFigureTekst, { color: theme.colors.primary }]}>+ Dodaj figurę</Text>
-      </TouchableOpacity>
+      <Przycisk tekst="Dodaj figurę" ikona="plus" wariant="drugi" onPress={onAddShape} style={{ marginTop: 8 }} />
 
-      {/* Podsumowanie działki */}
       {wynikiDzialki && (
-        <View style={[styles.podsumDzialki, { backgroundColor: `${theme.colors.info}10`, borderColor: theme.colors.info }]}>
-          <Text style={[styles.podsumRow, { color: theme.colors.text }]}>Powierzchnia: <Text style={{ fontWeight: '700' }}>{formatLiczby(wynikiDzialki.lacznaPowierzchnia)} m²</Text></Text>
-          <Text style={[styles.podsumRow, { color: theme.colors.text }]}>Masa: <Text style={{ fontWeight: '700' }}>{formatLiczby(wynikiDzialki.lacznaIloscMasy, 3)} Mg</Text></Text>
-          <Text style={[styles.podsumRow, { color: theme.colors.text }]}>Samochodów: <Text style={{ fontWeight: '700' }}>{wynikiDzialki.iloscSamochodow}</Text></Text>
+        <View style={{ marginTop: 10 }}>
+          <SiatkaDanych
+            pozycje={[
+              { etykieta: 'Powierzchnia', wartosc: `${formatLiczby(wynikiDzialki.lacznaPowierzchnia)} m²` },
+              { etykieta: 'Masa', wartosc: `${formatLiczby(wynikiDzialki.lacznaIloscMasy, 3)} Mg` },
+              { etykieta: 'Samochodów', wartosc: String(wynikiDzialki.iloscSamochodow) },
+            ]}
+          />
         </View>
       )}
-    </View>
+    </SekcjaUi>
   );
 }
 
 // ---- Sekcja ----
-function Sekcja({ tytul, children, theme }: { tytul: string; children: React.ReactNode; theme: AppTheme }) {
-  return (
-    <View style={[sekcjaStyles.wrap, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-      <Text style={[sekcjaStyles.tytul, { color: theme.colors.textSecondary }]}>{tytul.toUpperCase()}</Text>
-      {children}
-    </View>
-  );
+function Sekcja({ tytul, children }: { tytul: string; children: React.ReactNode; theme: AppTheme }) {
+  return <SekcjaUi tytul={tytul} style={styles.sekcja}>{children}</SekcjaUi>;
 }
-
-const sekcjaStyles = StyleSheet.create({
-  wrap: { marginBottom: 16, borderRadius: 14, padding: 16, borderWidth: 1 },
-  tytul: { fontSize: 11, fontWeight: '700', letterSpacing: 0.5, marginBottom: 12 },
-});
 
 // ---- Style ----
 const styles = StyleSheet.create({
   container: { flex: 1 },
   zawartosc: { padding: 16, gap: 0 },
-  kartaDzialki: { borderRadius: 14, padding: 16, borderWidth: 1, marginBottom: 16 },
-  kartaDzialkiTytul: { fontSize: 14, fontWeight: '800', marginBottom: 14, textTransform: 'uppercase', letterSpacing: 0.5 },
+  sekcja: { marginBottom: 16 },
   etykieta: { fontSize: 13, fontWeight: '600', marginBottom: 6, marginTop: 12 },
   rzadEtykiety: { flexDirection: 'row', alignItems: 'center', marginTop: 12, marginBottom: 6, gap: 6 },
   input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
@@ -635,10 +618,6 @@ const styles = StyleSheet.create({
   btnEdytujTekst: { fontSize: 17, fontWeight: '700' },
   btnUsun: { padding: 6 },
   btnUsunTekst: { fontSize: 18, fontWeight: '700' },
-  btnDodajFigure: { borderWidth: 1.5, borderRadius: 10, borderStyle: 'dashed', paddingVertical: 12, alignItems: 'center', marginTop: 4 },
-  btnDodajFigureTekst: { fontSize: 15, fontWeight: '700' },
-  podsumDzialki: { borderWidth: 1, borderRadius: 10, padding: 12, marginTop: 14, gap: 4 },
-  podsumRow: { fontSize: 14 },
   licznikWrap: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   licznikLabel: { fontSize: 13, fontWeight: '600', flex: 1 },
   licznikPrzyciski: { flexDirection: 'row', alignItems: 'center', gap: 12 },
