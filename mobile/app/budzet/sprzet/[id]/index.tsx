@@ -139,7 +139,9 @@ export default function KartaSprzetuScreen() {
                   <Text style={{ color: theme.colors.textSecondary }}>
                     {budowa ? `${budowa.kodBudowy} · ${budowa.nazwaInwestycji}` : 'Budowa usunięta'}
                   </Text>
-                  <Text style={{ color: theme.colors.textSecondary }}>{pracownik ? nazwaPracownika(pracownik) : 'Pracownik usunięty'}</Text>
+                  <Text style={{ color: theme.colors.textSecondary }}>
+                    {!raport.pracownikId ? 'Bez pracownika' : pracownik ? nazwaPracownika(pracownik) : 'Pracownik usunięty'}
+                  </Text>
                   {raport.pozycje.map((pozycja) => (
                     <Text key={pozycja.rodzaj} style={{ color: theme.colors.text, marginTop: 4 }}>
                       {pozycja.rodzaj === 'miesieczny' && pozycja.dniRobocze

@@ -21,6 +21,7 @@ import { nazwaPracownika, pracownicyAlfabetycznie } from '../../../../src/budzet
 import { usePracownicyStore } from '../../../../src/stores/pracownicyStore';
 import { useSprzetStore } from '../../../../src/stores/sprzetStore';
 import type { PozycjaRaportuSprzetu } from '../../../../src/budzet/typy';
+import { PolaPracyPracownika, usePracaPracownika } from '../../../../src/components/budzet/PracaPracownika';
 
 const MIESIACE = [
   'styczeń', 'luty', 'marzec', 'kwiecień', 'maj', 'czerwiec',
@@ -39,7 +40,11 @@ export default function RaportSprzetuScreen() {
 
   const [data, setData] = useState(wczorajIso);
   const [budowaId, setBudowaId] = useState('');
+  const [zPracownikiem, setZPracownikiem] = useState(false);
   const [pracownikId, setPracownikId] = useState('');
+  const dodajRaportPracownika = usePracownicyStore((s) => s.dodajRaport);
+  const pracownik = zPracownikiem ? pracownicy.find((p) => p.id === pracownikId) : undefined;
+  const praca = usePracaPracownika(pracownik, data);
   const [zaznaczone, setZaznaczone] = useState<RodzajRozliczenia[]>([]);
   const [stawkiTekst, setStawkiTekst] = useState<Partial<Record<RodzajRozliczenia, string>>>({});
   const [ilosciTekst, setIlosciTekst] = useState<Partial<Record<RodzajRozliczenia, string>>>({});
@@ -112,7 +117,7 @@ export default function RaportSprzetuScreen() {
   const zapisz = async () => {
     if (!maszyna) return;
     if (!budowaId) { setBlad('Wybierz budowę.'); return; }
-    if (!pracownikId) { setBlad('Wybierz pracownika.'); return; }
+    if (zPracownikiem && !pracownik) { setBlad('Wybierz pracownika albo odznacz „Pracownik”.'); return; }
     if (zaznaczone.length === 0) { setBlad('Zaznacz choć jeden rodzaj rozliczenia.'); return; }
     for (const pozycja of pozycje) {
       const opis = opisRozliczenia(pozycja.rodzaj);
@@ -122,14 +127,29 @@ export default function RaportSprzetuScreen() {
       if (pozycja.rodzaj === 'dozowanie' && !(dozowanie > 0)) { setBlad('Podaj dozowanie, np. 0,5 kg/m².'); return; }
     }
     if (!(suma > 0)) { setBlad('Kwota raportu wyszła zerowa.'); return; }
+    if (pracownik) {
+      const bladPracy = praca.blad();
+      if (bladPracy) { setBlad(`Pracownik: ${bladPracy}`); return; }
+    }
     setBlad('');
     setZapis(true);
     try {
+      const raportPracownikaId = pracownik
+        ? await dodajRaportPracownika({
+          ...praca.daneRaportu(),
+          pracownikId: pracownik.id,
+          data,
+          budowaId,
+          sprzetId: maszyna.id,
+          uwagi: `Operator: ${rodzajPoId(maszyna.rodzajId)?.nazwa ?? 'sprzęt'} ${etykietaSprzetu(maszyna.numer)}`.trim(),
+        })
+        : undefined;
       await dodajRaport({
         sprzetId: maszyna.id,
         data,
         budowaId,
-        pracownikId,
+        pracownikId: pracownik?.id,
+        raportPracownikaId,
         pozycje,
         uwagi: uwagi.trim() || undefined,
       });
@@ -171,33 +191,6 @@ export default function RaportSprzetuScreen() {
                     etykieta={`${budowa.kodBudowy} · ${budowa.nazwaInwestycji}`}
                     accessibilityLabel={`Budowa ${budowa.kodBudowy}`}
                     onPress={() => setBudowaId(budowa.id)}
-                  />
-                ))}
-              </View>
-            )}
-          </View>
-
-          <View>
-            <Etykieta
-              tekst="Pracownik"
-              wymagane
-              prawy={(
-                <TouchableOpacity onPress={() => router.push('/budzet/pracownicy/nowy' as never)}>
-                  <Text style={{ color: theme.colors.primary, fontWeight: '800', fontSize: 13 }}>+ Nowy</Text>
-                </TouchableOpacity>
-              )}
-            />
-            {pracownicy.length === 0 ? (
-              <Text style={[styles.opis, { color: theme.colors.textSecondary }]}>Najpierw dodaj pracownika w menu Pracownicy.</Text>
-            ) : (
-              <View style={stylFormularza.chipy}>
-                {pracownicyAlfabetycznie(pracownicy).map((pracownik) => (
-                  <Wybor
-                    key={pracownik.id}
-                    zaznaczony={pracownik.id === pracownikId}
-                    etykieta={nazwaPracownika(pracownik)}
-                    accessibilityLabel={`Pracownik ${nazwaPracownika(pracownik)}`}
-                    onPress={() => setPracownikId(pracownik.id)}
                   />
                 ))}
               </View>
@@ -285,6 +278,56 @@ export default function RaportSprzetuScreen() {
               </View>
             );
           })}
+
+          <View style={[styles.blok, { borderColor: zPracownikiem ? theme.colors.primary : theme.colors.border, backgroundColor: theme.colors.card }]}>
+            <View style={styles.check}>
+              <TouchableOpacity
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: zPracownikiem }}
+                accessibilityLabel="Przypisz pracownika"
+                onPress={() => setZPracownikiem(!zPracownikiem)}
+                style={[styles.check, { flex: 1 }]}
+              >
+                <Text style={[styles.ptaszek, { color: theme.colors.primary }]}>{zPracownikiem ? '☑' : '☐'}</Text>
+                <Text style={[styles.checkTekst, { color: theme.colors.text }]}>Pracownik</Text>
+                {pracownik ? <Text style={[styles.checkKwota, { color: theme.colors.text }]}>{formatLiczby(praca.wynik.koszt)} zł</Text> : null}
+              </TouchableOpacity>
+              {zPracownikiem ? (
+                <TouchableOpacity onPress={() => router.push('/budzet/pracownicy/nowy' as never)}>
+                  <Text style={{ color: theme.colors.primary, fontWeight: '800', fontSize: 13 }}>+ Nowy</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+            {!zPracownikiem ? (
+              <Text style={[styles.opis, { color: theme.colors.textSecondary }]}>
+                Bez pracownika – np. sprzęt z firmy zewnętrznej z własnym operatorem.
+              </Text>
+            ) : pracownicy.length === 0 ? (
+              <Text style={[styles.opis, { color: theme.colors.textSecondary }]}>Najpierw dodaj pracownika w menu Pracownicy.</Text>
+            ) : (
+              <>
+                <View style={stylFormularza.chipy}>
+                  {pracownicyAlfabetycznie(pracownicy).map((p) => (
+                    <Wybor
+                      key={p.id}
+                      zaznaczony={p.id === pracownikId}
+                      etykieta={nazwaPracownika(p)}
+                      accessibilityLabel={`Pracownik ${nazwaPracownika(p)}`}
+                      onPress={() => setPracownikId(p.id)}
+                    />
+                  ))}
+                </View>
+                {pracownik ? (
+                  <>
+                    <Text style={[styles.opis, { color: theme.colors.textSecondary }]}>
+                      Po zapisie raport pracy {nazwaPracownika(pracownik)} z tego dnia doda się sam – do kosztów i wypłaty.
+                    </Text>
+                    <PolaPracyPracownika praca={praca} theme={theme} etykietaKwoty="Koszt pracownika" />
+                  </>
+                ) : null}
+              </>
+            )}
+          </View>
 
           <Pole etykieta="Uwagi" value={uwagi} onChangeText={setUwagi} placeholder="Komentarz" accessibilityLabel="Uwagi" />
 

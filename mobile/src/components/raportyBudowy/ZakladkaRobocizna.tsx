@@ -78,7 +78,7 @@ export function ZakladkaRobocizna({ raport, onZmien }: {
               key={s.id}
               zaznaczony={raport.zatwierdzonySprzet.includes(s.id)}
               tytul={nazwa}
-              opis={`Operator: ${imie(s.pracownikId)}${s.uwagi ? ` · ${s.uwagi}` : ''}`}
+              opis={`${s.pracownikId ? `Operator: ${imie(s.pracownikId)}` : 'Bez pracownika'}${s.uwagi ? ` · ${s.uwagi}` : ''}`}
               prawy={`${formatLiczby(s.kwota)} zł`}
               accessibilityLabel={`Zatwierdź ${nazwa}`}
               onPress={() => przelacz('zatwierdzonySprzet', s.id)}
