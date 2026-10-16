@@ -1,7 +1,7 @@
 // Raporty dzienne z budowy: warstwy z konstrukcji, przerób, materiał, transport i robocizna dnia.
 
 import { cenaReceptyNaDzien } from '../mieszanki/recepty';
-import { round2, round3 } from '../utils/calculations';
+import { formatLiczby, round2, round3 } from '../utils/calculations';
 import { GESTOSC_KLSM_DOMYSLNA, GESTOSC_MMA_DOMYSLNA } from '../utils/projektBudowy';
 import type { RaportPracownika, RaportSprzetu } from '../budzet/typy';
 import type { KategoriaWarstwy, Mieszanka, ProjektBudowy, WarstwaKonstrukcji } from '../types';
@@ -286,7 +286,7 @@ export const OPISY_ROZLICZENIA_SAMOCHODOW: { id: RozliczenieSamochodu; nazwa: st
 const liczba = (n: number) => String(round3(n)).replace('.', ',');
 
 export function wzorSamochodow(s: Pick<WpisSamochodow, 'rozliczenie' | 'stawka' | 'kursy' | 'km' | 'tony'>): string {
-  const wynik = `${kwotaSamochodow(s).toFixed(2).replace('.', ',')} zł`;
+  const wynik = `${formatLiczby(kwotaSamochodow(s))} zł`;
   if (s.rozliczenie === 'kurs') return `${liczba(s.stawka)} zł × ${s.kursy} kursów = ${wynik}`;
   if (s.rozliczenie === 'tkm') return `${liczba(s.stawka)} zł × ${liczba(s.tony ?? 0)} t × ${liczba(s.km ?? 0)} km = ${wynik}`;
   return `${liczba(s.stawka)} zł × ${liczba(s.km ?? 0)} km × ${s.kursy} kursów = ${wynik}`;
