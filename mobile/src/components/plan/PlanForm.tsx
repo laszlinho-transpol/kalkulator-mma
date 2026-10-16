@@ -266,6 +266,7 @@ export function PlanForm({ tytul, initialPlan, onZapisz }: PlanFormProps) {
       <AppHeader
         tytul={tytul}
         lewy={{ tekst: 'Anuluj', onPress: () => router.back(), kolor: theme.colors.danger }}
+        menu
         prawy={{ tekst: 'Zapisz', onPress: zapisz, kolor: theme.colors.primary }}
       />
 

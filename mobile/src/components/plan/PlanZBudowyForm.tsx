@@ -393,7 +393,7 @@ export function PlanZBudowyForm({ tytul, budowaId, initialPlan, onZapisz }: Prop
   if (!budowa) {
     return (
       <View style={[styl.container, { backgroundColor: theme.colors.background }]}>
-        <AppHeader tytul={tytul} lewy={{ tekst: 'Anuluj', onPress: () => router.back() }} />
+        <AppHeader tytul={tytul} lewy={{ tekst: 'Anuluj', onPress: () => router.back() }} menu />
         <Text style={{ color: theme.colors.danger, padding: 24 }}>Nie znaleziono budowy.</Text>
       </View>
     );
@@ -402,7 +402,7 @@ export function PlanZBudowyForm({ tytul, budowaId, initialPlan, onZapisz }: Prop
   if (!projekt || obszary.length === 0 || !zak || !widok) {
     return (
       <View style={[styl.container, { backgroundColor: theme.colors.background }]}>
-        <AppHeader tytul={tytul} lewy={{ tekst: 'Anuluj', onPress: () => router.back() }} />
+        <AppHeader tytul={tytul} lewy={{ tekst: 'Anuluj', onPress: () => router.back() }} menu />
         <Text style={{ color: theme.colors.textSecondary, padding: 24, lineHeight: 22 }}>
           Ta budowa nie ma jeszcze legendy obszarów. Uzupełnij PZT, legendę i konstrukcje w menu Budowa, potem wróć tutaj.
         </Text>
@@ -416,6 +416,7 @@ export function PlanZBudowyForm({ tytul, budowaId, initialPlan, onZapisz }: Prop
         tytul={tytul}
         podtytul={`${budowa.kodBudowy} – ${budowa.nazwaInwestycji}`}
         lewy={{ tekst: 'Anuluj', onPress: () => router.back(), kolor: theme.colors.danger }}
+        menu
         prawy={{ tekst: 'Zapisz', onPress: zapisz, kolor: theme.colors.primary }}
       />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>

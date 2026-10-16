@@ -29,6 +29,8 @@ import { formatujPikietaz } from '../../src/utils/chainage';
 import { formatujKmM } from '../../src/utils/projektBudowy';
 import { obszarySzkicuPlanu } from '../../src/utils/planZBudowy';
 import type { AppTheme } from '../../src/constants/theme';
+import { AppHeader } from '../../src/components/common/AppHeader';
+import { wstecz } from '../../src/budzet/nawigacja';
 
 type ZakladkaTyp = 'podsumowanie' | 'live' | 'szkic';
 
@@ -49,10 +51,8 @@ export default function ArchiwumDetailScreen() {
 
   if (!plan) {
     return (
-      <View style={[styles.container, { backgroundColor: theme.colors.background, paddingTop: insets.top }]}>
-        <TouchableOpacity onPress={() => router.back()} style={{ padding: 20 }}>
-          <Text style={{ color: theme.colors.primary, fontSize: 17 }}>‹ Wstecz</Text>
-        </TouchableOpacity>
+      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+        <AppHeader tytul="Archiwum" lewy={{ tekst: '‹ Wstecz', onPress: () => wstecz('/archiwum') }} />
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
           <Text style={{ color: theme.colors.textSecondary }}>Plan nie znaleziony.</Text>
         </View>
@@ -97,27 +97,16 @@ export default function ArchiwumDetailScreen() {
   const kolorGr = bilans.deltaGruboscCm > 0.0005 ? theme.colors.danger : theme.colors.success;
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background, paddingTop: insets.top }]}>
-      {/* Nagłówek */}
-      <View style={[styles.naglowek, { backgroundColor: theme.colors.card, borderBottomColor: theme.colors.border }]}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Text style={[styles.wstecz, { color: theme.colors.primary }]}>‹ Wstecz</Text>
-        </TouchableOpacity>
-        <Text style={[styles.tytulN, { color: theme.colors.text }]} numberOfLines={1}>
-          {formatujDatePl(plan.dataWbudowywania).split(',')[0]}
-        </Text>
-        <View style={{ flexDirection: 'row', gap: 12 }}>
-          <TouchableOpacity onPress={() => setUdostepnijModal(true)}>
-            <Text style={[styles.btnPDF, { color: theme.colors.secondary }]}>↑ Udostępnij</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={handleGenerujPDF} disabled={generujePDF}>
-            {generujePDF
-              ? <ActivityIndicator color={theme.colors.primary} />
-              : <Text style={[styles.btnPDF, { color: theme.colors.primary }]}>📄 PDF</Text>
-            }
-          </TouchableOpacity>
-        </View>
-      </View>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <AppHeader
+        tytul={formatujDatePl(plan.dataWbudowywania).split(',')[0]}
+        podtytul="Archiwum"
+        lewy={{ tekst: '‹ Wstecz', onPress: () => wstecz('/archiwum') }}
+        przyciski={[
+          { tekst: '↑ Udostępnij', onPress: () => setUdostepnijModal(true), kolor: theme.colors.secondary },
+          { tekst: generujePDF ? 'Generowanie…' : '📄 PDF', onPress: handleGenerujPDF, disabled: generujePDF },
+        ]}
+      />
 
       {/* Zakładki z animowanym wskaźnikiem */}
       <AnimatedTabBar

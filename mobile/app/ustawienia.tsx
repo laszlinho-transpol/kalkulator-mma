@@ -22,6 +22,8 @@ import { pobierzUstawienia, zapiszUstawienia } from '../src/utils/ustawieniaApli
 import { formatujDateKopii, opisPodsumowania, podsumujKopie } from '../src/utils/kopiaZapasowa';
 import { przywrocKopie, wybierzPlikKopii, zapiszPlikKopii, zbierzKopie } from '../src/utils/kopiaZapasowaPlik';
 import { pokazKomunikat, potwierdzAkcje } from '../src/utils/dialog';
+import { AppHeader } from '../src/components/common/AppHeader';
+import { wstecz } from '../src/budzet/nawigacja';
 
 const KLUCZ_ONBOARDING = '@mma:onboardingComplete';
 const KLUCZ_USTAWIEN = '@mma:settings';
@@ -144,14 +146,8 @@ export default function UstawieniaScreen() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background, paddingTop: insets.top }]}>
-      <View style={[styles.naglowek, { backgroundColor: theme.colors.card, borderBottomColor: theme.colors.border }]}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Text style={[styles.wstecz, { color: theme.colors.primary }]}>‹ Wstecz</Text>
-        </TouchableOpacity>
-        <Text style={[styles.tytul, { color: theme.colors.text }]}>Ustawienia</Text>
-        <View style={{ width: 60 }} />
-      </View>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <AppHeader tytul="Ustawienia" lewy={{ tekst: '‹ Wstecz', onPress: () => wstecz('/') }} />
 
       <ScrollView contentContainerStyle={[styles.zawartosc, { paddingBottom: insets.bottom + 16 }]} showsVerticalScrollIndicator={false}>
 
@@ -331,9 +327,6 @@ function AkcjaRow({ ikona, label, opis, theme, onPress, kolor }: {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  naglowek: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1 },
-  wstecz: { fontSize: 17, minWidth: 60 },
-  tytul: { fontSize: 17, fontWeight: '700' },
   zawartosc: { padding: 16, gap: 12 },
   sekcja: { borderRadius: 14, padding: 16, borderWidth: 1 },
   sekcjaTytul: { fontSize: 11, fontWeight: '700', letterSpacing: 0.5, marginBottom: 12 },
