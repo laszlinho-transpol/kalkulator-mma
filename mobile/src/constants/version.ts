@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.37';
+export const WERSJA_APLIKACJI = '1.8.38';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,16 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.38',
+    data: '2026-10-16',
+    tytul: 'Sprzęt bez pracownika i delegacja',
+    zmiany: [
+      'Raport sprzętu: pracownik nie jest wymagany (np. firma zewnętrzna) – przypisanie przez ptaszek „Pracownik”',
+      'Po wyborze pracownika w raporcie sprzętu: godziny pracy, kierowcy i pasażera; raport pracy pracownika zapisuje się automatycznie',
+      'Pracownik: nowa stawka „Delegacja” (zł/dzień); w raporcie dnia ptaszek „Delegacja” dolicza kwotę do kosztu pracodawcy (bez ZUS)',
+    ],
+  },
   {
     wersja: '1.8.37',
     data: '2026-10-16',
