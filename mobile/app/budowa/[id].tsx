@@ -14,6 +14,7 @@ import { SekcjaPzt } from '../../src/components/budowa/SekcjaPzt';
 import { SekcjaLegenda } from '../../src/components/budowa/SekcjaLegenda';
 import { SekcjaKonstrukcje } from '../../src/components/budowa/SekcjaKonstrukcje';
 import { SekcjaPrzedmiar } from '../../src/components/budowa/SekcjaPrzedmiar';
+import { SekcjaRaporty } from '../../src/components/budowa/SekcjaRaporty';
 import { pustyProjektBudowy, zsynchronizujLegendeProjektu } from '../../src/utils/projektBudowy';
 import type { ProjektBudowy } from '../../src/types';
 
@@ -33,7 +34,7 @@ const WYKONANIE = [
 const NAZWY: Record<string, string> = Object.fromEntries([...PROJEKT, ...WYKONANIE].map((p) => [p.id, p.nazwa]));
 
 export default function BudowaSzablonScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, zakladka } = useLocalSearchParams<{ id: string; zakladka?: string }>();
   const colorScheme = useColorScheme();
   const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
   const insets = useSafeAreaInsets();
@@ -41,7 +42,7 @@ export default function BudowaSzablonScreen() {
   const zapiszProjekt = useBudowyStore((s) => s.zapiszProjekt);
   const [mapaAktywna, setMapaAktywna] = useState(false);
   const [blokadaPodgladu, setBlokadaPodgladu] = useState(false);
-  const [aktywna, setAktywna] = useState<string>('pzt');
+  const [aktywna, setAktywna] = useState<string>(() => (zakladka && NAZWY[zakladka] ? zakladka : 'pzt'));
 
   useEffect(() => {
     if (budowa && !budowa.projekt) {
@@ -94,26 +95,28 @@ export default function BudowaSzablonScreen() {
         nestedScrollEnabled
         scrollEnabled={!blokadaPodgladu && !mapaAktywna}
       >
-        <Sekcja tytul={NAZWY[aktywna] ?? ''}>
-          {aktywna === 'pzt' ? (
-            <SekcjaPzt
-              projekt={projekt}
-              theme={theme}
-              onZmien={onZmien}
-              blokadaPodgladu={blokadaPodgladu}
-              onBlokadaPodgladu={setBlokadaPodgladu}
-              onDotykZmiana={setMapaAktywna}
-            />
-          ) : null}
-          {aktywna === 'legenda' ? <SekcjaLegenda projekt={projekt} theme={theme} onZmien={onZmien} /> : null}
-          {aktywna === 'konstrukcje' ? <SekcjaKonstrukcje projekt={projekt} theme={theme} onZmien={onZmien} /> : null}
-          {aktywna === 'przedmiar' ? (
-            <SekcjaPrzedmiar projekt={projekt} theme={theme} kodBudowy={budowa.kodBudowy} onZmien={onZmien} />
-          ) : null}
-          {WYKONANIE.some((w) => w.id === aktywna) ? (
-            <Text style={{ color: theme.colors.textSecondary, fontSize: 13 }}>W przygotowaniu.</Text>
-          ) : null}
-        </Sekcja>
+        {aktywna === 'raporty' ? <SekcjaRaporty budowaId={budowa.id} /> : (
+          <Sekcja tytul={NAZWY[aktywna] ?? ''}>
+            {aktywna === 'pzt' ? (
+              <SekcjaPzt
+                projekt={projekt}
+                theme={theme}
+                onZmien={onZmien}
+                blokadaPodgladu={blokadaPodgladu}
+                onBlokadaPodgladu={setBlokadaPodgladu}
+                onDotykZmiana={setMapaAktywna}
+              />
+            ) : null}
+            {aktywna === 'legenda' ? <SekcjaLegenda projekt={projekt} theme={theme} onZmien={onZmien} /> : null}
+            {aktywna === 'konstrukcje' ? <SekcjaKonstrukcje projekt={projekt} theme={theme} onZmien={onZmien} /> : null}
+            {aktywna === 'przedmiar' ? (
+              <SekcjaPrzedmiar projekt={projekt} theme={theme} kodBudowy={budowa.kodBudowy} onZmien={onZmien} />
+            ) : null}
+            {aktywna === 'liniowka' || aktywna === 'zaawansowanie' ? (
+              <Text style={{ color: theme.colors.textSecondary, fontSize: 13 }}>W przygotowaniu.</Text>
+            ) : null}
+          </Sekcja>
+        )}
       </ScrollView>
     </View>
   );

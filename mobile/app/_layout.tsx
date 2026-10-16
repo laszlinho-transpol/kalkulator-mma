@@ -17,6 +17,7 @@ import { useFirmyStore } from '../src/stores/firmyStore';
 import { usePracownicyStore } from '../src/stores/pracownicyStore';
 import { useGrupyPracownikowStore } from '../src/stores/grupyPracownikowStore';
 import { useSprzetStore } from '../src/stores/sprzetStore';
+import { useRaportyBudowyStore } from '../src/stores/raportyBudowyStore';
 import { lightTheme, darkTheme } from '../src/constants/theme';
 import { LoadingScreen } from '../src/components/common/LoadingScreen';
 import { ErrorBoundary } from '../src/components/common/ErrorBoundary';
@@ -41,6 +42,7 @@ export default function RootLayout() {
   const zaladujPracownikow = usePracownicyStore((s) => s.zaladuj);
   const zaladujGrupyPracownikow = useGrupyPracownikowStore((s) => s.zaladuj);
   const zaladujSprzet = useSprzetStore((s) => s.zaladuj);
+  const zaladujRaportyBudowy = useRaportyBudowyStore((s) => s.zaladuj);
 
   const [ladowanie, setLadowanie] = useState(true);
   const [loadingWidoczny, setLoadingWidoczny] = useState(true);
@@ -63,6 +65,7 @@ export default function RootLayout() {
           zaladujPracownikow(),
           zaladujGrupyPracownikow(),
           zaladujSprzet(),
+          zaladujRaportyBudowy(),
         ]);
         const onboardingComplete = await AsyncStorage.getItem(KLUCZ_ONBOARDING);
         if (!onboardingComplete) {
@@ -159,6 +162,9 @@ export default function RootLayout() {
         <Stack.Screen name="obmiar/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="budowa/index" options={{ headerShown: false }} />
         <Stack.Screen name="budowa/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="raport-budowy/miesiac" options={{ headerShown: false }} />
+        <Stack.Screen name="raport-budowy/formularz" options={{ headerShown: false }} />
+        <Stack.Screen name="raport-budowy/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="niezbednik/index" options={{ headerShown: false }} />
         <Stack.Screen name="niezbednik/masa/index" options={{ headerShown: false }} />
         <Stack.Screen name="niezbednik/masa/wydajnosc-powierzchniowa" options={{ headerShown: false }} />

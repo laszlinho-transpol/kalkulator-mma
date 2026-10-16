@@ -35,6 +35,7 @@ opisanych niżej** – bez własnych kolorów, odstępów i nagłówków. Zmiana
 7. **Jeden kalendarz.** Daty wybieramy tylko przez `KalendarzDnia` (jeden dzień), `KalendarzZakresu` (od–do) albo
    `DatePickerButton` (na `Date`). Wszystkie korzystają z `SiatkaKalendarza`: soboty niebieskie (`theme.colors.sobota`),
    niedziele i święta czerwone (`theme.colors.niedziela`, święta z kropką), dziś w obwódce, legenda pod siatką.
+   Dni z wpisem (np. raport budowy) zaznaczamy na zielono: `stanDnia` → `oznaczony`, podpis w `legendaOznaczonych`.
    Daty na listach kolorujemy `kolorDnia(theme, iso)`.
 8. **Telefony.** Każdy numer pokazujemy z `AkcjeTelefonu` (Zadzwoń / Kopiuj / Udostępnij). Pole numeru:
    `klawiatura="phone-pad"`, opcjonalnie „Z kontaktów” (`wybierzKontaktZTelefonu`).
