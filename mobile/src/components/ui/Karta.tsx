@@ -100,8 +100,10 @@ export function Sekcja({ tytul, info, prawy, children, style }: {
 }
 
 /** Wiersz-przycisk przenoszący na inną stronę (wytwórnia, pracownik, recepta…). */
-export function PozycjaListy({ tytul, podtytul, ikona, prawy, onPress, accessibilityLabel }: {
+export function PozycjaListy({ tytul, podtytul, ikona, prawy, onPress, accessibilityLabel, plaska }: {
   tytul: string;
+  /** Wewnątrz Sekcji/Karty – bez cienia, tło pola. */
+  plaska?: boolean;
   podtytul?: string;
   /** Emoji albo krótki tekst w kolorowym kółku. */
   ikona?: string;
@@ -116,7 +118,11 @@ export function PozycjaListy({ tytul, podtytul, ikona, prawy, onPress, accessibi
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? tytul}
       onPress={onPress}
-      style={[styles.pozycja, cien(theme), { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}
+      style={[
+        styles.pozycja,
+        !plaska && cien(theme),
+        { backgroundColor: plaska ? theme.colors.inputBackground : theme.colors.card, borderColor: theme.colors.border },
+      ]}
     >
       {ikona ? (
         <View style={[styles.ikonaTlo, { backgroundColor: `${theme.colors.primary}18` }]}>

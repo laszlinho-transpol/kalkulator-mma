@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, useColorScheme, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, useColorScheme, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppHeader } from '../../../../src/components/common/AppHeader';
@@ -10,7 +10,9 @@ import { wstecz } from '../../../../src/budzet/nawigacja';
 import { useRouteId } from '../../../../src/hooks/useRouteId';
 import { useMieszankiStore } from '../../../../src/stores/mieszankiStore';
 import { useWytwornieStore } from '../../../../src/stores/wytwornieStore';
-import { POLA_CENY, cenaReceptyNaDzien, linieCeny } from '../../../../src/mieszanki/recepty';
+import { POLA_CENY, cenaReceptyNaDzien, linieCeny, numerDnia, punktyHistoriiCeny } from '../../../../src/mieszanki/recepty';
+import { Przycisk, Sekcja, SiatkaDanych, WierszDanych, WykresLiniowy } from '../../../../src/components/ui';
+import type { Mieszanka } from '../../../../src/types';
 import { formatLiczby } from '../../../../src/utils/calculations';
 import { dzisIso } from '../../../../src/utils/zakresDat';
 import { potwierdzAkcje } from '../../../../src/utils/dialog';
@@ -29,15 +31,10 @@ export default function KartaReceptyScreen() {
   const zmienOkres = useMieszankiStore((s) => s.zmienOkresCeny);
   const usunOkres = useMieszankiStore((s) => s.usunOkresCeny);
   const wytwornia = useWytwornieStore((s) => s.wytwornie.find((w) => w.id === recepta?.wytworniaId));
-  const powrot = wytwornia ? `/mieszanki/wytwornia/${wytwornia.id}?zakladka=recepty` : '/mieszanki';
+  const powrot = wytwornia ? `/mieszanki/wytwornia/${wytwornia.id}?zakladka=mieszanki` : '/mieszanki';
   const cenaDzis = recepta ? cenaReceptyNaDzien(recepta, dzisIso()) : undefined;
 
-  const wiersz = (etykieta: string, wartosc: string) => (
-    <View style={styles.wiersz}>
-      <Text style={[styles.etykieta, { color: theme.colors.textSecondary }]}>{etykieta}</Text>
-      <Text style={[styles.wartosc, { color: theme.colors.text }]}>{wartosc}</Text>
-    </View>
-  );
+  const edytuj = () => { if (recepta) router.push(`/mieszanki/recepta/${recepta.id}/edytuj` as never); };
 
   return (
     <View style={[styles.ekran, { backgroundColor: theme.colors.background }]}>
@@ -45,7 +42,7 @@ export default function KartaReceptyScreen() {
         tytul={recepta ? `${recepta.rodzaj}${recepta.nrRecepty ? ` · ${recepta.nrRecepty}` : ''}` : 'Recepta'}
         podtytul={wytwornia?.nazwa ?? 'Bez wytwórni'}
         lewy={{ tekst: '‹ Wstecz', onPress: () => wstecz(powrot) }}
-        prawy={recepta ? { tekst: 'Edytuj', onPress: () => router.push(`/mieszanki/recepta/${recepta.id}/edytuj` as never) } : undefined}
+        prawy={recepta ? { tekst: 'Edytuj', onPress: edytuj } : undefined}
       />
       {!recepta ? (
         <Text style={[styles.brak, { color: theme.colors.textSecondary }]}>Nie znaleziono recepty.</Text>
@@ -58,33 +55,35 @@ export default function KartaReceptyScreen() {
             zakladki={[['dane', 'Dane'], ['historia', 'Historia ceny']]}
           />
           {zakladka === 'dane' ? (
-            <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-              {wiersz('Wytwórnia', wytwornia?.nazwa ?? '—')}
-              {wiersz('Rodzaj', recepta.rodzaj)}
-              {wiersz('Nr recepty', recepta.nrRecepty || '—')}
-              {wiersz('Ciężar obj.', `${recepta.ciezarObjetosciowy.toFixed(3)} t/m³`)}
-              {wiersz('Cena dziś', cenaDzis ? `${formatLiczby(cenaDzis)} zł/t` : '—')}
-              {recepta.cena && cenaDzis !== recepta.cena ? wiersz('Cena z karty', `${formatLiczby(recepta.cena)} zł/t`) : null}
-              <TouchableOpacity
-                accessibilityLabel="Edytuj receptę"
-                onPress={() => router.push(`/mieszanki/recepta/${recepta.id}/edytuj` as never)}
-                style={[styles.dodaj, { backgroundColor: theme.colors.primary }]}
-              >
-                <Text style={styles.dodajTekst}>Edytuj</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                accessibilityLabel="Usuń receptę"
-                style={styles.usun}
+            <>
+              <Sekcja tytul="Recepta" prawy={<Przycisk maly wariant="tekst" ikona="edytuj" tekst="Edytuj" accessibilityLabel="Edytuj receptę" onPress={edytuj} />}>
+                <WierszDanych etykieta="Wytwórnia" wartosc={wytwornia?.nazwa ?? '—'} />
+                <WierszDanych etykieta="Rodzaj" wartosc={recepta.rodzaj} />
+                <WierszDanych etykieta="Nr recepty" wartosc={recepta.nrRecepty || '—'} />
+              </Sekcja>
+              <Sekcja tytul="Parametry i cena">
+                <SiatkaDanych
+                  pozycje={[
+                    { etykieta: 'Ciężar obj.', wartosc: `${recepta.ciezarObjetosciowy.toFixed(3)} t/m³` },
+                    { etykieta: 'Cena dziś', wartosc: cenaDzis ? `${formatLiczby(cenaDzis)} zł/t` : '—' },
+                    ...(recepta.cena && cenaDzis !== recepta.cena ? [{ etykieta: 'Cena z karty', wartosc: `${formatLiczby(recepta.cena)} zł/t` }] : []),
+                  ]}
+                />
+              </Sekcja>
+              <Przycisk
+                wariant="niebezpieczny"
+                ikona="usun"
+                tekst="Usuń receptę"
                 onPress={() => potwierdzAkcje('Usuń receptę', `Usunąć „${recepta.rodzaj}”?`, async () => {
                   await usunMieszanke(recepta.id);
                   router.replace(powrot as never);
                 })}
-              >
-                <Text style={{ color: theme.colors.danger, fontWeight: '700' }}>Usuń receptę</Text>
-              </TouchableOpacity>
-            </View>
+              />
+            </>
           ) : (
-            <HistoriaStawek
+            <>
+              <WykresCeny historia={recepta.historiaCen} cenaKarty={recepta.cena} />
+              <HistoriaStawek
               theme={theme}
               pola={POLA_CENY}
               bazowe={{ cena: recepta.cena }}
@@ -97,7 +96,8 @@ export default function KartaReceptyScreen() {
               info="Każdy okres ma własną cenę. W dniach z zakresu obowiązuje cena okresu, poza zakresami – cena z karty recepty."
               etykietaBazowych="Cena z karty"
               brakOkresow="Brak okresów. Cena z karty obowiązuje cały czas."
-            />
+              />
+            </>
           )}
         </ScrollView>
       )}
@@ -105,15 +105,31 @@ export default function KartaReceptyScreen() {
   );
 }
 
+const krotkaData = (iso: string) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(2, 4)}`;
+
+function WykresCeny({ historia, cenaKarty }: { historia: Mieszanka['historiaCen']; cenaKarty?: number }) {
+  const punkty = punktyHistoriiCeny(historia);
+  if (punkty.length === 0) return null;
+  const pierwszy = punkty[0];
+  const ostatni = punkty[punkty.length - 1];
+  return (
+    <Sekcja tytul="Wykres ceny" info="Linia pokazuje cenę w kolejnych okresach historii. Przerywana linia to cena z karty recepty, obowiązująca poza okresami.">
+      <WykresLiniowy
+        opis="Wykres historii ceny"
+        punkty={punkty.map((p) => ({ x: numerDnia(p.iso), y: p.cena, znacznik: p.poczatek }))}
+        formatY={(y) => `${formatLiczby(y)} zł`}
+        etykietyX={[
+          { x: numerDnia(pierwszy.iso), tekst: krotkaData(pierwszy.iso) },
+          ...(ostatni.iso !== pierwszy.iso ? [{ x: numerDnia(ostatni.iso), tekst: krotkaData(ostatni.iso) }] : []),
+        ]}
+        odniesienie={cenaKarty ? { y: cenaKarty, etykieta: `karta ${formatLiczby(cenaKarty)} zł` } : undefined}
+      />
+    </Sekcja>
+  );
+}
+
 const styles = StyleSheet.create({
   ekran: { flex: 1 },
   brak: { padding: 24, fontSize: 16 },
   tresc: { padding: 14, gap: 12 },
-  karta: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 8 },
-  wiersz: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
-  etykieta: { fontSize: 14 },
-  wartosc: { fontSize: 15, fontWeight: '700', flexShrink: 1, textAlign: 'right' },
-  dodaj: { borderRadius: 12, paddingVertical: 12, alignItems: 'center', marginTop: 4 },
-  dodajTekst: { color: '#1A1A1A', fontWeight: '800' },
-  usun: { alignItems: 'center', paddingVertical: 6 },
 });

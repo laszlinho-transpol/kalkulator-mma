@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, useColorScheme, View } from 'react-native';
+import { Platform, ScrollView, StyleSheet, Text, useColorScheme, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppHeader } from '../../../../src/components/common/AppHeader';
 import { Zakladki } from '../../../../src/components/budzet/Zakladki';
+import { Karta, PozycjaListy, Przycisk, PrzyciskIkony, Sekcja, WierszDanych } from '../../../../src/components/ui';
 import { MapaLokalizacji } from '../../../../src/components/mieszanki/MapaLokalizacji';
 import { KontaktyWytworni } from '../../../../src/components/mieszanki/KontaktyWytworni';
 import { lightTheme, darkTheme } from '../../../../src/constants/theme';
@@ -18,14 +19,14 @@ import { formatLiczby } from '../../../../src/utils/calculations';
 import { dzisIso } from '../../../../src/utils/zakresDat';
 import { potwierdzAkcje } from '../../../../src/utils/dialog';
 
-type ZakladkaWytworni = 'info' | 'recepty';
+type ZakladkaWytworni = 'info' | 'mieszanki';
 
 export default function KartaWytworniScreen() {
   const id = useRouteId();
   const { zakladka: startowa } = useLocalSearchParams<{ zakladka?: string }>();
   const theme = useColorScheme() === 'dark' ? darkTheme : lightTheme;
   const insets = useSafeAreaInsets();
-  const [zakladka, setZakladka] = useState<ZakladkaWytworni>(startowa === 'recepty' ? 'recepty' : 'info');
+  const [zakladka, setZakladka] = useState<ZakladkaWytworni>(startowa === 'mieszanki' || startowa === 'recepty' ? 'mieszanki' : 'info');
   const wytwornia = useWytwornieStore((s) => s.wytwornie.find((w) => w.id === id));
   const edytujWytwornie = useWytwornieStore((s) => s.edytujWytwornie);
   const usunWytwornie = useWytwornieStore((s) => s.usunWytwornie);
@@ -45,6 +46,8 @@ export default function KartaWytworniScreen() {
     return () => { aktualne = false; };
   }, [id, link, adres, edytujWytwornie]);
 
+  const edytuj = () => { if (id) router.push(`/mieszanki/wytwornia/${id}/edytuj` as never); };
+
   const usun = () => {
     if (!wytwornia) return;
     potwierdzAkcje(
@@ -62,9 +65,9 @@ export default function KartaWytworniScreen() {
     <View style={[styles.ekran, { backgroundColor: theme.colors.background }]}>
       <AppHeader
         tytul={wytwornia?.nazwa ?? 'Wytwórnia'}
-        podtytul={`Recept: ${recepty.length}`}
+        podtytul={`Mieszanek: ${recepty.length}`}
         lewy={{ tekst: '‹ Wstecz', onPress: () => wstecz('/mieszanki') }}
-        prawy={wytwornia ? { tekst: 'Edytuj', onPress: () => router.push(`/mieszanki/wytwornia/${wytwornia.id}/edytuj` as never) } : undefined}
+        prawy={wytwornia ? { tekst: 'Edytuj', onPress: edytuj } : undefined}
       />
       {!wytwornia ? (
         <Text style={[styles.brak, { color: theme.colors.textSecondary }]}>Nie znaleziono wytwórni.</Text>
@@ -74,77 +77,66 @@ export default function KartaWytworniScreen() {
             theme={theme}
             aktywna={zakladka}
             onZmien={setZakladka}
-            zakladki={[['info', 'Info'], ['recepty', `Recepty · ${recepty.length}`]]}
+            zakladki={[['info', 'Info'], ['mieszanki', `Mieszanki · ${recepty.length}`]]}
           />
           {zakladka === 'info' ? (
             <>
-              <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-                <View style={styles.wiersz}>
-                  <Text style={[styles.etykieta, { color: theme.colors.textSecondary }]}>Nazwa</Text>
-                  <Text style={[styles.wartosc, { color: theme.colors.text }]}>{wytwornia.nazwa}</Text>
-                </View>
-                <View style={styles.wiersz}>
-                  <Text style={[styles.etykieta, { color: theme.colors.textSecondary }]}>Lokalizacja</Text>
-                  <Text style={[styles.wartosc, { color: theme.colors.text }]} numberOfLines={2}>{adres || (link ? 'z linku Google Maps' : '—')}</Text>
-                </View>
+              <Sekcja tytul="Wytwórnia" prawy={<Przycisk maly wariant="tekst" ikona="edytuj" tekst="Edytuj" onPress={edytuj} />}>
+                <WierszDanych etykieta="Nazwa" wartosc={wytwornia.nazwa} />
+                <WierszDanych etykieta="Lokalizacja" wartosc={adres || (link ? 'z linku Google Maps' : '—')} />
                 {link && !adres && Platform.OS === 'web' && czyKrotkiLinkMaps(link) ? (
-                  <TouchableOpacity onPress={() => router.push(`/mieszanki/wytwornia/${wytwornia.id}/edytuj` as never)}>
-                    <Text style={{ color: theme.colors.warning, fontWeight: '700' }}>
-                      Podgląd mapy wymaga adresu – w przeglądarce skróconego linku nie da się odczytać. Uzupełnij adres ›
-                    </Text>
-                  </TouchableOpacity>
+                  <Przycisk
+                    maly
+                    wariant="tekst"
+                    tekst="Uzupełnij adres, aby zobaczyć mapę"
+                    accessibilityLabel="Uzupełnij adres mapy"
+                    onPress={edytuj}
+                  />
                 ) : null}
                 <MapaLokalizacji theme={theme} adres={adres} link={link} />
-                {!link && !adres ? (
-                  <TouchableOpacity onPress={() => router.push(`/mieszanki/wytwornia/${wytwornia.id}/edytuj` as never)}>
-                    <Text style={{ color: theme.colors.primary, fontWeight: '800' }}>+ Dodaj lokalizację</Text>
-                  </TouchableOpacity>
-                ) : null}
-              </View>
-              <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+                {!link && !adres ? <Przycisk maly wariant="drugi" ikona="mapa" tekst="Dodaj lokalizację" onPress={edytuj} /> : null}
+              </Sekcja>
+              <Karta>
                 <KontaktyWytworni
                   theme={theme}
                   nazwaWytworni={wytwornia.nazwa}
                   kontakty={wytwornia.kontakty ?? []}
                   onZmien={(kontakty) => edytujWytwornie(wytwornia.id, { kontakty })}
                 />
-              </View>
-              <TouchableOpacity accessibilityLabel="Usuń wytwórnię" onPress={usun} style={styles.usun}>
-                <Text style={{ color: theme.colors.danger, fontWeight: '700' }}>Usuń wytwórnię</Text>
-              </TouchableOpacity>
+              </Karta>
+              <Przycisk wariant="niebezpieczny" ikona="usun" tekst="Usuń wytwórnię" onPress={usun} />
             </>
           ) : (
-            <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-              <TouchableOpacity
-                accessibilityLabel="Dodaj receptę"
-                onPress={() => router.push(`/mieszanki/recepta/nowa?wytwornia=${wytwornia.id}` as never)}
-                style={[styles.dodaj, { backgroundColor: theme.colors.primary }]}
-              >
-                <Text style={styles.dodajTekst}>Dodaj receptę</Text>
-              </TouchableOpacity>
+            <Sekcja
+              tytul="Mieszanki wytwórni"
+              info="Recepty tej wytwórni wybierasz potem w planach dnia i obmiarach. Cena z karty recepty liczy się w Budżecie."
+              prawy={(
+                <PrzyciskIkony
+                  ikona="plus"
+                  accessibilityLabel="Dodaj receptę"
+                  kolor="#1A1A1A"
+                  tlo={theme.colors.primary}
+                  onPress={() => router.push(`/mieszanki/recepta/nowa?wytwornia=${wytwornia.id}` as never)}
+                />
+              )}
+            >
               {recepty.length === 0 ? (
-                <Text style={{ color: theme.colors.textSecondary }}>Brak recept w tej wytwórni.</Text>
+                <Text style={{ color: theme.colors.textSecondary }}>Brak mieszanek. Dodaj pierwszą plusem.</Text>
               ) : recepty.map((r) => {
                 const cena = cenaReceptyNaDzien(r, dzis);
                 return (
-                  <TouchableOpacity
+                  <PozycjaListy
                     key={r.id}
+                    plaska
+                    tytul={`${r.rodzaj}${r.nrRecepty ? ` · ${r.nrRecepty}` : ''}`}
+                    podtytul={`ρ = ${r.ciezarObjetosciowy.toFixed(3)} t/m³`}
+                    prawy={cena ? `${formatLiczby(cena)} zł/t` : 'bez ceny'}
                     accessibilityLabel={`Recepta ${r.rodzaj}`}
                     onPress={() => router.push(`/mieszanki/recepta/${r.id}` as never)}
-                    style={[styles.recepta, { borderColor: theme.colors.border }]}
-                  >
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.rodzaj, { color: theme.colors.text }]}>{r.rodzaj}{r.nrRecepty ? ` · ${r.nrRecepty}` : ''}</Text>
-                      <Text style={{ color: theme.colors.textSecondary }}>ρ = {r.ciezarObjetosciowy.toFixed(3)} t/m³</Text>
-                    </View>
-                    <Text style={[styles.cena, { color: cena ? theme.colors.text : theme.colors.textSecondary }]}>
-                      {cena ? `${formatLiczby(cena)} zł/t` : 'bez ceny'}
-                    </Text>
-                    <Text style={{ color: theme.colors.textSecondary, fontSize: 20 }}>›</Text>
-                  </TouchableOpacity>
+                  />
                 );
               })}
-            </View>
+            </Sekcja>
           )}
         </ScrollView>
       )}
@@ -156,14 +148,4 @@ const styles = StyleSheet.create({
   ekran: { flex: 1 },
   brak: { padding: 24, fontSize: 16 },
   tresc: { padding: 14, gap: 12 },
-  karta: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 10 },
-  wiersz: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
-  etykieta: { fontSize: 14 },
-  wartosc: { fontSize: 15, fontWeight: '700', flexShrink: 1, textAlign: 'right' },
-  usun: { alignItems: 'center', paddingVertical: 8 },
-  dodaj: { borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
-  dodajTekst: { color: '#1A1A1A', fontWeight: '800' },
-  recepta: { borderTopWidth: 1, paddingTop: 10, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  rodzaj: { fontSize: 16, fontWeight: '800' },
-  cena: { fontSize: 15, fontWeight: '800' },
 });

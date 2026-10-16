@@ -17,7 +17,7 @@ export default function NowaReceptaScreen() {
     <FormularzRecepty
       theme={theme}
       tytul="Nowa recepta"
-      wsteczDo={startowa ? `/mieszanki/wytwornia/${startowa}?zakladka=recepty` : '/mieszanki'}
+      wsteczDo={startowa ? `/mieszanki/wytwornia/${startowa}?zakladka=mieszanki` : '/mieszanki'}
       poczatek={{ wytworniaId: startowa }}
       onZapisz={async (dane) => {
         const id = await dodajMieszanke({ ...dane, wytwórnia: wytwornie.find((w) => w.id === dane.wytworniaId)?.nazwa });
