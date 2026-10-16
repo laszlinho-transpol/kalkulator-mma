@@ -171,10 +171,12 @@ interface PoleProps {
   onPress: () => void;
   accessibilityLabel: string;
   tlo?: string;
+  /** Kolor tekstu daty – soboty, niedziele i święta (kolorDnia). */
+  kolor?: string;
 }
 
 /** Pole formularza otwierające kalendarz. */
-export function PoleDaty({ tekst, onPress, accessibilityLabel, tlo }: PoleProps) {
+export function PoleDaty({ tekst, onPress, accessibilityLabel, tlo, kolor }: PoleProps) {
   const theme = useMotyw();
   return (
     <Naciskany
@@ -183,7 +185,7 @@ export function PoleDaty({ tekst, onPress, accessibilityLabel, tlo }: PoleProps)
       style={[styles.pole, { borderColor: theme.colors.border, backgroundColor: tlo ?? theme.colors.inputBackground }]}
     >
       <Text style={{ fontSize: 16 }}>📅</Text>
-      <Text style={[styles.poleTekst, { color: theme.colors.text }]} numberOfLines={1}>{tekst}</Text>
+      <Text style={[styles.poleTekst, { color: kolor ?? theme.colors.text }]} numberOfLines={1}>{tekst}</Text>
       <Text style={{ color: theme.colors.primary, fontWeight: '800' }}>▾</Text>
     </Naciskany>
   );

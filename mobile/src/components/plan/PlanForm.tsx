@@ -278,7 +278,7 @@ export function PlanForm({ tytul, initialPlan, onZapisz }: PlanFormProps) {
           {/* Ogólne */}
           <Sekcja tytul="Ogólne" theme={theme}>
             <DatePickerButton label="Data wbudowywania" value={dataWbudowywania} onChange={setData} minimumDate={minimumDataWbudowywania} />
-            <View style={{ marginTop: 10 }}>
+            <View>
               <Text style={[styles.etykieta, { color: theme.colors.textSecondary }]}>Budowa</Text>
               <TouchableOpacity
                 style={[styles.input, { backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.border, justifyContent: 'center' }]}
@@ -354,7 +354,7 @@ export function PlanForm({ tytul, initialPlan, onZapisz }: PlanFormProps) {
                 placeholderTextColor={theme.colors.textSecondary}
                 keyboardType="numbers-and-punctuation"
               />
-              {rzutyStr && !walidujRzuty(rzutyStr, sumaAut) && (
+              {!!rzutyStr && !walidujRzuty(rzutyStr, sumaAut) && (
                 <Text style={[styles.bladRzuty, { color: theme.colors.danger }]}>
                   Suma rzutów musi wynosić {sumaAut}
                 </Text>

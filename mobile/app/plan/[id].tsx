@@ -196,7 +196,7 @@ export default function PlanDetailScreen() {
               const km1 = pikietazPoMetrach(km0, obliczLacznaDlugosc(dz), dz.kierunekUkladania);
               const zakres = `${formatujPikietaz(km0)} – ${formatujPikietaz(km1)}`;
               return (
-                <Sekcja key={dz.id} tytul={zakres}>
+                <Sekcja key={dz.id} tytul={dz.nazwa ? `${dz.nazwa} · ${zakres}` : zakres}>
                   <WierszDanych etykieta="Kierunek" wartosc={dz.kierunekUkladania === 'malejacy' ? 'malejący ↓' : 'rosnący ↑'} />
                   <WierszDanych etykieta="Mieszanka" wartosc={`${mieszanka.rodzaj}  ρ=${mieszanka.ciezarObjetosciowy.toFixed(3)}`} />
                   <WierszDanych etykieta="Tolerancja" wartosc={formatujTolerancje(dz)} />

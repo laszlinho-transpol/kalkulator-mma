@@ -2,6 +2,8 @@
 
 import React, { useState } from 'react';
 import type { AppTheme } from '../../constants/theme';
+import { kolorDnia } from '../../constants/styl';
+import { useMotyw } from '../../hooks/useMotyw';
 import { OknoKalendarza, PoleDaty, SiatkaKalendarza } from '../ui/Kalendarz';
 
 export function formatujDzienIso(iso: string): string {
@@ -25,6 +27,7 @@ interface Props {
 }
 
 export function KalendarzDnia({ wartosc, onZatwierdz, min, accessibilityLabel = 'Wybierz datę raportu' }: Props) {
+  const theme = useMotyw();
   const [otwarty, setOtwarty] = useState(false);
   const [wybrany, setWybrany] = useState(wartosc);
   const [rok, setRok] = useState(Number(wartosc.slice(0, 4)));
@@ -39,7 +42,7 @@ export function KalendarzDnia({ wartosc, onZatwierdz, min, accessibilityLabel = 
 
   return (
     <>
-      <PoleDaty tekst={formatujDzienIso(wartosc)} onPress={otworz} accessibilityLabel={accessibilityLabel} />
+      <PoleDaty tekst={formatujDzienIso(wartosc)} kolor={kolorDnia(theme, wartosc)} onPress={otworz} accessibilityLabel={accessibilityLabel} />
       <OknoKalendarza
         widoczny={otwarty}
         podpis={formatujDzienIso(wybrany)}
