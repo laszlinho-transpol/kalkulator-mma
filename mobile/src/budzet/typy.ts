@@ -45,6 +45,10 @@ export interface RaportPracownika {
   nadgodziny: number;
   godzinyKierowca?: number;
   godzinyPasazer?: number;
+  /** Dzień w delegacji – do kosztu dolicza się stawki.delegacja. */
+  delegacja?: boolean;
+  /** Raport utworzony razem z raportem sprzętu (pracownik jako operator). */
+  sprzetId?: string;
   stawki: StawkiPracownika;
   wynagrodzenie: number;
   /** Wynagrodzenie × mnożnik ZUS. */
@@ -81,7 +85,9 @@ export interface RaportSprzetu {
   sprzetId: string;
   data: string;
   budowaId: string;
-  pracownikId: string;
+  /** Brak przy sprzęcie z firmy zewnętrznej, gdy nie przypisano pracownika. */
+  pracownikId?: string;
+  raportPracownikaId?: string;
   pozycje: PozycjaRaportuSprzetu[];
   uwagi?: string;
   kwota: number;

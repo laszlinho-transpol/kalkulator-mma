@@ -25,6 +25,7 @@ const PRZYKLADY: Record<PoleWynagrodzenia, string> = {
   kierowca: 'np. 30',
   pasazer: 'np. 20',
   zus: 'np. 1,4',
+  delegacja: 'np. 40',
 };
 
 interface Props {
@@ -48,6 +49,7 @@ export function FormularzPracownika({ theme, tytul, wsteczDo, poczatek, onZapisz
     kierowca: tekstZapisanejStawki(poczatek?.stawki.kierowca),
     pasazer: tekstZapisanejStawki(poczatek?.stawki.pasazer),
     zus: tekstZapisanejStawki(poczatek?.stawki.zus),
+    delegacja: tekstZapisanejStawki(poczatek?.stawki.delegacja),
   }));
   const [blad, setBlad] = useState('');
   const [zapis, setZapis] = useState(false);
@@ -170,7 +172,7 @@ export function FormularzPracownika({ theme, tytul, wsteczDo, poczatek, onZapisz
         <Etykieta tekst="WYNAGRODZENIE" info="Okres obowiązywania stawek ustawisz w zakładce Historia stawek na karcie pracownika." />
         <Wiersz>{polaStawek(['stawka8h', 'nadgodzina'])}</Wiersz>
         <Wiersz>{polaStawek(['kierowca', 'pasazer'])}</Wiersz>
-        <Wiersz>{[...polaStawek(['zus']), <View key="pusto" />]}</Wiersz>
+        <Wiersz>{polaStawek(['zus', 'delegacja'])}</Wiersz>
 
         {blad ? <Text style={[stylFormularza.blad, { color: theme.colors.danger }]}>{blad}</Text> : null}
         <TouchableOpacity

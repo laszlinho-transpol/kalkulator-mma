@@ -159,10 +159,12 @@ export default function KartaPracownikaScreen() {
               ) : lista.map((raport) => {
                 const budowa = budowy.find((b) => b.id === raport.budowaId);
                 const dojazd = dojazdRaportu(raport);
-                const wynik = kwotaPracownika(raport.stawki, raport.godzinyPodstawowe, raport.nadgodziny, dojazd);
+                const wynik = kwotaPracownika(raport.stawki, raport.godzinyPodstawowe, raport.nadgodziny, dojazd, raport.delegacja);
                 return (
                   <View key={raport.id} style={[styles.raport, { borderColor: theme.colors.border }]}>
-                    <Text style={[styles.data, { color: theme.colors.text }]}>{dataKrotko(raport.data)} · {formatLiczby(raport.godziny)} h</Text>
+                    <Text style={[styles.data, { color: theme.colors.text }]}>
+                      {dataKrotko(raport.data)} · {formatLiczby(raport.godziny)} h{raport.delegacja ? ' · delegacja' : ''}
+                    </Text>
                     <Text style={{ color: theme.colors.textSecondary }}>
                       {budowa ? `${budowa.kodBudowy} · ${budowa.nazwaInwestycji}` : 'Budowa usunięta'}
                     </Text>

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { czyDzienWolny, swietaPolskie } from './kalendarzPracy';
 import { dniRoboczeMiesiaca } from './rozliczenie';
 import {
-  BEZ_DOJAZDU, kwotaPracownika, nazwaPracownika, podzialGodzin, rozdzielImieNazwisko, sekcjePracownikow,
+  BEZ_DOJAZDU, bladPracyDnia, kwotaPracownika, nazwaPracownika, podzialGodzin, rozdzielImieNazwisko, sekcjePracownikow,
 } from './pracownicy';
 import type { GrupaPracownikow, Pracownik } from './typy';
 
@@ -52,6 +52,23 @@ describe('wynagrodzenie pracownika', () => {
     assert.equal(wynik.koszt, 672);
     assert.equal(kwotaPracownika(stawki, 8, 2, { kierowca: 0, pasazer: 2 }).wynagrodzenie, 360 + 120 + 40);
     assert.equal(kwotaPracownika({ stawka8h: 25 }, 8, 0, BEZ_DOJAZDU).koszt, 200);
+  });
+
+  it('delegacja dolicza się do kosztu pracodawcy bez mnożnika ZUS, tylko gdy zaznaczona', () => {
+    const stawki = { stawka8h: 45, zus: 1.4, delegacja: 40 };
+    const zDelegacja = kwotaPracownika(stawki, 8, 0, BEZ_DOJAZDU, true);
+    assert.equal(zDelegacja.zaDelegacje, 40);
+    assert.equal(zDelegacja.wynagrodzenie, 360);
+    assert.equal(zDelegacja.koszt, 504 + 40);
+    assert.equal(kwotaPracownika(stawki, 8, 0, BEZ_DOJAZDU).koszt, 504);
+  });
+
+  it('walidacja dnia pracy wymaga stawki delegacji, gdy delegacja zaznaczona', () => {
+    const praca = { godziny: 8, podstawowe: 8, nadgodziny: 0, dojazd: BEZ_DOJAZDU, delegacja: true };
+    assert.equal(bladPracyDnia({ stawka8h: 45 }, praca), 'Podaj kwotę delegacji.');
+    assert.equal(bladPracyDnia({ stawka8h: 45, delegacja: 40 }, praca), '');
+    assert.equal(bladPracyDnia({}, { ...praca, delegacja: false }), 'Podaj stawkę 8h.');
+    assert.equal(bladPracyDnia({ stawka8h: 45 }, { ...praca, delegacja: false, dojazd: { kierowca: Number.NaN, pasazer: 0 } }), 'Godziny kierowcy i pasażera to liczba, np. 1,5.');
   });
 
   it('kierowca i pasażer łączą się w jednym dniu, płatne za godzinę', () => {
