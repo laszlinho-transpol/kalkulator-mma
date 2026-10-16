@@ -8,7 +8,7 @@ import { Etykieta, Pole as PoleF, Wiersz, Wybor, stylFormularza } from '../commo
 import type { AppTheme } from '../../constants/theme';
 import { GRUPY_SPRZETU, rodzajPoId } from '../../budzet/rodzajeSprzetu';
 import {
-  OPISY_ROZLICZENIA, parsujLiczbePola, tekstZapisanejStawki, type RodzajRozliczenia, type StawkiSprzetu,
+  OPISY_ROZLICZENIA, RODZAJE_Z_DOZOWANIEM, opisRozliczenia, parsujLiczbePola, tekstZapisanejStawki, type RodzajRozliczenia, type StawkiSprzetu,
 } from '../../budzet/rozliczenie';
 import { wstecz } from '../../budzet/nawigacja';
 import { useFirmyStore } from '../../stores/firmyStore';
@@ -47,7 +47,10 @@ export function FormularzSprzetu({ theme, tytul, wsteczDo, etykietaZapisu, pocza
     dzienny: tekstZapisanejStawki(poczatek?.stawki.dzienny),
     godzinowy: tekstZapisanejStawki(poczatek?.stawki.godzinowy),
     kilometr: tekstZapisanejStawki(poczatek?.stawki.kilometr),
+    dozowanie: tekstZapisanejStawki(poczatek?.stawki.dozowanie),
   });
+  const [dozowanieWlaczone, setDozowanieWlaczone] = useState(!!poczatek?.stawki.dozowanie);
+  const pokazDozowanie = dozowanieWlaczone || RODZAJE_Z_DOZOWANIEM.includes(rodzajId);
   const [spalanie, setSpalanie] = useState(tekstZapisanejStawki(poczatek?.spalanieLnaMth));
   const [blad, setBlad] = useState('');
   const [zapis, setZapis] = useState(false);
@@ -64,6 +67,7 @@ export function FormularzSprzetu({ theme, tytul, wsteczDo, etykietaZapisu, pocza
     }
     const stawki: StawkiSprzetu = {};
     for (const opis of OPISY_ROZLICZENIA) {
+      if (opis.id === 'dozowanie' && !pokazDozowanie) continue;
       const tekst = stawkiTekst[opis.id].trim();
       if (!tekst) continue;
       const liczba = parsujLiczbePola(tekst);
@@ -161,7 +165,7 @@ export function FormularzSprzetu({ theme, tytul, wsteczDo, etykietaZapisu, pocza
           info="Można uzupełnić każdy rodzaj albo tylko jeden. Okres obowiązywania stawek ustawisz w zakładce Historia stawek."
           wymagane
         />
-        {[OPISY_ROZLICZENIA.slice(0, 2), OPISY_ROZLICZENIA.slice(2)].map((para) => (
+        {[OPISY_ROZLICZENIA.slice(0, 2), OPISY_ROZLICZENIA.slice(2, 4)].map((para) => (
           <Wiersz key={para[0].id}>
             {para.map((opis) => (
               <PoleF
@@ -177,6 +181,25 @@ export function FormularzSprzetu({ theme, tytul, wsteczDo, etykietaZapisu, pocza
             ))}
           </Wiersz>
         ))}
+        {pokazDozowanie ? (
+          <Wiersz>
+            <PoleF
+              etykieta="Dozowanie"
+              info="Stawka za kg skropionego środka. W raporcie podasz dozowanie (np. 0,5 kg/m²) i powierzchnię: kwota = stawka × dozowanie × m²."
+              jednostka="zł/kg"
+              value={stawkiTekst.dozowanie}
+              onChangeText={(tekst) => setStawkiTekst((prev) => ({ ...prev, dozowanie: tekst }))}
+              placeholder="2,4"
+              accessibilityLabel={opisRozliczenia('dozowanie').nazwa}
+              liczba
+            />
+            <View />
+          </Wiersz>
+        ) : (
+          <TouchableOpacity accessibilityLabel="Dodaj rozliczenie dozowaniem" onPress={() => setDozowanieWlaczone(true)}>
+            <Text style={{ color: theme.colors.primary, fontWeight: '800', fontSize: 13 }}>+ Rozliczenie dozowaniem (kg/m² × m²)</Text>
+          </TouchableOpacity>
+        )}
 
         {blad ? <Text style={[stylFormularza.blad, { color: theme.colors.danger }]}>{blad}</Text> : null}
         <TouchableOpacity

@@ -72,6 +72,8 @@ export interface PozycjaRaportuSprzetu {
   kwota: number;
   /** Dzielnik kosztu miesięcznego. Użytkownik może zmienić podpowiedź dni roboczych. */
   dniRobocze?: number;
+  /** kg/m² – rozliczenie dozowaniem; ilosc to wtedy powierzchnia m². */
+  dozowanie?: number;
 }
 
 export interface RaportSprzetu {

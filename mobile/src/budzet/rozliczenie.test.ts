@@ -23,6 +23,8 @@ describe('rozliczenie sprzętu', () => {
     assert.equal(kwotaRozliczenia('dzienny', 350, 2, 22), 700);
     assert.equal(kwotaRozliczenia('godzinowy', 150, 4, 22), 600);
     assert.equal(kwotaRozliczenia('kilometr', 3.5, 10, 22), 35);
+    assert.equal(kwotaRozliczenia('dozowanie', 2.4, 1200, 22, 0.5), 1440);
+    assert.equal(kwotaRozliczenia('dozowanie', 2.4, 1200, 22), 0);
   });
 
   it('do raportu wchodzą tylko uzupełnione stawki', () => {

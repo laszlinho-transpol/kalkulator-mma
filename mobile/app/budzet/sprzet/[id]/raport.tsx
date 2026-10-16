@@ -43,6 +43,7 @@ export default function RaportSprzetuScreen() {
   const [zaznaczone, setZaznaczone] = useState<RodzajRozliczenia[]>([]);
   const [stawkiTekst, setStawkiTekst] = useState<Partial<Record<RodzajRozliczenia, string>>>({});
   const [ilosciTekst, setIlosciTekst] = useState<Partial<Record<RodzajRozliczenia, string>>>({});
+  const [dozowanieTekst, setDozowanieTekst] = useState('');
   const [uwagi, setUwagi] = useState('');
   const [blad, setBlad] = useState('');
   const [zapis, setZapis] = useState(false);
@@ -65,7 +66,7 @@ export default function RaportSprzetuScreen() {
   useEffect(() => {
     setStawkiTekst((prev) => {
       const next = { ...prev };
-      (['miesieczny', 'dzienny', 'godzinowy', 'kilometr'] as RodzajRozliczenia[]).forEach((rodzaj) => {
+      (['miesieczny', 'dzienny', 'godzinowy', 'kilometr', 'dozowanie'] as RodzajRozliczenia[]).forEach((rodzaj) => {
         if (dotknieteStawki.current.has(rodzaj)) return;
         const stawka = obowiazujace[rodzaj];
         next[rodzaj] = stawka ? String(stawka).replace('.', ',') : '';
@@ -76,6 +77,7 @@ export default function RaportSprzetuScreen() {
   }, [obowiazujace]);
 
   const dni = parsujLiczbePola(dniTekst) ?? 0;
+  const dozowanie = parsujLiczbePola(dozowanieTekst) ?? 0;
   const miesiac = MIESIACE[(Number(data.split('-')[1]) || 1) - 1];
   const budowyKolejnosc = [...budowy].sort((a, b) => {
     const archiwum = (status?: string) => (status === 'archiwalna' ? 1 : 0);
@@ -89,8 +91,9 @@ export default function RaportSprzetuScreen() {
       rodzaj,
       stawka,
       ilosc,
-      kwota: kwotaRozliczenia(rodzaj, stawka, ilosc, dni),
+      kwota: kwotaRozliczenia(rodzaj, stawka, ilosc, dni, dozowanie),
       ...(rodzaj === 'miesieczny' ? { dniRobocze: dni } : {}),
+      ...(rodzaj === 'dozowanie' ? { dozowanie } : {}),
     };
   });
   const suma = round2(pozycje.reduce((s, p) => s + p.kwota, 0));
@@ -116,6 +119,7 @@ export default function RaportSprzetuScreen() {
       if (!(pozycja.stawka > 0)) { setBlad(`Podaj stawkę: ${opis.nazwa}.`); return; }
       if (!(pozycja.ilosc > 0)) { setBlad(`Podaj ilość: ${opis.etykietaIlosci.toLowerCase()}.`); return; }
       if (pozycja.rodzaj === 'miesieczny' && !(dni > 0)) { setBlad('Podaj ilość dni pracujących.'); return; }
+      if (pozycja.rodzaj === 'dozowanie' && !(dozowanie > 0)) { setBlad('Podaj dozowanie, np. 0,5 kg/m².'); return; }
     }
     if (!(suma > 0)) { setBlad('Kwota raportu wyszła zerowa.'); return; }
     setBlad('');
@@ -204,8 +208,8 @@ export default function RaportSprzetuScreen() {
             tekst="ROZLICZENIE"
             wymagane
             info={okres
-              ? `Stawki z okresu ${etykietaZakresu(okres.od, okres.do)}. Można je zmienić tylko w tym raporcie. Zaznacz jedną albo więcej pozycji.`
-              : 'Stawki z karty maszyny. Można je zmienić tylko w tym raporcie. Zaznacz jedną albo więcej pozycji.'}
+              ? `Stawki z okresu ${etykietaZakresu(okres.od, okres.do)}. Można je zmienić tylko w tym raporcie. Zaznacz jedną albo więcej pozycji – rozliczenia z jednego dnia się sumują.`
+              : 'Stawki z karty maszyny. Można je zmienić tylko w tym raporcie. Zaznacz jedną albo więcej pozycji – rozliczenia z jednego dnia się sumują.'}
           />
           {dostepne.length === 0 ? (
             <Text style={[styles.opis, { color: theme.colors.textSecondary }]}>Ta maszyna nie ma stawek.</Text>
@@ -222,7 +226,7 @@ export default function RaportSprzetuScreen() {
                 </TouchableOpacity>
                 {on ? (
                   <>
-                    <Wiersz proporcje={rodzaj === 'miesieczny' ? [1.5, 1, 1] : undefined}>
+                    <Wiersz proporcje={rodzaj === 'miesieczny' || rodzaj === 'dozowanie' ? [1.5, 1, 1] : undefined}>
                       <Pole
                         etykieta="Stawka"
                         jednostka={opis.jednostkaStawki.replace(' / ', '/')}
@@ -242,6 +246,17 @@ export default function RaportSprzetuScreen() {
                         accessibilityLabel={`Ilość ${opis.nazwa}`}
                         liczba
                       />
+                      {rodzaj === 'dozowanie' ? (
+                        <Pole
+                          etykieta="Dozowanie"
+                          jednostka="kg/m²"
+                          value={dozowanieTekst}
+                          onChangeText={setDozowanieTekst}
+                          placeholder="0,5"
+                          accessibilityLabel="Dozowanie kg/m²"
+                          liczba
+                        />
+                      ) : null}
                       {rodzaj === 'miesieczny' ? (
                         <Pole
                           etykieta="Dni rob."
@@ -263,7 +278,7 @@ export default function RaportSprzetuScreen() {
                       </TouchableOpacity>
                     ) : null}
                     <Text style={[styles.opis, { color: theme.colors.textSecondary }]}>
-                      {tekstFormuly(rodzaj, pozycja?.stawka ?? 0, pozycja?.ilosc ?? 0, dni, pozycja?.kwota ?? 0)}
+                      {tekstFormuly(rodzaj, pozycja?.stawka ?? 0, pozycja?.ilosc ?? 0, dni, pozycja?.kwota ?? 0, dozowanie)}
                     </Text>
                   </>
                 ) : null}
@@ -293,8 +308,11 @@ export default function RaportSprzetuScreen() {
   );
 }
 
-function tekstFormuly(rodzaj: RodzajRozliczenia, stawka: number, ilosc: number, dni: number, kwota: number): string {
+function tekstFormuly(rodzaj: RodzajRozliczenia, stawka: number, ilosc: number, dni: number, kwota: number, dozowanie: number): string {
   const wynik = `${formatLiczby(kwota)} zł`;
+  if (rodzaj === 'dozowanie') {
+    return `${formatLiczby(stawka)} zł/kg × ${formatLiczby(dozowanie)} kg/m² × ${formatLiczby(ilosc)} m² = ${wynik}`;
+  }
   if (rodzaj === 'miesieczny') {
     return `${formatLiczby(stawka)} zł ÷ ${dni} dni pracujących × ${formatLiczby(ilosc)} = ${wynik}`;
   }

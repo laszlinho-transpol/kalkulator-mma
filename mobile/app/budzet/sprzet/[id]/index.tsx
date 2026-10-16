@@ -144,7 +144,9 @@ export default function KartaSprzetuScreen() {
                     <Text key={pozycja.rodzaj} style={{ color: theme.colors.text, marginTop: 4 }}>
                       {pozycja.rodzaj === 'miesieczny' && pozycja.dniRobocze
                         ? `${opisRozliczenia(pozycja.rodzaj).nazwa}: ${formatLiczby(pozycja.stawka)} zł ÷ ${pozycja.dniRobocze} × ${formatLiczby(pozycja.ilosc)} = ${formatLiczby(pozycja.kwota)} zł`
-                        : `${opisRozliczenia(pozycja.rodzaj).nazwa}: ${formatLiczby(pozycja.ilosc)} × ${formatLiczby(pozycja.stawka)} zł = ${formatLiczby(pozycja.kwota)} zł`}
+                        : pozycja.rodzaj === 'dozowanie'
+                          ? `Dozowanie: ${formatLiczby(pozycja.dozowanie ?? 0)} kg/m² × ${formatLiczby(pozycja.ilosc)} m² × ${formatLiczby(pozycja.stawka)} zł/kg = ${formatLiczby(pozycja.kwota)} zł`
+                          : `${opisRozliczenia(pozycja.rodzaj).nazwa}: ${formatLiczby(pozycja.ilosc)} × ${formatLiczby(pozycja.stawka)} zł = ${formatLiczby(pozycja.kwota)} zł`}
                     </Text>
                   ))}
                   <Text style={[styles.kwota, { color: theme.colors.text }]}>Kwota: {formatLiczby(raport.kwota)} zł</Text>

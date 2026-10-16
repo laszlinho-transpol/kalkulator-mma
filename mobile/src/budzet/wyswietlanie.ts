@@ -4,7 +4,7 @@ import { OPISY_ROZLICZENIA, type StawkiSprzetu } from './rozliczenie';
 export function linieStawek(stawki: StawkiSprzetu): string[] {
   return OPISY_ROZLICZENIA
     .filter((opis) => (stawki[opis.id] ?? 0) > 0)
-    .map((opis) => `${opis.nazwa}: ${formatLiczby(stawki[opis.id]!)} zł`);
+    .map((opis) => `${opis.nazwa}: ${formatLiczby(stawki[opis.id]!)} ${opis.jednostkaStawki}`);
 }
 
 export function etykietaSprzetu(numer?: string): string {

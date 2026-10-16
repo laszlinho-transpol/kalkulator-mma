@@ -11,7 +11,7 @@ interface ZakresStawek<T = StawkiSprzetu> {
   stawki: T;
 }
 
-export type RodzajRozliczenia = 'miesieczny' | 'dzienny' | 'godzinowy' | 'kilometr';
+export type RodzajRozliczenia = 'miesieczny' | 'dzienny' | 'godzinowy' | 'kilometr' | 'dozowanie';
 
 export interface OpisRozliczenia {
   id: RodzajRozliczenia;
@@ -26,13 +26,19 @@ export const OPISY_ROZLICZENIA: OpisRozliczenia[] = [
   { id: 'dzienny', nazwa: 'Stawka na dzień', jednostkaStawki: 'zł / dzień', etykietaIlosci: 'Liczba dni', jednostkaIlosci: 'dni' },
   { id: 'godzinowy', nazwa: 'Stawka godzinowa', jednostkaStawki: 'zł / mth', etykietaIlosci: 'Ilość mth', jednostkaIlosci: 'mth' },
   { id: 'kilometr', nazwa: 'Stawka za kilometr', jednostkaStawki: 'zł / km', etykietaIlosci: 'Ilość kilometrów', jednostkaIlosci: 'km' },
+  { id: 'dozowanie', nazwa: 'Dozowanie', jednostkaStawki: 'zł / kg', etykietaIlosci: 'Powierzchnia', jednostkaIlosci: 'm²' },
 ];
+
+/** Rozliczenie dozowaniem pokazujemy od razu tylko przy skrapiarce; inny sprzęt może je włączyć. */
+export const RODZAJE_Z_DOZOWANIEM = ['skrapiarka'];
 
 export interface StawkiSprzetu {
   miesieczny?: number;
   dzienny?: number;
   godzinowy?: number;
   kilometr?: number;
+  /** zł / kg skropionego środka */
+  dozowanie?: number;
 }
 
 export function opisRozliczenia(id: RodzajRozliczenia): OpisRozliczenia {
@@ -87,14 +93,17 @@ export function dniRoboczeMiesiaca(isoData: string): number {
 /**
  * Koszt miesięczny ÷ dni robocze × liczba dni.
  * Stawka dzienna × dni, godzinowa × mth, kilometrowa × km.
+ * Dozowanie: stawka zł/kg × dozowanie kg/m² × powierzchnia m².
  */
 export function kwotaRozliczenia(
   rodzaj: RodzajRozliczenia,
   stawka: number,
   ilosc: number,
   dniRobocze: number,
+  dozowanie = 0,
 ): number {
   if (!(stawka > 0) || !(ilosc > 0)) return 0;
+  if (rodzaj === 'dozowanie') return dozowanie > 0 ? round2(stawka * dozowanie * ilosc) : 0;
   if (rodzaj === 'miesieczny') {
     if (dniRobocze <= 0) return 0;
     return round2((stawka / dniRobocze) * ilosc);
