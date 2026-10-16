@@ -2,7 +2,7 @@
   "expo": {
     "name": "Kalkulator MMA",
     "slug": "kalkulator-mma",
-    "version": "1.8.27",
+    "version": "1.8.34",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -27,7 +27,7 @@
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.kalkulatormma.app",
-      "versionCode": 26,
+      "versionCode": 27,
       "permissions": [
         "INTERNET",
         "READ_EXTERNAL_STORAGE",
@@ -54,7 +54,7 @@
       [
         "expo-contacts",
         {
-          "contactsPermission": "Aplikacja potrzebuje dostępu do kontaktów, aby dodać numer telefonu do wytwórni."
+          "contactsPermission": "Aplikacja potrzebuje dostępu do kontaktów, aby dodać numer telefonu do wytwórni lub pracownika."
         }
       ]
     ],

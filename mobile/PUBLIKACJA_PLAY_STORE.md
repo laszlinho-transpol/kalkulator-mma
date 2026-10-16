@@ -168,9 +168,9 @@ Profil `production` w `eas.json` jest ustawiony na tor **internal** (test wewnę
 Przed każdym kolejnym wgraniem zwiększ w `app.json`:
 
 ```json
-"version": "1.2.1",
+"version": "1.8.34",
 "android": {
-  "versionCode": 5
+  "versionCode": 27
 }
 ```
 

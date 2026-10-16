@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.33';
+export const WERSJA_APLIKACJI = '1.8.34';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,21 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.34',
+    data: '2026-10-16',
+    tytul: 'Wbudowywanie, Plan, Obmiar i Budowa w nowym stylu',
+    zmiany: [
+      'Listy planów, budów, sesji obmiaru i archiwum na kartach z przyciskami Edytuj i Usuń',
+      'Plan dnia, archiwum i raport obmiaru: dane w sekcjach i kafelkach dwukolumnowych',
+      'Bilans archiwum pokazuje odchyłkę od planu kolorem pod każdą wartością',
+      'Budowa: zakładki PZT, Legenda, Konstrukcje… pokazują jedną sekcję zamiast długiej strony',
+      'Formularze planu na wspólnych sekcjach, wyniki działki w kafelkach',
+      'Data w polu wyboru w kolorze soboty, niedzieli lub święta',
+      'Komunikaty i potwierdzenia działają także w przeglądarce',
+      'Nowy build Android: wybór numeru z kontaktów dla wytwórni i pracownika',
+    ],
+  },
   {
     wersja: '1.8.33',
     data: '2026-10-15',
