@@ -25,7 +25,7 @@ Główna specyfikacja projektu: plik `cel_projektu.pdf` (aktualizowany przez wł
 | PDF                 | expo-print                                               |
 | Udostępnianie       | expo-sharing + expo-mail-composer                        |
 | Grafika SVG         | react-native-svg                                         |
-| DatePicker          | @react-native-community/datetimepicker                   |
+| Kalendarz / daty    | wspólny `src/components/ui/Kalendarz.tsx` (KalendarzDnia, KalendarzZakresu) |
 | Motywy              | własny system (lightTheme / darkTheme) – Dark/Light auto |
 
 ## STRUKTURA PROJEKTU
@@ -86,6 +86,15 @@ Ilość aut       = ceil(Masa_Mg / Tonaz_auta)   [domyślnie 25.5t, edytowalne]
 4. Tekst w kafelkach menu nie może być ucinany – wyrazy w całości
 5. Płynne scrollowanie we wszystkich listach
 6. Dane są zachowywane lokalnie (Zustand + AsyncStorage) – offline-first
+7. **Spójny styl – `mobile/STYL.md` (obowiązkowy przy każdym nowym ekranie/opcji).** Ekrany składamy wyłącznie
+   z klocków `mobile/src/components/ui` i tokenów `mobile/src/constants/styl.ts`:
+   - dane zawsze edytowalne; przyciski interaktywne z płynnym przejściem na nową stronę,
+   - pola parami w dwóch kolumnach, etykieta/jednostka nie przeskakuje do nowej linii,
+   - opisy tylko pod przyciskiem „i”,
+   - nagłówek `AppHeader`: wstecz + domek do menu głównego,
+   - treść w osobnych kartach jak plan dnia na „Wbudowywaniu”, długie strony dzielone zakładkami,
+   - jeden kalendarz dla wszystkich dat (soboty, niedziele i święta we własnych kolorach),
+   - wspólną zmianę wyglądu robimy w klocku, nie na pojedynczym ekranie.
 
 ## TRZY ŻELAZNE ZASADY (OBOWIĄZKOWE)
 
