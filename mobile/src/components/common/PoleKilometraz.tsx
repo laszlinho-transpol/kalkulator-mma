@@ -11,6 +11,8 @@ interface Props {
   editable?: boolean;
   compact?: boolean;
   mini?: boolean;
+  /** Pola dostają etykiety „… km” i „… m”. */
+  accessibilityLabel?: string;
 }
 
 /**
@@ -19,7 +21,7 @@ interface Props {
  * każdej literki i nie nadpisuje pola zerem z padStart.
  * Na webie type=text (nie number), żeby dało się wpisać.
  */
-export function PoleKilometraz({ theme, km, m, onKm, onM, editable = true, compact, mini }: Props) {
+export function PoleKilometraz({ theme, km, m, onKm, onM, editable = true, compact, mini, accessibilityLabel }: Props) {
   const web = Platform.OS === 'web';
   const [focus, setFocus] = useState<'km' | 'm' | null>(null);
   const [draftKm, setDraftKm] = useState(km);
@@ -90,6 +92,7 @@ export function PoleKilometraz({ theme, km, m, onKm, onM, editable = true, compa
         placeholderTextColor={theme.colors.textSecondary}
         editable={editable}
         maxLength={max}
+        accessibilityLabel={accessibilityLabel ? `${accessibilityLabel} ${ktory}` : undefined}
         {...webProps}
       />
     );
