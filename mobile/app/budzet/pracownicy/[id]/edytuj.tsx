@@ -35,12 +35,13 @@ export default function EdytujPracownikaScreen() {
       poczatek={{
         nazwisko: pracownik.nazwisko,
         imie: pracownik.imie,
+        telefon: pracownik.telefon,
         grupa: grupy.find((g) => g.id === pracownik.grupaId)?.nazwa,
         stawki: pracownik.stawki,
       }}
       onZapisz={async (dane) => {
         const grupaId = await znajdzLubDodaj(dane.grupaNazwa);
-        await aktualizuj(pracownik.id, { nazwisko: dane.nazwisko, imie: dane.imie, grupaId, stawki: dane.stawki });
+        await aktualizuj(pracownik.id, { nazwisko: dane.nazwisko, imie: dane.imie, telefon: dane.telefon, grupaId, stawki: dane.stawki });
         router.replace(`/budzet/pracownicy/${pracownik.id}` as never);
       }}
     />

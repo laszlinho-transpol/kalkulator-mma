@@ -17,6 +17,7 @@ import { useRouteId } from '../../../../src/hooks/useRouteId';
 import { useBudowyStore } from '../../../../src/stores/budowyStore';
 import { useGrupyPracownikowStore } from '../../../../src/stores/grupyPracownikowStore';
 import { usePracownicyStore } from '../../../../src/stores/pracownicyStore';
+import { AkcjeTelefonu, Przycisk, Sekcja, WierszDanych } from '../../../../src/components/ui';
 
 const linieWynagrodzenia = (stawki: StawkiPracownika) => linieStawekPola(POLA_WYNAGRODZENIA, stawki);
 
@@ -59,6 +60,7 @@ export default function KartaPracownikaScreen() {
   }, [wszystkie, szukaj, budowy]);
 
   const grupa = grupy.find((g) => g.id === pracownik?.grupaId);
+  const edytuj = () => { if (pracownik) router.push(`/budzet/pracownicy/${pracownik.id}/edytuj` as never); };
 
   return (
     <View style={[styles.ekran, { backgroundColor: theme.colors.background }]}>
@@ -66,7 +68,7 @@ export default function KartaPracownikaScreen() {
         tytul={pracownik ? nazwaPracownika(pracownik) : 'Pracownik'}
         podtytul={grupa?.nazwa ?? 'Bez grupy'}
         lewy={{ tekst: '‹ Wstecz', onPress: () => wstecz('/budzet/pracownicy') }}
-        prawy={pracownik ? { tekst: 'Edytuj', onPress: () => router.push(`/budzet/pracownicy/${pracownik.id}/edytuj` as never) } : undefined}
+        prawy={pracownik ? { tekst: 'Edytuj', onPress: edytuj } : undefined}
       />
       {!pracownik ? (
         <Text style={[styles.brak, { color: theme.colors.textSecondary }]}>Nie znaleziono pracownika.</Text>
@@ -74,37 +76,51 @@ export default function KartaPracownikaScreen() {
         <ScrollView contentContainerStyle={[styles.tresc, { paddingBottom: insets.bottom + 24 }]}>
           <Zakladki theme={theme} aktywna={zakladka} onZmien={setZakladka} />
           {zakladka === 'dane' ? (
-            <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-              <View style={styles.wiersz}>
-                <Text style={[styles.sekcja, { color: theme.colors.text, flex: 1 }]}>Dane</Text>
-                <Gwiazdka
-                  theme={theme}
-                  wlaczona={pracownik.ulubiony}
-                  onPress={() => { void przelaczUlubiony(pracownik.id); }}
-                  accessibilityLabel={`${pracownik.ulubiony ? 'Usuń z ulubionych' : 'Dodaj do ulubionych'} ${nazwaPracownika(pracownik)}`}
-                />
-              </View>
-              <Wiersz etykieta="Nazwisko" wartosc={pracownik.nazwisko || '—'} kolor={theme.colors.text} etykietaKolor={theme.colors.textSecondary} />
-              <Wiersz etykieta="Imię" wartosc={pracownik.imie || '—'} kolor={theme.colors.text} etykietaKolor={theme.colors.textSecondary} />
-              <Wiersz etykieta="Grupa" wartosc={grupa?.nazwa ?? '—'} kolor={theme.colors.text} etykietaKolor={theme.colors.textSecondary} />
-              <Text style={[styles.podsekcja, { color: theme.colors.textSecondary }]}>Wynagrodzenie</Text>
-              {linieWynagrodzenia(pracownik.stawki).length === 0 ? (
-                <Text style={{ color: theme.colors.textSecondary }}>Brak stawek.</Text>
-              ) : (
-                <View style={styles.siatka}>
-                  {linieWynagrodzenia(pracownik.stawki).map((linia) => (
-                    <Text key={linia} style={[styles.stawka, styles.polowa, { color: theme.colors.text }]}>{linia}</Text>
-                  ))}
-                </View>
-              )}
-              <TouchableOpacity
-                accessibilityLabel="Edytuj pracownika"
-                onPress={() => router.push(`/budzet/pracownicy/${pracownik.id}/edytuj` as never)}
-                style={[styles.dodaj, { backgroundColor: theme.colors.primary }]}
+            <>
+              <Sekcja
+                tytul="Dane"
+                prawy={(
+                  <View style={styles.akcjeSekcji}>
+                    <Gwiazdka
+                      theme={theme}
+                      wlaczona={pracownik.ulubiony}
+                      onPress={() => { void przelaczUlubiony(pracownik.id); }}
+                      accessibilityLabel={`${pracownik.ulubiony ? 'Usuń z ulubionych' : 'Dodaj do ulubionych'} ${nazwaPracownika(pracownik)}`}
+                    />
+                    <Przycisk maly wariant="tekst" ikona="edytuj" tekst="Edytuj" accessibilityLabel="Edytuj pracownika" onPress={edytuj} />
+                  </View>
+                )}
               >
-                <Text style={styles.dodajTekst}>Edytuj</Text>
-              </TouchableOpacity>
-            </View>
+                <WierszDanych etykieta="Nazwisko" wartosc={pracownik.nazwisko || '—'} />
+                <WierszDanych etykieta="Imię" wartosc={pracownik.imie || '—'} />
+                <WierszDanych etykieta="Grupa" wartosc={grupa?.nazwa ?? '—'} />
+              </Sekcja>
+              <Sekcja tytul="Telefon" info="Zadzwoń, skopiuj numer albo udostępnij kontakt pracownika (SMS, komunikator, e-mail).">
+                {pracownik.telefon ? (
+                  <>
+                    <Text style={[styles.numer, { color: theme.colors.text }]} selectable>{pracownik.telefon}</Text>
+                    <AkcjeTelefonu
+                      telefon={pracownik.telefon}
+                      nazwa={nazwaPracownika(pracownik)}
+                      opisDoUdostepnienia={`${nazwaPracownika(pracownik)}${grupa ? ` (${grupa.nazwa})` : ''}: ${pracownik.telefon}`}
+                    />
+                  </>
+                ) : (
+                  <Przycisk wariant="drugi" ikona="plus" tekst="Dodaj numer telefonu" onPress={edytuj} />
+                )}
+              </Sekcja>
+              <Sekcja tytul="Wynagrodzenie" info="Stawki z karty. Okresy z innymi stawkami ustawisz w zakładce Historia stawek.">
+                {linieWynagrodzenia(pracownik.stawki).length === 0 ? (
+                  <Text style={{ color: theme.colors.textSecondary }}>Brak stawek.</Text>
+                ) : (
+                  <View style={styles.siatka}>
+                    {linieWynagrodzenia(pracownik.stawki).map((linia) => (
+                      <Text key={linia} style={[styles.stawka, styles.polowa, { color: theme.colors.text }]}>{linia}</Text>
+                    ))}
+                  </View>
+                )}
+              </Sekcja>
+            </>
           ) : null}
           {zakladka === 'historia' ? (
             <HistoriaStawek
@@ -166,25 +182,14 @@ export default function KartaPracownikaScreen() {
   );
 }
 
-function Wiersz({ etykieta, wartosc, kolor, etykietaKolor }: { etykieta: string; wartosc: string; kolor: string; etykietaKolor: string }) {
-  return (
-    <View style={styles.wiersz}>
-      <Text style={[styles.wierszEtykieta, { color: etykietaKolor }]}>{etykieta}</Text>
-      <Text style={[styles.wierszWartosc, { color: kolor }]}>{wartosc}</Text>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   ekran: { flex: 1 },
   brak: { padding: 24, fontSize: 16 },
   tresc: { padding: 16, gap: 12 },
   karta: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 8 },
   sekcja: { fontSize: 18, fontWeight: '800' },
-  podsekcja: { fontSize: 13, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.4, marginTop: 6 },
-  wiersz: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
-  wierszEtykieta: { fontSize: 14 },
-  wierszWartosc: { fontSize: 15, fontWeight: '700', flexShrink: 1, textAlign: 'right' },
+  akcjeSekcji: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  numer: { fontSize: 20, fontWeight: '800', letterSpacing: 0.3 },
   stawka: { fontSize: 15, fontWeight: '600' },
   siatka: { flexDirection: 'row', flexWrap: 'wrap', rowGap: 4 },
   polowa: { width: '50%', paddingRight: 6 },

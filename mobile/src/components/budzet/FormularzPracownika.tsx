@@ -8,10 +8,13 @@ import { parsujLiczbePola, tekstZapisanejStawki } from '../../budzet/rozliczenie
 import { POLA_WYNAGRODZENIA, type PoleWynagrodzenia, type StawkiPracownika } from '../../budzet/pracownicy';
 import { wstecz } from '../../budzet/nawigacja';
 import { useGrupyPracownikowStore } from '../../stores/grupyPracownikowStore';
+import { czyMoznaWybracKontakt, wybierzKontaktZTelefonu } from '../../utils/kontaktyTelefonu';
+import { Przycisk } from '../ui/Przycisk';
 
 export interface DanePracownikaFormularza {
   nazwisko: string;
   imie: string;
+  telefon?: string;
   grupaNazwa: string;
   stawki: StawkiPracownika;
 }
@@ -28,7 +31,7 @@ interface Props {
   theme: AppTheme;
   tytul: string;
   wsteczDo: string;
-  poczatek?: { nazwisko: string; imie: string; grupa?: string; stawki: StawkiPracownika };
+  poczatek?: { nazwisko: string; imie: string; telefon?: string; grupa?: string; stawki: StawkiPracownika };
   onZapisz: (dane: DanePracownikaFormularza) => Promise<void>;
 }
 
@@ -37,6 +40,7 @@ export function FormularzPracownika({ theme, tytul, wsteczDo, poczatek, onZapisz
   const grupy = useGrupyPracownikowStore((s) => s.grupy);
   const [nazwisko, setNazwisko] = useState(poczatek?.nazwisko ?? '');
   const [imie, setImie] = useState(poczatek?.imie ?? '');
+  const [telefon, setTelefon] = useState(poczatek?.telefon ?? '');
   const [grupa, setGrupa] = useState(poczatek?.grupa ?? '');
   const [stawkiTekst, setStawkiTekst] = useState<Record<PoleWynagrodzenia, string>>(() => ({
     stawka8h: tekstZapisanejStawki(poczatek?.stawki.stawka8h),
@@ -73,11 +77,28 @@ export function FormularzPracownika({ theme, tytul, wsteczDo, poczatek, onZapisz
       await onZapisz({
         nazwisko: nazwisko.trim().replace(/\s+/g, ' '),
         imie: imie.trim().replace(/\s+/g, ' '),
+        telefon: telefon.trim() || undefined,
         grupaNazwa: grupa,
         stawki,
       });
     } finally {
       setZapis(false);
+    }
+  };
+
+  const zKontaktow = async () => {
+    try {
+      const wybrany = await wybierzKontaktZTelefonu();
+      if (!wybrany) return;
+      if (wybrany.telefony[0]) setTelefon(wybrany.telefony[0]);
+      else setBlad('Ten kontakt nie ma numeru telefonu – wpisz go ręcznie.');
+      if (!nazwisko.trim() && !imie.trim() && wybrany.nazwa) {
+        const [pierwsze, ...reszta] = wybrany.nazwa.trim().split(/\s+/);
+        setImie(pierwsze ?? '');
+        setNazwisko(reszta.join(' '));
+      }
+    } catch (e) {
+      setBlad(e instanceof Error ? e.message : 'Nie udało się otworzyć kontaktów.');
     }
   };
 
@@ -108,6 +129,22 @@ export function FormularzPracownika({ theme, tytul, wsteczDo, poczatek, onZapisz
         <Wiersz>
           <Pole etykieta="Nazwisko" wymagane value={nazwisko} onChangeText={setNazwisko} placeholder="Kowalski" />
           <Pole etykieta="Imię" wymagane value={imie} onChangeText={setImie} placeholder="Jan" />
+        </Wiersz>
+        <Wiersz>
+          <Pole
+            etykieta="Telefon"
+            info="Na karcie pracownika numer ma przyciski: zadzwoń, kopiuj, udostępnij."
+            value={telefon}
+            onChangeText={setTelefon}
+            placeholder="+48 600 100 200"
+            accessibilityLabel="Telefon pracownika"
+            klawiatura="phone-pad"
+          />
+          {czyMoznaWybracKontakt() ? (
+            <View style={styles.zKontaktow}>
+              <Przycisk wariant="drugi" ikona="telefon" tekst="Z kontaktów" accessibilityLabel="Wybierz z kontaktów telefonu" onPress={zKontaktow} />
+            </View>
+          ) : <View />}
         </Wiersz>
         <Pole
           etykieta="Grupa"
@@ -151,4 +188,5 @@ export function FormularzPracownika({ theme, tytul, wsteczDo, poczatek, onZapisz
 
 const styles = StyleSheet.create({
   ekran: { flex: 1 },
+  zKontaktow: { flex: 1, justifyContent: 'flex-end' },
 });

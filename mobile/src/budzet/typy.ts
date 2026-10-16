@@ -26,6 +26,7 @@ export interface Pracownik {
   id: string;
   nazwisko: string;
   imie: string;
+  telefon?: string;
   grupaId?: string;
   stawki: StawkiPracownika;
   historiaStawek?: OkresStawek<StawkiPracownika>[];

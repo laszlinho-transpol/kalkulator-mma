@@ -19,7 +19,7 @@ export default function NowyPracownikScreen() {
       wsteczDo="/budzet/pracownicy"
       onZapisz={async (dane) => {
         const grupaId = await znajdzLubDodaj(dane.grupaNazwa);
-        const id = await dodaj({ nazwisko: dane.nazwisko, imie: dane.imie, grupaId, stawki: dane.stawki });
+        const id = await dodaj({ nazwisko: dane.nazwisko, imie: dane.imie, telefon: dane.telefon, grupaId, stawki: dane.stawki });
         router.replace(`/budzet/pracownicy/${id}` as never);
       }}
     />
