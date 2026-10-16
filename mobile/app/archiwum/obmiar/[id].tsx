@@ -5,8 +5,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  useColorScheme, ActivityIndicator, Alert,
-} from 'react-native';
+  useColorScheme, ActivityIndicator, } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as MailComposer from 'expo-mail-composer';
@@ -22,6 +21,7 @@ import { infoAutaWz, dlugoscUkladaniaObszaru } from '../../../src/utils/obmiarLi
 import { formatujKilometraz } from '../../../src/utils/obmiarFigura';
 import { generujRaportObmiaruPDF, stworzRaportObmiaruPDF } from '../../../src/utils/pdfGenerator';
 import { karta as kartaWspolna } from '../../../src/constants/layout';
+import { pokazKomunikat } from '../../../src/utils/dialog';
 
 export default function ArchiwumObmiarScreen() {
   const colorScheme = useColorScheme();
@@ -58,7 +58,7 @@ export default function ArchiwumObmiarScreen() {
     try {
       await generujRaportObmiaruPDF(pdfOpts);
     } catch {
-      Alert.alert('Błąd', 'Nie udało się wygenerować PDF.');
+      pokazKomunikat('Błąd', 'Nie udało się wygenerować PDF.');
     } finally {
       setGenerujePDF(false);
     }
@@ -67,7 +67,7 @@ export default function ArchiwumObmiarScreen() {
   const handleMail = async () => {
     const dostepny = await MailComposer.isAvailableAsync();
     if (!dostepny) {
-      Alert.alert('Brak klienta e-mail', 'Na urządzeniu nie skonfigurowano konta e-mail.');
+      pokazKomunikat('Brak klienta e-mail', 'Na urządzeniu nie skonfigurowano konta e-mail.');
       return;
     }
     setGenerujePDF(true);
@@ -79,7 +79,7 @@ export default function ArchiwumObmiarScreen() {
         attachments: [uri],
       });
     } catch {
-      Alert.alert('Błąd', 'Nie udało się przygotować wiadomości. Spróbuj eksportu PDF.');
+      pokazKomunikat('Błąd', 'Nie udało się przygotować wiadomości. Spróbuj eksportu PDF.');
     } finally {
       setGenerujePDF(false);
     }

@@ -36,7 +36,16 @@ export function cien(theme: AppTheme): ViewStyle {
 
 export type RodzajDnia = 'roboczy' | 'sobota' | 'niedziela' | 'swieto';
 
-export function rodzajDnia(iso: string): RodzajDnia {
+/** Przyjmuje „RRRR-MM-DD” albo pełny znacznik ISO (wtedy liczy się dzień lokalny, nie UTC). */
+function dzienLokalny(iso: string): string {
+  if (iso.length <= 10) return iso;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso.slice(0, 10);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+export function rodzajDnia(isoWejscie: string): RodzajDnia {
+  const iso = dzienLokalny(isoWejscie);
   if (czySwieto(iso)) return 'swieto';
   const [rok, miesiac, dzien] = iso.split('-').map(Number);
   const numer = new Date(rok, miesiac - 1, dzien).getDay();

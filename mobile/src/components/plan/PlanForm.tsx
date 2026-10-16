@@ -5,7 +5,7 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  TextInput, Alert, useColorScheme,
+  TextInput, useColorScheme,
   KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { router } from 'expo-router';
@@ -30,6 +30,7 @@ import { nastepnyDzienRoboczy } from '../../utils/dates';
 import { obliczPikietazFigur, formatujPikietaz, nastepnyPikietaz } from '../../utils/chainage';
 import { DO_METROW_BIEZACYCH, NAZWY_FIGUR } from '../../constants';
 import type { DzialkaRobocza, Figura, KierunekUkladania, Mieszanka, Plan, Rzut } from '../../types';
+import { pokazKomunikat } from '../../utils/dialog';
 
 // ---- Typ roboczy formularza działki (stringi dla pól numerycznych) ----
 export interface DzialkaForm {
@@ -159,7 +160,7 @@ export function PlanForm({ tytul, initialPlan, onZapisz }: PlanFormProps) {
       if (nowa < 1 || nowa > 10) return prev;
       if (delta > 0) return [...prev, nowyDzialkaForm(prev.length)];
       if (prev[prev.length - 1].figury.length > 0) {
-        Alert.alert('Uwaga', 'Ostatnia działka zawiera figury – usuń je przed usunięciem działki.');
+        pokazKomunikat('Uwaga', 'Ostatnia działka zawiera figury – usuń je przed usunięciem działki.');
         return prev;
       }
       return prev.slice(0, -1);
@@ -237,16 +238,16 @@ export function PlanForm({ tytul, initialPlan, onZapisz }: PlanFormProps) {
   const zapisz = async () => {
     for (let i = 0; i < dzialki.length; i++) {
       const dz = dzialki[i];
-      if (!dz.nazwa.trim()) { Alert.alert('Błąd', `Działka ${i + 1}: podaj nazwę.`); return; }
-      if (!dz.mieszankaId) { Alert.alert('Błąd', `Działka "${dz.nazwa}": wybierz mieszankę.`); return; }
-      if (!dz.gruboscWbudowywaniaStr || parseFloat(dz.gruboscWbudowywaniaStr) <= 0) { Alert.alert('Błąd', `Działka "${dz.nazwa}": podaj grubość wbudowywania.`); return; }
-      if (dz.figury.length === 0) { Alert.alert('Błąd', `Działka "${dz.nazwa}": dodaj co najmniej jedną figurę.`); return; }
+      if (!dz.nazwa.trim()) { pokazKomunikat('Błąd', `Działka ${i + 1}: podaj nazwę.`); return; }
+      if (!dz.mieszankaId) { pokazKomunikat('Błąd', `Działka "${dz.nazwa}": wybierz mieszankę.`); return; }
+      if (!dz.gruboscWbudowywaniaStr || parseFloat(dz.gruboscWbudowywaniaStr) <= 0) { pokazKomunikat('Błąd', `Działka "${dz.nazwa}": podaj grubość wbudowywania.`); return; }
+      if (dz.figury.length === 0) { pokazKomunikat('Błąd', `Działka "${dz.nazwa}": dodaj co najmniej jedną figurę.`); return; }
     }
     let rzuty: Rzut[] = generujDomyslneRzuty(sumaAut);
     if (rzutyStr.trim()) {
       const parsed = parsujRzuty(rzutyStr);
       if (!parsed || !walidujRzuty(rzutyStr, sumaAut)) {
-        Alert.alert('Błąd', `Podział rzutów "${rzutyStr}" jest nieprawidłowy. Suma musi wynosić ${sumaAut}.`);
+        pokazKomunikat('Błąd', `Podział rzutów "${rzutyStr}" jest nieprawidłowy. Suma musi wynosić ${sumaAut}.`);
         return;
       }
       rzuty = parsed;

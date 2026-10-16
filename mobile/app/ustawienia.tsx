@@ -5,7 +5,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  useColorScheme, ScrollView, Switch, Alert, TextInput, Platform,
+  useColorScheme, ScrollView, Switch, TextInput, Platform,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -51,7 +51,7 @@ export default function UstawieniaScreen() {
   const zapiszTonaz = async () => {
     const tonaz = parseFloat(tonazStr.replace(',', '.'));
     if (isNaN(tonaz) || tonaz <= 0 || tonaz > 100) {
-      Alert.alert('Błąd', 'Podaj prawidłowy tonaż (np. 25.5).');
+      pokazKomunikat('Błąd', 'Podaj prawidłowy tonaż (np. 25.5).');
       return;
     }
     await zapiszUstawienia({ tonazDomyslny: tonaz });
@@ -105,44 +105,31 @@ export default function UstawieniaScreen() {
   };
 
   const resetujOnboarding = () => {
-    Alert.alert(
+    potwierdzAkcje(
       'Resetuj onboarding',
       'Przy następnym uruchomieniu aplikacja pokaże ponownie ekran powitalny.',
-      [
-        { text: 'Anuluj', style: 'cancel' },
-        {
-          text: 'Resetuj',
-          onPress: async () => {
-            await AsyncStorage.removeItem(KLUCZ_ONBOARDING);
-            Alert.alert('Gotowe', 'Przy następnym uruchomieniu zobaczysz ekran powitalny.');
-          },
-        },
-      ],
+      async () => {
+        await AsyncStorage.removeItem(KLUCZ_ONBOARDING);
+        pokazKomunikat('Gotowe', 'Przy następnym uruchomieniu zobaczysz ekran powitalny.');
+      },
+      'Resetuj',
     );
   };
 
   const wyczyscDane = () => {
-    Alert.alert(
+    potwierdzAkcje(
       'Wyczyść wszystkie dane',
       `Zostanie usunięte:\n• ${mieszanki.length} mieszanek\n• ${plany.length} planów\n• ${wpisy.length} wpisów Live\n\nTa operacja jest nieodwracalna!`,
-      [
-        { text: 'Anuluj', style: 'cancel' },
-        {
-          text: 'Wyczyść',
-          style: 'destructive',
-          onPress: async () => {
-            await AsyncStorage.multiRemove([
-              '@mma:mieszanki',
-              '@mma:plany',
-              '@mma:live',
-              KLUCZ_USTAWIEN,
-            ]);
-            Alert.alert('Gotowe', 'Wszystkie dane zostały wyczyszczone. Uruchom aplikację ponownie.', [
-              { text: 'OK', onPress: () => router.replace('/') },
-            ]);
-          },
-        },
-      ],
+      async () => {
+        await AsyncStorage.multiRemove([
+          '@mma:mieszanki',
+          '@mma:plany',
+          '@mma:live',
+          KLUCZ_USTAWIEN,
+        ]);
+        pokazKomunikat('Gotowe', 'Wszystkie dane zostały wyczyszczone. Uruchom aplikację ponownie.', () => router.replace('/'));
+      },
+      'Wyczyść',
     );
   };
 

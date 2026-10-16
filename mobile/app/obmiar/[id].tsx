@@ -5,7 +5,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  useColorScheme, Alert, TextInput, ActivityIndicator,
+  useColorScheme, TextInput, ActivityIndicator,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -37,6 +37,7 @@ import { PRESETY_SKALI_PZT, skalaZMianownika, type ObszarObmiaru, type OdsadzkaO
 import { wybierzPlikTlaPzt, rozmiarObrazu, zapiszJpegTla } from '../../src/utils/tloPztImport';
 import { PdfRasterizer } from '../../src/components/obmiar/PdfRasterizer';
 import { karta as kartaWspolna } from '../../src/constants/layout';
+import { pokazKomunikat, potwierdzAkcje } from '../../src/utils/dialog';
 
 type SekcjaNr = 'start' | 'odsadzka' | 'konstrukcja' | null;
 
@@ -145,7 +146,7 @@ export default function ObmiarDetailScreen() {
   const importuj = async () => {
     const wynik = await wybierzIParsujXfdf();
     if (!wynik.sukces) {
-      if (wynik.blad !== 'Anulowano wybór pliku.') Alert.alert('Import XFDF', wynik.blad);
+      if (wynik.blad !== 'Anulowano wybór pliku.') pokazKomunikat('Import XFDF', wynik.blad);
       return;
     }
     await dodajObszaryZXfdf(sesja.id, wynik.wynik);
@@ -156,7 +157,7 @@ export default function ObmiarDetailScreen() {
       setSekcjaOtwarta('start');
     }
     const suma = odswiezona?.obszary.reduce((a, o) => a + o.powierzchniaM2, 0) ?? 0;
-    Alert.alert('Zaimportowano', `Dodano ${wynik.wynik.polygony.length} obszar(ów).\nŁącznie: ${formatLiczby(suma)} m²`);
+    pokazKomunikat('Zaimportowano', `Dodano ${wynik.wynik.polygony.length} obszar(ów).\nŁącznie: ${formatLiczby(suma)} m²`);
   };
 
   const importujTlo = async () => {
@@ -177,13 +178,13 @@ export default function ObmiarDetailScreen() {
           widoczne: true,
           opacity: 0.5,
         });
-        Alert.alert('Tło PZT', 'Obraz podłożony. Jeśli nie pokrywa się z obszarem, użyj PDF ze strony XChange albo „Odwróć pion”.');
+        pokazKomunikat('Tło PZT', 'Obraz podłożony. Jeśli nie pokrywa się z obszarem, użyj PDF ze strony XChange albo „Odwróć pion”.');
         return;
       }
       setRasterBusy(true);
       setRasterPdf({ uri: plik.uri, strona: 1 });
     } catch {
-      Alert.alert('Tło PZT', 'Nie udało się wczytać pliku.');
+      pokazKomunikat('Tło PZT', 'Nie udało się wczytać pliku.');
       setRasterBusy(false);
     }
   };
@@ -234,20 +235,14 @@ export default function ObmiarDetailScreen() {
     const braki = brakiZatwierdzeniaObszaru(o);
     if (braki.length) {
       const pierwszy = braki[0];
-      Alert.alert('Uzupełnij konfigurację', braki.map((b) => `• ${b.komunikat}`).join('\n'), [
-        { text: 'Anuluj', style: 'cancel' },
-        {
-          text: 'Przejdź',
-          onPress: () => {
-            setRozwinietyId(o.id);
-            setSekcjaOtwarta(pierwszy.pole === 'start' ? 'start' : 'konstrukcja');
-          },
-        },
-      ]);
+      potwierdzAkcje('Uzupełnij konfigurację', braki.map((b) => `• ${b.komunikat}`).join('\n'), () => {
+        setRozwinietyId(o.id);
+        setSekcjaOtwarta(pierwszy.pole === 'start' ? 'start' : 'konstrukcja');
+      }, 'Przejdź');
       return;
     }
     await ustawKonfiguracjeZablokowana(sesja.id, o.id, true);
-    Alert.alert('Zatwierdzono', 'Kłódka zamknięta – obszar gotowy do kontrolowania w Wbudowywaniu.');
+    pokazKomunikat('Zatwierdzono', 'Kłódka zamknięta – obszar gotowy do kontrolowania w Wbudowywaniu.');
   };
 
   const zapiszPlan = async () => {
@@ -255,19 +250,14 @@ export default function ObmiarDetailScreen() {
     if (niegotowe.length) {
       const o = niegotowe[0];
       const braki = brakiZatwierdzeniaObszaru(o);
-      Alert.alert(
+      potwierdzAkcje(
         'Nie można zapisać planu',
         `Obszar „${o.nazwa}”: ${braki.map((b) => b.komunikat).join(' ')}`,
-        [
-          { text: 'Anuluj', style: 'cancel' },
-          {
-            text: 'Uzupełnij',
-            onPress: () => {
-              setRozwinietyId(o.id);
-              setSekcjaOtwarta(braki[0].pole === 'start' ? 'start' : 'konstrukcja');
-            },
-          },
-        ],
+        () => {
+          setRozwinietyId(o.id);
+          setSekcjaOtwarta(braki[0].pole === 'start' ? 'start' : 'konstrukcja');
+        },
+        'Uzupełnij',
       );
       return;
     }
@@ -275,7 +265,7 @@ export default function ObmiarDetailScreen() {
     if (rzutyStr.trim()) {
       const parsed = parsujRzuty(rzutyStr);
       if (!parsed || !walidujRzuty(rzutyStr, podsumowanie?.sumaAut || 1)) {
-        Alert.alert('Rzuty', `Podział „${rzutyStr}” musi sumować się do ${podsumowanie?.sumaAut} aut.`);
+        pokazKomunikat('Rzuty', `Podział „${rzutyStr}” musi sumować się do ${podsumowanie?.sumaAut} aut.`);
         return;
       }
       rzuty = parsed;
@@ -296,7 +286,7 @@ export default function ObmiarDetailScreen() {
         router.replace(`/wbudowywanie/${planId}` as any);
       }
     } catch {
-      Alert.alert('Błąd', 'Nie udało się zapisać planu.');
+      pokazKomunikat('Błąd', 'Nie udało się zapisać planu.');
     } finally {
       setZapisuje(false);
     }
@@ -328,9 +318,9 @@ export default function ObmiarDetailScreen() {
     ) => {
       const w = await zastosujOdsadzkeLancucha(sesja.id, obszarPodgladu.id, odsadzkaId, dystansM, extra);
       if (w) {
-        Alert.alert('Odsadzka', `Δ ${w.deltaPowierzchniaM2 >= 0 ? '+' : ''}${w.deltaPowierzchniaM2} m²\nNowa: ${w.powierzchniaM2} m²`);
+        pokazKomunikat('Odsadzka', `Δ ${w.deltaPowierzchniaM2 >= 0 ? '+' : ''}${w.deltaPowierzchniaM2} m²\nNowa: ${w.powierzchniaM2} m²`);
       } else {
-        Alert.alert('Odsadzka', 'Nie udało się zastosować. Ustaw start/koniec L i P albo stronę i kilometraż.');
+        pokazKomunikat('Odsadzka', 'Nie udało się zastosować. Ustaw start/koniec L i P albo stronę i kilometraż.');
       }
     },
     onUsunOdsadzke: (oid: string) => usunOdsadzke(sesja.id, obszarPodgladu.id, oid),
@@ -414,10 +404,8 @@ export default function ObmiarDetailScreen() {
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.btnMini, { backgroundColor: `${theme.colors.danger}20` }]}
-                    onPress={() => Alert.alert('Usuń obszar', `Usunąć „${o.nazwa}”?`, [
-                      { text: 'Anuluj', style: 'cancel' },
-                      { text: 'Usuń', style: 'destructive', onPress: () => usunObszar(sesja.id, o.id) },
-                    ])}
+                    onPress={() => potwierdzAkcje('Usuń obszar', `Usunąć „${o.nazwa}”?`, () => usunObszar(sesja.id, o.id))}
+                    accessibilityLabel={`Usuń obszar ${o.nazwa}`}
                   >
                     <Text style={{ color: theme.colors.danger, fontWeight: '700' }}>✕</Text>
                   </TouchableOpacity>
@@ -680,7 +668,7 @@ export default function ObmiarDetailScreen() {
           onPress: () => {
             const m = parseInt(mianownikTekst.replace(',', '.'), 10);
             if (!Number.isFinite(m) || m < 1) {
-              Alert.alert('Skala', 'Podaj poprawny mianownik (np. 500).');
+              pokazKomunikat('Skala', 'Podaj poprawny mianownik (np. 500).');
               return;
             }
             zmienSkale(sesja.id, skalaZMianownika(m));
@@ -760,7 +748,7 @@ export default function ObmiarDetailScreen() {
                 odwrocY: sesja.tloPzt?.odwrocY,
               });
             } catch {
-              Alert.alert('Tło PZT', 'Nie udało się zapisać strony PDF.');
+              pokazKomunikat('Tło PZT', 'Nie udało się zapisać strony PDF.');
             } finally {
               setRasterPdf(null);
               setRasterBusy(false);
@@ -769,7 +757,7 @@ export default function ObmiarDetailScreen() {
           onBlad={(komunikat) => {
             setRasterPdf(null);
             setRasterBusy(false);
-            Alert.alert('Tło PZT', komunikat);
+            pokazKomunikat('Tło PZT', komunikat);
           }}
         />
       )}

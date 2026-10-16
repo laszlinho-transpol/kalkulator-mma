@@ -3,13 +3,14 @@
 // ============================================================
 
 import React from 'react';
-import { Alert, View, Text, useColorScheme } from 'react-native';
+import { View, Text, useColorScheme } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { usePlanyStore } from '../../src/stores/planyStore';
 import { PlanZBudowyForm } from '../../src/components/plan/PlanZBudowyForm';
 import { AppHeader } from '../../src/components/common/AppHeader';
 import { lightTheme, darkTheme } from '../../src/constants/theme';
 import type { Plan } from '../../src/types';
+import { pokazKomunikat } from '../../src/utils/dialog';
 
 export default function NowyPlanScreen() {
   const { budowaId } = useLocalSearchParams<{ budowaId?: string }>();
@@ -22,7 +23,7 @@ export default function NowyPlanScreen() {
       const planId = await dodajPlan(dane);
       router.replace(`/wbudowywanie/${planId}` as any);
     } catch {
-      Alert.alert('Błąd', 'Nie udało się zapisać planu. Spróbuj ponownie.');
+      pokazKomunikat('Błąd', 'Nie udało się zapisać planu. Spróbuj ponownie.');
     }
   };
 

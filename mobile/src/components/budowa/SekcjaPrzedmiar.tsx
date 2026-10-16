@@ -21,6 +21,7 @@ import {
   type WierszPrzedmiaru,
 } from '../../utils/projektBudowy';
 import { formatLiczby } from '../../utils/calculations';
+import { pokazKomunikat } from '../../utils/dialog';
 
 interface Props {
   projekt: ProjektBudowy;
@@ -75,7 +76,7 @@ export function SekcjaPrzedmiar({ projekt, theme, kodBudowy, onZmien }: Props) {
       doc.write(`\uFEFF${csv}`);
       await Sharing.shareAsync(doc.uri, { mimeType: 'text/csv', dialogTitle: 'Eksport sum mieszanek' });
     } catch (e) {
-      Alert.alert('Eksport', e instanceof Error ? e.message : 'Nie udało się udostępnić pliku CSV.');
+      pokazKomunikat('Eksport', e instanceof Error ? e.message : 'Nie udało się udostępnić pliku CSV.');
     }
   };
 
@@ -84,7 +85,7 @@ export function SekcjaPrzedmiar({ projekt, theme, kodBudowy, onZmien }: Props) {
       .filter((w) => zaznaczone.includes(w.id))
       .flatMap((w) => w.legendaIds);
     if (ids.length < 2) {
-      Alert.alert('Scalanie', 'Zaznacz co najmniej dwa wiersze o tych samych warstwach.');
+      pokazKomunikat('Scalanie', 'Zaznacz co najmniej dwa wiersze o tych samych warstwach.');
       return;
     }
     onZmien(scalWiersze(projekt, ids));

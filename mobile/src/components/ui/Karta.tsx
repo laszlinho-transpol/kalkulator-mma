@@ -152,8 +152,8 @@ export function WierszDanych({ etykieta, wartosc, kolor }: { etykieta: string; w
   );
 }
 
-/** Kafelki „etykieta nad wartością” w dwóch kolumnach (stawki, ceny, liczby). */
-export function SiatkaDanych({ pozycje }: { pozycje: Array<{ etykieta: string; wartosc: string }> }) {
+/** Kafelki „etykieta nad wartością” w dwóch kolumnach (stawki, ceny, liczby). `dopisek` – np. odchyłka od planu. */
+export function SiatkaDanych({ pozycje }: { pozycje: Array<{ etykieta: string; wartosc: string; dopisek?: string; kolor?: string }> }) {
   const theme = useMotyw();
   return (
     <View style={styles.siatka}>
@@ -161,6 +161,7 @@ export function SiatkaDanych({ pozycje }: { pozycje: Array<{ etykieta: string; w
         <View key={p.etykieta} style={[styles.kafelekDanych, { backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.border }]}>
           <Text style={[TYPOGRAFIA.opis, { color: theme.colors.textSecondary }]} numberOfLines={1}>{p.etykieta}</Text>
           <Text style={[TYPOGRAFIA.wartosc, { color: theme.colors.text }]} numberOfLines={1}>{p.wartosc}</Text>
+          {p.dopisek ? <Text style={[TYPOGRAFIA.opis, { color: p.kolor ?? theme.colors.textSecondary, fontWeight: '800' }]} numberOfLines={1}>{p.dopisek}</Text> : null}
         </View>
       ))}
     </View>

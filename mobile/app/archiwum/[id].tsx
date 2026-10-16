@@ -5,8 +5,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  useColorScheme, ActivityIndicator, Alert,
-  Modal, Pressable,
+  useColorScheme, ActivityIndicator, Modal, Pressable,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -28,10 +27,11 @@ import { formatujDatePl } from '../../src/utils/dates';
 import { formatujPikietaz } from '../../src/utils/chainage';
 import { formatujKmM } from '../../src/utils/projektBudowy';
 import { obszarySzkicuPlanu } from '../../src/utils/planZBudowy';
-import type { AppTheme } from '../../src/constants/theme';
 import { AppHeader } from '../../src/components/common/AppHeader';
 import { wstecz } from '../../src/budzet/nawigacja';
 import { karta as kartaWspolna } from '../../src/constants/layout';
+import { pokazKomunikat } from '../../src/utils/dialog';
+import { Przycisk, Sekcja, SiatkaDanych, WierszDanych, kolorDnia, rodzajDnia } from '../../src/components/ui';
 
 type ZakladkaTyp = 'podsumowanie' | 'live' | 'szkic';
 
@@ -78,14 +78,14 @@ export default function ArchiwumDetailScreen() {
   const handleGenerujPDF = async () => {
     setGenerujePDF(true);
     try { await generujRaportPDF(opcjeRaportu); }
-    catch { Alert.alert('Błąd', 'Nie udało się wygenerować PDF. Spróbuj ponownie.'); }
+    catch { pokazKomunikat('Błąd', 'Nie udało się wygenerować PDF. Spróbuj ponownie.'); }
     finally { setGenerujePDF(false); }
   };
 
   const handleWyslijMail = async () => {
     setGenerujePDF(true);
     try { await wyslijRaportDniaMailem(opcjeRaportu); }
-    catch { Alert.alert('Błąd', 'Nie udało się przygotować wiadomości z PDF.'); }
+    catch { pokazKomunikat('Błąd', 'Nie udało się przygotować wiadomości z PDF.'); }
     finally { setGenerujePDF(false); }
   };
 
@@ -140,61 +140,63 @@ export default function ArchiwumDetailScreen() {
         {/* ======== PODSUMOWANIE ======== */}
         {aktywnaZakladka === 'podsumowanie' && (
           <>
-            {budowa && (
-              <View style={[styles.karta, { backgroundColor: `${theme.colors.secondary}12`, borderColor: theme.colors.secondary }]}>
-                <Text style={{ color: theme.colors.secondary, fontWeight: '700' }}>{budowa.kodBudowy} – {budowa.nazwaInwestycji}</Text>
-              </View>
-            )}
-            {/* Bilans końcowy */}
-            <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-              <Text style={[styles.kartaTytul, { color: theme.colors.text }]}>BILANS KOŃCOWY</Text>
-              <IR label="Data" v={formatujDatePl(plan.dataWbudowywania)} theme={theme} />
-              <IR label="Działki" v={`${bilans.liczbaDzialek}`} theme={theme} />
-              <IR label="Mieszanka" v={bilans.mieszanka} theme={theme} />
-              <IR label="Masa zaplanowana" v={`${formatLiczby(bilans.masaPlanMg, 2)} Mg`} theme={theme} />
-              <WierszZDelta
-                label="Masa wbudowana"
-                wartosc={`${formatLiczby(bilans.masaLiveMg, 2)} Mg`}
-                delta={`${znakMasy}${formatLiczby(bilans.deltaMasaMg, 2)} Mg`}
-                kolor={kolorMasy}
-                theme={theme}
+            <Sekcja tytul="Dzień">
+              <WierszDanych
+                etykieta="Data"
+                wartosc={formatujDatePl(plan.dataWbudowywania)}
+                kolor={rodzajDnia(plan.dataWbudowywania) === 'roboczy' ? undefined : kolorDnia(theme, plan.dataWbudowywania)}
               />
-              <IR
-                label="Odcinek zaplanowany"
-                v={`${formatLiczby(bilans.dlugoscPlanM, 2)} m (${formatujPikietaz(bilans.startM)} – ${formatujPikietaz(bilans.koniecPlanM)})`}
-                theme={theme}
+              {budowa ? <WierszDanych etykieta="Budowa" wartosc={`${budowa.kodBudowy} – ${budowa.nazwaInwestycji}`} kolor={theme.colors.secondary} /> : null}
+              <WierszDanych etykieta="Mieszanka" wartosc={bilans.mieszanka} />
+              <SiatkaDanych
+                pozycje={[
+                  { etykieta: 'Działki', wartosc: `${bilans.liczbaDzialek}` },
+                  { etykieta: 'Aut przybyło', wartosc: bilans.autOpis },
+                ]}
               />
-              <WierszZDelta
-                label="Metry wykonane"
-                wartosc={`${formatLiczby(bilans.metryWykonane, 2)} m (${formatujPikietaz(bilans.startM)} – ${formatujPikietaz(bilans.koniecWykonanyM)})`}
-                delta={`${znakMetry}${formatLiczby(bilans.deltaMetry, 2)} m`}
-                kolor={kolorMetry}
-                theme={theme}
+            </Sekcja>
+
+            <Sekcja tytul="Bilans końcowy" info="Wartości wykonane porównane z planem. Zielony – w normie, czerwony – przekroczenie masy lub grubości albo brak metrów.">
+              <SiatkaDanych
+                pozycje={[
+                  { etykieta: 'Masa – plan', wartosc: `${formatLiczby(bilans.masaPlanMg, 2)} Mg` },
+                  {
+                    etykieta: 'Masa – wbudowana',
+                    wartosc: `${formatLiczby(bilans.masaLiveMg, 2)} Mg`,
+                    dopisek: `${znakMasy}${formatLiczby(bilans.deltaMasaMg, 2)} Mg`,
+                    kolor: kolorMasy,
+                  },
+                  { etykieta: 'Odcinek – plan', wartosc: `${formatLiczby(bilans.dlugoscPlanM, 2)} m` },
+                  {
+                    etykieta: 'Metry wykonane',
+                    wartosc: `${formatLiczby(bilans.metryWykonane, 2)} m`,
+                    dopisek: `${znakMetry}${formatLiczby(bilans.deltaMetry, 2)} m`,
+                    kolor: kolorMetry,
+                  },
+                  { etykieta: 'Grubość – plan', wartosc: `${formatLiczby(bilans.gruboscPlanCm, 2)} cm` },
+                  {
+                    etykieta: 'Grubość uzyskana',
+                    wartosc: `${formatLiczby(bilans.gruboscUzyskanaCm, 2)} cm`,
+                    dopisek: `${znakGr}${formatLiczby(bilans.deltaGruboscCm, 2)} cm`,
+                    kolor: kolorGr,
+                  },
+                ]}
               />
-              <IR label="Aut przybyło" v={bilans.autOpis} theme={theme} />
-              <WierszZDelta
-                label="Grubość wbudowywania"
-                wartosc={`${formatLiczby(bilans.gruboscPlanCm, 2)} cm (${formatLiczby(bilans.gruboscUzyskanaCm, 2)} cm)`}
-                delta={`${znakGr}${formatLiczby(bilans.deltaGruboscCm, 2)} cm`}
-                kolor={kolorGr}
-                theme={theme}
-              />
-              <TouchableOpacity
-                style={[styles.btnEdytuj, { borderColor: theme.colors.warning }]}
+              <WierszDanych etykieta="Plan" wartosc={`${formatujPikietaz(bilans.startM)} – ${formatujPikietaz(bilans.koniecPlanM)}`} />
+              <WierszDanych etykieta="Wykonano" wartosc={`${formatujPikietaz(bilans.startM)} – ${formatujPikietaz(bilans.koniecWykonanyM)}`} />
+              <Przycisk
+                tekst="Edytuj plan"
+                ikona="edytuj"
+                wariant="drugi"
                 onPress={() => router.push(`/plan/edytuj/${plan.id}` as any)}
-              >
-                <Text style={{ color: theme.colors.warning, fontWeight: '700', fontSize: 15 }}>Edytuj plan</Text>
-              </TouchableOpacity>
-            </View>
+              />
+            </Sekcja>
           </>
         )}
 
         {/* ======== TABELA LIVE ======== */}
         {aktywnaZakladka === 'live' && wybraDzialka && (
-          <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-            <Text style={[styles.kartaTytul, { color: theme.colors.text }]}>
-              {wybraDzialka.nazwa} – tabela aut (Live)
-            </Text>
+          <Sekcja tytul={`${wybraDzialka.nazwa} – tabela aut (Live)`}>
             {wpisyLive.filter((w) => w.dzialkaId === wybraDzialka.id).length === 0 ? (
               <Text style={[styles.brakWpisow, { color: theme.colors.textSecondary }]}>Brak zapisów Live dla tej działki.</Text>
             ) : (
@@ -205,13 +207,12 @@ export default function ArchiwumDetailScreen() {
                 theme={theme}
               />
             )}
-          </View>
+          </Sekcja>
         )}
 
         {/* ======== SZKIC ======== */}
         {aktywnaZakladka === 'szkic' && wybraDzialka && (
-          <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-            <Text style={[styles.kartaTytul, { color: theme.colors.text }]}>Szkic: {wybraDzialka.nazwa}</Text>
+          <Sekcja tytul={`Szkic: ${wybraDzialka.nazwa}`}>
             {projektSzkicu ? (
               obszarySzkicuPlanu(plan).length > 0 ? obszarySzkicuPlanu(plan).map((obszar) => (
                 <View key={obszar.id} style={{ marginBottom: 16 }}>
@@ -240,7 +241,7 @@ export default function ArchiwumDetailScreen() {
                 wykonaneMetry={wpisyLive.filter((w) => w.dzialkaId === wybraDzialka.id).reduce((s, w) => s + w.przejechaneMetry, 0)}
               />
             )}
-          </View>
+          </Sekcja>
         )}
 
         <View style={{ height: 32 }} />
@@ -289,29 +290,6 @@ const uStyles = StyleSheet.create({
   btnAnuluj: { borderWidth: 1, borderRadius: 12, paddingVertical: 13, alignItems: 'center', marginTop: 4 },
   btnAnulujTekst: { fontSize: 15, fontWeight: '600' },
 });
-
-function IR({ label, v, theme, bold }: { label: string; v: string; theme: AppTheme; bold?: boolean }) {
-  return (
-    <View style={{ paddingVertical: 5 }}>
-      <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>{label}</Text>
-      <Text style={{ color: theme.colors.text, fontSize: 15, fontWeight: bold ? '800' : '700' }}>{v}</Text>
-    </View>
-  );
-}
-
-function WierszZDelta({
-  label, wartosc, delta, kolor, theme,
-}: { label: string; wartosc: string; delta: string; kolor: string; theme: AppTheme }) {
-  return (
-    <View style={{ paddingVertical: 5 }}>
-      <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>{label}</Text>
-      <Text style={{ color: theme.colors.text, fontSize: 15, fontWeight: '700' }}>
-        {wartosc}{' '}
-        <Text style={{ color: kolor, fontWeight: '800' }}>{delta}</Text>
-      </Text>
-    </View>
-  );
-}
 
 const styles = StyleSheet.create({
   container: { flex: 1 },

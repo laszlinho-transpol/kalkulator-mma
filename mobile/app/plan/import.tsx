@@ -5,7 +5,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  useColorScheme, ScrollView, Alert, ActivityIndicator,
+  useColorScheme, ScrollView, ActivityIndicator,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,6 +17,7 @@ import { formatujDatePl } from '../../src/utils/dates';
 import { AnimatedCard } from '../../src/components/common/AnimatedCard';
 import { AppHeader } from '../../src/components/common/AppHeader';
 import { InfoTooltip } from '../../src/components/common/InfoTooltip';
+import { pokazKomunikat } from '../../src/utils/dialog';
 
 export default function ImportPlanScreen() {
   const colorScheme = useColorScheme();
@@ -38,7 +39,7 @@ export default function ImportPlanScreen() {
 
     if (!wynik.sukces) {
       if (wynik.blad !== 'Anulowano wybór pliku.') {
-        Alert.alert('Błąd importu', wynik.blad);
+        pokazKomunikat('Błąd importu', wynik.blad);
       }
       return;
     }
@@ -77,14 +78,14 @@ export default function ImportPlanScreen() {
       });
 
       setZapisywanie(false);
-      Alert.alert(
+      pokazKomunikat(
         'Import zakończony',
         `Plan został zaimportowany.${importowaneMieszanki > 0 ? `\nDodano ${importowaneMieszanki} nowych mieszanek.` : ''}`,
-        [{ text: 'Przejdź do planu', onPress: () => router.replace(`/plan/${planId}` as any) }],
+        () => router.replace(`/plan/${planId}` as any),
       );
     } catch {
       setZapisywanie(false);
-      Alert.alert('Błąd', 'Nie udało się zapisać importowanych danych.');
+      pokazKomunikat('Błąd', 'Nie udało się zapisać importowanych danych.');
     }
   };
 

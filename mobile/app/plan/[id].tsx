@@ -167,7 +167,7 @@ export default function PlanDetailScreen() {
         {aktywnaZakladka === 'plan' && (
           <>
             <Sekcja tytul="Dane planu">
-              <WierszDanych etykieta="Data" wartosc={formatujDatePl(plan.dataWbudowywania)} kolor={rodzajDnia(plan.dataWbudowywania.slice(0, 10)) === 'roboczy' ? undefined : kolorDnia(theme, plan.dataWbudowywania.slice(0, 10))} />
+              <WierszDanych etykieta="Data" wartosc={formatujDatePl(plan.dataWbudowywania)} kolor={rodzajDnia(plan.dataWbudowywania) === 'roboczy' ? undefined : kolorDnia(theme, plan.dataWbudowywania)} />
               {budowa ? <WierszDanych etykieta="Budowa" wartosc={`${budowa.kodBudowy} – ${budowa.nazwaInwestycji}`} /> : null}
               <SiatkaDanych
                 pozycje={[

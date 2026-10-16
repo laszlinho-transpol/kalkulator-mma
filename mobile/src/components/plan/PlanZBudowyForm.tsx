@@ -4,7 +4,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, useColorScheme,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, useColorScheme,
   KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { router } from 'expo-router';
@@ -38,6 +38,7 @@ import {
 } from '../../utils/planZBudowy';
 import type { KategoriaWarstwy, Plan, ProjektBudowy } from '../../types';
 import { karta as kartaWspolna } from '../../constants/layout';
+import { pokazKomunikat } from '../../utils/dialog';
 
 const MAX_DZIALEK = 20;
 
@@ -344,17 +345,17 @@ export function PlanZBudowyForm({ tytul, budowaId, initialPlan, onZapisz }: Prop
   };
 
   const zapisz = async () => {
-    if (!projekt) { Alert.alert('Brak projektu', 'Uzupełnij PZT i konstrukcje w menu Budowa.'); return; }
+    if (!projekt) { pokazKomunikat('Brak projektu', 'Uzupełnij PZT i konstrukcje w menu Budowa.'); return; }
     const doZbudowania: ZakladkaDoZbudowania[] = [];
     for (let i = 0; i < zakladki.length; i++) {
       const z = zakladki[i];
       const w = wyniki[i];
       const nr = zakladki.length > 1 ? `Działka ${i + 1}: ` : '';
-      if (!z.legendaId) { Alert.alert('Obszar', `${nr}Wybierz obszar z listy.`); setAktywna(i); return; }
-      if (!z.warstwaNazwa) { Alert.alert('Warstwa', `${nr}Wybierz warstwę.`); setAktywna(i); return; }
-      if (w.od === w.dok) { Alert.alert('Kilometraż', `${nr}Start i koniec muszą się różnić – od tego zależy kierunek układania.`); setAktywna(i); return; }
-      if (!z.mieszankaId) { Alert.alert('Recepta', `${nr}Wybierz receptę, aby przeliczyć gęstość i masę.`); setAktywna(i); return; }
-      if (w.odcinki.length === 0) { Alert.alert('Konstrukcja', `${nr}W podanym kilometrażu nie ma konstrukcji dla tego obszaru.`); setAktywna(i); return; }
+      if (!z.legendaId) { pokazKomunikat('Obszar', `${nr}Wybierz obszar z listy.`); setAktywna(i); return; }
+      if (!z.warstwaNazwa) { pokazKomunikat('Warstwa', `${nr}Wybierz warstwę.`); setAktywna(i); return; }
+      if (w.od === w.dok) { pokazKomunikat('Kilometraż', `${nr}Start i koniec muszą się różnić – od tego zależy kierunek układania.`); setAktywna(i); return; }
+      if (!z.mieszankaId) { pokazKomunikat('Recepta', `${nr}Wybierz receptę, aby przeliczyć gęstość i masę.`); setAktywna(i); return; }
+      if (w.odcinki.length === 0) { pokazKomunikat('Konstrukcja', `${nr}W podanym kilometrażu nie ma konstrukcji dla tego obszaru.`); setAktywna(i); return; }
       doZbudowania.push({
         id: z.id,
         legendaId: z.legendaId,
@@ -376,7 +377,7 @@ export function PlanZBudowyForm({ tytul, budowaId, initialPlan, onZapisz }: Prop
     if (rzutyStr.trim()) {
       const parsed = parsujRzuty(rzutyStr);
       if (!parsed || !walidujRzuty(rzutyStr, sumaAut)) {
-        Alert.alert('Rzuty', `Podział "${rzutyStr}" musi sumować się do ${sumaAut} aut.`);
+        pokazKomunikat('Rzuty', `Podział "${rzutyStr}" musi sumować się do ${sumaAut} aut.`);
         return;
       }
       rzuty = parsed;

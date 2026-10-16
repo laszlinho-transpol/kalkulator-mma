@@ -5,7 +5,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  TextInput, useColorScheme, Alert, KeyboardAvoidingView,
+  TextInput, useColorScheme, KeyboardAvoidingView,
   Platform, Modal, Pressable, Dimensions,
 } from 'react-native';
 import { router } from 'expo-router';
@@ -66,7 +66,7 @@ import {
   metryPrzedWpisem,
   sumaMetrowDzialki,
 } from '../../src/utils/liveProgress';
-import { potwierdzAkcje } from '../../src/utils/dialog';
+import { pokazKomunikat, potwierdzAkcje } from '../../src/utils/dialog';
 import type { DzialkaRobocza, Plan, WpisLive } from '../../src/types';
 import { karta as kartaWspolna } from '../../src/constants/layout';
 
@@ -345,7 +345,7 @@ export default function WbudowywanieDetailScreen() {
     try {
       await archiwizujPlan(plan.id);
     } catch {
-      Alert.alert('Błąd', 'Nie udało się zapisać dniówki do archiwum.');
+      pokazKomunikat('Błąd', 'Nie udało się zapisać dniówki do archiwum.');
       setGenerujeRaport(false);
       return;
     }
@@ -376,7 +376,7 @@ export default function WbudowywanieDetailScreen() {
         await oznaczOstatnieAuto(plan.id, dz.id);
         const next = (aktywnaDzialka?.idx ?? 0) + 1;
         if (next < plan.dzialki.length) {
-          Alert.alert(
+          pokazKomunikat(
             'Przejście do kolejnej działki',
             `${plan.dzialki[next].nazwa}\nKolejne auto: #${kolejnyNumerAuta}`,
           );
@@ -404,7 +404,7 @@ export default function WbudowywanieDetailScreen() {
         const next = plan.dzialki.find((d) => d.mieszankaId !== mix && !czyDzialkaZakonczona(plan.id, d.id));
         if (next) {
           setSzkicObszarId(next.id);
-          Alert.alert('Kolejna mieszanka', `${next.nazwa}\nKolejne auto: #${kolejnyNumerAuta}`);
+          pokazKomunikat('Kolejna mieszanka', `${next.nazwa}\nKolejne auto: #${kolejnyNumerAuta}`);
         }
       },
       'Zakończ mieszankę',
@@ -430,9 +430,9 @@ export default function WbudowywanieDetailScreen() {
   const dodajWpisLive = async () => {
     const ton = parseFloat(nowyTonaz.replace(',', '.'));
     const met = rozwiazMetryWpisu();
-    if (isNaN(ton) || ton <= 0) { Alert.alert('Błąd', 'Podaj prawidłowy tonaż.'); return; }
+    if (isNaN(ton) || ton <= 0) { pokazKomunikat('Błąd', 'Podaj prawidłowy tonaż.'); return; }
     if (met === null || met <= 0) {
-      Alert.alert('Błąd', trybMetrowLive === 'odStartu' && edytowanyNumerAuta == null
+      pokazKomunikat('Błąd', trybMetrowLive === 'odStartu' && edytowanyNumerAuta == null
         ? 'Odległość od startu musi być większa niż dotychczas przejechane metry.'
         : 'Podaj prawidłowe metry.');
       return;
@@ -461,14 +461,14 @@ export default function WbudowywanieDetailScreen() {
       rzutReczny.current = true;
     } else {
       if (!aktywnaDzialka) {
-        Alert.alert('Plan ukończony', 'Wszystkie działki są zakończone. Możesz zarchiwizować plan.');
+        pokazKomunikat('Plan ukończony', 'Wszystkie działki są zakończone. Możesz zarchiwizować plan.');
         return;
       }
       const segmenty = rozdzielMetryNaDzialki(
         plan, wpisyCalegoPlanu, sesje, met, ton, ciezarPoMieszance,
       );
       if (segmenty.length === 0) {
-        Alert.alert('Brak miejsca', 'Nie można rozdzielić metrów – sprawdź postęp na działkach.');
+        pokazKomunikat('Brak miejsca', 'Nie można rozdzielić metrów – sprawdź postęp na działkach.');
         return;
       }
       const doZamkniecia = dzialkiDoAutoZamkniecia(plan, wpisyCalegoPlanu, sesje, segmenty);
@@ -492,7 +492,7 @@ export default function WbudowywanieDetailScreen() {
           : doZamkniecia.length > 0
             ? `Działka „${plan.dzialki.find((d) => d.id === doZamkniecia[0])?.nazwa}” ukończona – kolejne auto na następnej.`
             : '';
-        if (msg) Alert.alert('Postęp LIVE', msg);
+        if (msg) pokazKomunikat('Postęp LIVE', msg);
       }
     }
     setNowyTonaz(''); setNowyMetry(''); setNowyKomentarz(''); setNowyGodzina(aktualnaGodzina());
@@ -537,7 +537,7 @@ export default function WbudowywanieDetailScreen() {
 
   const wyczyscLive = () => {
     if (wpisyCalegoPlanu.length === 0) {
-      Alert.alert('Brak wpisów', 'Nie ma żadnych aut LIVE do usunięcia.');
+      pokazKomunikat('Brak wpisów', 'Nie ma żadnych aut LIVE do usunięcia.');
       return;
     }
     potwierdzAkcje(

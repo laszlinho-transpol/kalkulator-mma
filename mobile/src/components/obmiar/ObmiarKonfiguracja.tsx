@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Alert, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Text, TextInput, TouchableOpacity, View } from 'react-native';
 import type { AppTheme } from '../../constants/theme';
 import type { ObszarObmiaru, OdsadzkaObmiaru, TrybWyboruWezla } from '../../types';
 import {
@@ -9,6 +9,7 @@ import { dlugoscUkladaniaObszaru } from '../../utils/obmiarLive';
 import { formatLiczby } from '../../utils/calculations';
 import { PoleKilometraz, parsujPolaKilometraza, polaZKilometraza } from '../common/PoleKilometraz';
 import { InfoTooltip } from '../common/InfoTooltip';
+import { pokazKomunikat, potwierdzAkcje } from '../../utils/dialog';
 
 interface Props {
   obszar: ObszarObmiaru;
@@ -213,15 +214,15 @@ function WierszOdsadzki({
   const zastosuj = () => {
     const v = parseFloat(dyst.replace(',', '.'));
     if (!Number.isFinite(v) || v === 0) {
-      Alert.alert('Odsadzka', 'Podaj wartość w metrach (np. 0.10).');
+      pokazKomunikat('Odsadzka', 'Podaj wartość w metrach (np. 0.10).');
       return;
     }
     if (!pokazKm && (o.idxP == null || o.idxK == null)) {
-      Alert.alert('Odsadzka', 'Zaznacz na mapie punkty P1 i K1.');
+      pokazKomunikat('Odsadzka', 'Zaznacz na mapie punkty P1 i K1.');
       return;
     }
     if (pokazKm && !o.calosc && kmOdKm === '' && kmOdM === '' && kmDoKm === '' && kmDoM === '') {
-      Alert.alert('Odsadzka', 'Wpisz kilometraż od–do albo zaznacz „całość”.');
+      pokazKomunikat('Odsadzka', 'Wpisz kilometraż od–do albo zaznacz „całość”.');
       return;
     }
     const odP = parsujPolaKilometraza(kmOdKm, kmOdM);
@@ -257,10 +258,7 @@ function WierszOdsadzki({
         </TouchableOpacity>
         <TouchableOpacity
           disabled={zablokowana}
-          onPress={() => Alert.alert('Usuń odsadzkę', 'Usunąć ten odcinek? Powierzchnia wróci do stanu sprzed tej odsadzki.', [
-            { text: 'Anuluj', style: 'cancel' },
-            { text: 'Usuń', style: 'destructive', onPress: () => onUsun(o.id) },
-          ])}
+          onPress={() => potwierdzAkcje('Usuń odsadzkę', 'Usunąć ten odcinek? Powierzchnia wróci do stanu sprzed tej odsadzki.', () => onUsun(o.id))}
         >
           <Text style={{ color: theme.colors.danger, fontWeight: '800', fontSize: 13 }}>Usuń</Text>
         </TouchableOpacity>
@@ -336,10 +334,7 @@ function SekcjaKrawedzi({
     const istniejaca = tej.find((o) => o.calosc);
     if (istniejaca) {
       if (istniejaca.zastosowana) {
-        Alert.alert('Całość', 'Usunąć odsadzkę na całej krawędzi?', [
-          { text: 'Anuluj', style: 'cancel' },
-          { text: 'Usuń', style: 'destructive', onPress: () => onUsun(istniejaca.id) },
-        ]);
+        potwierdzAkcje('Całość', 'Usunąć odsadzkę na całej krawędzi?', () => onUsun(istniejaca.id));
       } else {
         onUsun(istniejaca.id);
       }
