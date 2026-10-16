@@ -8,10 +8,12 @@ import {
   useColorScheme, TextInput, ActivityIndicator,
 } from 'react-native';
 import { router } from 'expo-router';
+import { wstecz } from '../../src/budzet/nawigacja';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppHeader } from '../../src/components/common/AppHeader';
 import { SafeModal } from '../../src/components/common/SafeModal';
 import { InfoTooltip } from '../../src/components/common/InfoTooltip';
+import { Pole as PoleUi, Przycisk, Sekcja, SiatkaDanych, TYPOGRAFIA, Wiersz, WierszDanych } from '../../src/components/ui';
 import { MieszankaPicker } from '../../src/components/common/MieszankaPicker';
 import { BudowaPicker } from '../../src/components/common/BudowaPicker';
 import { DatePickerButton } from '../../src/components/common/DatePickerButton';
@@ -137,7 +139,7 @@ export default function ObmiarDetailScreen() {
   if (!sesja) {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-        <AppHeader tytul="Obmiar" lewy={{ tekst: '‹ Wstecz', onPress: () => router.back() }} />
+        <AppHeader tytul="Obmiar" lewy={{ tekst: '‹ Wstecz', onPress: () => wstecz('/obmiar') }} />
         <Text style={{ color: theme.colors.danger, textAlign: 'center', marginTop: 40 }}>Sesja nie znaleziona.</Text>
       </View>
     );
@@ -332,7 +334,7 @@ export default function ObmiarDetailScreen() {
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <AppHeader
         tytul={sesja.nazwa}
-        lewy={{ tekst: '‹ Wstecz', onPress: () => router.back() }}
+        lewy={{ tekst: '‹ Wstecz', onPress: () => wstecz('/obmiar') }}
         prawy={{ tekst: '+ XFDF', onPress: importuj, kolor: theme.colors.success }}
       />
 
@@ -342,7 +344,7 @@ export default function ObmiarDetailScreen() {
         nestedScrollEnabled
         scrollEnabled={!blokadaPodgladu && !mapaAktywna}
       >
-        <Text style={[styles.kartaTytul, { color: theme.colors.text, marginLeft: 4 }]}>Kolejność układania</Text>
+        <Text style={[TYPOGRAFIA.sekcja, { color: theme.colors.textSecondary, marginLeft: 4 }]}>Kolejność układania</Text>
 
         {sesja.obszary.length === 0 ? (
           <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
@@ -578,83 +580,69 @@ export default function ObmiarDetailScreen() {
           })
         )}
 
-        <TouchableOpacity style={[styles.btnImport, { backgroundColor: theme.colors.success }]} onPress={importuj}>
-          <Text style={styles.btnImportTekst}>+ Importuj kolejny XFDF</Text>
-        </TouchableOpacity>
+        <Przycisk tekst="Importuj kolejny XFDF" ikona="plus" wariant="drugi" onPress={importuj} />
 
-        <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-          <Text style={[styles.kartaTytul, { color: theme.colors.text }]}>Plan dnia</Text>
+        <Sekcja tytul="Plan dnia" info="Po zatwierdzeniu wszystkich obszarów zapisz plan – trafi do Wbudowywania z podziałem aut na kursy.">
           <DatePickerButton
             label="Data"
             value={dataPlanu}
             onChange={(d) => ustawDateSesji(sesja.id, isoZDaty(d))}
           />
-          <TouchableOpacity style={[styles.btnSek, { borderColor: theme.colors.border }]} onPress={() => setPickerBudowa(true)}>
-            <Text style={{ color: theme.colors.text, fontWeight: '700' }}>
-              {budowa ? `${budowa.kodBudowy} – ${budowa.nazwaInwestycji}` : 'Przypisz budowę'}
-            </Text>
-          </TouchableOpacity>
+          <Przycisk
+            tekst={budowa ? `${budowa.kodBudowy} – ${budowa.nazwaInwestycji}` : 'Przypisz budowę'}
+            wariant="drugi"
+            onPress={() => setPickerBudowa(true)}
+            accessibilityLabel="Przypisz budowę"
+          />
           {podsumowanie && (
-            <View style={{ marginTop: 10, gap: 4 }}>
-              <Row label="Łączna powierzchnia" v={`${formatLiczby(podsumowanie.powierzchniaRazem)} m²`} theme={theme} bold />
+            <>
+              <SiatkaDanych
+                pozycje={[
+                  { etykieta: 'Powierzchnia', wartosc: `${formatLiczby(podsumowanie.powierzchniaRazem)} m²` },
+                  { etykieta: 'Obszary', wartosc: String(podsumowanie.liczbaObszarow) },
+                  { etykieta: 'Razem aut', wartosc: String(podsumowanie.sumaAut) },
+                  { etykieta: 'Masa', wartosc: `${formatLiczby(podsumowanie.masaNaMieszanke.reduce((a, m) => a + m.masaMg, 0), 2)} t` },
+                ]}
+              />
               {podsumowanie.powierzchnie.map((p) => (
-                <Text key={p.etykieta} style={{ color: theme.colors.textSecondary, fontSize: 13, marginLeft: 4 }}>
+                <Text key={p.etykieta} style={[TYPOGRAFIA.opis, { color: theme.colors.textSecondary }]}>
                   – {etykietaPowierzchni(p)}
                 </Text>
               ))}
-              <Row label="Obszary (działki robocze)" v={String(podsumowanie.liczbaObszarow)} theme={theme} />
-              <Text style={{ color: theme.colors.textSecondary, fontSize: 12, fontWeight: '700', marginTop: 6 }}>Mieszanki / masa</Text>
+              <Text style={[TYPOGRAFIA.etykieta, { color: theme.colors.textSecondary, marginTop: 4 }]}>Mieszanki / masa</Text>
               {podsumowanie.mieszanki.length === 0 ? (
-                <Text style={{ color: theme.colors.textSecondary, fontSize: 13 }}>Uzupełnij konstrukcję obszarów.</Text>
+                <Text style={[TYPOGRAFIA.opis, { color: theme.colors.textSecondary }]}>Uzupełnij konstrukcję obszarów.</Text>
               ) : podsumowanie.mieszanki.map((p) => (
-                <Text key={`${p.mieszankaId}-${p.gruboscCm}`} style={{ color: theme.colors.text, fontSize: 13 }}>
+                <Text key={`${p.mieszankaId}-${p.gruboscCm}`} style={[TYPOGRAFIA.opis, { color: theme.colors.text }]}>
                   – {etykietaMasy(p)}
                 </Text>
               ))}
-              <Text style={{ color: theme.colors.textSecondary, fontSize: 12, fontWeight: '700', marginTop: 6 }}>Ilość samochodów</Text>
               {podsumowanie.masaNaMieszanke.map((m) => (
-                <Text key={m.mieszankaId} style={{ color: theme.colors.text, fontSize: 13 }}>
-                  – {m.auta} aut · {formatLiczby(m.masaMg, 2)} t {m.etykieta}
-                </Text>
+                <WierszDanych key={m.mieszankaId} etykieta={m.etykieta} wartosc={`${m.auta} aut · ${formatLiczby(m.masaMg, 2)} t`} />
               ))}
-              <Row label="Razem aut" v={String(podsumowanie.sumaAut)} theme={theme} bold />
-            </View>
+            </>
           )}
-          <View style={{ marginTop: 10, flexDirection: 'row', gap: 10 }}>
-            <View style={{ flex: 1 }}>
-              <Text style={{ color: theme.colors.textSecondary, fontSize: 11, marginBottom: 4 }}>Tonaż na auto [t]</Text>
-              <TextInput
-                value={tonazStr}
-                onChangeText={setTonazStr}
-                keyboardType="decimal-pad"
-                accessibilityLabel="Tonaż na auto"
-                style={[styles.input, { borderColor: theme.colors.border, color: theme.colors.text, backgroundColor: theme.colors.inputBackground }]}
-              />
-            </View>
-            <View style={{ flex: 1 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-                <Text style={{ color: theme.colors.textSecondary, fontSize: 11 }}>Kursy (suma {podsumowanie?.sumaAut ?? 0})</Text>
-                <InfoTooltip tresc="Podział aut na kursy, np. 6+6+4. Suma musi równać się liczbie aut. Puste pole oznacza jeden kurs." />
-              </View>
-              <TextInput
-                value={rzutyStr}
-                onChangeText={setRzutyStr}
-                placeholder="6+6+4"
-                accessibilityLabel="Podział na kursy"
-                placeholderTextColor={theme.colors.textSecondary}
-                style={[styles.input, { borderColor: theme.colors.border, color: theme.colors.text, backgroundColor: theme.colors.inputBackground }]}
-              />
-            </View>
-          </View>
-        </View>
+          <Wiersz>
+            <PoleUi
+              etykieta="Tonaż na auto"
+              jednostka="t"
+              liczba
+              value={tonazStr}
+              onChangeText={setTonazStr}
+              accessibilityLabel="Tonaż na auto"
+            />
+            <PoleUi
+              etykieta={`Kursy (Σ ${podsumowanie?.sumaAut ?? 0})`}
+              info="Podział aut na kursy, np. 6+6+4. Suma musi równać się liczbie aut. Puste pole oznacza jeden kurs."
+              value={rzutyStr}
+              onChangeText={setRzutyStr}
+              placeholder="6+6+4"
+              accessibilityLabel="Podział na kursy"
+            />
+          </Wiersz>
+        </Sekcja>
 
-        <TouchableOpacity
-          style={[styles.btnImport, { backgroundColor: theme.colors.primary }]}
-          onPress={zapiszPlan}
-          disabled={zapisuje}
-        >
-          {zapisuje ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnImportTekst}>Zapisz plan</Text>}
-        </TouchableOpacity>
+        <Przycisk tekst={zapisuje ? 'Zapisywanie…' : 'Zapisz plan'} onPress={zapiszPlan} disabled={zapisuje} />
       </ScrollView>
 
       <SafeModal
@@ -851,15 +839,6 @@ function KonstrukcjaObszaru({
   );
 }
 
-function Row({ label, v, theme, bold }: { label: string; v: string; theme: AppTheme; bold?: boolean }) {
-  return (
-    <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4, gap: 8 }}>
-      <Text style={{ color: theme.colors.textSecondary, fontSize: 13, flex: 1 }}>{label}</Text>
-      <Text style={{ color: theme.colors.text, fontSize: 13, fontWeight: bold ? '700' : '400' }}>{v}</Text>
-    </View>
-  );
-}
-
 function Pole({
   label, value, onChange, theme, onBlur, klawiatura = 'decimal-pad',
 }: {
@@ -885,12 +864,9 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   zawartosc: { padding: 14, gap: 12 },
   karta: { ...kartaWspolna },
-  kartaTytul: { fontSize: 13, fontWeight: '800', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.4 },
   rzadAkcji: { flexDirection: 'row', gap: 8, marginTop: 10 },
   btnMini: { width: 40, height: 36, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   btnSek: { marginTop: 10, borderWidth: 1, borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
-  btnImport: { paddingVertical: 14, borderRadius: 12, alignItems: 'center', marginTop: 4 },
-  btnImportTekst: { color: '#fff', fontWeight: '700', fontSize: 15 },
   btnZatwierdz: { paddingVertical: 13, borderRadius: 10, alignItems: 'center' },
   btnZatwierdzTekst: { color: '#fff', fontWeight: '800', fontSize: 15 },
   input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16 },
