@@ -3,10 +3,7 @@
 // ============================================================
 
 import React, { useEffect, useState } from 'react';
-import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  useColorScheme, Alert, TextInput,
-} from 'react-native';
+import { View, StyleSheet, ScrollView, useColorScheme } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppHeader } from '../../src/components/common/AppHeader';
@@ -15,7 +12,9 @@ import { useObmiarStore } from '../../src/stores/obmiarStore';
 import { formatujDatePl } from '../../src/utils/dates';
 import { formatLiczby } from '../../src/utils/calculations';
 import { SafeModal } from '../../src/components/common/SafeModal';
-import { karta as kartaWspolna } from '../../src/constants/layout';
+import { Karta, Pole, kolorDnia, rodzajDnia } from '../../src/components/ui';
+import { dataKrotko } from '../../src/budzet/wyswietlanie';
+import { potwierdzAkcje } from '../../src/utils/dialog';
 
 export default function ObmiarIndexScreen() {
   const colorScheme = useColorScheme();
@@ -44,38 +43,29 @@ export default function ObmiarIndexScreen() {
       />
       <ScrollView contentContainerStyle={[styles.zawartosc, { paddingBottom: insets.bottom + 20 }]}>
         {sesje.filter((s) => s.status !== 'archiwalna').length === 0 ? (
-          <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-            <Text style={{ color: theme.colors.textSecondary, textAlign: 'center' }}>
-              Brak sesji obmiaru. Naciśnij „Nowy” i zaimportuj XFDF.
-            </Text>
-          </View>
+          <Karta podtytul="Brak sesji obmiaru. Naciśnij „Nowy” i zaimportuj XFDF." />
         ) : (
           sesje.filter((s) => s.status !== 'archiwalna').map((s) => {
             const sumaPow = s.obszary.reduce((a, o) => a + o.powierzchniaM2, 0);
             const zrodla = [...new Set(s.obszary.map((o) => o.zrodloNazwa))];
             return (
-              <TouchableOpacity
+              <Karta
                 key={s.id}
-                style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}
-                onPress={() => router.push(`/obmiar/${s.id}` as any)}
-                onLongPress={() => Alert.alert('Usuń sesję', `Usunąć „${s.nazwa}”?`, [
-                  { text: 'Anuluj', style: 'cancel' },
-                  { text: 'Usuń', style: 'destructive', onPress: () => usunSesje(s.id) },
-                ])}
-              >
-                <Text style={[styles.tytul, { color: theme.colors.primary }]}>{s.nazwa}</Text>
-                <Text style={{ color: theme.colors.textSecondary, fontSize: 13 }}>
-                  {s.data} · {s.obszary.length} obszar(ów) · {formatLiczby(sumaPow)} m²
-                </Text>
-                {zrodla.length > 0 && (
-                  <Text style={{ color: theme.colors.textSecondary, fontSize: 12, marginTop: 4 }}>
-                    PDF: {zrodla.join(', ')}
-                  </Text>
-                )}
-                <Text style={{ color: theme.colors.textSecondary, fontSize: 12, marginTop: 2 }}>
-                  Skala 1:{s.skala.mianownik} ({s.skala.metryNaCm} m / cm)
-                </Text>
-              </TouchableOpacity>
+                tytul={s.nazwa}
+                podtytul={[`Skala 1:${s.skala.mianownik} (${s.skala.metryNaCm} m / cm)`, zrodla.length ? `PDF: ${zrodla.join(', ')}` : ''].filter(Boolean).join('\n')}
+                znaczek={{ tekst: dataKrotko(s.data), kolor: rodzajDnia(s.data) === 'roboczy' ? theme.colors.info : kolorDnia(theme, s.data) }}
+                podsumowanie={`${s.obszary.length} obszar(ów) · ${formatLiczby(sumaPow)} m²`}
+                onPress={() => router.push(`/obmiar/${s.id}` as never)}
+                akcje={[
+                  { tekst: 'Otwórz', rodzaj: 'glowna', onPress: () => router.push(`/obmiar/${s.id}` as never) },
+                  {
+                    tekst: 'Usuń',
+                    rodzaj: 'niebezpieczna',
+                    accessibilityLabel: `Usuń sesję ${s.nazwa}`,
+                    onPress: () => potwierdzAkcje('Usuń sesję', `Usunąć „${s.nazwa}”?`, () => { void usunSesje(s.id); }),
+                  },
+                ]}
+              />
             );
           })
         )}
@@ -90,17 +80,13 @@ export default function ObmiarIndexScreen() {
         prawy={{ tekst: 'Utwórz', onPress: utworz, kolor: theme.colors.primary }}
       >
         <View style={{ paddingHorizontal: 16, paddingBottom: 16 }}>
-          <Text style={{ color: theme.colors.textSecondary, marginBottom: 6 }}>Nazwa (opcjonalnie)</Text>
-          <TextInput
+          <Pole
+            etykieta="Nazwa"
+            info="Bez nazwy sesja dostanie nazwę z dzisiejszą datą."
             value={nazwa}
             onChangeText={setNazwa}
             placeholder="np. Różniaty – dzień 1"
-            placeholderTextColor={theme.colors.textSecondary}
-            style={{
-              borderWidth: 1, borderRadius: 10, padding: 12, fontSize: 16,
-              borderColor: theme.colors.border, color: theme.colors.text,
-              backgroundColor: theme.colors.inputBackground,
-            }}
+            accessibilityLabel="Nazwa sesji obmiaru"
           />
         </View>
       </SafeModal>
@@ -111,6 +97,4 @@ export default function ObmiarIndexScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   zawartosc: { padding: 14, gap: 12 },
-  karta: { ...kartaWspolna },
-  tytul: { fontSize: 15, fontWeight: '800', marginBottom: 4 },
 });

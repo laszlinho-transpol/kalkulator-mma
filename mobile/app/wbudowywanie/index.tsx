@@ -4,7 +4,7 @@
 
 import React, { useMemo } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, useColorScheme,
+  View, Text, StyleSheet, ScrollView, useColorScheme,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,8 +14,7 @@ import { useLiveStore } from '../../src/stores/liveStore';
 import { lightTheme, darkTheme } from '../../src/constants/theme';
 import { EmptyState } from '../../src/components/common/EmptyState';
 import { AppHeader } from '../../src/components/common/AppHeader';
-import { CollapsibleSection } from '../../src/components/common/CollapsibleSection';
-import { karta, tekstTytul, tekstPodtytul } from '../../src/constants/layout';
+import { Karta, ODSTEP, TYPOGRAFIA } from '../../src/components/ui';
 import { komentarzPlanuBudowy, tytulPlanuBudowy } from '../../src/utils/planZBudowy';
 import { potwierdzAkcje } from '../../src/utils/dialog';
 import type { Plan, Budowa } from '../../src/types';
@@ -88,39 +87,18 @@ export default function WbudowywanieScreen() {
       ? komentarzPlanuBudowy(item)
       : `${item.zrodlo === 'obmiar' ? 'Obmiar PZT' : 'Zaplanuj masę'} · ${item.dzialki.length} ${item.dzialki.length === 1 ? 'działka' : 'działki'}`;
     return (
-      <View
+      <Karta
         key={item.id}
-        style={[karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}
-      >
-        <TouchableOpacity onPress={() => router.push(`/wbudowywanie/${item.id}` as any)}>
-          <View style={styles.kartaNaglowek}>
-            <Text style={[tekstTytul, { color: theme.colors.text, flex: 1 }]} numberOfLines={2}>
-              {tytul}
-            </Text>
-            <View style={[styles.znaczek, { backgroundColor: `${theme.colors.success}20` }]}>
-              <Text style={{ color: theme.colors.success, fontSize: 11, fontWeight: '700' }}>● Aktywny</Text>
-            </View>
-          </View>
-          {!!komentarz && (
-            <Text style={[tekstPodtytul, { color: theme.colors.textSecondary }]} numberOfLines={2}>
-              {komentarz}
-            </Text>
-          )}
-          {wpisy.length > 0 && (
-            <Text style={{ color: theme.colors.primary, fontSize: 13, fontWeight: '600', marginTop: 4 }}>
-              {wpisy.length} aut • {sumaTon.toFixed(1)} Mg • {sumaMetrow.toFixed(0)} m
-            </Text>
-          )}
-        </TouchableOpacity>
-        <View style={styles.akcjePlanu}>
-          <TouchableOpacity onPress={() => edytujPlan(item)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Text style={{ color: theme.colors.info, fontWeight: '700', fontSize: 13 }}>Edytuj</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => potwierdzUsuniecie(item)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Text style={{ color: theme.colors.danger, fontWeight: '700', fontSize: 13 }}>Usuń</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+        tytul={tytul}
+        podtytul={komentarz || undefined}
+        znaczek={{ tekst: '● Aktywny', kolor: theme.colors.success }}
+        podsumowanie={wpisy.length > 0 ? `${wpisy.length} aut • ${sumaTon.toFixed(1)} Mg • ${sumaMetrow.toFixed(0)} m` : undefined}
+        onPress={() => router.push(`/wbudowywanie/${item.id}` as never)}
+        akcje={[
+          { tekst: 'Edytuj', onPress: () => edytujPlan(item), accessibilityLabel: `Edytuj plan ${tytul}` },
+          { tekst: 'Usuń', rodzaj: 'niebezpieczna', onPress: () => potwierdzUsuniecie(item), accessibilityLabel: `Usuń plan ${tytul}` },
+        ]}
+      />
     );
   };
 
@@ -147,17 +125,12 @@ export default function WbudowywanieScreen() {
           showsVerticalScrollIndicator={false}
         >
           {[...grupy.zBudowa, ...grupy.bezBudowy].map((grupa) => (
-            <CollapsibleSection
-              key={grupa.tytul}
-              tytul={grupa.tytul}
-              liczba={grupa.elementy.length}
-              theme={theme}
-              ikona="🏗️"
-              plaski={grupa.bezPrzypisania}
-              domyslnieRozwinieta
-            >
+            <View key={grupa.tytul} style={styles.grupa}>
+              <Text style={[TYPOGRAFIA.sekcja, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+                {grupa.bezPrzypisania ? '' : '🏗️ '}{grupa.tytul} · {grupa.elementy.length}
+              </Text>
               {grupa.elementy.map(renderujPlan)}
-            </CollapsibleSection>
+            </View>
           ))}
         </ScrollView>
       )}
@@ -167,8 +140,6 @@ export default function WbudowywanieScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  lista: { padding: 14 },
-  kartaNaglowek: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, gap: 8 },
-  znaczek: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
-  akcjePlanu: { flexDirection: 'row', gap: 16, marginTop: 10, paddingTop: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#E5E7EB' },
+  lista: { padding: 14, gap: ODSTEP.l },
+  grupa: { gap: ODSTEP.s + 2 },
 });

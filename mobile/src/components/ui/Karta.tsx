@@ -44,7 +44,7 @@ export function Karta({ tytul, podtytul, znaczek, podsumowanie, onPress, accessi
           {onPress ? <Ikona nazwa="dalej" kolor={theme.colors.textSecondary} rozmiar={18} /> : null}
         </View>
       ) : null}
-      {podtytul ? <Text style={[TYPOGRAFIA.opis, { color: theme.colors.textSecondary }]} numberOfLines={2}>{podtytul}</Text> : null}
+      {podtytul ? <Text style={[TYPOGRAFIA.opis, { color: theme.colors.textSecondary }]} numberOfLines={4}>{podtytul}</Text> : null}
       {podsumowanie ? <Text style={[TYPOGRAFIA.podsumowanie, { color: theme.colors.primary, marginTop: 2 }]}>{podsumowanie}</Text> : null}
       {children}
     </>

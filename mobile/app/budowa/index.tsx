@@ -4,16 +4,17 @@
 
 import React, { useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, useColorScheme,
+  View, Text, StyleSheet, ScrollView, useColorScheme,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppHeader } from '../../src/components/common/AppHeader';
 import { EmptyState } from '../../src/components/common/EmptyState';
-import { Pole } from '../../src/components/common/Formularz';
+import { Pole, Wiersz } from '../../src/components/common/Formularz';
 import { SafeModal } from '../../src/components/common/SafeModal';
 import { lightTheme, darkTheme } from '../../src/constants/theme';
-import { karta, tekstTytul, tekstPodtytul } from '../../src/constants/layout';
+import { Karta, TYPOGRAFIA } from '../../src/components/ui';
+import { pokazKomunikat, potwierdzAkcje } from '../../src/utils/dialog';
 import { useBudowyStore } from '../../src/stores/budowyStore';
 import { pustyProjektBudowy } from '../../src/utils/projektBudowy';
 import type { Budowa } from '../../src/types';
@@ -31,8 +32,8 @@ export default function BudowaListaScreen() {
   const [kod, setKod] = useState('');
 
   const utworz = async () => {
-    if (!nazwa.trim()) { Alert.alert('Budowa', 'Podaj nazwę inwestycji.'); return; }
-    if (!kod.trim()) { Alert.alert('Budowa', 'Podaj kod budowy (np. B128).'); return; }
+    if (!nazwa.trim()) { pokazKomunikat('Budowa', 'Podaj nazwę inwestycji.'); return; }
+    if (!kod.trim()) { pokazKomunikat('Budowa', 'Podaj kod budowy (np. B128).'); return; }
     const id = await dodajBudowe({
       nazwaInwestycji: nazwa.trim(),
       kodBudowy: kod.trim().toUpperCase(),
@@ -44,33 +45,31 @@ export default function BudowaListaScreen() {
     router.push(`/budowa/${id}` as any);
   };
 
-  const potwierdzUsun = (b: Budowa) => Alert.alert(
+  const potwierdzUsun = (b: Budowa) => potwierdzAkcje(
     'Usuń budowę',
     `Usunąć „${b.kodBudowy} – ${b.nazwaInwestycji}”?`,
-    [
-      { text: 'Anuluj', style: 'cancel' },
-      { text: 'Usuń', style: 'destructive', onPress: () => usunBudowe(b.id) },
-    ],
+    () => { void usunBudowe(b.id); },
   );
 
   const kartaBudowy = (b: Budowa) => {
     const ark = b.projekt?.arkusze.length ?? 0;
+    const archiwum = b.status === 'archiwalna';
     return (
-      <TouchableOpacity
+      <Karta
         key={b.id}
-        style={[karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}
-        onPress={() => router.push(`/budowa/${b.id}` as any)}
-        onLongPress={() => potwierdzUsun(b)}
-      >
-        <Text style={[tekstTytul, { color: theme.colors.text }]}>{b.kodBudowy}</Text>
-        <Text style={[tekstPodtytul, { color: theme.colors.textSecondary }]} numberOfLines={2}>
-          {b.nazwaInwestycji}
-        </Text>
-        <Text style={{ color: theme.colors.textSecondary, fontSize: 12, marginTop: 6 }}>
-          {ark} arkusz(y) PZT
-          {b.status === 'archiwalna' ? ' · archiwum' : ''}
-        </Text>
-      </TouchableOpacity>
+        tytul={b.kodBudowy}
+        podtytul={b.nazwaInwestycji}
+        znaczek={archiwum ? { tekst: 'Archiwum', kolor: theme.colors.textSecondary } : undefined}
+        podsumowanie={`Arkusze PZT: ${ark}`}
+        accessibilityLabel={`Budowa ${b.kodBudowy}`}
+        onPress={() => router.push(`/budowa/${b.id}` as never)}
+        akcje={[
+          archiwum
+            ? { tekst: 'Przywróć', rodzaj: 'glowna', onPress: () => { void przywrocBudowe(b.id); } }
+            : { tekst: 'Otwórz', rodzaj: 'glowna', onPress: () => router.push(`/budowa/${b.id}` as never) },
+          { tekst: 'Usuń', rodzaj: 'niebezpieczna', accessibilityLabel: `Usuń budowę ${b.kodBudowy}`, onPress: () => potwierdzUsun(b) },
+        ]}
+      />
     );
   };
 
@@ -93,16 +92,9 @@ export default function BudowaListaScreen() {
         <ScrollView contentContainerStyle={[styles.lista, { paddingBottom: insets.bottom + 16 }]}>
           {aktywne.map(kartaBudowy)}
           {archiwalne.length > 0 ? (
-            <Text style={{ color: theme.colors.textSecondary, fontWeight: '800', marginTop: 8 }}>ARCHIWUM</Text>
+            <Text style={[TYPOGRAFIA.sekcja, { color: theme.colors.textSecondary, marginTop: 8 }]}>Archiwum · {archiwalne.length}</Text>
           ) : null}
-          {archiwalne.map((b) => (
-            <View key={b.id} style={{ gap: 6 }}>
-              {kartaBudowy(b)}
-              <TouchableOpacity onPress={() => przywrocBudowe(b.id)}>
-                <Text style={{ color: theme.colors.info, fontWeight: '700' }}>Przywróć</Text>
-              </TouchableOpacity>
-            </View>
-          ))}
+          {archiwalne.map(kartaBudowy)}
         </ScrollView>
       )}
 
@@ -113,13 +105,11 @@ export default function BudowaListaScreen() {
         onClose={() => setModal(false)}
         prawy={{ tekst: 'Utwórz', onPress: utworz, kolor: theme.colors.primary }}
       >
-        <View style={{ padding: 16, flexDirection: 'row', gap: 10 }}>
-          <View style={{ flex: 1 }}>
+        <View style={{ padding: 16 }}>
+          <Wiersz proporcje={[1, 2.4]}>
             <Pole etykieta="Kod" value={kod} onChangeText={(t) => setKod(t.toUpperCase())} placeholder="B128" accessibilityLabel="Kod budowy" />
-          </View>
-          <View style={{ flex: 2.4 }}>
             <Pole etykieta="Nazwa inwestycji" value={nazwa} onChangeText={setNazwa} placeholder="np. DK25 Mąkowarsko" accessibilityLabel="Nazwa inwestycji" />
-          </View>
+          </Wiersz>
         </View>
       </SafeModal>
     </View>

@@ -3,7 +3,7 @@
 // ============================================================
 
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, useColorScheme } from 'react-native';
+import { View, StyleSheet, ScrollView, useColorScheme } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePlanyStore } from '../../src/stores/planyStore';
@@ -14,7 +14,7 @@ import { lightTheme, darkTheme } from '../../src/constants/theme';
 import { EmptyState } from '../../src/components/common/EmptyState';
 import { AppHeader } from '../../src/components/common/AppHeader';
 import { KalendarzZakresu } from '../../src/components/common/KalendarzZakresu';
-import { karta, tekstTytul, tekstPodtytul } from '../../src/constants/layout';
+import { Karta } from '../../src/components/ui';
 import { formatLiczby } from '../../src/utils/calculations';
 import { formatujKmM } from '../../src/utils/projektBudowy';
 import { dzienWZakresie, dzienZIso, dzisIso } from '../../src/utils/zakresDat';
@@ -77,31 +77,14 @@ export default function ArchiwumScreen() {
     const sumaMetrow = wpisy.reduce((s, w) => s + w.przejechaneMetry, 0);
 
     return (
-      <TouchableOpacity
+      <Karta
         key={`plan-${item.id}`}
-        style={[karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}
-        onPress={() => router.push(`/archiwum/${item.id}` as any)}
-      >
-        <View style={styles.kartaNaglowek}>
-          <Text style={[tekstTytul, { color: theme.colors.text, flex: 1 }]} numberOfLines={2}>
-            {formatujDate(item.dataWbudowywania)}
-          </Text>
-          <View style={[styles.znaczekZakonczone, { backgroundColor: `${theme.colors.textSecondary}20` }]}>
-            <Text style={[styles.znaczekTekst, { color: theme.colors.textSecondary }]}>✓ Plan</Text>
-          </View>
-        </View>
-        {wpisy.length > 0 && (
-          <Text style={[styles.kartaSuma, { color: theme.colors.primary }]}>
-            {wpisy.length} aut • {sumaTon.toFixed(1)} Mg • {sumaMetrow.toFixed(0)} m
-          </Text>
-        )}
-        <Text style={[tekstPodtytul, { color: theme.colors.textSecondary }]} numberOfLines={1}>
-          {nazwaBudowy(item.budowaId)}
-        </Text>
-        <Text style={[tekstPodtytul, { color: theme.colors.textSecondary }]} numberOfLines={3}>
-          {opisPlanu(item)}
-        </Text>
-      </TouchableOpacity>
+        tytul={formatujDate(item.dataWbudowywania)}
+        znaczek={{ tekst: '✓ Plan', kolor: theme.colors.textSecondary }}
+        podsumowanie={wpisy.length > 0 ? `${wpisy.length} aut • ${sumaTon.toFixed(1)} Mg • ${sumaMetrow.toFixed(0)} m` : undefined}
+        podtytul={`${nazwaBudowy(item.budowaId)}\n${opisPlanu(item)}`}
+        onPress={() => router.push(`/archiwum/${item.id}` as never)}
+      />
     );
   };
 
@@ -110,26 +93,14 @@ export default function ArchiwumScreen() {
     const sumaTon = wpisy.reduce((s, w) => s + w.tony, 0);
     const sumaPow = sesja.obszary.reduce((a, o) => a + o.powierzchniaM2, 0);
     return (
-      <TouchableOpacity
+      <Karta
         key={`obmiar-${sesja.id}`}
-        style={[karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}
-        onPress={() => router.push(`/archiwum/obmiar/${sesja.id}` as any)}
-      >
-        <View style={styles.kartaNaglowek}>
-          <Text style={[tekstTytul, { color: theme.colors.text, flex: 1 }]} numberOfLines={2}>
-            {sesja.nazwa}
-          </Text>
-          <View style={[styles.znaczekZakonczone, { backgroundColor: `${theme.colors.primary}20` }]}>
-            <Text style={[styles.znaczekTekst, { color: theme.colors.primary }]}>Obmiar PZT</Text>
-          </View>
-        </View>
-        <Text style={[styles.kartaSuma, { color: theme.colors.primary }]}>
-          {wpisy.length} aut • {formatLiczby(sumaTon, 1)} Mg • {formatLiczby(sumaPow)} m²
-        </Text>
-        <Text style={[tekstPodtytul, { color: theme.colors.textSecondary }]} numberOfLines={2}>
-          {nazwaBudowy(sesja.budowaId)} • {formatujDate(sesja.data)} • {sesja.obszary.length} obszar(ów)
-        </Text>
-      </TouchableOpacity>
+        tytul={sesja.nazwa}
+        znaczek={{ tekst: 'Obmiar PZT', kolor: theme.colors.primary }}
+        podsumowanie={`${wpisy.length} aut • ${formatLiczby(sumaTon, 1)} Mg • ${formatLiczby(sumaPow)} m²`}
+        podtytul={`${nazwaBudowy(sesja.budowaId)} • ${formatujDate(sesja.data)} • ${sesja.obszary.length} obszar(ów)`}
+        onPress={() => router.push(`/archiwum/obmiar/${sesja.id}` as never)}
+      />
     );
   };
 
@@ -176,16 +147,11 @@ function opisPlanu(plan: Plan): string {
   }
   const n = plan.dzialki.length;
   czesci.push(`${n} ${n === 1 ? 'działka' : 'działki'}`);
-  czesci.push('Podgląd i PDF na maila');
   return czesci.join(' · ');
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
   szukajWrap: { paddingHorizontal: 14, paddingTop: 12 },
-  lista: { padding: 14 },
-  kartaNaglowek: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, gap: 8 },
-  znaczekZakonczone: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
-  znaczekTekst: { fontSize: 11, fontWeight: '600' },
-  kartaSuma: { fontSize: 14, fontWeight: '600', marginBottom: 4 },
+  lista: { padding: 14, gap: 10 },
 });
