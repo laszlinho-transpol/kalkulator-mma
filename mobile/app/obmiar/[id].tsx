@@ -15,6 +15,7 @@ import { InfoTooltip } from '../../src/components/common/InfoTooltip';
 import { MieszankaPicker } from '../../src/components/common/MieszankaPicker';
 import { BudowaPicker } from '../../src/components/common/BudowaPicker';
 import { DatePickerButton } from '../../src/components/common/DatePickerButton';
+import { isoZDaty } from '../../src/components/ui/Kalendarz';
 import { WielokatPodglad } from '../../src/components/obmiar/WielokatPodglad';
 import { ObmiarKonfiguracja } from '../../src/components/obmiar/ObmiarKonfiguracja';
 import { lightTheme, darkTheme, type AppTheme } from '../../src/constants/theme';
@@ -597,7 +598,7 @@ export default function ObmiarDetailScreen() {
           <DatePickerButton
             label="Data"
             value={dataPlanu}
-            onChange={(d) => ustawDateSesji(sesja.id, d.toISOString().slice(0, 10))}
+            onChange={(d) => ustawDateSesji(sesja.id, isoZDaty(d))}
           />
           <TouchableOpacity style={[styles.btnSek, { borderColor: theme.colors.border }]} onPress={() => setPickerBudowa(true)}>
             <Text style={{ color: theme.colors.text, fontWeight: '700' }}>

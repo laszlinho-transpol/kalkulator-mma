@@ -8,6 +8,7 @@ export { KalendarzZakresu, etykietaZakresu } from '../common/KalendarzZakresu';
 export { Zakladki, Gwiazdka } from '../budzet/Zakladki';
 export { AkcjeTelefonu } from './AkcjeTelefonu';
 export { Ikona, type NazwaIkony } from './Ikona';
+export { SiatkaKalendarza, OknoKalendarza, PoleDaty, isoZDaty, dataZIso } from './Kalendarz';
 export { Karta, Sekcja, PozycjaListy, WierszDanych, SiatkaDanych, type AkcjaKarty } from './Karta';
 export { Naciskany } from './Naciskany';
 export { Przycisk, PrzyciskIkony, type WariantPrzycisku } from './Przycisk';
