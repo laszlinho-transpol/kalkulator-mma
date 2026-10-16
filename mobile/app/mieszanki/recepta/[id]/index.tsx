@@ -56,7 +56,7 @@ export default function KartaReceptyScreen() {
           />
           {zakladka === 'dane' ? (
             <>
-              <Sekcja tytul="Recepta" prawy={<Przycisk maly wariant="tekst" ikona="edytuj" tekst="Edytuj" accessibilityLabel="Edytuj receptę" onPress={edytuj} />}>
+              <Sekcja tytul="Recepta">
                 <WierszDanych etykieta="Wytwórnia" wartosc={wytwornia?.nazwa ?? '—'} />
                 <WierszDanych etykieta="Rodzaj" wartosc={recepta.rodzaj} />
                 <WierszDanych etykieta="Nr recepty" wartosc={recepta.nrRecepty || '—'} />

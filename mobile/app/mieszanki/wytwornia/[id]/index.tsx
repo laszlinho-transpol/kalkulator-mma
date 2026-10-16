@@ -81,7 +81,7 @@ export default function KartaWytworniScreen() {
           />
           {zakladka === 'info' ? (
             <>
-              <Sekcja tytul="Wytwórnia" prawy={<Przycisk maly wariant="tekst" ikona="edytuj" tekst="Edytuj" onPress={edytuj} />}>
+              <Sekcja tytul="Wytwórnia">
                 <WierszDanych etykieta="Nazwa" wartosc={wytwornia.nazwa} />
                 <WierszDanych etykieta="Lokalizacja" wartosc={adres || (link ? 'z linku Google Maps' : '—')} />
                 {link && !adres && Platform.OS === 'web' && czyKrotkiLinkMaps(link) ? (

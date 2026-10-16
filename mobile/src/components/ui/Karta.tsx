@@ -144,7 +144,7 @@ export function WierszDanych({ etykieta, wartosc, kolor }: { etykieta: string; w
   const theme = useMotyw();
   return (
     <View style={styles.wierszDanych}>
-      <Text style={[TYPOGRAFIA.etykieta, { color: theme.colors.textSecondary }]} numberOfLines={1}>{etykieta}</Text>
+      <Text style={[TYPOGRAFIA.etykieta, styles.etykietaDanych, { color: theme.colors.textSecondary }]} numberOfLines={1}>{etykieta}</Text>
       <Text style={[TYPOGRAFIA.wartosc, styles.wartosc, { color: kolor ?? theme.colors.text }]} numberOfLines={2}>{wartosc}</Text>
     </View>
   );
@@ -177,6 +177,7 @@ const styles = StyleSheet.create({
   ikonaTlo: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   ikona: { fontSize: 20 },
   wierszDanych: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: ODSTEP.m, minHeight: 26 },
+  etykietaDanych: { flexShrink: 0 },
   wartosc: { flexShrink: 1, textAlign: 'right' },
   siatka: { flexDirection: 'row', flexWrap: 'wrap', gap: ODSTEP.s },
   kafelekDanych: { flexBasis: '47%', flexGrow: 1, borderWidth: 1, borderRadius: PROMIEN.m, paddingVertical: ODSTEP.s, paddingHorizontal: ODSTEP.m, gap: 2 },

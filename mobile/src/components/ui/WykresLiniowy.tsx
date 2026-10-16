@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Defs, Line, LinearGradient, Path, Stop, Text as SvgText } from 'react-native-svg';
 import { useMotyw } from '../../hooks/useMotyw';
 import { PROMIEN } from '../../constants/styl';
@@ -20,6 +20,7 @@ interface Props {
   opis?: string;
 }
 
+const CZCIONKA = Platform.OS === 'web' ? 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif' : undefined;
 const MARGINES = { gora: 22, dol: 26, lewy: 8, prawy: 8 };
 
 /** Wykres liniowy z wypełnieniem – historia ceny, stawek itp. */
@@ -72,7 +73,7 @@ export function WykresLiniowy({ punkty, formatY, etykietyX = [], odniesienie, wy
                 x1={MARGINES.lewy} x2={MARGINES.lewy + w} y1={py(odniesienie.y)} y2={py(odniesienie.y)}
                 stroke={theme.colors.textSecondary} strokeWidth={1.2} strokeDasharray="5 4"
               />
-              <SvgText x={MARGINES.lewy + 2} y={py(odniesienie.y) - 4} fontSize={10} fill={theme.colors.textSecondary}>
+              <SvgText fontFamily={CZCIONKA} x={MARGINES.lewy + 2} y={py(odniesienie.y) - 4} fontSize={10} fill={theme.colors.textSecondary}>
                 {odniesienie.etykieta}
               </SvgText>
             </>
@@ -83,6 +84,7 @@ export function WykresLiniowy({ punkty, formatY, etykietyX = [], odniesienie, wy
             <React.Fragment key={`${p.x}-${p.y}`}>
               <Circle cx={px(p.x)} cy={py(p.y)} r={4.5} fill={theme.colors.card} stroke={theme.colors.primary} strokeWidth={2.5} />
               <SvgText
+              fontFamily={CZCIONKA}
                 x={Math.min(Math.max(px(p.x), MARGINES.lewy + 22), MARGINES.lewy + w - 22)}
                 y={py(p.y) - 9}
                 fontSize={11}
@@ -96,6 +98,7 @@ export function WykresLiniowy({ punkty, formatY, etykietyX = [], odniesienie, wy
           ))}
           {etykietyX.map((e, i) => (
             <SvgText
+              fontFamily={CZCIONKA}
               key={`${e.x}-${i}`}
               x={px(e.x)}
               y={wysokosc - 8}

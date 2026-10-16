@@ -17,9 +17,13 @@ import { useRouteId } from '../../../../src/hooks/useRouteId';
 import { useBudowyStore } from '../../../../src/stores/budowyStore';
 import { useGrupyPracownikowStore } from '../../../../src/stores/grupyPracownikowStore';
 import { usePracownicyStore } from '../../../../src/stores/pracownicyStore';
-import { AkcjeTelefonu, Przycisk, Sekcja, WierszDanych } from '../../../../src/components/ui';
+import { AkcjeTelefonu, Przycisk, Sekcja, SiatkaDanych, WierszDanych } from '../../../../src/components/ui';
 
 const linieWynagrodzenia = (stawki: StawkiPracownika) => linieStawekPola(POLA_WYNAGRODZENIA, stawki);
+const liniaNaKafelek = (linia: string) => {
+  const i = linia.indexOf(': ');
+  return i < 0 ? { etykieta: linia, wartosc: '' } : { etykieta: linia.slice(0, i), wartosc: linia.slice(i + 2) };
+};
 
 export default function KartaPracownikaScreen() {
   const id = useRouteId();
@@ -87,7 +91,6 @@ export default function KartaPracownikaScreen() {
                       onPress={() => { void przelaczUlubiony(pracownik.id); }}
                       accessibilityLabel={`${pracownik.ulubiony ? 'Usuń z ulubionych' : 'Dodaj do ulubionych'} ${nazwaPracownika(pracownik)}`}
                     />
-                    <Przycisk maly wariant="tekst" ikona="edytuj" tekst="Edytuj" accessibilityLabel="Edytuj pracownika" onPress={edytuj} />
                   </View>
                 )}
               >
@@ -113,11 +116,7 @@ export default function KartaPracownikaScreen() {
                 {linieWynagrodzenia(pracownik.stawki).length === 0 ? (
                   <Text style={{ color: theme.colors.textSecondary }}>Brak stawek.</Text>
                 ) : (
-                  <View style={styles.siatka}>
-                    {linieWynagrodzenia(pracownik.stawki).map((linia) => (
-                      <Text key={linia} style={[styles.stawka, styles.polowa, { color: theme.colors.text }]}>{linia}</Text>
-                    ))}
-                  </View>
+                  <SiatkaDanych pozycje={linieWynagrodzenia(pracownik.stawki).map(liniaNaKafelek)} />
                 )}
               </Sekcja>
             </>
@@ -190,9 +189,6 @@ const styles = StyleSheet.create({
   sekcja: { fontSize: 18, fontWeight: '800' },
   akcjeSekcji: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   numer: { fontSize: 20, fontWeight: '800', letterSpacing: 0.3 },
-  stawka: { fontSize: 15, fontWeight: '600' },
-  siatka: { flexDirection: 'row', flexWrap: 'wrap', rowGap: 4 },
-  polowa: { width: '50%', paddingRight: 6 },
   dodaj: { borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
   dodajTekst: { color: '#1A1A1A', fontWeight: '800' },
   szukaj: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, fontSize: 16 },
