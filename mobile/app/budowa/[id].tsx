@@ -2,11 +2,12 @@
 // SZABLON BUDOWY – PROJEKT + WYKONANIE
 // ============================================================
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, useColorScheme } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, useColorScheme } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppHeader } from '../../src/components/common/AppHeader';
+import { Naciskany, Sekcja } from '../../src/components/ui';
 import { lightTheme, darkTheme, type AppTheme } from '../../src/constants/theme';
 import { useBudowyStore } from '../../src/stores/budowyStore';
 import { SekcjaPzt } from '../../src/components/budowa/SekcjaPzt';
@@ -29,7 +30,7 @@ const WYKONANIE = [
   { id: 'zaawansowanie', nazwa: 'Zaawansowanie' },
 ] as const;
 
-const KOLEJNOSC = [...PROJEKT, ...WYKONANIE].map((p) => p.id);
+const NAZWY: Record<string, string> = Object.fromEntries([...PROJEKT, ...WYKONANIE].map((p) => [p.id, p.nazwa]));
 
 export default function BudowaSzablonScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -41,9 +42,6 @@ export default function BudowaSzablonScreen() {
   const [mapaAktywna, setMapaAktywna] = useState(false);
   const [blokadaPodgladu, setBlokadaPodgladu] = useState(false);
   const [aktywna, setAktywna] = useState<string>('pzt');
-  const scrollRef = useRef<ScrollView>(null);
-  const pozycje = useRef<Record<string, number>>({});
-  const przewija = useRef(false);
 
   useEffect(() => {
     if (budowa && !budowa.projekt) {
@@ -63,18 +61,6 @@ export default function BudowaSzablonScreen() {
     () => budowa?.projekt ?? pustyProjektBudowy(),
     [budowa?.projekt],
   );
-
-  const idz = (sekcja: string) => {
-    setAktywna(sekcja);
-    przewija.current = true;
-    const y = Math.max(0, (pozycje.current[sekcja] ?? 0) - 8);
-    scrollRef.current?.scrollTo({ y, animated: true });
-    setTimeout(() => { przewija.current = false; }, 450);
-  };
-
-  const zapamietaj = (sekcja: string, y: number) => {
-    pozycje.current[sekcja] = y;
-  };
 
   if (!budowa) {
     return (
@@ -98,60 +84,36 @@ export default function BudowaSzablonScreen() {
       />
       <View style={[styles.menu, { backgroundColor: theme.colors.background, borderBottomColor: theme.colors.border }]}>
         <Text style={[styles.grupa, { color: theme.colors.textSecondary }]}>Projekt</Text>
-        <RzadPrzyciskow pozycje={PROJEKT} aktywna={aktywna} theme={theme} onPress={idz} />
+        <RzadPrzyciskow pozycje={PROJEKT} aktywna={aktywna} theme={theme} onPress={setAktywna} />
         <Text style={[styles.grupa, { color: theme.colors.textSecondary }]}>Wykonanie</Text>
-        <RzadPrzyciskow pozycje={WYKONANIE} aktywna={aktywna} theme={theme} onPress={idz} />
+        <RzadPrzyciskow pozycje={WYKONANIE} aktywna={aktywna} theme={theme} onPress={setAktywna} />
       </View>
       <ScrollView
-        ref={scrollRef}
         contentContainerStyle={{ padding: 14, paddingBottom: insets.bottom + 24 }}
         keyboardShouldPersistTaps="handled"
         nestedScrollEnabled
         scrollEnabled={!blokadaPodgladu && !mapaAktywna}
-        scrollEventThrottle={32}
-        onScroll={(e) => {
-          if (przewija.current) return;
-          const y = e.nativeEvent.contentOffset.y + 28;
-          let biezaca = KOLEJNOSC[0];
-          for (const sekcja of KOLEJNOSC) {
-            if ((pozycje.current[sekcja] ?? 0) <= y) biezaca = sekcja;
-          }
-          setAktywna((prev) => (prev === biezaca ? prev : biezaca));
-        }}
       >
-        <SekcjaEkranu idSekcji="pzt" tytul="PZT" theme={theme} onLayout={zapamietaj}>
-          <SekcjaPzt
-            projekt={projekt}
-            theme={theme}
-            onZmien={onZmien}
-            blokadaPodgladu={blokadaPodgladu}
-            onBlokadaPodgladu={setBlokadaPodgladu}
-            onDotykZmiana={setMapaAktywna}
-          />
-        </SekcjaEkranu>
-        <SekcjaEkranu idSekcji="legenda" tytul="Legenda" theme={theme} onLayout={zapamietaj}>
-          <SekcjaLegenda projekt={projekt} theme={theme} onZmien={onZmien} />
-        </SekcjaEkranu>
-        <SekcjaEkranu idSekcji="konstrukcje" tytul="Konstrukcje" theme={theme} onLayout={zapamietaj}>
-          <SekcjaKonstrukcje projekt={projekt} theme={theme} onZmien={onZmien} />
-        </SekcjaEkranu>
-        <SekcjaEkranu idSekcji="przedmiar" tytul="Przedmiar" theme={theme} onLayout={zapamietaj}>
-          <SekcjaPrzedmiar
-            projekt={projekt}
-            theme={theme}
-            kodBudowy={budowa.kodBudowy}
-            onZmien={onZmien}
-          />
-        </SekcjaEkranu>
-        <SekcjaEkranu idSekcji="raporty" tytul="Raporty" theme={theme} onLayout={zapamietaj}>
-          <Placeholder />
-        </SekcjaEkranu>
-        <SekcjaEkranu idSekcji="liniowka" tytul="Liniówka" theme={theme} onLayout={zapamietaj}>
-          <Placeholder />
-        </SekcjaEkranu>
-        <SekcjaEkranu idSekcji="zaawansowanie" tytul="Zaawansowanie" theme={theme} onLayout={zapamietaj}>
-          <Placeholder />
-        </SekcjaEkranu>
+        <Sekcja tytul={NAZWY[aktywna] ?? ''}>
+          {aktywna === 'pzt' ? (
+            <SekcjaPzt
+              projekt={projekt}
+              theme={theme}
+              onZmien={onZmien}
+              blokadaPodgladu={blokadaPodgladu}
+              onBlokadaPodgladu={setBlokadaPodgladu}
+              onDotykZmiana={setMapaAktywna}
+            />
+          ) : null}
+          {aktywna === 'legenda' ? <SekcjaLegenda projekt={projekt} theme={theme} onZmien={onZmien} /> : null}
+          {aktywna === 'konstrukcje' ? <SekcjaKonstrukcje projekt={projekt} theme={theme} onZmien={onZmien} /> : null}
+          {aktywna === 'przedmiar' ? (
+            <SekcjaPrzedmiar projekt={projekt} theme={theme} kodBudowy={budowa.kodBudowy} onZmien={onZmien} />
+          ) : null}
+          {WYKONANIE.some((w) => w.id === aktywna) ? (
+            <Text style={{ color: theme.colors.textSecondary, fontSize: 13 }}>W przygotowaniu.</Text>
+          ) : null}
+        </Sekcja>
       </ScrollView>
     </View>
   );
@@ -173,10 +135,11 @@ function RzadPrzyciskow({
       {pozycje.map((p) => {
         const on = aktywna === p.id;
         return (
-          <TouchableOpacity
+          <Naciskany
             key={p.id}
             onPress={() => onPress(p.id)}
-            accessibilityLabel={p.nazwa}
+            accessibilityRole="button"
+            accessibilityLabel={`Zakładka ${p.nazwa}`}
             style={[
               styles.guzik,
               {
@@ -188,43 +151,9 @@ function RzadPrzyciskow({
             <Text style={{ color: on ? '#1A1A1A' : theme.colors.text, fontWeight: '800', textAlign: 'center' }}>
               {p.nazwa}
             </Text>
-          </TouchableOpacity>
+          </Naciskany>
         );
       })}
-    </View>
-  );
-}
-
-function SekcjaEkranu({
-  idSekcji,
-  tytul,
-  theme,
-  onLayout,
-  children,
-}: {
-  idSekcji: string;
-  tytul: string;
-  theme: AppTheme;
-  onLayout: (id: string, y: number) => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <View
-      onLayout={(e) => onLayout(idSekcji, e.nativeEvent.layout.y)}
-      style={styles.sekcja}
-    >
-      <Text style={[styles.sekcjaTytul, { color: theme.colors.text }]}>{tytul}</Text>
-      {children}
-    </View>
-  );
-}
-
-function Placeholder() {
-  const colorScheme = useColorScheme();
-  const t = colorScheme === 'dark' ? darkTheme : lightTheme;
-  return (
-    <View style={[styles.placeholder, { borderColor: t.colors.border, backgroundColor: t.colors.card }]}>
-      <Text style={{ color: t.colors.textSecondary, fontSize: 13 }}>W przygotowaniu.</Text>
     </View>
   );
 }
@@ -246,17 +175,10 @@ const styles = StyleSheet.create({
     flexBasis: '22%',
     minWidth: 96,
     borderWidth: 1,
-    borderRadius: 10,
+    borderRadius: 12,
     paddingVertical: 10,
     paddingHorizontal: 8,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  sekcja: { marginBottom: 22 },
-  sekcjaTytul: { fontSize: 18, fontWeight: '800', marginBottom: 8 },
-  placeholder: {
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 14,
   },
 });

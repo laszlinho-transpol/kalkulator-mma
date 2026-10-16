@@ -5,7 +5,7 @@
 import React, { useState, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  useColorScheme, Alert, Modal, Pressable, TextInput,
+  useColorScheme, Modal, Pressable, TextInput,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -32,11 +32,12 @@ import { gruboscWbudowywania, gruboscProjektowa, formatujTolerancje } from '../.
 import { formatujDatePl } from '../../src/utils/dates';
 import { komentarzPlanuBudowy, obszarySzkicuPlanu, tytulPlanuBudowy, uzupelnijProfilObmiaruDzialek } from '../../src/utils/planZBudowy';
 import { formatujKmM } from '../../src/utils/projektBudowy';
-import { potwierdzAkcje } from '../../src/utils/dialog';
+import { pokazKomunikat, potwierdzAkcje } from '../../src/utils/dialog';
 import { formatujPikietaz, pikietazPoMetrach } from '../../src/utils/chainage';
 import { eksportujJSON, generujInteraktywnyHTML } from '../../src/utils/htmlGenerator';
 import type { DzialkaRobocza, Rzut } from '../../src/types';
-import type { AppTheme } from '../../src/constants/theme';
+import { Przycisk, Sekcja, SiatkaDanych, WierszDanych, kolorDnia, rodzajDnia } from '../../src/components/ui';
+import { karta as kartaWspolna } from '../../src/constants/layout';
 
 type ZakladkaTyp = 'plan' | 'tabela' | 'szkic';
 
@@ -107,7 +108,7 @@ export default function PlanDetailScreen() {
 
   const udostepnijHTML = async () => {
     if (!autorNazwa.trim()) {
-      Alert.alert('Podaj autora', 'Wpisz imię i nazwisko osoby odpowiedzialnej za raport.');
+      pokazKomunikat('Podaj autora', 'Wpisz imię i nazwisko osoby odpowiedzialnej za raport.');
       return;
     }
     try {
@@ -165,28 +166,29 @@ export default function PlanDetailScreen() {
         {/* ---- ZAKŁADKA: PLAN ---- */}
         {aktywnaZakladka === 'plan' && (
           <>
-            <InfoRow label="Data" wartosc={formatujDatePl(plan.dataWbudowywania)} theme={theme} />
-            {budowa && (
-              <InfoRow label="Budowa" wartosc={`${budowa.kodBudowy} – ${budowa.nazwaInwestycji}`} theme={theme} />
-            )}
-            <InfoRow label="Tonaż auta" wartosc={`${plan.tonazAuta} t`} theme={theme} />
-            <InfoRow label="Działki" wartosc={`${plan.dzialki.length}`} theme={theme} />
+            <Sekcja tytul="Dane planu">
+              <WierszDanych etykieta="Data" wartosc={formatujDatePl(plan.dataWbudowywania)} kolor={rodzajDnia(plan.dataWbudowywania.slice(0, 10)) === 'roboczy' ? undefined : kolorDnia(theme, plan.dataWbudowywania.slice(0, 10))} />
+              {budowa ? <WierszDanych etykieta="Budowa" wartosc={`${budowa.kodBudowy} – ${budowa.nazwaInwestycji}`} /> : null}
+              <SiatkaDanych
+                pozycje={[
+                  { etykieta: 'Tonaż auta', wartosc: `${plan.tonazAuta} t` },
+                  { etykieta: 'Działki', wartosc: `${plan.dzialki.length}` },
+                ]}
+              />
+            </Sekcja>
 
             {(budowa?.zalaczniki?.length || plan.zalaczniki?.length) ? (
-              <View style={[styles.kartaDzialki, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-                <Text style={[styles.kartaTytul, { color: theme.colors.info }]}>Załączniki budowy ({(budowa?.zalaczniki ?? plan.zalaczniki ?? []).length})</Text>
+              <Sekcja tytul={`Załączniki budowy · ${(budowa?.zalaczniki ?? plan.zalaczniki ?? []).length}`}>
                 {(budowa?.zalaczniki ?? plan.zalaczniki ?? []).map((z) => (
-                  <Text key={z.id} style={[tekstWramce, { color: theme.colors.text, fontSize: 14, marginBottom: 4 }]} numberOfLines={2}>
+                  <Text key={z.id} style={[tekstWramce, { color: theme.colors.text, fontSize: 14 }]} numberOfLines={2}>
                     📎 {z.nazwa}
                   </Text>
                 ))}
-                <TouchableOpacity style={{ marginTop: 8 }} onPress={() => setViewerZal(true)}>
-                  <Text style={{ color: theme.colors.primary, fontWeight: '700' }}>👁 Podgląd załączników</Text>
-                </TouchableOpacity>
-              </View>
+                <Przycisk wariant="drugi" maly tekst="👁 Podgląd załączników" onPress={() => setViewerZal(true)} />
+              </Sekcja>
             ) : null}
 
-            {plan.dzialki.map((dz, dzIdx) => {
+            {plan.dzialki.map((dz) => {
               const mieszanka = getMieszanka(dz.mieszankaId);
               if (!mieszanka) return null;
               const wyniki = obliczWynikiDzialki(dz, mieszanka.ciezarObjetosciowy, plan.tonazAuta);
@@ -194,43 +196,42 @@ export default function PlanDetailScreen() {
               const km1 = pikietazPoMetrach(km0, obliczLacznaDlugosc(dz), dz.kierunekUkladania);
               const zakres = `${formatujPikietaz(km0)} – ${formatujPikietaz(km1)}`;
               return (
-                <View key={dz.id} style={[styles.kartaDzialki, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-                  <Text style={[styles.kartaTytul, { color: theme.colors.primary }]}>{zakres}</Text>
-                  <InfoRow label="Kierunek" wartosc={dz.kierunekUkladania === 'malejacy' ? 'malejący ↓' : 'rosnący ↑'} theme={theme} />
-                  <InfoRow label="Mieszanka" wartosc={`${mieszanka.rodzaj}  ρ=${mieszanka.ciezarObjetosciowy.toFixed(3)}`} theme={theme} />
-                  <InfoRow label="Grubość projektowa" wartosc={`${gruboscProjektowa(dz)} cm`} theme={theme} />
-                  <InfoRow label="Tolerancja" wartosc={formatujTolerancje(dz)} theme={theme} />
-                  <InfoRow label="Grubość wbudowywania" wartosc={`${gruboscWbudowywania(dz)} cm`} theme={theme} />
-                  <InfoRow label="Figury" wartosc={`${dz.figury.length}`} theme={theme} />
-                  <View style={[styles.podsumWrap, { backgroundColor: `${theme.colors.primary}10`, borderColor: theme.colors.primary }]}>
-                    <SummaryRow label="Powierzchnia" wartosc={`${formatLiczby(wyniki.lacznaPowierzchnia)} m²`} theme={theme} />
-                    <SummaryRow label="Masa" wartosc={`${formatLiczby(wyniki.lacznaIloscMasy, 3)} Mg`} theme={theme} bold />
-                    <SummaryRow label="Samochodów" wartosc={`${wyniki.iloscSamochodow}`} theme={theme} bold />
-                  </View>
-                </View>
+                <Sekcja key={dz.id} tytul={zakres}>
+                  <WierszDanych etykieta="Kierunek" wartosc={dz.kierunekUkladania === 'malejacy' ? 'malejący ↓' : 'rosnący ↑'} />
+                  <WierszDanych etykieta="Mieszanka" wartosc={`${mieszanka.rodzaj}  ρ=${mieszanka.ciezarObjetosciowy.toFixed(3)}`} />
+                  <WierszDanych etykieta="Tolerancja" wartosc={formatujTolerancje(dz)} />
+                  <SiatkaDanych
+                    pozycje={[
+                      { etykieta: 'Grubość projektowa', wartosc: `${gruboscProjektowa(dz)} cm` },
+                      { etykieta: 'Grubość wbudowania', wartosc: `${gruboscWbudowywania(dz)} cm` },
+                      { etykieta: 'Figury', wartosc: `${dz.figury.length}` },
+                      { etykieta: 'Powierzchnia', wartosc: `${formatLiczby(wyniki.lacznaPowierzchnia)} m²` },
+                      { etykieta: 'Masa', wartosc: `${formatLiczby(wyniki.lacznaIloscMasy, 3)} Mg` },
+                      { etykieta: 'Samochodów', wartosc: `${wyniki.iloscSamochodow}` },
+                    ]}
+                  />
+                </Sekcja>
               );
             })}
 
-            {/* Suma zbiorcza */}
-            <View style={[styles.kartaDzialki, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-              <Text style={[styles.kartaTytul, { color: theme.colors.text }]}>RAZEM</Text>
-              {(() => {
-                let suma = 0, sumaAut = 0;
-                plan.dzialki.forEach((dz) => {
-                  const m = getMieszanka(dz.mieszankaId);
-                  if (!m) return;
-                  const w = obliczWynikiDzialki(dz, m.ciezarObjetosciowy, plan.tonazAuta);
-                  suma += w.lacznaIloscMasy;
-                });
-                sumaAut = Math.ceil(suma / plan.tonazAuta);
-                return (
-                  <View style={[styles.podsumWrap, { backgroundColor: `${theme.colors.success}10`, borderColor: theme.colors.success }]}>
-                    <SummaryRow label="Łączna masa" wartosc={`${formatLiczby(suma, 2)} Mg`} theme={theme} bold />
-                    <SummaryRow label="Łącznie aut" wartosc={`${sumaAut}`} theme={theme} bold />
-                  </View>
-                );
-              })()}
-            </View>
+            {(() => {
+              let suma = 0;
+              plan.dzialki.forEach((dz) => {
+                const m = getMieszanka(dz.mieszankaId);
+                if (!m) return;
+                suma += obliczWynikiDzialki(dz, m.ciezarObjetosciowy, plan.tonazAuta).lacznaIloscMasy;
+              });
+              return (
+                <Sekcja tytul="Razem">
+                  <SiatkaDanych
+                    pozycje={[
+                      { etykieta: 'Łączna masa', wartosc: `${formatLiczby(suma, 2)} Mg` },
+                      { etykieta: 'Łącznie aut', wartosc: `${Math.ceil(suma / plan.tonazAuta)}` },
+                    ]}
+                  />
+                </Sekcja>
+              );
+            })()}
           </>
         )}
 
@@ -449,31 +450,6 @@ const uStyles = StyleSheet.create({
   btnPelny: { borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
 });
 
-// ---- Pomocnicze ----
-function InfoRow({ label, wartosc, theme }: { label: string; wartosc: string; theme: AppTheme }) {
-  return (
-    <View style={infoStyles.wiersz}>
-      <Text style={[infoStyles.label, { color: theme.colors.textSecondary }]}>{label}</Text>
-      <Text style={[infoStyles.wartosc, { color: theme.colors.text }]}>{wartosc}</Text>
-    </View>
-  );
-}
-
-function SummaryRow({ label, wartosc, theme, bold }: { label: string; wartosc: string; theme: AppTheme; bold?: boolean }) {
-  return (
-    <View style={infoStyles.wiersz}>
-      <Text style={[infoStyles.label, { color: theme.colors.textSecondary }]}>{label}</Text>
-      <Text style={[infoStyles.wartosc, { color: theme.colors.text, fontWeight: bold ? '700' : '400' }]}>{wartosc}</Text>
-    </View>
-  );
-}
-
-const infoStyles = StyleSheet.create({
-  wiersz: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 5 },
-  label: { fontSize: 14 },
-  wartosc: { fontSize: 14 },
-});
-
 const styles = StyleSheet.create({
   container: { flex: 1 },
   naglowek: {
@@ -490,7 +466,7 @@ const styles = StyleSheet.create({
   zakladka: { flex: 1, paddingVertical: 12, alignItems: 'center' },
   zakladkaTekst: { fontSize: 14, fontWeight: '600' },
   zawartosc: { padding: 16, gap: 12 },
-  kartaDzialki: { borderRadius: 14, padding: 16, borderWidth: 1 },
+  kartaDzialki: { ...kartaWspolna, padding: 16 },
   kartaTytul: { fontSize: 14, fontWeight: '800', marginBottom: 10, textTransform: 'uppercase' },
   podsumWrap: { borderWidth: 1, borderRadius: 10, padding: 12, marginTop: 10 },
   selectorScroll: { marginBottom: 12 },
