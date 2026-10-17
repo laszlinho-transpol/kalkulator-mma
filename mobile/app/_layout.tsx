@@ -94,6 +94,7 @@ export default function RootLayout() {
     headerTitleStyle: { fontWeight: '700' as const },
     contentStyle: { backgroundColor: theme.colors.background },
     headerShadowVisible: false,
+    headerShown: false,
     animation: 'slide_from_right' as const,
   };
 
@@ -170,6 +171,7 @@ export default function RootLayout() {
         <Stack.Screen name="niezbednik/masa/wydajnosc-powierzchniowa" options={{ headerShown: false }} />
         <Stack.Screen name="niezbednik/masa/wydajnosc-grubosciowa" options={{ headerShown: false }} />
         <Stack.Screen name="niezbednik/masa/wskaznik-rozkladarki" options={{ headerShown: false }} />
+        <Stack.Screen name="niezbednik/geodezja/index" options={{ headerShown: false }} />
         <Stack.Screen name="niezbednik/geodezja/spadki" options={{ headerShown: false }} />
         <Stack.Screen name="niezbednik/geodezja/luki" options={{ headerShown: false }} />
         <Stack.Screen name="niezbednik/geodezja/kat-prosty" options={{ headerShown: false }} />
