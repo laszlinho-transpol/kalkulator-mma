@@ -58,7 +58,7 @@ export function Pole({
   jednostka?: string;
   wymagane?: boolean;
   multiline?: boolean;
-  klawiatura?: 'url' | 'phone-pad';
+  klawiatura?: 'url' | 'phone-pad' | 'email-address';
 }) {
   const theme = useMotyw();
   return (
@@ -72,7 +72,7 @@ export function Pole({
           placeholderTextColor={theme.colors.textSecondary}
           accessibilityLabel={accessibilityLabel ?? etykieta}
           keyboardType={klawiatura ?? (liczba ? 'decimal-pad' : 'default')}
-          autoCapitalize={klawiatura === 'url' ? 'none' : undefined}
+          autoCapitalize={klawiatura === 'url' || klawiatura === 'email-address' ? 'none' : undefined}
           autoCorrect={klawiatura ? false : undefined}
           multiline={multiline}
           style={[styles.input, multiline && styles.inputWiele, { color: theme.colors.text }]}

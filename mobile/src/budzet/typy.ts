@@ -1,10 +1,16 @@
 import type { RodzajRozliczenia, StawkiSprzetu } from './rozliczenie';
 import type { StawkiPracownika } from './pracownicy';
+import type { KontaktWytworni } from '../types';
 
 export interface Firma {
   id: string;
   nazwa: string;
+  komentarz?: string;
+  adres?: string;
+  email?: string;
+  kontakty?: KontaktWytworni[];
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface GrupaPracownikow {

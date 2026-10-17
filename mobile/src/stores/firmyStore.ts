@@ -1,4 +1,4 @@
-// Baza firm używanych przy sprzęcie. Ta sama nazwa wskazuje jedną firmę.
+// Baza firm używanych przy sprzęcie. Ta sama nazwa wskazuje jedną firmę; karta firmy ma dane kontaktowe.
 
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -22,6 +22,7 @@ interface FirmyStore {
   zaladowane: boolean;
   zaladuj: () => Promise<void>;
   znajdzLubDodaj: (nazwa: string) => Promise<string | undefined>;
+  aktualizuj: (id: string, zmiany: Partial<Omit<Firma, 'id' | 'createdAt'>>) => Promise<void>;
 }
 
 export const useFirmyStore = create<FirmyStore>((set, get) => ({
@@ -47,5 +48,16 @@ export const useFirmyStore = create<FirmyStore>((set, get) => ({
     set({ firmy });
     await AsyncStorage.setItem(KLUCZ_STORAGE, JSON.stringify(firmy));
     return firma.id;
+  },
+
+  aktualizuj: async (id, zmiany) => {
+    const nazwa = zmiany.nazwa != null ? czystaNazwa(zmiany.nazwa) : undefined;
+    const firmy = uporzadkuj(get().firmy.map((f) => (
+      f.id === id
+        ? { ...f, ...zmiany, ...(nazwa ? { nazwa } : { nazwa: f.nazwa }), id: f.id, createdAt: f.createdAt, updatedAt: new Date().toISOString() }
+        : f
+    )));
+    set({ firmy });
+    await AsyncStorage.setItem(KLUCZ_STORAGE, JSON.stringify(firmy));
   },
 }));

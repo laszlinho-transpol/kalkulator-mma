@@ -18,7 +18,7 @@ import { useFirmyStore } from '../../../../src/stores/firmyStore';
 import { usePracownicyStore } from '../../../../src/stores/pracownicyStore';
 import { useSprzetStore } from '../../../../src/stores/sprzetStore';
 import { karta as kartaWspolna } from '../../../../src/constants/layout';
-import { Sekcja, SiatkaDanych, WierszDanych } from '../../../../src/components/ui';
+import { Przycisk, Sekcja, SiatkaDanych, WierszDanych } from '../../../../src/components/ui';
 
 const POLA_SPRZETU = OPISY_ROZLICZENIA.map((o) => ({ id: o.id, nazwa: o.nazwa, jednostka: o.jednostkaStawki }));
 
@@ -85,6 +85,9 @@ export default function KartaSprzetuScreen() {
                 <WierszDanych etykieta="Rodzaj" wartosc={rodzaj?.nazwa ?? maszyna.rodzajId} />
                 <WierszDanych etykieta="Numer" wartosc={etykietaSprzetu(maszyna.numer)} />
                 <WierszDanych etykieta="Firma" wartosc={firma?.nazwa ?? '—'} />
+                {firma ? (
+                  <Przycisk maly wariant="tekst" tekst="Karta firmy ›" accessibilityLabel={`Karta firmy ${firma.nazwa}`} onPress={() => router.push(`/budzet/firmy/${firma.id}` as never)} />
+                ) : null}
               </Sekcja>
               <Sekcja tytul="Stawki i spalanie" info="Stawki z karty. Okresy z innymi stawkami ustawisz w zakładce Historia stawek.">
                 <SiatkaDanych
