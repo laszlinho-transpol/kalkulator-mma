@@ -17,6 +17,13 @@ import { SekcjaPrzedmiar } from '../../src/components/budowa/SekcjaPrzedmiar';
 import { SekcjaRaporty } from '../../src/components/budowa/SekcjaRaporty';
 import { pustyProjektBudowy, zsynchronizujLegendeProjektu } from '../../src/utils/projektBudowy';
 import type { ProjektBudowy } from '../../src/types';
+import { useMieszankiStore } from '../../src/stores/mieszankiStore';
+import { useWytwornieStore } from '../../src/stores/wytwornieStore';
+import { useRaportyBudowyStore } from '../../src/stores/raportyBudowyStore';
+import { usePracownicyStore } from '../../src/stores/pracownicyStore';
+import { useSprzetStore } from '../../src/stores/sprzetStore';
+import { dokumentBudowy } from '../../src/eksport/dokumenty';
+import { udostepnijDokumentPdf } from '../../src/eksport/udostepnijPdf';
 
 const PROJEKT = [
   { id: 'pzt', nazwa: 'PZT' },
@@ -72,6 +79,19 @@ export default function BudowaSzablonScreen() {
     );
   }
 
+  const udostepnij = () => {
+    const { wytwornie } = useWytwornieStore.getState();
+    return udostepnijDokumentPdf(dokumentBudowy({
+      budowa,
+      projekt,
+      mieszanki: useMieszankiStore.getState().mieszanki,
+      nazwaWytworni: (wid) => wytwornie.find((w) => w.id === wid)?.nazwa,
+      raporty: useRaportyBudowyStore.getState().raporty,
+      raportyPracownikow: usePracownicyStore.getState().raporty,
+      raportySprzetu: useSprzetStore.getState().raporty,
+    }));
+  };
+
   const onZmien = (p: ProjektBudowy) => {
     void zapiszProjekt(budowa.id, zsynchronizujLegendeProjektu(p));
   };
@@ -82,6 +102,7 @@ export default function BudowaSzablonScreen() {
         tytul={budowa.kodBudowy}
         podtytul={budowa.nazwaInwestycji}
         lewy={{ tekst: '‹ Wstecz', onPress: () => router.back() }}
+        udostepnij={udostepnij}
       />
       <View style={[styles.menu, { backgroundColor: theme.colors.background, borderBottomColor: theme.colors.border }]}>
         <Text style={[styles.grupa, { color: theme.colors.textSecondary }]}>Projekt</Text>

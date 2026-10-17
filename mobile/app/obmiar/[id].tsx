@@ -40,6 +40,7 @@ import { wybierzPlikTlaPzt, rozmiarObrazu, zapiszJpegTla } from '../../src/utils
 import { PdfRasterizer } from '../../src/components/obmiar/PdfRasterizer';
 import { karta as kartaWspolna } from '../../src/constants/layout';
 import { pokazKomunikat, potwierdzAkcje } from '../../src/utils/dialog';
+import { generujRaportObmiaruPDF } from '../../src/utils/pdfGenerator';
 import { rodzajMieszanki } from '../../src/mieszanki/kolejnosc';
 
 type SekcjaNr = 'start' | 'odsadzka' | 'konstrukcja' | null;
@@ -336,6 +337,12 @@ export default function ObmiarDetailScreen() {
       <AppHeader
         tytul={sesja.nazwa}
         lewy={{ tekst: '‹ Wstecz', onPress: () => wstecz('/obmiar') }}
+        udostepnij={() => {
+          const b = sesja.budowaId ? budowy.find((x) => x.id === sesja.budowaId) : undefined;
+          return generujRaportObmiaruPDF({
+            sesja, mieszanki, budowa: b ? { kodBudowy: b.kodBudowy, nazwaInwestycji: b.nazwaInwestycji } : undefined,
+          });
+        }}
         prawy={{ tekst: '+ XFDF', onPress: importuj, kolor: theme.colors.success }}
       />
 

@@ -103,10 +103,7 @@ export default function ArchiwumDetailScreen() {
         tytul={formatujDatePl(plan.dataWbudowywania).split(',')[0]}
         podtytul="Archiwum"
         lewy={{ tekst: '‹ Wstecz', onPress: () => wstecz('/archiwum') }}
-        przyciski={[
-          { tekst: '↑ Udostępnij', onPress: () => setUdostepnijModal(true), kolor: theme.colors.secondary },
-          { tekst: generujePDF ? 'Generowanie…' : '📄 PDF', onPress: handleGenerujPDF, disabled: generujePDF },
-        ]}
+        udostepnij={() => setUdostepnijModal(true)}
       />
 
       {/* Zakładki z animowanym wskaźnikiem */}

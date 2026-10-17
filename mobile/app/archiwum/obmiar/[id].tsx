@@ -91,11 +91,7 @@ export default function ArchiwumObmiarScreen() {
       <AppHeader
         tytul={sesja.nazwa}
         lewy={{ tekst: '‹ Wstecz', onPress: () => wstecz('/archiwum') }}
-        prawy={{
-          tekst: generujePDF ? '…' : '📄 PDF',
-          onPress: handlePDF,
-          kolor: theme.colors.primary,
-        }}
+        udostepnij={() => generujRaportObmiaruPDF(pdfOpts)}
       />
       <ScrollView contentContainerStyle={[styles.zawartosc, { paddingBottom: insets.bottom + 24 }]}>
         <Sekcja tytul="Podsumowanie">

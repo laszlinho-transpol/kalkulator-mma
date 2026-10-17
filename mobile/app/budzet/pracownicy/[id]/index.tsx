@@ -14,6 +14,8 @@ import { wstecz } from '../../../../src/budzet/nawigacja';
 import { useRouteId } from '../../../../src/hooks/useRouteId';
 import { useGrupyPracownikowStore } from '../../../../src/stores/grupyPracownikowStore';
 import { usePracownicyStore } from '../../../../src/stores/pracownicyStore';
+import { dokumentPracownika } from '../../../../src/eksport/dokumenty';
+import { udostepnijDokumentPdf } from '../../../../src/eksport/udostepnijPdf';
 import { AkcjeTelefonu, Przycisk, Sekcja, SiatkaDanych, WierszDanych } from '../../../../src/components/ui';
 
 const linieWynagrodzenia = (stawki: StawkiPracownika) => linieStawekPola(POLA_WYNAGRODZENIA, stawki);
@@ -48,6 +50,7 @@ export default function KartaPracownikaScreen() {
         tytul={pracownik ? nazwaPracownika(pracownik) : 'Pracownik'}
         podtytul={grupa?.nazwa ?? 'Bez grupy'}
         lewy={{ tekst: '‹ Wstecz', onPress: () => wstecz('/budzet/pracownicy') }}
+        udostepnij={pracownik ? () => udostepnijDokumentPdf(dokumentPracownika({ pracownik, grupy, raporty })) : undefined}
         prawy={pracownik ? { tekst: 'Edytuj', onPress: edytuj } : undefined}
       />
       {!pracownik ? (

@@ -17,6 +17,8 @@ import { useBudowyStore } from '../../../../src/stores/budowyStore';
 import { useFirmyStore } from '../../../../src/stores/firmyStore';
 import { usePracownicyStore } from '../../../../src/stores/pracownicyStore';
 import { useSprzetStore } from '../../../../src/stores/sprzetStore';
+import { dokumentSprzetu } from '../../../../src/eksport/dokumenty';
+import { udostepnijDokumentPdf } from '../../../../src/eksport/udostepnijPdf';
 import { karta as kartaWspolna } from '../../../../src/constants/layout';
 import { Przycisk, Sekcja, SiatkaDanych, WierszDanych } from '../../../../src/components/ui';
 
@@ -72,6 +74,9 @@ export default function KartaSprzetuScreen() {
         tytul={rodzaj?.nazwa ?? 'Sprzęt'}
         podtytul={maszyna ? etykietaSprzetu(maszyna.numer) : ''}
         lewy={{ tekst: '‹ Wstecz', onPress: () => wstecz(maszyna ? `/budzet/sprzet/rodzaj/${maszyna.rodzajId}` : '/budzet/sprzet') }}
+        udostepnij={maszyna ? () => udostepnijDokumentPdf(dokumentSprzetu({
+          maszyna, rodzaj: rodzaj?.nazwa ?? 'Sprzęt', firma: firma?.nazwa, raporty, budowy, pracownicy,
+        })) : undefined}
         prawy={maszyna ? { tekst: 'Edytuj', onPress: () => router.push(`/budzet/sprzet/${maszyna.id}/edytuj` as never) } : undefined}
       />
       {!maszyna ? (

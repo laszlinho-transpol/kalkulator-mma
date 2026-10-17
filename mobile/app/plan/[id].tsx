@@ -35,6 +35,7 @@ import { formatujKmM } from '../../src/utils/projektBudowy';
 import { pokazKomunikat, potwierdzAkcje } from '../../src/utils/dialog';
 import { formatujPikietaz, pikietazPoMetrach } from '../../src/utils/chainage';
 import { eksportujJSON, generujInteraktywnyHTML } from '../../src/utils/htmlGenerator';
+import { generujRaportPDF } from '../../src/utils/pdfGenerator';
 import type { DzialkaRobocza, Rzut } from '../../src/types';
 import { Przycisk, Sekcja, SiatkaDanych, WierszDanych, kolorDnia, rodzajDnia } from '../../src/components/ui';
 import { karta as kartaWspolna } from '../../src/constants/layout';
@@ -101,6 +102,21 @@ export default function PlanDetailScreen() {
     setUdostepnijModal(false);
   };
 
+  const udostepnijPDF = async () => {
+    setUdostepnijModal(false);
+    try {
+      await generujRaportPDF({
+        plan,
+        wpisyLive,
+        mieszanki,
+        budowa: budowaPodglad ? { kodBudowy: budowaPodglad.kodBudowy, nazwaInwestycji: budowaPodglad.nazwaInwestycji } : undefined,
+        tytul: 'Plan układania – Kalkulator MMA',
+      });
+    } catch {
+      pokazKomunikat('Nie udało się udostępnić', 'Spróbuj ponownie za chwilę.');
+    }
+  };
+
   const przygotujHTML = () => {
     setAutorNazwa('');
     setAutorModal(true);
@@ -143,7 +159,7 @@ export default function PlanDetailScreen() {
         tytul={plan.zrodlo === 'budowa' ? tytulPlanuBudowy(plan) : formatujDatePl(plan.dataWbudowywania).split(',')[0]}
         podtytul={plan.zrodlo === 'budowa' ? komentarzPlanuBudowy(plan) : undefined}
         lewy={{ tekst: '‹ Wstecz', onPress: () => router.back() }}
-        prawy={{ tekst: 'Udostępnij', onPress: () => setUdostepnijModal(true), kolor: theme.colors.secondary }}
+        udostepnij={() => setUdostepnijModal(true)}
         przyciski={plan.status === 'aktywny' ? [
           { tekst: '✏ Edytuj plan', onPress: () => router.push(`/plan/edytuj/${plan.id}` as any), kolor: theme.colors.warning },
           { tekst: '▶ Wbudowywanie', onPress: () => router.push(`/wbudowywanie/${plan.id}` as any), kolor: '#fff', tlo: theme.colors.success },
@@ -381,6 +397,13 @@ export default function PlanDetailScreen() {
         <Pressable style={uStyles.tlo} onPress={() => setUdostepnijModal(false)}>
           <Pressable style={[uStyles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
             <Text style={[uStyles.tytul, { color: theme.colors.text }]}>Udostępnij plan</Text>
+            <TouchableOpacity style={[uStyles.btn, { backgroundColor: `${theme.colors.primary}15`, borderColor: theme.colors.primary }]} onPress={udostepnijPDF}>
+              <Text style={uStyles.btnIkona}>📄</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={[uStyles.btnTytul, tekstWramce, { color: theme.colors.text }]}>Plik PDF</Text>
+                <Text style={[uStyles.btnOpis, tekstWramce, { color: theme.colors.textSecondary }]} numberOfLines={2}>Plan dnia z działkami i danymi Live do wydruku lub wysłania</Text>
+              </View>
+            </TouchableOpacity>
             <TouchableOpacity style={[uStyles.btn, { backgroundColor: `${theme.colors.info}15`, borderColor: theme.colors.info }]} onPress={udostepnijJSON}>
               <Text style={[uStyles.btnIkona]}>📦</Text>
               <View>

@@ -18,6 +18,8 @@ import { useMieszankiStore } from '../../src/stores/mieszankiStore';
 import { usePracownicyStore } from '../../src/stores/pracownicyStore';
 import { useRaportyBudowyStore } from '../../src/stores/raportyBudowyStore';
 import { useSprzetStore } from '../../src/stores/sprzetStore';
+import { dokumentRaportuBudowy } from '../../src/eksport/dokumenty';
+import { udostepnijDokumentPdf } from '../../src/eksport/udostepnijPdf';
 import { formatLiczby } from '../../src/utils/calculations';
 import { potwierdzAkcje } from '../../src/utils/dialog';
 
@@ -69,6 +71,11 @@ export default function RaportDziennyScreen() {
         tytul={`Raport ${dataKrotko(raport.data)}`}
         podtytul={budowa ? `${budowa.kodBudowy} · ${formatujDzienIso(raport.data)}` : formatujDzienIso(raport.data)}
         lewy={{ tekst: '‹ Wstecz', onPress: () => wstecz(powrot) }}
+        udostepnij={() => udostepnijDokumentPdf(dokumentRaportuBudowy({
+          raport, budowa, mieszanki, raportyPracownikow, raportySprzetu,
+          pracownicy: usePracownicyStore.getState().pracownicy,
+          sprzet: useSprzetStore.getState().sprzet,
+        }))}
         prawy={{ tekst: 'Edytuj', onPress: () => router.push({ pathname: '/raport-budowy/formularz', params: { id: raport.id } } as never) }}
       />
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.tresc, { paddingBottom: insets.bottom + 24 }]}>

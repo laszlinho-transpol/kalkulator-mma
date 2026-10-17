@@ -593,6 +593,7 @@ export default function WbudowywanieDetailScreen() {
         tytul={formatujDatePl(plan.dataWbudowywania).split(',')[0]}
         podtytul={plan.dzialki.length > 1 ? `Całość dnia · ${plan.dzialki.length} działki` : plan.dzialki[0]?.nazwa}
         lewy={{ tekst: '‹ Wstecz', onPress: wracajZPlanu }}
+        udostepnij={() => generujRaportPDF({ ...opcjeRaportuDnia(), tytul: 'Wbudowywanie Live – Kalkulator MMA' })}
         prawy={{ tekst: generujeRaport ? '…' : 'Zakończ', onPress: zakonczIArchiwizuj, kolor: '#fff', tlo: theme.colors.danger }}
       />
 

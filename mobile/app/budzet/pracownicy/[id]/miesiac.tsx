@@ -19,6 +19,8 @@ import { useRouteId } from '../../../../src/hooks/useRouteId';
 import { useBudowyStore } from '../../../../src/stores/budowyStore';
 import { useGrupyPracownikowStore } from '../../../../src/stores/grupyPracownikowStore';
 import { usePracownicyStore } from '../../../../src/stores/pracownicyStore';
+import { dokumentMiesiacaPracownika } from '../../../../src/eksport/dokumenty';
+import { udostepnijDokumentPdf } from '../../../../src/eksport/udostepnijPdf';
 import { formatLiczby, round2 } from '../../../../src/utils/calculations';
 
 const wielkaLitera = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
@@ -85,6 +87,7 @@ export default function MiesiacPracownikaScreen() {
         tytul={miesiac ? etykietaMiesiaca(miesiac) : 'Raporty'}
         podtytul={`${nazwaPracownika(pracownik)} · ${liczbaRaportow(p.raporty.length)}`}
         lewy={{ tekst: '‹ Wstecz', onPress: () => wstecz(powrot) }}
+        udostepnij={() => udostepnijDokumentPdf(dokumentMiesiacaPracownika({ pracownik, miesiac, raporty, budowy, grupy }))}
       />
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.tresc, { paddingBottom: insets.bottom + 24 }]}>
         <Sekcja tytul="Podsumowanie" info="Godziny z dni pracy. UW, R8, UB i NB liczą się w dniach roboczych, L4 w dniach kalendarzowych. UB i NB to 0 zł.">

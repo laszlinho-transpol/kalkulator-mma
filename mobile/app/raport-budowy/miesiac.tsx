@@ -12,6 +12,8 @@ import { useMieszankiStore } from '../../src/stores/mieszankiStore';
 import { usePracownicyStore } from '../../src/stores/pracownicyStore';
 import { useRaportyBudowyStore } from '../../src/stores/raportyBudowyStore';
 import { useSprzetStore } from '../../src/stores/sprzetStore';
+import { dokumentMiesiacaBudowy } from '../../src/eksport/dokumenty';
+import { udostepnijDokumentPdf } from '../../src/eksport/udostepnijPdf';
 import { formatLiczby } from '../../src/utils/calculations';
 
 const wielkaLitera = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
@@ -37,6 +39,9 @@ export default function RaportyMiesiacaScreen() {
         tytul={miesiac ? etykietaMiesiaca(miesiac) : 'Raporty'}
         podtytul={budowa ? `${budowa.kodBudowy} · ${liczbaRaportow(raporty.length)}` : undefined}
         lewy={{ tekst: '‹ Wstecz', onPress: () => wstecz(powrot) }}
+        udostepnij={raporty.length ? () => udostepnijDokumentPdf(dokumentMiesiacaBudowy({
+          miesiac: miesiac ?? '', budowa, raporty, mieszanki, raportyPracownikow, raportySprzetu,
+        })) : undefined}
       />
       <ScrollView contentContainerStyle={[styles.tresc, { paddingBottom: insets.bottom + 24 }]}>
         {raporty.length === 0 ? (
