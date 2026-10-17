@@ -53,7 +53,7 @@ const STYL = `
   .poz .w { font-weight: bold; font-size: 12px; margin-top: 2px; }
   table { width: 100%; border-collapse: collapse; margin-top: 4px; font-size: 10px; }
   th { background: #E8A020; color: #fff; padding: 5px 6px; text-align: left; }
-  td { padding: 4px 6px; border-bottom: 1px solid #E5E7EB; vertical-align: top; }
+  td { padding: 4px 6px; border-bottom: 1px solid #E5E7EB; vertical-align: top; white-space: pre-line; }
   tr:nth-child(even) td { background: #f9fafb; }
   td.l, th.l { text-align: right; white-space: nowrap; }
   tr.suma td { font-weight: bold; border-top: 2px solid #1a1a1a; background: #fff; }

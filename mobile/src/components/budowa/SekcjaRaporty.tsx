@@ -5,21 +5,14 @@ import { Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { PozycjaListy, Przycisk, Sekcja, SiatkaDanych, SiatkaKalendarza, isoZDaty, useMotyw, ODSTEP, TYPOGRAFIA } from '../ui';
 import { dataKrotko } from '../../budzet/wyswietlanie';
-import { miesiaceRaportow, statystykiRaportow } from '../../raportyBudowy/raporty';
+import { liczbaRaportow, miesiaceRaportow, statystykiRaportow } from '../../raportyBudowy/raporty';
 import { useRaportyBudowyStore } from '../../stores/raportyBudowyStore';
-
-const odmianaRaportow = (n: number) => {
-  if (n === 1) return 'raport';
-  const r10 = n % 10;
-  const r100 = n % 100;
-  return r10 >= 2 && r10 <= 4 && (r100 < 12 || r100 > 14) ? 'raporty' : 'raportów';
-};
 
 const dniWZakresie = (od: string, doDnia: string) =>
   Math.round((Date.UTC(+doDnia.slice(0, 4), +doDnia.slice(5, 7) - 1, +doDnia.slice(8, 10))
     - Date.UTC(+od.slice(0, 4), +od.slice(5, 7) - 1, +od.slice(8, 10))) / 86400000) + 1;
 
-export const liczbaRaportow = (n: number) => `${n} ${odmianaRaportow(n)}`;
+export { liczbaRaportow };
 
 export function SekcjaRaporty({ budowaId }: { budowaId: string }) {
   const theme = useMotyw();

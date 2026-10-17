@@ -8,7 +8,7 @@ import {
 import { dataKrotko, etykietaSprzetu, linieStawek, opisPozycjiSprzetu } from '../budzet/wyswietlanie';
 import type { GrupaPracownikow, Pracownik, RaportPracownika, RaportSprzetu, Sprzet } from '../budzet/typy';
 import {
-  etykietaMiesiaca, kwotaPrzerzutu, kwotaSamochodow, materialyRaportu, miesiaceRaportow, podsumowanieDnia,
+  etykietaMiesiaca, kwotaPrzerzutu, liczbaRaportow, kwotaSamochodow, materialyRaportu, miesiaceRaportow, podsumowanieDnia,
   przerobRaportu, robociznaDnia, statystykiRaportow, sumaKwot, sumaPrzerobu,
 } from '../raportyBudowy/raporty';
 import type { RaportDzienny } from '../raportyBudowy/typy';
@@ -164,7 +164,7 @@ export function dokumentMiesiacaPracownika({ pracownik, miesiac, raporty, budowy
   const nazwaPozycji = (typ: 'budowa' | 'brygada', id?: string) => (typ === 'brygada' ? nazwaBrygady(grupy, id) : nazwaBudowy(budowy, id));
   return {
     tytul: `${nazwaPracownika(pracownik)} – ${etykietaMiesiaca(miesiac)}`,
-    podtytul: `Podsumowanie miesiąca · ${p.raporty.length} raportów`,
+    podtytul: `Podsumowanie miesiąca · ${liczbaRaportow(p.raporty.length)}`,
     sekcje: [
       {
         tytul: 'Podsumowanie',

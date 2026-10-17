@@ -389,3 +389,12 @@ export function podsumowanieDnia(
   const robocizna = round2(r.kwotaPracownikow + r.kwotaSprzetu);
   return { material, transport, robocizna, razem: round2(material + transport + robocizna) };
 }
+
+const odmianaRaportow = (n: number) => {
+  if (n === 1) return 'raport';
+  const r10 = n % 10;
+  const r100 = n % 100;
+  return r10 >= 2 && r10 <= 4 && (r100 < 12 || r100 > 14) ? 'raporty' : 'raportów';
+};
+
+export const liczbaRaportow = (n: number) => `${n} ${odmianaRaportow(n)}`;

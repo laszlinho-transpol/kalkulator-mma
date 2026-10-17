@@ -203,9 +203,7 @@ interface GenerujObmiarPDFOptions {
   budowa?: { kodBudowy: string; nazwaInwestycji: string };
 }
 
-export async function stworzRaportObmiaruPDF({
-  sesja, mieszanki, budowa,
-}: GenerujObmiarPDFOptions): Promise<string> {
+export function htmlRaportuObmiaru({ sesja, mieszanki, budowa }: GenerujObmiarPDFOptions): string {
   const stylePDF = `
     body { font-family: Arial, sans-serif; font-size: 11px; color: #1a1a1a; margin: 16px; }
     h1 { font-size: 16px; color: #E8A020; border-bottom: 2px solid #E8A020; padding-bottom: 5px; margin-bottom: 12px; }
@@ -259,7 +257,7 @@ export async function stworzRaportObmiaruPDF({
     `;
   }).join('');
 
-  const html = `<!DOCTYPE html>
+  return `<!DOCTYPE html>
 <html lang="pl">
 <head><meta charset="utf-8"/><style>${stylePDF}</style></head>
 <body>
@@ -276,13 +274,13 @@ export async function stworzRaportObmiaruPDF({
   <p class="footer">Wygenerowano: ${new Date().toLocaleString('pl-PL')} | Kalkulator MMA</p>
 </body>
 </html>`;
+}
 
-  const { uri } = await Print.printToFileAsync({ html, base64: false });
+export async function stworzRaportObmiaruPDF(opts: GenerujObmiarPDFOptions): Promise<string> {
+  const { uri } = await Print.printToFileAsync({ html: htmlRaportuObmiaru(opts), base64: false });
   return uri;
 }
 
-export async function generujRaportObmiaruPDF(opts: GenerujObmiarPDFOptions): Promise<string> {
-  const uri = await stworzRaportObmiaruPDF(opts);
-  await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'Udostępnij raport obmiaru PDF' });
-  return uri;
+export async function generujRaportObmiaruPDF(opts: GenerujObmiarPDFOptions): Promise<void> {
+  await udostepnijHtmlJakoPdf(htmlRaportuObmiaru(opts), 'Udostępnij raport obmiaru PDF');
 }
