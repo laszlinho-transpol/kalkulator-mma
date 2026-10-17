@@ -97,7 +97,14 @@ export function AppHeader({ tytul, podtytul, przyciski, lewy, prawy, menu, udost
             )
           ) : null}
           {prawy ? (
-            <Naciskany accessibilityRole="button" accessibilityLabel={prawy.tekst} onPress={prawy.onPress} disabled={prawy.disabled} hitSlop={10}>
+            <Naciskany
+              accessibilityRole="button"
+              accessibilityLabel={prawy.tekst}
+              onPress={prawy.onPress}
+              disabled={prawy.disabled}
+              hitSlop={10}
+              style={prawy.tlo ? [styles.pigulka, { backgroundColor: prawy.tlo }] : undefined}
+            >
               <Text style={[tekstPrzyciskNaglowkaWrap, { color: prawy.kolor ?? theme.colors.primary }]} numberOfLines={2}>{prawy.tekst}</Text>
             </Naciskany>
           ) : null}
@@ -143,6 +150,7 @@ const styles = StyleSheet.create({
   bok: { width: 84, flexDirection: 'row', alignItems: 'center', gap: 8 },
   bokSzeroki: { width: 124 },
   bokPrawy: { justifyContent: 'flex-end' },
+  pigulka: { borderRadius: 18, paddingHorizontal: 12, minHeight: 36, justifyContent: 'center' },
   ladowanie: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
   tytulWrap: { flex: 1, alignItems: 'center' },
   tytul: { fontSize: 17, fontWeight: '800', textAlign: 'center' },
