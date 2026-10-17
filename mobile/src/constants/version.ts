@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.39';
+export const WERSJA_APLIKACJI = '1.8.40';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,17 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.40',
+    data: '2026-10-17',
+    tytul: 'Przedmiar budowy w kolejności warstw',
+    zmiany: [
+      'Przedmiar: kolumny od najniższej warstwy – KŁSM, podbudowa, wiążąca, ścieralna',
+      'Suma mieszanek: grupy Kruszywo, Podbudowy, Wiążące, Ścieralne z sumą ton; w grupie kolejność jak w wytwórniach (uziarnienie, potem KR)',
+      'Suma mieszanek pokazuje kategorię ruchu, więc recepty o tym samym rodzaju (np. AC16W KR5-7 i KR1-2) da się odróżnić',
+      'Eksport CSV sum mieszanek w tej samej kolejności',
+    ],
+  },
   {
     wersja: '1.8.39',
     data: '2026-10-17',
