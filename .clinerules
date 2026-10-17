@@ -91,7 +91,8 @@ Ilość aut       = ceil(Masa_Mg / Tonaz_auta)   [domyślnie 25.5t, edytowalne]
    - dane zawsze edytowalne; przyciski interaktywne z płynnym przejściem na nową stronę,
    - pola parami w dwóch kolumnach, etykieta/jednostka nie przeskakuje do nowej linii,
    - opisy tylko pod przyciskiem „i”,
-   - nagłówek `AppHeader`: wstecz + domek do menu głównego,
+   - nagłówek `AppHeader`: wstecz + domek do menu głównego; na stronach z danymi użytkownika po prawej
+     przycisk udostępniania → PDF (`udostepnij`, treść w `src/eksport/dokumenty.ts`),
    - treść w osobnych kartach jak plan dnia na „Wbudowywaniu”, długie strony dzielone zakładkami,
    - jeden kalendarz dla wszystkich dat (soboty, niedziele i święta we własnych kolorach),
    - wspólną zmianę wyglądu robimy w klocku, nie na pojedynczym ekranie.

@@ -63,6 +63,12 @@ opisanych niżej** – bez własnych kolorów, odstępów i nagłówków. Zmiana
     `legendaBraku`). Dotknięcie dnia otwiera raport albo nowy raport z tą datą. Miesiąc to osobny ekran:
     podsumowanie, podział kosztów i `Karta` na każdy raport (dotknięcie = edycja). Kwoty UW / L4 / R8 liczy
     tylko `src/budzet/nieobecnosci.ts`.
+14. **Udostępnij jako PDF.** Każda strona z danymi wpisanymi przez użytkownika (karty sprzętu i pracownika,
+    miesiąc raportów, raport dnia budowy, budowa, plan, Live, obmiar, archiwum) ma w `AppHeader` prop
+    `udostepnij` – ikona po prawej, przed „Edytuj”. Treść PDF składamy w `src/eksport/dokumenty.ts`
+    (`DokumentPdf`: sekcje z blokami `dane` / `tabela` / `tekst`) i wysyłamy `udostepnijDokumentPdf`;
+    gotowe raporty HTML (dzień, obmiar) idą przez `udostepnijHtmlJakoPdf`. Nie składamy HTML-a w ekranie.
+    Natywnie: plik PDF + arkusz udostępniania, na webie okno drukowania („Zapisz jako PDF”).
 
 ## 2. Klocki (`src/components/ui`)
 
@@ -125,6 +131,7 @@ export default function KartaXScreen() {
 
 - [ ] `AppHeader` z „‹ Wstecz” (domek widoczny), tytuł mieści się w jednej linii
 - [ ] dane edytowalne (Edytuj + ten sam formularz), usuwanie z potwierdzeniem
+- [ ] strona z danymi użytkownika ma `udostepnij` w `AppHeader` (eksport PDF)
 - [ ] pola parami w `Wiersz`, jednostki i etykiety nie zawijają się (sprawdź szerokość 360 px)
 - [ ] opisy tylko w „i”
 - [ ] treść w osobnych `Sekcja`/`Karta`, długie strony podzielone `Zakladki`

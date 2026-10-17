@@ -13,6 +13,7 @@ Pełny opis: `mobile/STYL.md` (przeczytaj przed pracą nad UI). Skrót:
   przycisków, kalendarzy ani kolorów.
 - Nagłówek: `AppHeader` z `lewy={{ tekst: '‹ Wstecz', … }}` → strzałka + domek do menu głównego.
 - Dane edytowalne: „Edytuj” w nagłówku karty + ekran `edytuj` z tym samym formularzem; usuwanie z `potwierdzAkcje`.
+- Strony z danymi użytkownika: `AppHeader udostepnij={…}` (ikona udostępniania → PDF); treść z `src/eksport/dokumenty.ts`.
 - Listy obiektów = `PozycjaListy` (przycisk do karty obiektu), nie rozwijane sekcje. Karta obiektu ma `Zakladki`.
 - Pola parami (`Wiersz`, dwie kolumny); etykieta i jednostka nie mogą się zawijać.
 - Bez opisów na ekranie – wyjaśnienia tylko w „i” (`info` w `Pole`/`Etykieta`/`Sekcja`).
