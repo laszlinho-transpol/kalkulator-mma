@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.38';
+export const WERSJA_APLIKACJI = '1.8.39';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,19 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.39',
+    data: '2026-10-17',
+    tytul: 'Mieszanki z wytwórni w stałej kolejności, karta firmy',
+    zmiany: [
+      'Mieszankę zawsze wybierasz z konkretnej wytwórni: najpierw wytwórnia, potem jej recepty (plan, obmiar, konstrukcje, raport budowy)',
+      'Jedna kolejność recept w całej aplikacji: podbudowy, wiążące, ścieralne; w nich uziarnienie od 31,5 do 5 i kategoria ruchu od najwyższej',
+      'Grupy warstw z nagłówkiem, bloki uziarnienia oddzielone od siebie',
+      'Recepta: nowe pole „Kategoria ruchu” (np. KR3-4)',
+      'Karta pracownika: w wynagrodzeniu zawsze widać wszystkie stawki, także delegację',
+      'Firmy: karta firmy z danymi (adres siedziby, e-mail, komentarz), numerami kontaktowymi i listą jej sprzętu',
+    ],
+  },
   {
     wersja: '1.8.38',
     data: '2026-10-16',
