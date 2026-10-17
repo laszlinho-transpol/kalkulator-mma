@@ -18,9 +18,12 @@ import {
   scalWiersze,
   sumyMieszanek,
   zmienNazweScalonegoWiersza,
+  type SumaMieszanki,
   type WierszPrzedmiaru,
 } from '../../utils/projektBudowy';
+import { NAZWY_KATEGORII } from '../../mieszanki/kolejnosc';
 import { formatLiczby } from '../../utils/calculations';
+import { pokazKomunikat } from '../../utils/dialog';
 
 interface Props {
   projekt: ProjektBudowy;
@@ -30,10 +33,10 @@ interface Props {
 }
 
 const KAT_KOLUMNY: { kat: WierszPrzedmiaru['warstwy'][0]['kategoria']; etykieta: string }[] = [
-  { kat: 'sma', etykieta: 'SMA' },
-  { kat: 'wiazaca', etykieta: 'Wiążąca' },
-  { kat: 'podbudowa', etykieta: 'Podbudowa' },
   { kat: 'klsm', etykieta: 'KŁSM' },
+  { kat: 'podbudowa', etykieta: 'Podbudowa' },
+  { kat: 'wiazaca', etykieta: 'Wiążąca' },
+  { kat: 'sma', etykieta: 'Ścieralna' },
 ];
 
 export function SekcjaPrzedmiar({ projekt, theme, kodBudowy, onZmien }: Props) {
@@ -50,6 +53,13 @@ export function SekcjaPrzedmiar({ projekt, theme, kodBudowy, onZmien }: Props) {
     () => sumyMieszanek(wiersze, mieszanki, (id) => wytwornie.find((w) => w.id === id)?.nazwa),
     [wiersze, mieszanki, wytwornie],
   );
+
+  const grupySum = sumy.reduce<{ warstwa: SumaMieszanki['warstwa']; sumy: SumaMieszanki[] }[]>((acc, x) => {
+    const ostatnia = acc[acc.length - 1];
+    if (ostatnia && ostatnia.warstwa === x.warstwa) ostatnia.sumy.push(x);
+    else acc.push({ warstwa: x.warstwa, sumy: [x] });
+    return acc;
+  }, []);
 
   if (!czyLegendaUzupelniona(projekt.legenda) || projekt.konstrukcje.length === 0) {
     return (
@@ -75,7 +85,7 @@ export function SekcjaPrzedmiar({ projekt, theme, kodBudowy, onZmien }: Props) {
       doc.write(`\uFEFF${csv}`);
       await Sharing.shareAsync(doc.uri, { mimeType: 'text/csv', dialogTitle: 'Eksport sum mieszanek' });
     } catch (e) {
-      Alert.alert('Eksport', e instanceof Error ? e.message : 'Nie udało się udostępnić pliku CSV.');
+      pokazKomunikat('Eksport', e instanceof Error ? e.message : 'Nie udało się udostępnić pliku CSV.');
     }
   };
 
@@ -84,7 +94,7 @@ export function SekcjaPrzedmiar({ projekt, theme, kodBudowy, onZmien }: Props) {
       .filter((w) => zaznaczone.includes(w.id))
       .flatMap((w) => w.legendaIds);
     if (ids.length < 2) {
-      Alert.alert('Scalanie', 'Zaznacz co najmniej dwa wiersze o tych samych warstwach.');
+      pokazKomunikat('Scalanie', 'Zaznacz co najmniej dwa wiersze o tych samych warstwach.');
       return;
     }
     onZmien(scalWiersze(projekt, ids));
@@ -108,16 +118,14 @@ export function SekcjaPrzedmiar({ projekt, theme, kodBudowy, onZmien }: Props) {
         </TouchableOpacity>
       </View>
       {edycja ? (
-        <View style={{ gap: 8 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <TouchableOpacity
             onPress={scal}
             style={[styles.btn, { backgroundColor: theme.colors.primary, alignSelf: 'flex-start' }]}
           >
             <Text style={styles.btnTekst}>Scal zaznaczone</Text>
           </TouchableOpacity>
-          <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>
-            Zaznacz wiersze i scal. Scalone: zmień nazwę w polu albo wciśnij „Rozłącz”.
-          </Text>
+          <InfoTooltip tresc="Zaznacz wiersze i scal. Scalone: zmień nazwę w polu albo wciśnij „Rozłącz”." />
         </View>
       ) : null}
 
@@ -198,13 +206,38 @@ export function SekcjaPrzedmiar({ projekt, theme, kodBudowy, onZmien }: Props) {
       </ScrollView>
 
       <Text style={{ color: theme.colors.primary, fontWeight: '800', fontSize: 12 }}>SUMA MIESZANEK</Text>
-      {sumy.map((s) => (
-        <View key={s.klucz} style={[karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-          <Text style={{ color: theme.colors.text, fontWeight: '700' }}>{s.nazwa}</Text>
-          <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>
-            {s.wytwornia ? `${s.wytwornia} · ` : ''}
-            {formatLiczby(s.powierzchniaM2, 1)} m² · grubość ważona {formatLiczby(s.gruboscWazonaCm, 1)} cm · {formatLiczby(s.tony, 2)} t
-          </Text>
+      {grupySum.map((g) => (
+        <View key={g.warstwa} accessibilityLabel={`Suma ${NAZWY_KATEGORII[g.warstwa]}`} style={styles.grupa}>
+          <View style={[styles.naglowekGrupy, { borderBottomColor: theme.colors.primary }]}>
+            <Text style={[styles.tytulGrupy, { color: theme.colors.text }]}>{NAZWY_KATEGORII[g.warstwa]}</Text>
+            <Text style={{ color: theme.colors.textSecondary, fontSize: 12, fontWeight: '700' }}>
+              {formatLiczby(g.sumy.reduce((suma, x) => suma + x.tony, 0), 2)} t
+            </Text>
+          </View>
+          {g.sumy.map((s) => (
+            <View key={s.klucz} style={[karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+              <View style={styles.rzad}>
+                <Text style={{ color: theme.colors.text, fontWeight: '700', flex: 1 }}>{s.nazwa}</Text>
+                <Text style={{ color: theme.colors.text, fontWeight: '800' }}>{formatLiczby(s.tony, 2)} t</Text>
+              </View>
+              <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>
+                {formatLiczby(s.powierzchniaM2, 1)} m² · grubość ważona {formatLiczby(s.gruboscWazonaCm, 1)} cm
+              </Text>
+              {s.recepty.length > 0 ? (
+                <View accessibilityLabel={`Zatwierdzone recepty ${s.nazwa}`} style={[styles.recepty, { borderTopColor: theme.colors.border }]}>
+                  <Text style={{ color: theme.colors.textSecondary, fontSize: 11, fontWeight: '700' }}>
+                    {s.recepty.length === 1 ? 'Zatwierdzona recepta' : `Zatwierdzone recepty · ${s.recepty.length}`}
+                  </Text>
+                  {s.recepty.map((r) => (
+                    <Text key={r.mieszankaId} style={{ color: theme.colors.text, fontSize: 12 }}>
+                      {r.nazwa}
+                      <Text style={{ color: theme.colors.textSecondary }}>{r.wytwornia ? ` · ${r.wytwornia}` : ' · bez wytwórni'}</Text>
+                    </Text>
+                  ))}
+                </View>
+              ) : null}
+            </View>
+          ))}
         </View>
       ))}
     </View>
@@ -221,5 +254,9 @@ const styles = StyleSheet.create({
   td: { fontSize: 11, paddingHorizontal: 8, lineHeight: 16 },
   colNazwa: { width: 168, paddingHorizontal: 8 },
   colKat: { width: 96, textAlign: 'right' },
+  grupa: { gap: 6, marginBottom: 6 },
+  recepty: { borderTopWidth: StyleSheet.hairlineWidth, marginTop: 6, paddingTop: 6, gap: 2 },
+  naglowekGrupy: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', borderBottomWidth: 2, paddingBottom: 4 },
+  tytulGrupy: { fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
   nazwaInput: { borderWidth: 1, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 4, fontSize: 12, fontWeight: '700' },
 });

@@ -4,23 +4,25 @@
 
 import React, { useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  useColorScheme, ActivityIndicator, Alert,
-} from 'react-native';
-import { router } from 'expo-router';
+  View, Text, StyleSheet, ScrollView,
+  useColorScheme, ActivityIndicator, } from 'react-native';
+import { wstecz } from '../../../src/budzet/nawigacja';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as MailComposer from 'expo-mail-composer';
 import { useRouteId } from '../../../src/hooks/useRouteId';
 import { useObmiarStore } from '../../../src/stores/obmiarStore';
 import { useMieszankiStore } from '../../../src/stores/mieszankiStore';
 import { useBudowyStore } from '../../../src/stores/budowyStore';
-import { lightTheme, darkTheme, type AppTheme } from '../../../src/constants/theme';
+import { lightTheme, darkTheme } from '../../../src/constants/theme';
 import { AppHeader } from '../../../src/components/common/AppHeader';
 import { formatLiczby } from '../../../src/utils/calculations';
 import { formatujDatePl } from '../../../src/utils/dates';
 import { infoAutaWz, dlugoscUkladaniaObszaru } from '../../../src/utils/obmiarLive';
 import { formatujKilometraz } from '../../../src/utils/obmiarFigura';
 import { generujRaportObmiaruPDF, stworzRaportObmiaruPDF } from '../../../src/utils/pdfGenerator';
+import { pokazKomunikat } from '../../../src/utils/dialog';
+import { Przycisk, Sekcja, SiatkaDanych, WierszDanych, kolorDnia, rodzajDnia } from '../../../src/components/ui';
+import { rodzajMieszanki } from '../../../src/mieszanki/kolejnosc';
 
 export default function ArchiwumObmiarScreen() {
   const colorScheme = useColorScheme();
@@ -36,7 +38,7 @@ export default function ArchiwumObmiarScreen() {
   if (!sesja) {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-        <AppHeader tytul="Raport obmiaru" lewy={{ tekst: '‹ Wstecz', onPress: () => router.back() }} />
+        <AppHeader tytul="Raport obmiaru" lewy={{ tekst: '‹ Wstecz', onPress: () => wstecz('/archiwum') }} />
         <Text style={{ color: theme.colors.textSecondary, textAlign: 'center', marginTop: 40 }}>Sesja nie znaleziona.</Text>
       </View>
     );
@@ -57,7 +59,7 @@ export default function ArchiwumObmiarScreen() {
     try {
       await generujRaportObmiaruPDF(pdfOpts);
     } catch {
-      Alert.alert('Błąd', 'Nie udało się wygenerować PDF.');
+      pokazKomunikat('Błąd', 'Nie udało się wygenerować PDF.');
     } finally {
       setGenerujePDF(false);
     }
@@ -66,7 +68,7 @@ export default function ArchiwumObmiarScreen() {
   const handleMail = async () => {
     const dostepny = await MailComposer.isAvailableAsync();
     if (!dostepny) {
-      Alert.alert('Brak klienta e-mail', 'Na urządzeniu nie skonfigurowano konta e-mail.');
+      pokazKomunikat('Brak klienta e-mail', 'Na urządzeniu nie skonfigurowano konta e-mail.');
       return;
     }
     setGenerujePDF(true);
@@ -78,7 +80,7 @@ export default function ArchiwumObmiarScreen() {
         attachments: [uri],
       });
     } catch {
-      Alert.alert('Błąd', 'Nie udało się przygotować wiadomości. Spróbuj eksportu PDF.');
+      pokazKomunikat('Błąd', 'Nie udało się przygotować wiadomości. Spróbuj eksportu PDF.');
     } finally {
       setGenerujePDF(false);
     }
@@ -88,7 +90,7 @@ export default function ArchiwumObmiarScreen() {
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <AppHeader
         tytul={sesja.nazwa}
-        lewy={{ tekst: '‹ Wstecz', onPress: () => router.back() }}
+        lewy={{ tekst: '‹ Wstecz', onPress: () => wstecz('/archiwum') }}
         prawy={{
           tekst: generujePDF ? '…' : '📄 PDF',
           onPress: handlePDF,
@@ -96,37 +98,27 @@ export default function ArchiwumObmiarScreen() {
         }}
       />
       <ScrollView contentContainerStyle={[styles.zawartosc, { paddingBottom: insets.bottom + 24 }]}>
-        {budowa ? (
-          <View style={[styles.karta, { backgroundColor: `${theme.colors.secondary}12`, borderColor: theme.colors.secondary }]}>
-            <Text style={{ color: theme.colors.secondary, fontWeight: '700' }}>
-              {budowa.kodBudowy} – {budowa.nazwaInwestycji}
-            </Text>
+        <Sekcja tytul="Podsumowanie">
+          <WierszDanych
+            etykieta="Data"
+            wartosc={formatujDatePl(sesja.data)}
+            kolor={rodzajDnia(sesja.data) === 'roboczy' ? undefined : kolorDnia(theme, sesja.data)}
+          />
+          {budowa ? <WierszDanych etykieta="Budowa" wartosc={`${budowa.kodBudowy} – ${budowa.nazwaInwestycji}`} kolor={theme.colors.secondary} /> : null}
+          <SiatkaDanych
+            pozycje={[
+              { etykieta: 'Obszary', wartosc: String(sesja.obszary.length) },
+              { etykieta: 'Powierzchnia', wartosc: `${formatLiczby(sumaPow)} m²` },
+              { etykieta: 'Aut', wartosc: String(wszystkieWz.length) },
+              { etykieta: 'Masa z WZ', wartosc: `${formatLiczby(sumaTon, 2)} Mg` },
+            ]}
+          />
+          <View style={styles.rzadPrzyciskow}>
+            <Przycisk tekst={generujePDF ? 'Generowanie…' : 'Eksportuj PDF'} onPress={handlePDF} disabled={generujePDF} style={{ flex: 1 }} />
+            <Przycisk tekst="Wyślij e-mail" wariant="drugi" onPress={handleMail} disabled={generujePDF} style={{ flex: 1 }} />
           </View>
-        ) : null}
-
-        <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-          <Text style={[styles.kartaTytul, { color: theme.colors.text }]}>Podsumowanie</Text>
-          <IR label="Data" v={formatujDatePl(sesja.data)} theme={theme} />
-          <IR label="Obszary" v={String(sesja.obszary.length)} theme={theme} />
-          <IR label="Powierzchnia" v={`${formatLiczby(sumaPow)} m²`} theme={theme} />
-          <IR label="Aut" v={String(wszystkieWz.length)} theme={theme} />
-          <IR label="Masa z WZ" v={`${formatLiczby(sumaTon, 2)} Mg`} theme={theme} bold />
-        </View>
-
-        <TouchableOpacity
-          style={[styles.btn, { backgroundColor: theme.colors.primary }]}
-          onPress={handlePDF}
-          disabled={generujePDF}
-        >
-          {generujePDF ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnTekst}>Eksportuj PDF</Text>}
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.btn, { backgroundColor: theme.colors.secondary }]}
-          onPress={handleMail}
-          disabled={generujePDF}
-        >
-          <Text style={styles.btnTekst}>Wyślij na e-mail</Text>
-        </TouchableOpacity>
+          {generujePDF ? <ActivityIndicator color={theme.colors.primary} /> : null}
+        </Sekcja>
 
         {sesja.obszary.map((o) => {
           const mie = o.mieszankaId
@@ -135,20 +127,20 @@ export default function ArchiwumObmiarScreen() {
           const rho = mie?.ciezarObjetosciowy ?? 2.4;
           const wpisy = [...(o.wpisyWz ?? [])].sort((a, b) => a.numer - b.numer);
           return (
-            <View key={o.id} style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-              <Text style={[styles.kartaTytul, { color: theme.colors.text }]}>
-                {o.kolejnosc}. {o.nazwa}
-              </Text>
-              <IR label="Powierzchnia" v={`${formatLiczby(o.powierzchniaM2)} m²`} theme={theme} />
-              <IR label="Długość" v={`${formatLiczby(dlugoscUkladaniaObszaru(o))} m`} theme={theme} />
+            <Sekcja key={o.id} tytul={`${o.kolejnosc}. ${o.nazwa}`}>
+              <SiatkaDanych
+                pozycje={[
+                  { etykieta: 'Powierzchnia', wartosc: `${formatLiczby(o.powierzchniaM2)} m²` },
+                  { etykieta: 'Długość', wartosc: `${formatLiczby(dlugoscUkladaniaObszaru(o))} m` },
+                ]}
+              />
               {(o.bazaStart?.kilometrazKm != null || o.kilometrazStartKm != null) ? (
-                <IR
-                  label="Kilometraż"
-                  v={`${formatujKilometraz(o.bazaStart?.kilometrazKm ?? o.kilometrazStartKm, o.bazaStart?.kilometrazM ?? o.kilometrazStartM)} → ${formatujKilometraz(o.bazaKoniec?.kilometrazKm ?? o.kilometrazKoniecKm, o.bazaKoniec?.kilometrazM ?? o.kilometrazKoniecM)}`}
-                  theme={theme}
+                <WierszDanych
+                  etykieta="Kilometraż"
+                  wartosc={`${formatujKilometraz(o.bazaStart?.kilometrazKm ?? o.kilometrazStartKm, o.bazaStart?.kilometrazM ?? o.kilometrazStartM)} → ${formatujKilometraz(o.bazaKoniec?.kilometrazKm ?? o.kilometrazKoniecKm, o.bazaKoniec?.kilometrazM ?? o.kilometrazKoniecM)}`}
                 />
               ) : null}
-              {mie ? <IR label="Mieszanka" v={`${mie.rodzaj} · ρ ${mie.ciezarObjetosciowy.toFixed(3)}`} theme={theme} /> : null}
+              {mie ? <WierszDanych etykieta="Mieszanka" wartosc={`${rodzajMieszanki(mie)} · ρ ${mie.ciezarObjetosciowy.toFixed(3)}`} /> : null}
               {wpisy.length === 0 ? (
                 <Text style={{ color: theme.colors.textSecondary, marginTop: 8 }}>Brak wpisów WZ.</Text>
               ) : wpisy.map((w) => {
@@ -165,7 +157,7 @@ export default function ArchiwumObmiarScreen() {
                   </View>
                 );
               })}
-            </View>
+            </Sekcja>
           );
         })}
       </ScrollView>
@@ -173,21 +165,9 @@ export default function ArchiwumObmiarScreen() {
   );
 }
 
-function IR({ label, v, theme, bold }: { label: string; v: string; theme: AppTheme; bold?: boolean }) {
-  return (
-    <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4, gap: 8 }}>
-      <Text style={{ color: theme.colors.textSecondary, fontSize: 13, flex: 1 }}>{label}</Text>
-      <Text style={{ color: theme.colors.text, fontSize: 13, fontWeight: bold ? '700' : '400', textAlign: 'right', flexShrink: 1 }}>{v}</Text>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   container: { flex: 1 },
   zawartosc: { padding: 14, gap: 12 },
-  karta: { borderRadius: 14, padding: 14, borderWidth: 1 },
-  kartaTytul: { fontSize: 13, fontWeight: '800', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.4 },
-  btn: { paddingVertical: 13, borderRadius: 12, alignItems: 'center' },
-  btnTekst: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  rzadPrzyciskow: { flexDirection: 'row', gap: 10, marginTop: 4 },
   wiersz: { borderTopWidth: 1, marginTop: 8, paddingTop: 8 },
 });

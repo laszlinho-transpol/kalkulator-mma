@@ -4,7 +4,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, useColorScheme,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, useColorScheme,
   KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { router } from 'expo-router';
@@ -37,6 +37,9 @@ import {
   type ZakladkaDoZbudowania,
 } from '../../utils/planZBudowy';
 import type { KategoriaWarstwy, Plan, ProjektBudowy } from '../../types';
+import { Sekcja as SekcjaUi } from '../ui';
+import { pokazKomunikat } from '../../utils/dialog';
+import { rodzajMieszanki } from '../../mieszanki/kolejnosc';
 
 const MAX_DZIALEK = 20;
 
@@ -283,7 +286,7 @@ export function PlanZBudowyForm({ tytul, budowaId, initialPlan, onZapisz }: Prop
       opcje,
       odcinki,
       obszarNazwa: obszary.find((o) => o.id === z.legendaId)?.nazwa ?? '',
-      mieszankaNazwa: mieszanki.find((m) => m.id === z.mieszankaId)?.rodzaj ?? '',
+      mieszankaNazwa: (() => { const m = mieszanki.find((x) => x.id === z.mieszankaId); return m ? rodzajMieszanki(m) : ''; })(),
     };
   }), [zakladki, projekt, mieszanki, tonazAuta, obszary]);
 
@@ -343,17 +346,17 @@ export function PlanZBudowyForm({ tytul, budowaId, initialPlan, onZapisz }: Prop
   };
 
   const zapisz = async () => {
-    if (!projekt) { Alert.alert('Brak projektu', 'Uzupełnij PZT i konstrukcje w menu Budowa.'); return; }
+    if (!projekt) { pokazKomunikat('Brak projektu', 'Uzupełnij PZT i konstrukcje w menu Budowa.'); return; }
     const doZbudowania: ZakladkaDoZbudowania[] = [];
     for (let i = 0; i < zakladki.length; i++) {
       const z = zakladki[i];
       const w = wyniki[i];
       const nr = zakladki.length > 1 ? `Działka ${i + 1}: ` : '';
-      if (!z.legendaId) { Alert.alert('Obszar', `${nr}Wybierz obszar z listy.`); setAktywna(i); return; }
-      if (!z.warstwaNazwa) { Alert.alert('Warstwa', `${nr}Wybierz warstwę.`); setAktywna(i); return; }
-      if (w.od === w.dok) { Alert.alert('Kilometraż', `${nr}Start i koniec muszą się różnić – od tego zależy kierunek układania.`); setAktywna(i); return; }
-      if (!z.mieszankaId) { Alert.alert('Recepta', `${nr}Wybierz receptę, aby przeliczyć gęstość i masę.`); setAktywna(i); return; }
-      if (w.odcinki.length === 0) { Alert.alert('Konstrukcja', `${nr}W podanym kilometrażu nie ma konstrukcji dla tego obszaru.`); setAktywna(i); return; }
+      if (!z.legendaId) { pokazKomunikat('Obszar', `${nr}Wybierz obszar z listy.`); setAktywna(i); return; }
+      if (!z.warstwaNazwa) { pokazKomunikat('Warstwa', `${nr}Wybierz warstwę.`); setAktywna(i); return; }
+      if (w.od === w.dok) { pokazKomunikat('Kilometraż', `${nr}Start i koniec muszą się różnić – od tego zależy kierunek układania.`); setAktywna(i); return; }
+      if (!z.mieszankaId) { pokazKomunikat('Recepta', `${nr}Wybierz receptę, aby przeliczyć gęstość i masę.`); setAktywna(i); return; }
+      if (w.odcinki.length === 0) { pokazKomunikat('Konstrukcja', `${nr}W podanym kilometrażu nie ma konstrukcji dla tego obszaru.`); setAktywna(i); return; }
       doZbudowania.push({
         id: z.id,
         legendaId: z.legendaId,
@@ -375,7 +378,7 @@ export function PlanZBudowyForm({ tytul, budowaId, initialPlan, onZapisz }: Prop
     if (rzutyStr.trim()) {
       const parsed = parsujRzuty(rzutyStr);
       if (!parsed || !walidujRzuty(rzutyStr, sumaAut)) {
-        Alert.alert('Rzuty', `Podział "${rzutyStr}" musi sumować się do ${sumaAut} aut.`);
+        pokazKomunikat('Rzuty', `Podział "${rzutyStr}" musi sumować się do ${sumaAut} aut.`);
         return;
       }
       rzuty = parsed;
@@ -393,7 +396,7 @@ export function PlanZBudowyForm({ tytul, budowaId, initialPlan, onZapisz }: Prop
   if (!budowa) {
     return (
       <View style={[styl.container, { backgroundColor: theme.colors.background }]}>
-        <AppHeader tytul={tytul} lewy={{ tekst: 'Anuluj', onPress: () => router.back() }} />
+        <AppHeader tytul={tytul} lewy={{ tekst: 'Anuluj', onPress: () => router.back() }} menu />
         <Text style={{ color: theme.colors.danger, padding: 24 }}>Nie znaleziono budowy.</Text>
       </View>
     );
@@ -402,7 +405,7 @@ export function PlanZBudowyForm({ tytul, budowaId, initialPlan, onZapisz }: Prop
   if (!projekt || obszary.length === 0 || !zak || !widok) {
     return (
       <View style={[styl.container, { backgroundColor: theme.colors.background }]}>
-        <AppHeader tytul={tytul} lewy={{ tekst: 'Anuluj', onPress: () => router.back() }} />
+        <AppHeader tytul={tytul} lewy={{ tekst: 'Anuluj', onPress: () => router.back() }} menu />
         <Text style={{ color: theme.colors.textSecondary, padding: 24, lineHeight: 22 }}>
           Ta budowa nie ma jeszcze legendy obszarów. Uzupełnij PZT, legendę i konstrukcje w menu Budowa, potem wróć tutaj.
         </Text>
@@ -416,6 +419,7 @@ export function PlanZBudowyForm({ tytul, budowaId, initialPlan, onZapisz }: Prop
         tytul={tytul}
         podtytul={`${budowa.kodBudowy} – ${budowa.nazwaInwestycji}`}
         lewy={{ tekst: 'Anuluj', onPress: () => router.back(), kolor: theme.colors.danger }}
+        menu
         prawy={{ tekst: 'Zapisz', onPress: zapisz, kolor: theme.colors.primary }}
       />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
@@ -619,7 +623,7 @@ export function PlanZBudowyForm({ tytul, budowaId, initialPlan, onZapisz }: Prop
               onPress={() => setPickerMix(true)}
             >
               {mieszanka
-                ? <Text style={{ color: theme.colors.text }}>{mieszanka.rodzaj}  •  ρ = {mieszanka.ciezarObjetosciowy.toFixed(3)} t/m³</Text>
+                ? <Text style={{ color: theme.colors.text }}>{rodzajMieszanki(mieszanka)}  •  ρ = {mieszanka.ciezarObjetosciowy.toFixed(3)} t/m³</Text>
                 : <Text style={{ color: theme.colors.textSecondary }}>Wybierz receptę z listy →</Text>}
             </TouchableOpacity>
           </Sekcja>
@@ -655,22 +659,29 @@ export function PlanZBudowyForm({ tytul, budowaId, initialPlan, onZapisz }: Prop
             style={[styl.podsum, { backgroundColor: `${theme.colors.primary}12`, borderColor: theme.colors.primary }]}
           >
             <Text style={{ color: theme.colors.primary, fontWeight: '800', marginBottom: 8 }}>AUTA I PODSUMOWANIE</Text>
-            <NumericInput label="Tonaż na auto" value={tonazStr} onChangeText={setTonazStr} unit="t" decimals={1} placeholder="25.5" />
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <Text style={[styl.etykieta, { color: theme.colors.textSecondary, flex: 1 }]}>Podział na rzuty (opcjonalnie)</Text>
-              <InfoTooltip tresc="Wpisz podział samochodów na partie, np. 6+6+4. Suma musi wynosić liczbę aut ze wszystkich działek. Puste pole oznacza jeden rzut." />
+            <View style={styl.dwa}>
+              <View style={{ flex: 1 }}>
+                <NumericInput label="Tonaż na auto" value={tonazStr} onChangeText={setTonazStr} unit="t" decimals={1} placeholder="25.5" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+                  <Text style={{ color: theme.colors.textSecondary, fontSize: 13, fontWeight: '600', flexShrink: 1 }}>Rzuty</Text>
+                  <InfoTooltip tresc="Podział samochodów na partie, np. 6+6+4. Suma musi wynosić liczbę aut ze wszystkich działek. Puste pole oznacza jeden rzut." />
+                </View>
+                <TextInput
+                  accessibilityLabel="Podział na rzuty"
+                  style={[styl.input, {
+                    backgroundColor: theme.colors.inputBackground,
+                    borderColor: rzutyStr && !walidujRzuty(rzutyStr, sumaAut) ? theme.colors.danger : theme.colors.border,
+                    color: theme.colors.text,
+                  }]}
+                  value={rzutyStr}
+                  onChangeText={setRzutyStr}
+                  placeholder={sumaAut > 0 ? `${Math.ceil(sumaAut / 2)}+${Math.floor(sumaAut / 2)}` : '6+6+4'}
+                  placeholderTextColor={theme.colors.textSecondary}
+                />
+              </View>
             </View>
-            <TextInput
-              style={[styl.input, {
-                backgroundColor: theme.colors.inputBackground,
-                borderColor: rzutyStr && !walidujRzuty(rzutyStr, sumaAut) ? theme.colors.danger : theme.colors.border,
-                color: theme.colors.text,
-              }]}
-              value={rzutyStr}
-              onChangeText={setRzutyStr}
-              placeholder={sumaAut > 0 ? `np. ${Math.ceil(sumaAut / 2)}+${Math.floor(sumaAut / 2)}  (suma = ${sumaAut})` : 'np. 6+6+4'}
-              placeholderTextColor={theme.colors.textSecondary}
-            />
             {rzutyStr && !walidujRzuty(rzutyStr, sumaAut) ? (
               <Text style={{ color: theme.colors.danger, marginTop: 4 }}>Suma rzutów musi wynosić {sumaAut}</Text>
             ) : null}
@@ -776,23 +787,14 @@ function roundSum3(xs: number[]): number {
   return Math.round(xs.reduce((a, b) => a + b, 0) * 1000) / 1000;
 }
 
-function Sekcja({ tytul, info, children, theme }: { tytul: string; info?: string; children: React.ReactNode; theme: AppTheme }) {
-  return (
-    <View style={[styl.sekcja, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-        <Text style={[styl.sekcjaTytul, { color: theme.colors.textSecondary, flex: 1 }]}>{tytul.toUpperCase()}</Text>
-        {info ? <InfoTooltip tresc={info} /> : null}
-      </View>
-      {children}
-    </View>
-  );
+function Sekcja({ tytul, info, children }: { tytul: string; info?: string; children: React.ReactNode; theme: AppTheme }) {
+  return <SekcjaUi tytul={tytul} info={info} style={styl.sekcja}>{children}</SekcjaUi>;
 }
 
 const styl = StyleSheet.create({
   container: { flex: 1 },
   zawartosc: { padding: 16 },
-  sekcja: { borderWidth: 1, borderRadius: 14, padding: 16, marginBottom: 14 },
-  sekcjaTytul: { fontSize: 11, fontWeight: '700', letterSpacing: 0.5, marginBottom: 10 },
+  sekcja: { marginBottom: 14 },
   etykieta: { fontSize: 13, fontWeight: '600', marginTop: 10, marginBottom: 6 },
   hint: { fontSize: 13, lineHeight: 18, marginBottom: 8 },
   chip: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 12, marginBottom: 8 },

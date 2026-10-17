@@ -51,11 +51,16 @@ export const tekstPrzycisk: TextStyle = {
   textAlign: 'center',
 };
 
-/** Karta listy */
+/** Karta listy – wspólna dla wszystkich ekranów (zaokrąglenie i cień jak w src/components/ui/Karta). */
 export const karta: ViewStyle = {
-  borderRadius: 14,
+  borderRadius: 16,
   padding: 14,
   borderWidth: 1,
+  shadowColor: '#000',
+  shadowOpacity: 0.07,
+  shadowRadius: 10,
+  shadowOffset: { width: 0, height: 3 },
+  elevation: 2,
 };
 
 /** Nagłówek grupy zwijanej */

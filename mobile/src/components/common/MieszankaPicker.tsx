@@ -1,12 +1,10 @@
 import React, { useMemo } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { SafeModal } from './SafeModal';
-import { CollapsibleSection } from './CollapsibleSection';
 import { useMieszankiStore } from '../../stores/mieszankiStore';
-import { grupujPoKluczu } from '../../utils/grouping';
+import { WyborMieszanki } from '../mieszanki/WyborMieszanki';
 import type { AppTheme } from '../../constants/theme';
 import type { Mieszanka } from '../../types';
-import { karta, tekstTytul, tekstPodtytul } from '../../constants/layout';
 
 interface MieszankaPickerProps {
   visible: boolean;
@@ -24,7 +22,6 @@ export function MieszankaPicker({ visible, selectedId, theme, onSelect, onClose,
     () => (dozwoloneIds && dozwoloneIds.length > 0 ? wszystkie.filter((m) => dozwoloneIds.includes(m.id)) : wszystkie),
     [wszystkie, dozwoloneIds],
   );
-  const grupy = useMemo(() => grupujPoKluczu(mieszanki, (m) => m.wytwórnia, 'Bez wytwórni'), [mieszanki]);
 
   return (
     <SafeModal visible={visible} tytul="Wybierz mieszankę" theme={theme} onClose={onClose}>
@@ -38,36 +35,12 @@ export function MieszankaPicker({ visible, selectedId, theme, onSelect, onClose,
           )}
         </View>
       ) : (
-        <ScrollView contentContainerStyle={{ padding: 16, gap: 8 }}>
-          {grupy.map((grupa) => (
-            <CollapsibleSection
-              key={grupa.klucz}
-              tytul={grupa.tytul}
-              liczba={grupa.elementy.length}
-              theme={theme}
-              ikona="🏭"
-              plaski={grupa.bezPrzypisania}
-            >
-              {grupa.elementy.map((item) => {
-                const isSelected = item.id === selectedId;
-                return (
-                  <TouchableOpacity
-                    key={item.id}
-                    style={[karta, { backgroundColor: theme.colors.card, borderColor: isSelected ? theme.colors.primary : theme.colors.border, borderWidth: isSelected ? 2 : 1, flexDirection: 'row', alignItems: 'center' }]}
-                    onPress={() => { onSelect(item); onClose(); }}
-                  >
-                    <View style={{ flex: 1 }}>
-                      <Text style={[tekstTytul, { color: theme.colors.text }]} numberOfLines={1}>{item.rodzaj}</Text>
-                      <Text style={[tekstPodtytul, { color: theme.colors.textSecondary }]} numberOfLines={1}>
-                        ρ = {item.ciezarObjetosciowy.toFixed(3)} t/m³
-                      </Text>
-                    </View>
-                    {isSelected && <Text style={{ color: theme.colors.primary, fontSize: 20, fontWeight: '700' }}>✓</Text>}
-                  </TouchableOpacity>
-                );
-              })}
-            </CollapsibleSection>
-          ))}
+        <ScrollView contentContainerStyle={{ padding: 16 }}>
+          <WyborMieszanki
+            mieszanki={mieszanki}
+            zaznaczone={selectedId ? [selectedId] : []}
+            onWybierz={(m) => { onSelect(m); onClose(); }}
+          />
         </ScrollView>
       )}
     </SafeModal>

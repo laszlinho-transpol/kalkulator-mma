@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - cursor/kalkulator-mma-obmiar-maps-0a0b
+      - cursor/kalkulator-mma-budzet-sprzet-0a0b
   workflow_dispatch:
 
 permissions:

@@ -9,6 +9,8 @@ import { SafeModal } from '../common/SafeModal';
 import { InfoTooltip } from '../common/InfoTooltip';
 import { PoleKilometraz, parsujPolaKilometraza, polaZKilometraza } from '../common/PoleKilometraz';
 import { karta } from '../../constants/layout';
+import { WyborMieszanki } from '../mieszanki/WyborMieszanki';
+import { posortujMieszanki } from '../../mieszanki/kolejnosc';
 import { useMieszankiStore } from '../../stores/mieszankiStore';
 import { useWytwornieStore } from '../../stores/wytwornieStore';
 import {
@@ -22,6 +24,9 @@ import {
 } from '../../utils/projektBudowy';
 import { zakresKmObszaru } from '../../utils/planZBudowy';
 import { Z_METROW_BIEZACYCH } from '../../constants';
+import { Przycisk, PrzyciskIkony } from '../ui';
+import { potwierdzAkcje } from '../../utils/dialog';
+import { rodzajMieszanki } from '../../mieszanki/kolejnosc';
 
 interface Props {
   projekt: ProjektBudowy;
@@ -71,7 +76,7 @@ export function SekcjaKonstrukcje({ projekt, theme, onZmien }: Props) {
   const [wyjatekDoM, setWyjatekDoM] = useState('200');
   const [wyjatekOpis, setWyjatekOpis] = useState('');
   const [wybrany, setWybrany] = useState<Record<string, string>>({});
-  const [warstwyOtwarte, setWarstwyOtwarte] = useState<Record<string, boolean>>({});
+  const [oknoWarstw, setOknoWarstw] = useState<{ legendaId: string; wyjatekId?: string } | null>(null);
 
   const obszary = projekt.legenda.filter((w) => w.typ === 'obszar' && w.nazwa.trim());
   const etykietaWytworni = (id?: string) => wytwornie.find((w) => w.id === id)?.nazwa;
@@ -137,9 +142,19 @@ export function SekcjaKonstrukcje({ projekt, theme, onZmien }: Props) {
               onChangeText={(t) => patchKonstrukcja(k.legendaId, (kk) => patchWarstwy(kk, w.id, { nazwa: t }, wyjatekId))}
               placeholder="Nazwa warstwy"
               placeholderTextColor={theme.colors.textSecondary}
-              style={[styles.input, { flex: 1, color: theme.colors.text, borderColor: theme.colors.border, backgroundColor: theme.colors.card }]}
+              style={[styles.input, { flex: 1, minWidth: 0, color: theme.colors.text, borderColor: theme.colors.border, backgroundColor: theme.colors.card }]}
             />
-            <TouchableOpacity
+            <TextInput
+              value={w.rodzajOpis}
+              onChangeText={(t) => patchKonstrukcja(k.legendaId, (kk) => patchWarstwy(kk, w.id, { rodzajOpis: t }, wyjatekId))}
+              placeholder="Rodzaj, np. KR 3-7"
+              placeholderTextColor={theme.colors.textSecondary}
+              style={[styles.input, { flex: 1, minWidth: 0, color: theme.colors.text, borderColor: theme.colors.border, backgroundColor: theme.colors.card }]}
+            />
+            <PrzyciskIkony
+              ikona="usun"
+              kolor={theme.colors.danger}
+              accessibilityLabel={`Usuń warstwę ${w.nazwa}`}
               onPress={() => patchKonstrukcja(k.legendaId, (kk) => {
                 if (wyjatekId) {
                   return {
@@ -149,17 +164,8 @@ export function SekcjaKonstrukcje({ projekt, theme, onZmien }: Props) {
                 }
                 return { ...kk, warstwy: nadajKolejnosc(kk.warstwy.filter((x) => x.id !== w.id)) };
               })}
-            >
-              <Text style={{ color: theme.colors.danger, fontWeight: '700' }}>Usuń</Text>
-            </TouchableOpacity>
+            />
           </View>
-          <TextInput
-            value={w.rodzajOpis}
-            onChangeText={(t) => patchKonstrukcja(k.legendaId, (kk) => patchWarstwy(kk, w.id, { rodzajOpis: t }, wyjatekId))}
-            placeholder="Rodzaj (opis), np. KR 3-7"
-            placeholderTextColor={theme.colors.textSecondary}
-            style={[styles.input, { color: theme.colors.text, borderColor: theme.colors.border, backgroundColor: theme.colors.card }]}
-          />
           <View style={styles.rzad}>
             <View style={{ flex: 1 }}>
               <Text style={styles.miniLabel}>Grubość cm</Text>
@@ -216,20 +222,51 @@ export function SekcjaKonstrukcje({ projekt, theme, onZmien }: Props) {
               );
             })}
           </ScrollView>
-          <TouchableOpacity
-            style={[styles.chip, { alignSelf: 'flex-start', borderColor: theme.colors.secondary }]}
-            onPress={() => setMixWarstwa({ konstrukcjaId: k.legendaId, warstwaId: w.id, wyjatekId })}
-          >
-            <Text style={{ color: theme.colors.secondary, fontSize: 12, fontWeight: '700' }}>
-              {w.mieszankaIds.length === 0
-                ? 'Materiał zatwierdzony (opcjonalnie)'
-                : w.mieszankaIds.map((id) => {
-                    const m = mieszanki.find((x) => x.id === id);
-                    const wyt = etykietaWytworni(m?.wytworniaId) ?? m?.wytwórnia;
-                    return m ? `${m.rodzaj}${wyt ? ` · ${wyt}` : ''}` : id;
-                  }).join(', ')}
-            </Text>
-          </TouchableOpacity>
+          {(() => {
+            const zatwierdzone = posortujMieszanki(mieszanki.filter((x) => w.mieszankaIds.includes(x.id)));
+            const otworz = () => setMixWarstwa({ konstrukcjaId: k.legendaId, warstwaId: w.id, wyjatekId });
+            if (zatwierdzone.length === 0) {
+              return (
+                <TouchableOpacity
+                  accessibilityLabel={`Materiał zatwierdzony ${w.nazwa}`}
+                  style={[styles.chip, { alignSelf: 'flex-start', borderColor: theme.colors.secondary }]}
+                  onPress={otworz}
+                >
+                  <Text style={{ color: theme.colors.secondary, fontSize: 12, fontWeight: '700' }}>Materiał zatwierdzony (opcjonalnie)</Text>
+                </TouchableOpacity>
+              );
+            }
+            return (
+              <View
+                accessibilityLabel={`Zatwierdzone recepty ${w.nazwa}`}
+                style={[styles.zatwierdzone, { borderColor: theme.colors.border, backgroundColor: theme.colors.card }]}
+              >
+                <View style={styles.naglowekZatwierdzonych}>
+                  <Text style={{ color: theme.colors.textSecondary, fontSize: 11, fontWeight: '800', flex: 1 }}>
+                    MATERIAŁ ZATWIERDZONY · {zatwierdzone.length}
+                  </Text>
+                  <TouchableOpacity accessibilityLabel={`Zmień materiał zatwierdzony ${w.nazwa}`} onPress={otworz} hitSlop={8}>
+                    <Text style={{ color: theme.colors.secondary, fontSize: 12, fontWeight: '800' }}>+ Dodaj / zmień</Text>
+                  </TouchableOpacity>
+                </View>
+                {zatwierdzone.map((m) => {
+                  const wyt = etykietaWytworni(m.wytworniaId) ?? m.wytwórnia;
+                  return (
+                    <TouchableOpacity
+                      key={m.id}
+                      onPress={otworz}
+                      style={[styles.wierszZatwierdzonej, { borderTopColor: theme.colors.border }]}
+                    >
+                      <Text style={{ color: theme.colors.text, fontSize: 13, fontWeight: '700' }}>{rodzajMieszanki(m)}</Text>
+                      <Text style={{ color: theme.colors.textSecondary, fontSize: 11 }}>
+                        {[wyt ?? 'Bez wytwórni', m.nrRecepty].filter(Boolean).join(' · ')}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            );
+          })()}
         </View>
       ))}
       <TouchableOpacity
@@ -266,11 +303,49 @@ export function SekcjaKonstrukcje({ projekt, theme, onZmien }: Props) {
     }));
   };
 
+  const oknoK = oknoWarstw ? projekt.konstrukcje.find((x) => x.legendaId === oknoWarstw.legendaId) : undefined;
+  const oknoWy = oknoK && oknoWarstw?.wyjatekId ? oknoK.wyjatki.find((w) => w.id === oknoWarstw.wyjatekId) : undefined;
+  const oknoOd = oknoWy ? polaZKilometraza(Z_METROW_BIEZACYCH(oknoWy.kmOdM).km, Z_METROW_BIEZACYCH(oknoWy.kmOdM).m) : null;
+  const oknoDo = oknoWy ? polaZKilometraza(Z_METROW_BIEZACYCH(oknoWy.kmDoM).km, Z_METROW_BIEZACYCH(oknoWy.kmDoM).m) : null;
+  const oknoNazwa = oknoK ? projekt.legenda.find((w) => w.id === oknoK.legendaId)?.nazwa ?? 'Konstrukcja' : '';
+  const oknoTytul = oknoWy
+    ? `${oknoNazwa} · ${formatujKmM(oknoWy.kmOdM)} - ${formatujKmM(oknoWy.kmDoM)}`
+    : `${oknoNazwa} · warstwy`;
+
+  const oknoMieszanek = (
+  <SafeModal
+    visible={!!mixWarstwa}
+    tytul="Zatwierdzone mieszanki"
+    theme={theme}
+    onClose={() => setMixWarstwa(null)}
+    prawy={{ tekst: 'Gotowe', onPress: () => setMixWarstwa(null), kolor: theme.colors.primary }}
+  >
+    <ScrollView contentContainerStyle={{ padding: 16 }}>
+      <WyborMieszanki
+        mieszanki={mieszanki}
+        zaznaczone={mixTarget?.mieszankaIds ?? []}
+        pustyTekst="Brak recept w bazie. Dodaj mieszanki w kafelku „Mieszanki”."
+        onWybierz={(m) => {
+          if (!mixWarstwa) return;
+          patchKonstrukcja(mixWarstwa.konstrukcjaId, (kk) => {
+            const war = (mixWarstwa.wyjatekId
+              ? kk.wyjatki.find((w) => w.id === mixWarstwa.wyjatekId)?.warstwy
+              : kk.warstwy)?.find((x) => x.id === mixWarstwa.warstwaId);
+            const ids = war?.mieszankaIds ?? [];
+            const next = ids.includes(m.id) ? ids.filter((id) => id !== m.id) : [...ids, m.id];
+            return patchWarstwy(kk, mixWarstwa.warstwaId, { mieszankaIds: next }, mixWarstwa.wyjatekId);
+          });
+        }}
+      />
+    </ScrollView>
+  </SafeModal>
+  );
+
   return (
     <View style={{ gap: 12 }}>
       <View style={styles.rzad}>
         <Text style={{ color: theme.colors.text, fontWeight: '800' }}>Odcinki</Text>
-        <InfoTooltip tresc="Bez wyjątku trasa główna (strona prawa) to jeden odcinek. Po dodaniu wyjątku pojawiają się przyciski z kilometrażem, np. 112+300 - 115+000. Wybrany przycisk pokazuje schemat i listę warstw. Odsadzka lewa i prawa jest patrząc zgodnie z rosnącym kilometrażem." />
+        <InfoTooltip tresc="Bez zmiany konstrukcji trasa to jeden odcinek. Przycisk „Zmiana konstrukcji” dzieli trasę na odcinki z kilometrażem, np. 112+300 - 115+000. Kliknięcie odcinka pokazuje schemat, a „Warstwy” otwiera okno z warstwami tego odcinka. Odsadzka lewa i prawa jest patrząc zgodnie z rosnącym kilometrażem." />
       </View>
       {obszary.map((wpis) => {
         const k = projekt.konstrukcje.find((x) => x.legendaId === wpis.id);
@@ -285,101 +360,60 @@ export function SekcjaKonstrukcje({ projekt, theme, onZmien }: Props) {
           ? wybrany[wpis.id]
           : klucz(odcinki[0].od, odcinki[0].do);
         const sel = odcinki.find((s) => klucz(s.od, s.do) === wybranyKlucz) ?? odcinki[0];
-        const wy = wyjatekNaSrodku(k, sel.od, sel.do);
-        const listaOtwarta = !!warstwyOtwarte[`${wpis.id}|${wybranyKlucz}`];
-        const odPola = wy ? polaZKilometraza(Z_METROW_BIEZACYCH(wy.kmOdM).km, Z_METROW_BIEZACYCH(wy.kmOdM).m) : null;
-        const doPola = wy ? polaZKilometraza(Z_METROW_BIEZACYCH(wy.kmDoM).km, Z_METROW_BIEZACYCH(wy.kmDoM).m) : null;
         return (
           <View key={wpis.id} style={[karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border, gap: 10 }]}>
             <View style={styles.rzad}>
               <View style={[styles.probka, { backgroundColor: wpis.kolor }]} />
               <Text style={{ color: theme.colors.text, fontWeight: '800', flex: 1, fontSize: 16 }}>{wpis.nazwa}</Text>
             </View>
-            <View style={styles.odcinki}>
+            <View style={{ gap: 8 }}>
               {odcinki.map((s) => {
                 const on = klucz(s.od, s.do) === wybranyKlucz;
                 const etykieta = `${formatujKmM(s.od)} - ${formatujKmM(s.do)}`;
+                const wyOdcinka = wyjatekNaSrodku(k, s.od, s.do);
                 return (
-                  <TouchableOpacity
-                    key={klucz(s.od, s.do)}
-                    onPress={() => setWybrany((prev) => ({ ...prev, [wpis.id]: klucz(s.od, s.do) }))}
-                    accessibilityLabel={etykieta}
-                    style={[
-                      styles.odcinekBtn,
-                      {
-                        backgroundColor: on ? theme.colors.primary : theme.colors.inputBackground,
-                        borderColor: on ? theme.colors.primary : theme.colors.border,
-                      },
-                    ]}
-                  >
-                    <Text style={{ color: on ? '#1A1A1A' : theme.colors.text, fontWeight: '800', textAlign: 'center' }}>
-                      {etykieta}
-                    </Text>
-                  </TouchableOpacity>
+                  <View key={klucz(s.od, s.do)} style={styles.rzad}>
+                    <TouchableOpacity
+                      onPress={() => setWybrany((prev) => ({ ...prev, [wpis.id]: klucz(s.od, s.do) }))}
+                      accessibilityLabel={etykieta}
+                      style={[
+                        styles.odcinekBtn,
+                        {
+                          backgroundColor: on ? theme.colors.primary : theme.colors.inputBackground,
+                          borderColor: on ? theme.colors.primary : theme.colors.border,
+                        },
+                      ]}
+                    >
+                      <Text style={{ color: on ? '#1A1A1A' : theme.colors.text, fontWeight: '800', textAlign: 'center' }}>
+                        {etykieta}
+                      </Text>
+                      {wyOdcinka ? (
+                        <Text style={{ color: on ? '#1A1A1A' : theme.colors.textSecondary, fontSize: 11, textAlign: 'center' }} numberOfLines={1}>
+                          Zmiana konstrukcji
+                        </Text>
+                      ) : null}
+                    </TouchableOpacity>
+                    <Przycisk
+                      tekst={`Warstwy · ${s.warstwy.length}`}
+                      wariant="drugi"
+                      maly
+                      onPress={() => {
+                        setWybrany((prev) => ({ ...prev, [wpis.id]: klucz(s.od, s.do) }));
+                        setOknoWarstw({ legendaId: k.legendaId, wyjatekId: wyOdcinka?.id });
+                      }}
+                      accessibilityLabel={`Warstwy ${etykieta}`}
+                    />
+                  </View>
                 );
               })}
             </View>
             <PrzekrojKonstrukcji warstwy={sel.warstwy} theme={theme} />
-            <TouchableOpacity
-              onPress={() => setWarstwyOtwarte((prev) => ({ ...prev, [`${wpis.id}|${wybranyKlucz}`]: !listaOtwarta }))}
-              accessibilityLabel={listaOtwarta ? 'Zwiń warstwy' : 'Rozwiń warstwy'}
-              style={styles.rzad}
-            >
-              <Text style={{ color: theme.colors.primary, fontWeight: '800', flex: 1 }}>
-                Warstwy {listaOtwarta ? '▼' : '▶'}
-              </Text>
-              {wy?.opis ? (
-                <Text style={{ color: theme.colors.textSecondary, fontSize: 12, flexShrink: 1 }} numberOfLines={1}>{wy.opis}</Text>
-              ) : null}
-            </TouchableOpacity>
-            {listaOtwarta ? (
-              <View style={{ gap: 8 }}>
-                {wy && odPola && doPola ? (
-                  <View style={[styles.wyjatek, { borderColor: theme.colors.border }]}>
-                    <View style={styles.rzad}>
-                      <Text style={{ color: theme.colors.text, fontWeight: '700', flex: 1 }}>{wy.opis || 'Zmiana konstrukcji'}</Text>
-                      <TouchableOpacity onPress={() => patchKonstrukcja(k.legendaId, (kk) => ({ ...kk, wyjatki: kk.wyjatki.filter((x) => x.id !== wy.id) }))}>
-                        <Text style={{ color: theme.colors.danger, fontWeight: '700' }}>Usuń</Text>
-                      </TouchableOpacity>
-                    </View>
-                    <View style={[styles.rzad, { flexWrap: 'wrap' }]}>
-                      <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>od</Text>
-                      <PoleKilometraz
-                        theme={theme}
-                        mini
-                        km={odPola.km}
-                        m={odPola.m}
-                        onKm={(v) => {
-                          const { km, m } = parsujPolaKilometraza(v, odPola.m);
-                          ustawKmWyjatku(k.legendaId, wy.id, km * 1000 + m, wy.kmDoM);
-                        }}
-                        onM={(v) => {
-                          const { km, m } = parsujPolaKilometraza(odPola.km, v);
-                          ustawKmWyjatku(k.legendaId, wy.id, km * 1000 + m, wy.kmDoM);
-                        }}
-                      />
-                      <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>do</Text>
-                      <PoleKilometraz
-                        theme={theme}
-                        mini
-                        km={doPola.km}
-                        m={doPola.m}
-                        onKm={(v) => {
-                          const { km, m } = parsujPolaKilometraza(v, doPola.m);
-                          ustawKmWyjatku(k.legendaId, wy.id, wy.kmOdM, km * 1000 + m);
-                        }}
-                        onM={(v) => {
-                          const { km, m } = parsujPolaKilometraza(doPola.km, v);
-                          ustawKmWyjatku(k.legendaId, wy.id, wy.kmOdM, km * 1000 + m);
-                        }}
-                      />
-                    </View>
-                  </View>
-                ) : null}
-                {edytorWarstw(k, wy ? wy.warstwy : k.warstwy, wy?.id)}
-              </View>
-            ) : null}
-            <TouchableOpacity onPress={() => {
+            <Przycisk
+              tekst="Zmiana konstrukcji"
+              ikona="plus"
+              wariant="drugi"
+              accessibilityLabel={`Zmiana konstrukcji ${wpis.nazwa}`}
+              onPress={() => {
               setWyjatekDla(k.legendaId);
               const start = projekt.kilometrazPoczatkowyM;
               const od = Z_METROW_BIEZACYCH(start);
@@ -389,16 +423,15 @@ export function SekcjaKonstrukcje({ projekt, theme, onZmien }: Props) {
               setWyjatekDoKm(String(dos.km));
               setWyjatekDoM(String(dos.m).padStart(3, '0'));
               setWyjatekOpis('');
-            }}>
-              <Text style={{ color: theme.colors.info, fontWeight: '700' }}>+ Wyjątek od–do</Text>
-            </TouchableOpacity>
+            }}
+            />
           </View>
         );
       })}
 
       <SafeModal
         visible={!!wyjatekDla}
-        tytul="Nowy wyjątek konstrukcji"
+        tytul="Zmiana konstrukcji"
         theme={theme}
         onClose={() => setWyjatekDla(null)}
         prawy={{
@@ -425,7 +458,6 @@ export function SekcjaKonstrukcje({ projekt, theme, onZmien }: Props) {
               }],
             }));
             setWybrany((prev) => ({ ...prev, [wyjatekDla]: `${lo}|${hi}` }));
-            setWarstwyOtwarte((prev) => ({ ...prev, [`${wyjatekDla}|${lo}|${hi}`]: true }));
             setWyjatekDla(null);
           },
           kolor: theme.colors.primary,
@@ -447,45 +479,73 @@ export function SekcjaKonstrukcje({ projekt, theme, onZmien }: Props) {
       </SafeModal>
 
       <SafeModal
-        visible={!!mixWarstwa}
-        tytul="Zatwierdzone mieszanki"
+        visible={!!oknoWarstw}
+        tytul={oknoTytul}
         theme={theme}
-        onClose={() => setMixWarstwa(null)}
-        prawy={{ tekst: 'Gotowe', onPress: () => setMixWarstwa(null), kolor: theme.colors.primary }}
+        onClose={() => setOknoWarstw(null)}
+        lewy={{ tekst: '‹ Wstecz', onPress: () => setOknoWarstw(null) }}
+        prawy={{ tekst: 'Gotowe', onPress: () => setOknoWarstw(null), kolor: theme.colors.primary }}
       >
-        <ScrollView contentContainerStyle={{ padding: 16, gap: 8 }}>
-          {mieszanki.length === 0 ? (
-            <Text style={{ color: theme.colors.textSecondary }}>
-              Brak recept w bazie. Dodaj mieszanki w kafelku „Mieszanki”.
-            </Text>
-          ) : mieszanki.map((m) => {
-            const sel = mixTarget?.mieszankaIds.includes(m.id) ?? false;
-            const wyt = etykietaWytworni(m.wytworniaId) ?? m.wytwórnia;
-            return (
-              <TouchableOpacity
-                key={m.id}
-                style={[karta, { backgroundColor: sel ? `${theme.colors.primary}18` : theme.colors.card, borderColor: sel ? theme.colors.primary : theme.colors.border }]}
-                onPress={() => {
-                  if (!mixWarstwa) return;
-                  patchKonstrukcja(mixWarstwa.konstrukcjaId, (kk) => {
-                    const war = (mixWarstwa.wyjatekId
-                      ? kk.wyjatki.find((w) => w.id === mixWarstwa.wyjatekId)?.warstwy
-                      : kk.warstwy)?.find((x) => x.id === mixWarstwa.warstwaId);
-                    const ids = war?.mieszankaIds ?? [];
-                    const next = ids.includes(m.id) ? ids.filter((id) => id !== m.id) : [...ids, m.id];
-                    return patchWarstwy(kk, mixWarstwa.warstwaId, { mieszankaIds: next }, mixWarstwa.wyjatekId);
-                  });
-                }}
-              >
-                <Text style={{ color: theme.colors.text, fontWeight: '700' }}>{m.rodzaj}{sel ? '  ✓' : ''}</Text>
-                <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>
-                  ρ {m.ciezarObjetosciowy.toFixed(3)} t/m³{wyt ? ` · ${wyt}` : ''}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
+        <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }} keyboardShouldPersistTaps="handled">
+          {oknoK ? (
+            <>
+              <PrzekrojKonstrukcji warstwy={oknoWy ? oknoWy.warstwy : oknoK.warstwy} theme={theme} />
+              {oknoWy && oknoOd && oknoDo ? (
+                <View style={[styles.wyjatek, { borderColor: theme.colors.border }]}>
+                  <View style={styles.rzad}>
+                    <Text style={{ color: theme.colors.text, fontWeight: '700', flex: 1 }}>{oknoWy.opis || 'Zmiana konstrukcji'}</Text>
+                    <TouchableOpacity
+                      accessibilityLabel="Usuń zmianę konstrukcji"
+                      onPress={() => potwierdzAkcje('Usuń zmianę konstrukcji', 'Odcinek wróci do konstrukcji podstawowej.', () => {
+                        patchKonstrukcja(oknoK.legendaId, (kk) => ({ ...kk, wyjatki: kk.wyjatki.filter((x) => x.id !== oknoWy.id) }));
+                        setOknoWarstw(null);
+                      })}
+                    >
+                      <Text style={{ color: theme.colors.danger, fontWeight: '700' }}>Usuń</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <View style={[styles.rzad, { flexWrap: 'wrap' }]}>
+                    <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>od</Text>
+                    <PoleKilometraz
+                      theme={theme}
+                      mini
+                      km={oknoOd.km}
+                      m={oknoOd.m}
+                      onKm={(v) => {
+                        const { km, m } = parsujPolaKilometraza(v, oknoOd.m);
+                        ustawKmWyjatku(oknoK.legendaId, oknoWy.id, km * 1000 + m, oknoWy.kmDoM);
+                      }}
+                      onM={(v) => {
+                        const { km, m } = parsujPolaKilometraza(oknoOd.km, v);
+                        ustawKmWyjatku(oknoK.legendaId, oknoWy.id, km * 1000 + m, oknoWy.kmDoM);
+                      }}
+                    />
+                    <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>do</Text>
+                    <PoleKilometraz
+                      theme={theme}
+                      mini
+                      km={oknoDo.km}
+                      m={oknoDo.m}
+                      onKm={(v) => {
+                        const { km, m } = parsujPolaKilometraza(v, oknoDo.m);
+                        ustawKmWyjatku(oknoK.legendaId, oknoWy.id, oknoWy.kmOdM, km * 1000 + m);
+                      }}
+                      onM={(v) => {
+                        const { km, m } = parsujPolaKilometraza(oknoDo.km, v);
+                        ustawKmWyjatku(oknoK.legendaId, oknoWy.id, oknoWy.kmOdM, km * 1000 + m);
+                      }}
+                    />
+                  </View>
+                </View>
+              ) : null}
+              {edytorWarstw(oknoK, oknoWy ? oknoWy.warstwy : oknoK.warstwy, oknoWy?.id)}
+            </>
+          ) : null}
         </ScrollView>
+        {oknoWarstw ? oknoMieszanek : null}
       </SafeModal>
+
+      {oknoWarstw ? null : oknoMieszanek}
     </View>
   );
 }
@@ -497,12 +557,13 @@ const styles = StyleSheet.create({
   input: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 14 },
   miniLabel: { fontSize: 11, fontWeight: '700', marginBottom: 4, color: '#6B7280' },
   chip: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 6 },
+  zatwierdzone: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingTop: 8 },
+  naglowekZatwierdzonych: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingBottom: 6 },
+  wierszZatwierdzonej: { borderTopWidth: StyleSheet.hairlineWidth, paddingVertical: 7, gap: 1 },
   wyjatek: { borderWidth: 1, borderRadius: 10, padding: 10, gap: 8 },
   odcinki: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   odcinekBtn: {
-    flexGrow: 1,
-    flexBasis: '40%',
-    minWidth: 148,
+    flex: 1,
     borderWidth: 1,
     borderRadius: 10,
     paddingVertical: 10,

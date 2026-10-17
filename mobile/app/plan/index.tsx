@@ -4,7 +4,7 @@
 
 import React from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, ScrollView, useColorScheme,
+  View, Text, StyleSheet, ScrollView, useColorScheme,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,7 +14,7 @@ import { lightTheme, darkTheme } from '../../src/constants/theme';
 import { EmptyState } from '../../src/components/common/EmptyState';
 import { AppHeader } from '../../src/components/common/AppHeader';
 import { InfoTooltip } from '../../src/components/common/InfoTooltip';
-import { karta, tekstTytul, tekstPodtytul } from '../../src/constants/layout';
+import { PozycjaListy, TYPOGRAFIA } from '../../src/components/ui';
 
 export default function PlanListaScreen() {
   const colorScheme = useColorScheme();
@@ -42,27 +42,23 @@ export default function PlanListaScreen() {
         />
       ) : (
         <ScrollView contentContainerStyle={[styles.lista, { paddingBottom: insets.bottom + 16 }]} showsVerticalScrollIndicator={false}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10, paddingHorizontal: 4 }}>
-            <Text style={{ color: theme.colors.text, fontWeight: '800', flex: 1 }}>Budowy</Text>
+          <View style={styles.naglowekListy}>
+            <Text style={[TYPOGRAFIA.sekcja, { color: theme.colors.textSecondary, flex: 1 }]}>Budowy</Text>
             <InfoTooltip tresc="Wybierz budowę, aby dodać nowy plan albo otworzyć zapisane." />
           </View>
           {budowyAktywne.map((b) => {
             const n = aktywne.filter((p) => p.budowaId === b.id).length;
             const ark = b.projekt?.arkusze.length ?? 0;
             return (
-              <TouchableOpacity
+              <PozycjaListy
                 key={b.id}
-                style={[karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}
-                onPress={() => router.push(`/plan/budowa/${b.id}` as any)}
-              >
-                <Text style={[tekstTytul, { color: theme.colors.text }]}>{b.kodBudowy}</Text>
-                <Text style={[tekstPodtytul, { color: theme.colors.textSecondary }]} numberOfLines={2}>
-                  {b.nazwaInwestycji}
-                </Text>
-                <Text style={{ color: theme.colors.textSecondary, fontSize: 12, marginTop: 6 }}>
-                  {n} {n === 1 ? 'plan' : 'planów'} · {ark} arkusz(y) PZT
-                </Text>
-              </TouchableOpacity>
+                ikona="🏗️"
+                kolor="#2E86AB"
+                tytul={`${b.kodBudowy} · ${b.nazwaInwestycji}`}
+                podtytul={`${n} ${n === 1 ? 'plan' : 'planów'} · arkusze PZT: ${ark}`}
+                accessibilityLabel={`Budowa ${b.kodBudowy}`}
+                onPress={() => router.push(`/plan/budowa/${b.id}` as never)}
+              />
             );
           })}
         </ScrollView>
@@ -73,5 +69,6 @@ export default function PlanListaScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  lista: { padding: 14 },
+  lista: { padding: 14, gap: 10 },
+  naglowekListy: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 4 },
 });

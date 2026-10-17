@@ -1,0 +1,25 @@
+---
+description: Spójny styl wszystkich ekranów Kalkulatora MMA
+alwaysApply: true
+---
+
+# Styl aplikacji – obowiązuje przy każdym nowym lub zmienianym ekranie
+
+Pełny opis: `mobile/STYL.md` (przeczytaj przed pracą nad UI). Skrót:
+
+- Klocki importuj z `mobile/src/components/ui` (`AppHeader`, `Sekcja`, `Karta`, `PozycjaListy`, `WierszDanych`,
+  `SiatkaDanych`, `Przycisk`, `PrzyciskIkony`, `Zakladki`, `KalendarzDnia`, `KalendarzZakresu`, `AkcjeTelefonu`,
+  `WykresLiniowy`, `InfoTooltip`, `useMotyw`, tokeny `ODSTEP`/`PROMIEN`/`TYPOGRAFIA`). Nie twórz własnych nagłówków,
+  przycisków, kalendarzy ani kolorów.
+- Nagłówek: `AppHeader` z `lewy={{ tekst: '‹ Wstecz', … }}` → strzałka + domek do menu głównego.
+- Dane edytowalne: „Edytuj” w nagłówku karty + ekran `edytuj` z tym samym formularzem; usuwanie z `potwierdzAkcje`.
+- Listy obiektów = `PozycjaListy` (przycisk do karty obiektu), nie rozwijane sekcje. Karta obiektu ma `Zakladki`.
+- Pola parami (`Wiersz`, dwie kolumny); etykieta i jednostka nie mogą się zawijać.
+- Bez opisów na ekranie – wyjaśnienia tylko w „i” (`info` w `Pole`/`Etykieta`/`Sekcja`).
+- Treść w osobnych `Sekcja`/`Karta` jak karty planu dnia na „Wbudowywaniu”; bez jednej długiej strony.
+- Daty tylko przez wspólny kalendarz (soboty/niedziele/święta w kolorach `theme.colors.sobota`/`niedziela`).
+- Numery telefonów zawsze z `AkcjeTelefonu`; historia cen/stawek z `WykresLiniowy`.
+- Na webie `pokazKomunikat`/`potwierdzAkcje` zamiast `Alert.alert` z przyciskami.
+- Każdy naciskany element ma `accessibilityLabel`.
+- Gdy zmieniasz wygląd wspólny – zmieniaj klocek w `src/components/ui` (albo token w `src/constants/styl.ts`),
+  a nie pojedynczy ekran. Nowy klocek dopisz do `ui/index.ts` i `mobile/STYL.md`.

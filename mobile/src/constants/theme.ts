@@ -23,6 +23,8 @@ export const lightTheme = {
     modalBackground: '#FFFFFF',
     tabBar: '#FFFFFF',
     tabBarInactive: '#9CA3AF',
+    sobota: '#2563EB',
+    niedziela: '#DC2626',
     statusBar: 'dark' as const,
   },
 } as const;
@@ -48,6 +50,8 @@ export const darkTheme = {
     modalBackground: '#252535',
     tabBar: '#1E1E2E',
     tabBarInactive: '#6B7280',
+    sobota: '#60A5FA',
+    niedziela: '#F87171',
     statusBar: 'light' as const,
   },
 } as const;

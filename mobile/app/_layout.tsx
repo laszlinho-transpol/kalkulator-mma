@@ -13,9 +13,15 @@ import { useLiveStore } from '../src/stores/liveStore';
 import { useNotatnikStore } from '../src/stores/notatnikStore';
 import { useObmiarStore } from '../src/stores/obmiarStore';
 import { useGrafikaMaszynStore } from '../src/stores/grafikaMaszynStore';
+import { useFirmyStore } from '../src/stores/firmyStore';
+import { usePracownicyStore } from '../src/stores/pracownicyStore';
+import { useGrupyPracownikowStore } from '../src/stores/grupyPracownikowStore';
+import { useSprzetStore } from '../src/stores/sprzetStore';
+import { useRaportyBudowyStore } from '../src/stores/raportyBudowyStore';
 import { lightTheme, darkTheme } from '../src/constants/theme';
 import { LoadingScreen } from '../src/components/common/LoadingScreen';
 import { ErrorBoundary } from '../src/components/common/ErrorBoundary';
+import { PrzejscieEkranu } from '../src/components/ui/PrzejscieEkranu';
 
 const KLUCZ_ONBOARDING = '@mma:onboardingComplete';
 
@@ -32,6 +38,11 @@ export default function RootLayout() {
   const zaladujNotatnik = useNotatnikStore((s) => s.zaladuj);
   const zaladujObmiar = useObmiarStore((s) => s.zaladuj);
   const zaladujGrafike = useGrafikaMaszynStore((s) => s.zaladuj);
+  const zaladujFirmy = useFirmyStore((s) => s.zaladuj);
+  const zaladujPracownikow = usePracownicyStore((s) => s.zaladuj);
+  const zaladujGrupyPracownikow = useGrupyPracownikowStore((s) => s.zaladuj);
+  const zaladujSprzet = useSprzetStore((s) => s.zaladuj);
+  const zaladujRaportyBudowy = useRaportyBudowyStore((s) => s.zaladuj);
 
   const [ladowanie, setLadowanie] = useState(true);
   const [loadingWidoczny, setLoadingWidoczny] = useState(true);
@@ -50,6 +61,11 @@ export default function RootLayout() {
           zaladujNotatnik(),
           zaladujObmiar(),
           zaladujGrafike(),
+          zaladujFirmy(),
+          zaladujPracownikow(),
+          zaladujGrupyPracownikow(),
+          zaladujSprzet(),
+          zaladujRaportyBudowy(),
         ]);
         const onboardingComplete = await AsyncStorage.getItem(KLUCZ_ONBOARDING);
         if (!onboardingComplete) {
@@ -105,13 +121,19 @@ export default function RootLayout() {
     <ErrorBoundary>
       <SafeAreaProvider>
         <StatusBar style={theme.colors.statusBar} />
-        <Stack screenOptions={headerOpacje}>
+        <Stack screenOptions={headerOpacje} screenLayout={({ children }) => <PrzejscieEkranu>{children}</PrzejscieEkranu>}>
           <Stack.Screen name="index" options={{ headerShown: false, animation: 'fade' }} />
           <Stack.Screen
             name="onboarding"
             options={{ headerShown: false, animation: 'fade', gestureEnabled: false }}
           />
           <Stack.Screen name="mieszanki/index" options={{ headerShown: false }} />
+          <Stack.Screen name="mieszanki/wytwornia/nowa" options={{ headerShown: false }} />
+          <Stack.Screen name="mieszanki/wytwornia/[id]/index" options={{ headerShown: false }} />
+          <Stack.Screen name="mieszanki/wytwornia/[id]/edytuj" options={{ headerShown: false }} />
+          <Stack.Screen name="mieszanki/recepta/nowa" options={{ headerShown: false }} />
+          <Stack.Screen name="mieszanki/recepta/[id]/index" options={{ headerShown: false }} />
+          <Stack.Screen name="mieszanki/recepta/[id]/edytuj" options={{ headerShown: false }} />
           <Stack.Screen
             name="ustawienia"
             options={{ headerShown: false, animation: 'slide_from_right' }}
@@ -140,6 +162,9 @@ export default function RootLayout() {
         <Stack.Screen name="obmiar/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="budowa/index" options={{ headerShown: false }} />
         <Stack.Screen name="budowa/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="raport-budowy/miesiac" options={{ headerShown: false }} />
+        <Stack.Screen name="raport-budowy/formularz" options={{ headerShown: false }} />
+        <Stack.Screen name="raport-budowy/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="niezbednik/index" options={{ headerShown: false }} />
         <Stack.Screen name="niezbednik/masa/index" options={{ headerShown: false }} />
         <Stack.Screen name="niezbednik/masa/wydajnosc-powierzchniowa" options={{ headerShown: false }} />
@@ -149,6 +174,22 @@ export default function RootLayout() {
         <Stack.Screen name="niezbednik/geodezja/luki" options={{ headerShown: false }} />
         <Stack.Screen name="niezbednik/geodezja/kat-prosty" options={{ headerShown: false }} />
         <Stack.Screen name="niezbednik/notatnik/index" options={{ headerShown: false }} />
+        <Stack.Screen name="budzet/index" options={{ headerShown: false }} />
+        <Stack.Screen name="budzet/sprzet/index" options={{ headerShown: false }} />
+        <Stack.Screen name="budzet/sprzet/nowy" options={{ headerShown: false }} />
+        <Stack.Screen name="budzet/sprzet/rodzaj/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="budzet/sprzet/[id]/index" options={{ headerShown: false }} />
+        <Stack.Screen name="budzet/sprzet/[id]/raport" options={{ headerShown: false }} />
+        <Stack.Screen name="budzet/sprzet/[id]/edytuj" options={{ headerShown: false }} />
+        <Stack.Screen name="budzet/pracownicy/index" options={{ headerShown: false }} />
+        <Stack.Screen name="budzet/pracownicy/nowy" options={{ headerShown: false }} />
+        <Stack.Screen name="budzet/pracownicy/[id]/index" options={{ headerShown: false }} />
+        <Stack.Screen name="budzet/pracownicy/[id]/edytuj" options={{ headerShown: false }} />
+        <Stack.Screen name="budzet/pracownicy/[id]/raport" options={{ headerShown: false }} />
+        <Stack.Screen name="budzet/pracownicy/[id]/miesiac" options={{ headerShown: false }} />
+        <Stack.Screen name="budzet/firmy/index" options={{ headerShown: false }} />
+        <Stack.Screen name="budzet/firmy/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="budzet/grupa-bitumiczna/index" options={{ headerShown: false }} />
       </Stack>
 
         {loadingWidoczny && (

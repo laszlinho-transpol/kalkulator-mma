@@ -6,6 +6,7 @@ import type { DzialkaRobocza, FiguraProstokat, Mieszanka, ObszarObmiaru, Plan, R
 import { bazaKompletna } from './obmiarFigura';
 import { dlugoscUkladaniaObszaru } from './obmiarLive';
 import { formatLiczby, generujDomyslneRzuty, round2, round3 } from './calculations';
+import { rodzajMieszanki } from '../mieszanki/kolejnosc';
 
 export function gruboscWbudowywaniaObszaru(o: ObszarObmiaru): number {
   return o.gruboscWbudowywania ?? o.gruboscCm ?? 0;
@@ -91,7 +92,7 @@ export function podsumowaniePlanuObmiaru(
   for (const o of sesja.obszary) {
     const mie = getM(o.mieszankaId);
     const kluczPow = mie
-      ? `${mie.rodzaj}${mie.nrRecepty ? ` ${mie.nrRecepty}` : ''}`
+      ? `${rodzajMieszanki(mie)}${mie.nrRecepty ? ` ${mie.nrRecepty}` : ''}`
       : 'Bez mieszanki';
     powMap.set(kluczPow, (powMap.get(kluczPow) ?? 0) + o.powierzchniaM2);
 
@@ -106,7 +107,7 @@ export function podsumowaniePlanuObmiaru(
     } else {
       masaMap.set(klucz, {
         mieszankaId: mie.id,
-        etykieta: `${mie.rodzaj}${mie.nrRecepty ? ` ${mie.nrRecepty}` : ''}`,
+        etykieta: `${rodzajMieszanki(mie)}${mie.nrRecepty ? ` ${mie.nrRecepty}` : ''}`,
         rodzaj: mie.rodzaj,
         gruboscCm: gr,
         masaMg: masa,
@@ -114,7 +115,7 @@ export function podsumowaniePlanuObmiaru(
       });
     }
     const mix = masaMix.get(mie.id);
-    const etykieta = `${mie.rodzaj}${mie.nrRecepty ? ` ${mie.nrRecepty}` : ''}`;
+    const etykieta = `${rodzajMieszanki(mie)}${mie.nrRecepty ? ` ${mie.nrRecepty}` : ''}`;
     if (mix) mix.masaMg = round3(mix.masaMg + masa);
     else masaMix.set(mie.id, { etykieta, masaMg: masa });
   }

@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.25';
+export const WERSJA_APLIKACJI = '1.8.44';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,225 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.44',
+    data: '2026-10-17',
+    tytul: 'Urlop bezpłatny i nieobecność w raportach pracownika',
+    zmiany: [
+      'Raport pracownika: nowe rodzaje dnia UB – urlop bezpłatny i NB – nieobecność; 0 zł dla pracownika i dla pracodawcy',
+      'UB i NB wpisuje się w dni robocze (także kilka dni naraz), zamykają czerwony dzień w kalendarzu i są liczone w miesiącu pracownika',
+    ],
+  },
+  {
+    wersja: '1.8.43',
+    data: '2026-10-17',
+    tytul: 'Raporty pracowników: UW, L4, R8 i miesięczne rozliczenie',
+    zmiany: [
+      'Karta pracownika → Raporty: „Dodaj raport”, pod nim lata i miesiące od najnowszego (raporty, godziny, UW/L4/R8, wypłata), niżej kalendarz bieżącego miesiąca',
+      'Kalendarz: zielony dzień = raport, czerwony = dzień roboczy (pn–pt) bez raportu do uzupełnienia; dotknięcie otwiera raport albo nowy z tą datą',
+      'Raport: rodzaj dnia Praca / UW / L4 / R8; nieobecności bez budowy – koszt idzie na brygadę pracownika; można wpisać kilka dni naraz',
+      'UW: wypłaty z 3 ostatnich miesięcy (bez delegacji) ÷ 3 ÷ dni robocze miesiąca, pracodawca × ZUS',
+      'L4: wypłaty z 12 ostatnich miesięcy (albo krótszego okresu) ÷ liczba miesięcy ÷ dni kalendarzowe × 0,8; pracodawca × 1,2 przez pierwsze 33 dni L4 w roku, od 34. dnia 0 zł',
+      'R8: 8 × stawka 8h, pracodawca × ZUS; dzień schodzi z banku godzin odłożonych na zimę',
+      'Każdy raport można otworzyć, edytować, zapisać i usunąć',
+      'Miesiąc pracownika: godziny, nadgodziny, dni UW / L4 / R8, bank R8, wypłata pracownika, koszt pracodawcy i podział kosztów na budowy i brygadę',
+      'R8 – zabrać godziny na zimę: pole w miesiącach kwiecień–listopad (w innych po rozwinięciu), domyślnie 20 h; zmniejsza wypłatę i koszt pracodawcy tego miesiąca',
+    ],
+  },
+  {
+    wersja: '1.8.42',
+    data: '2026-10-17',
+    tytul: 'Materiał zatwierdzony warstwy w osobnych wierszach',
+    zmiany: [
+      'Konstrukcje: materiał zatwierdzony warstwy to ramka z nagłówkiem i liczbą recept; każda recepta w osobnym wierszu (nazwa z KR, pod nią wytwórnia i nr recepty)',
+      'Przycisk „+ Dodaj / zmień” otwiera wybór recept z wytwórni; dotknięcie recepty też',
+    ],
+  },
+  {
+    wersja: '1.8.41',
+    data: '2026-10-17',
+    tytul: 'Kategoria ruchu w nazwie recepty, przedmiar na warstwę',
+    zmiany: [
+      'Recepta: kategoria ruchu jest obowiązkowa – wpisujesz samą wartość (np. 1-2), formularz pokazuje gotową nazwę',
+      'W całej aplikacji recepta wyświetla się jako rodzaj + KR, np. AC16W KR1-2 (listy, karty, plan, obmiar, wbudowywanie, raporty, PDF)',
+      'Przedmiar budowy: jedna pozycja na mieszankę warstwy z pełnym tonażem; pod nią zatwierdzone recepty z wytwórniami zamiast powtórzeń warstwy',
+      'Eksport CSV: kolumny Warstwa, Mieszanka i Zatwierdzone recepty',
+    ],
+  },
+  {
+    wersja: '1.8.40',
+    data: '2026-10-17',
+    tytul: 'Przedmiar budowy w kolejności warstw',
+    zmiany: [
+      'Przedmiar: kolumny od najniższej warstwy – KŁSM, podbudowa, wiążąca, ścieralna',
+      'Suma mieszanek: grupy Kruszywo, Podbudowy, Wiążące, Ścieralne z sumą ton; w grupie kolejność jak w wytwórniach (uziarnienie, potem KR)',
+      'Suma mieszanek pokazuje kategorię ruchu, więc recepty o tym samym rodzaju (np. AC16W KR5-7 i KR1-2) da się odróżnić',
+      'Eksport CSV sum mieszanek w tej samej kolejności',
+    ],
+  },
+  {
+    wersja: '1.8.39',
+    data: '2026-10-17',
+    tytul: 'Mieszanki z wytwórni w stałej kolejności, karta firmy',
+    zmiany: [
+      'Mieszankę zawsze wybierasz z konkretnej wytwórni: najpierw wytwórnia, potem jej recepty (plan, obmiar, konstrukcje, raport budowy)',
+      'Jedna kolejność recept w całej aplikacji: podbudowy, wiążące, ścieralne; w nich uziarnienie od 31,5 do 5 i kategoria ruchu od najwyższej',
+      'Grupy warstw z nagłówkiem, bloki uziarnienia oddzielone od siebie',
+      'Recepta: nowe pole „Kategoria ruchu” (np. KR3-4)',
+      'Karta pracownika: w wynagrodzeniu zawsze widać wszystkie stawki, także delegację',
+      'Firmy: karta firmy z danymi (adres siedziby, e-mail, komentarz), numerami kontaktowymi i listą jej sprzętu',
+    ],
+  },
+  {
+    wersja: '1.8.38',
+    data: '2026-10-16',
+    tytul: 'Sprzęt bez pracownika i delegacja',
+    zmiany: [
+      'Raport sprzętu: pracownik nie jest wymagany (np. firma zewnętrzna) – przypisanie przez ptaszek „Pracownik”',
+      'Po wyborze pracownika w raporcie sprzętu: godziny pracy, kierowcy i pasażera; raport pracy pracownika zapisuje się automatycznie',
+      'Pracownik: nowa stawka „Delegacja” (zł/dzień); w raporcie dnia ptaszek „Delegacja” dolicza kwotę do kosztu pracodawcy (bez ZUS)',
+    ],
+  },
+  {
+    wersja: '1.8.37',
+    data: '2026-10-16',
+    tytul: 'Dozowanie sprzętu i łączone rozliczenia transportu',
+    zmiany: [
+      'Sprzęt: rozliczenie dozowaniem – stawka zł/kg × dozowanie kg/m² × powierzchnia m² (od razu przy skrapiarce, inny sprzęt może je włączyć)',
+      'Raport sprzętu łączy dowolne rozliczenia z jednego dnia, w tym dozowanie',
+      'Stawki na karcie sprzętu z jednostką (zł/dzień, zł/kg…)',
+      'Transport raportu budowy: nowa stawka godzinowa (stawka × godziny)',
+      'Przerzut i samochody: w jednym wpisie można zaznaczyć kilka rodzajów rozliczenia – kwoty się sumują',
+    ],
+  },
+  {
+    wersja: '1.8.36',
+    data: '2026-10-16',
+    tytul: 'Raporty dzienne z budowy',
+    zmiany: [
+      'Budowa → Raporty: przycisk „Dodaj raport”, raporty pogrupowane w miesiące od najnowszego',
+      'Kalendarz raportów – dni z raportem na zielono; pod nim statystyki: liczba raportów i zakres dat',
+      'Formularz raportu: data, warstwa z Konstrukcji z grubością projektową, recepta, kilka odcinków z kilometrażem od–do i powierzchnią, ilość masy / kruszywa, uwagi',
+      'Raport: zakładka Przerób – suma warstw osobno dla każdej recepty i grubość wychodząca na odcinku',
+      'Zakładka Materiał – tabela mieszanek z ceną z recepty (do zmiany w raporcie) i materiał dodatkowy',
+      'Zakładka Transport – przerzuty (trasa, link Google Maps z pinezkami) i samochody: zbiorczo lub przewoźnikami, stawka za km, za kurs albo t × km',
+      'Zakładka Robocizna – raporty pracowników i sprzętu z tego dnia na budowie do zatwierdzenia; zatwierdzone wchodzą do kwoty dnia',
+    ],
+  },
+  {
+    wersja: '1.8.35',
+    data: '2026-10-16',
+    tytul: 'PZT i Konstrukcje budowy',
+    zmiany: [
+      'PZT: tylko oryginalne arkusze, bez połączonego widoku całego PZT',
+      'PZT: w pierwszym oknie tylko kilometraż początkowy trasy',
+      'Kod wdrożenia przeniesiony do Ustawień → O aplikacji, obok numeru wersji',
+      'Konstrukcje: przy każdym odcinku przycisk Warstwy otwiera okno z warstwami tego odcinka',
+      'Przycisk „Zmiana konstrukcji” zamiast „+ Wyjątek od–do”',
+    ],
+  },
+  {
+    wersja: '1.8.34',
+    data: '2026-10-16',
+    tytul: 'Wbudowywanie, Plan, Obmiar i Budowa w nowym stylu',
+    zmiany: [
+      'Listy planów, budów, sesji obmiaru i archiwum na kartach z przyciskami Edytuj i Usuń',
+      'Plan dnia, archiwum i raport obmiaru: dane w sekcjach i kafelkach dwukolumnowych',
+      'Bilans archiwum pokazuje odchyłkę od planu kolorem pod każdą wartością',
+      'Budowa: zakładki PZT, Legenda, Konstrukcje… pokazują jedną sekcję zamiast długiej strony',
+      'Formularze planu na wspólnych sekcjach, wyniki działki w kafelkach',
+      'Data w polu wyboru w kolorze soboty, niedzieli lub święta',
+      'Komunikaty i potwierdzenia działają także w przeglądarce',
+      'Nowy build Android: wybór numeru z kontaktów dla wytwórni i pracownika',
+    ],
+  },
+  {
+    wersja: '1.8.33',
+    data: '2026-10-15',
+    tytul: 'Jeden styl w całej aplikacji',
+    zmiany: [
+      'W nagłówku każdego ekranu strzałka wstecz i domek do menu głównego',
+      'Mieszanki: wytwórnia to przycisk do jej karty z zakładkami Info i Mieszanki',
+      'Historia ceny recepty z wykresem liniowym',
+      'Pracownik: numer telefonu z przyciskami Zadzwoń, Kopiuj i Udostępnij',
+      'Jeden kalendarz dla wszystkich dat – soboty, niedziele i święta w kolorach',
+      'Nowocześniejsze karty, kafelki i przyciski z animacją wciśnięcia',
+    ],
+  },
+  {
+    wersja: '1.8.32',
+    data: '2026-10-15',
+    tytul: 'Wytwórnie – mapa, kontakty, recepty z ceną',
+    zmiany: [
+      'Przycisk Edytuj przy każdej wytwórni na liście mieszanek',
+      'Karta wytwórni z zakładkami Info (nazwa, mapa, numery kontaktowe) i Recepty',
+      'Link Google Maps pokazuje podgląd mapy. W aplikacji skrócony link odczytuje się sam, w przeglądarce wpisz adres',
+      'Kontakty z telefonu albo wpisane ręcznie: zadzwoń, kopiuj i udostępnij numer',
+      'Recepta ma cenę za tonę i zakładkę Historia ceny',
+    ],
+  },
+  {
+    wersja: '1.8.31',
+    data: '2026-10-15',
+    tytul: 'Kopia zapasowa danych',
+    zmiany: [
+      'Ustawienia → Kopia zapasowa: „Eksportuj dane” zapisuje wszystkie dane do jednego pliku',
+      '„Wczytaj kopię” przenosi dane z pliku na to urządzenie – np. z przeglądarki do aplikacji w telefonie',
+    ],
+  },
+  {
+    wersja: '1.8.30',
+    data: '2026-10-15',
+    tytul: 'Poprawka wynagrodzenia i zwarte formularze',
+    zmiany: [
+      'Stawka 8h to stawka godzinowa: wynagrodzenie = stawka × godziny (bez dzielenia przez 8)',
+      'Krótkie pola formularzy stoją obok siebie w dwóch kolumnach – mniej przewijania',
+      'Opisy i podpowiedzi schowane pod ikonką „i” – kliknięcie pokazuje okienko z informacją',
+    ],
+  },
+  {
+    wersja: '1.8.29',
+    data: '2026-10-15',
+    tytul: 'Pracownicy – kierowca i pasażer za godzinę',
+    zmiany: [
+      'Kierowca i pasażer to stawki godzinowe (np. 30 zł/h i 20 zł/h)',
+      'W raporcie dnia wpisuje się godziny kierowcy i pasażera – obie naraz, gdy pracownicy zmieniają się w drodze',
+    ],
+  },
+  {
+    wersja: '1.8.28',
+    data: '2026-10-15',
+    tytul: 'Budżet – pracownicy',
+    zmiany: [
+      'Formularz pracownika: nazwisko, imię, grupa i wynagrodzenie (stawka 8h, nadgodzina, kierowca, pasażer, ZUS)',
+      'Nowa nazwa grupy trafia do bazy grup i jest podpowiadana przy kolejnych pracownikach',
+      'Lista w grupach, alfabetycznie po nazwisku. Gwiazdka przenosi grupę na górę listy, a pracownika na górę grupy',
+      'Karta pracownika z zakładkami Dane, Historia stawek i Raporty',
+      'Raport dnia dzieli godziny: pn–pt powyżej 8 h oraz soboty, niedziele i święta to nadgodziny. Koszt = suma × ZUS',
+      'Dni robocze przy koszcie miesięcznym sprzętu pomijają święta',
+    ],
+  },
+  {
+    wersja: '1.8.27',
+    data: '2026-10-15',
+    tytul: 'Budżet – edycja sprzętu i historia stawek',
+    zmiany: [
+      'Przy każdym sprzęcie jest Edytuj: rodzaj, numer, firma, stawki i spalanie',
+      'Zakładka Historia stawek ustawia zakres dat z kalendarza i stawki obowiązujące w tym okresie',
+      'Przy koszcie miesięcznym jest ilość dni pracujących: podpowiedź to dni robocze, liczbę można zmienić',
+    ],
+  },
+  {
+    wersja: '1.8.26',
+    data: '2026-10-15',
+    tytul: 'Budżet – sprzęt i raporty',
+    zmiany: [
+      'W menu głównym jest kafelek Budżet: Sprzęt, Pracownicy, Firmy i Grupa bitumiczna',
+      'Sprzęt dzieli się na rodzaje maszyn. Karta ma numer, firmę, stawki i spalanie',
+      'Firma z karty sprzętu trafia do osobnej bazy firm i podpowiada się przy kolejnej maszynie',
+      'Raport maszyny liczy kwotę z kosztu miesięcznego, stawki dziennej, motogodziny albo kilometra',
+    ],
+  },
   {
     wersja: '1.8.25',
     data: '2026-10-09',
