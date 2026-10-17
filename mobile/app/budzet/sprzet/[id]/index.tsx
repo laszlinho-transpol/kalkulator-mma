@@ -8,9 +8,9 @@ import { Zakladki, type ZakladkaKarty } from '../../../../src/components/budzet/
 import { lightTheme, darkTheme } from '../../../../src/constants/theme';
 import { formatLiczby } from '../../../../src/utils/calculations';
 import { rodzajPoId } from '../../../../src/budzet/rodzajeSprzetu';
-import { OPISY_ROZLICZENIA, opisRozliczenia } from '../../../../src/budzet/rozliczenie';
+import { OPISY_ROZLICZENIA } from '../../../../src/budzet/rozliczenie';
 import { nazwaPracownika } from '../../../../src/budzet/pracownicy';
-import { dataKrotko, etykietaSprzetu, linieStawek } from '../../../../src/budzet/wyswietlanie';
+import { dataKrotko, etykietaSprzetu, linieStawek, opisPozycjiSprzetu } from '../../../../src/budzet/wyswietlanie';
 import { wstecz } from '../../../../src/budzet/nawigacja';
 import { useRouteId } from '../../../../src/hooks/useRouteId';
 import { useBudowyStore } from '../../../../src/stores/budowyStore';
@@ -146,13 +146,7 @@ export default function KartaSprzetuScreen() {
                     {!raport.pracownikId ? 'Bez pracownika' : pracownik ? nazwaPracownika(pracownik) : 'Pracownik usunięty'}
                   </Text>
                   {raport.pozycje.map((pozycja) => (
-                    <Text key={pozycja.rodzaj} style={{ color: theme.colors.text, marginTop: 4 }}>
-                      {pozycja.rodzaj === 'miesieczny' && pozycja.dniRobocze
-                        ? `${opisRozliczenia(pozycja.rodzaj).nazwa}: ${formatLiczby(pozycja.stawka)} zł ÷ ${pozycja.dniRobocze} × ${formatLiczby(pozycja.ilosc)} = ${formatLiczby(pozycja.kwota)} zł`
-                        : pozycja.rodzaj === 'dozowanie'
-                          ? `Dozowanie: ${formatLiczby(pozycja.dozowanie ?? 0)} kg/m² × ${formatLiczby(pozycja.ilosc)} m² × ${formatLiczby(pozycja.stawka)} zł/kg = ${formatLiczby(pozycja.kwota)} zł`
-                          : `${opisRozliczenia(pozycja.rodzaj).nazwa}: ${formatLiczby(pozycja.ilosc)} × ${formatLiczby(pozycja.stawka)} zł = ${formatLiczby(pozycja.kwota)} zł`}
-                    </Text>
+                    <Text key={pozycja.rodzaj} style={{ color: theme.colors.text, marginTop: 4 }}>{opisPozycjiSprzetu(pozycja)}</Text>
                   ))}
                   <Text style={[styles.kwota, { color: theme.colors.text }]}>Kwota: {formatLiczby(raport.kwota)} zł</Text>
                   {raport.uwagi ? <Text style={{ color: theme.colors.textSecondary }}>{raport.uwagi}</Text> : null}

@@ -12,15 +12,18 @@ import { formatujDatePl } from './dates';
 import { infoAutaWz, dlugoscUkladaniaObszaru } from './obmiarLive';
 import { formatujKilometraz } from './obmiarFigura';
 import { rodzajMieszanki } from '../mieszanki/kolejnosc';
+import { drukujHtmlWRamce, udostepnijHtmlJakoPdf } from '../eksport/udostepnijPdf';
 
 interface GenerujPDFOptions {
   plan: Plan;
   wpisyLive: WpisLive[];
   mieszanki: Array<{ id: string; rodzaj: string; ciezarObjetosciowy: number; wytwórnia?: string }>;
   budowa?: { kodBudowy: string; nazwaInwestycji: string };
+  /** Nagłówek dokumentu – domyślnie raport dnia roboczego. */
+  tytul?: string;
 }
 
-export function htmlRaportuDnia({ plan, wpisyLive, mieszanki, budowa }: GenerujPDFOptions): string {
+export function htmlRaportuDnia({ plan, wpisyLive, mieszanki, budowa, tytul = 'Raport dnia roboczego – Kalkulator MMA' }: GenerujPDFOptions): string {
   const getMieszanka = (id: string) => mieszanki.find((m) => m.id === id);
 
   const stylePDF = `
@@ -98,7 +101,9 @@ export function htmlRaportuDnia({ plan, wpisyLive, mieszanki, budowa }: GenerujP
       <div class="section-box">
         <div class="info-row"><span class="lbl">Mieszanka</span><span class="val">${mie ? rodzajMieszanki(mie) : '–'} (ρ = ${mie?.ciezarObjetosciowy.toFixed(3) ?? '–'} t/m³)</span></div>
         <div class="info-row"><span class="lbl">Grubość projektowana</span><span class="val">${dz.grubosc} cm</span></div>
+        ${wyniki ? `<div class="info-row"><span class="lbl">Powierzchnia</span><span class="val">${formatLiczby(wyniki.lacznaPowierzchnia)} m²</span></div>` : ''}
         ${wyniki ? `<div class="info-row"><span class="lbl">Masa planu</span><span class="val">${formatLiczby(wyniki.lacznaIloscMasy, 3)} Mg</span></div>` : ''}
+        ${wyniki ? `<div class="info-row"><span class="lbl">Samochody (plan)</span><span class="val">${wyniki.iloscSamochodow}</span></div>` : ''}
         ${wpisyDz.length > 0 ? `
           <div class="info-row"><span class="lbl">Wbudowano faktycznie</span><span class="val orange">${formatLiczby(sumaTon, 2)} Mg</span></div>
           <div class="info-row"><span class="lbl">Metrów wykonano</span><span class="val">${formatLiczby(sumaMetr)} m</span></div>
@@ -133,7 +138,7 @@ export function htmlRaportuDnia({ plan, wpisyLive, mieszanki, budowa }: GenerujP
 <html lang="pl">
 <head><meta charset="utf-8"/><style>${stylePDF}</style></head>
 <body>
-  <h1>Raport dnia roboczego – Kalkulator MMA</h1>
+  <h1>${tytul}</h1>
   ${budowa ? `<div class="section-box" style="border-color:#2E86AB"><div class="info-row"><span class="lbl">Budowa</span><span class="val">${budowa.kodBudowy} – ${budowa.nazwaInwestycji}</span></div></div>` : ''}
   <div class="section-box">
     <div class="info-row"><span class="lbl">Data wbudowywania</span><span class="val">${formatujDatePl(plan.dataWbudowywania)}</span></div>
@@ -164,38 +169,8 @@ function otworzMailto(temat: string, tresc: string) {
   a.remove();
 }
 
-/** Na telefonie w przeglądarce expo-print drukuje całą aplikację. Raport idzie osobno. */
-function drukujHtmlWRamce(html: string) {
-  if (typeof document === 'undefined') return;
-  const iframe = document.createElement('iframe');
-  iframe.setAttribute('style', 'position:fixed;width:0;height:0;border:0;');
-  document.body.appendChild(iframe);
-  const doc = iframe.contentDocument ?? iframe.contentWindow?.document;
-  if (!doc) {
-    iframe.remove();
-    return;
-  }
-  doc.open();
-  doc.write(html);
-  doc.close();
-  setTimeout(() => {
-    iframe.contentWindow?.focus();
-    iframe.contentWindow?.print();
-    setTimeout(() => iframe.remove(), 1500);
-  }, 250);
-}
-
-async function udostepnijHtmlRaportu(html: string): Promise<void> {
-  if (Platform.OS === 'web') {
-    drukujHtmlWRamce(html);
-    return;
-  }
-  const { uri } = await Print.printToFileAsync({ html, base64: false });
-  await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'Udostępnij raport PDF' });
-}
-
 export async function generujRaportPDF(opcje: GenerujPDFOptions): Promise<void> {
-  await udostepnijHtmlRaportu(htmlRaportuDnia(opcje));
+  await udostepnijHtmlJakoPdf(htmlRaportuDnia(opcje), 'Udostępnij raport PDF');
 }
 
 export async function wyslijRaportDniaMailem(opcje: GenerujPDFOptions): Promise<void> {

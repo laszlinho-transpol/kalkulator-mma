@@ -3,8 +3,8 @@
 // Wiersz 1: wstecz + domek | tytuł | akcja; wiersz 2: przyciski akcji
 // ============================================================
 
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useState } from 'react';
+import { ActivityIndicator, View, Text, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { tekstPrzycisk, tekstPrzyciskNaglowkaWrap } from '../../constants/layout';
 import { cien } from '../../constants/styl';
@@ -12,6 +12,7 @@ import { useMotyw } from '../../hooks/useMotyw';
 import { doMenuGlownego } from '../../budzet/nawigacja';
 import { Naciskany } from '../ui/Naciskany';
 import { PrzyciskIkony } from '../ui/Przycisk';
+import { pokazKomunikat } from '../../utils/dialog';
 
 interface Przycisk {
   tekst: string;
@@ -31,13 +32,30 @@ interface AppHeaderProps {
   prawy?: Przycisk;
   /** Domek do menu głównego – domyślnie przy przycisku Wstecz. */
   menu?: boolean;
+  /** Ikona udostępniania po prawej: eksport strony do PDF (strony z danymi użytkownika). */
+  udostepnij?: () => void | Promise<void>;
 }
 
 const czyWstecz = (p?: Przycisk) => !!p && /wstecz/i.test(p.tekst);
 
-export function AppHeader({ tytul, podtytul, przyciski, lewy, prawy, menu }: AppHeaderProps) {
+export function AppHeader({ tytul, podtytul, przyciski, lewy, prawy, menu, udostepnij }: AppHeaderProps) {
   const theme = useMotyw();
   const insets = useSafeAreaInsets();
+  const [eksport, setEksport] = useState(false);
+  const szeroki = !!udostepnij && !!prawy;
+  const bok = [styles.bok, szeroki && styles.bokSzeroki];
+
+  const naUdostepnij = async () => {
+    if (!udostepnij || eksport) return;
+    setEksport(true);
+    try {
+      await udostepnij();
+    } catch {
+      pokazKomunikat('Nie udało się udostępnić', 'Nie udało się przygotować pliku PDF. Spróbuj ponownie.');
+    } finally {
+      setEksport(false);
+    }
+  };
   const pokazMenu = menu ?? czyWstecz(lewy);
   const hasPrzyciski = przyciski && przyciski.length > 0;
 
@@ -50,7 +68,7 @@ export function AppHeader({ tytul, podtytul, przyciski, lewy, prawy, menu }: App
       ]}
     >
       <View style={styles.rzadTytul}>
-        <View style={styles.bok}>
+        <View style={bok}>
           {lewy && czyWstecz(lewy) ? (
             <PrzyciskIkony ikona="wstecz" accessibilityLabel="Wstecz" onPress={lewy.onPress} kolor={lewy.kolor ?? theme.colors.primary} />
           ) : lewy ? (
@@ -70,7 +88,14 @@ export function AppHeader({ tytul, podtytul, przyciski, lewy, prawy, menu }: App
           {podtytul ? <Text style={[styles.podtytul, { color: theme.colors.textSecondary }]} numberOfLines={1}>{podtytul}</Text> : null}
         </View>
 
-        <View style={[styles.bok, styles.bokPrawy]}>
+        <View style={[bok, styles.bokPrawy]}>
+          {udostepnij ? (
+            eksport ? (
+              <View style={styles.ladowanie}><ActivityIndicator size="small" color={theme.colors.primary} /></View>
+            ) : (
+              <PrzyciskIkony ikona="udostepnij" accessibilityLabel="Udostępnij PDF" onPress={() => { void naUdostepnij(); }} kolor={theme.colors.primary} tlo={`${theme.colors.primary}18`} />
+            )
+          ) : null}
           {prawy ? (
             <Naciskany accessibilityRole="button" accessibilityLabel={prawy.tekst} onPress={prawy.onPress} disabled={prawy.disabled} hitSlop={10}>
               <Text style={[tekstPrzyciskNaglowkaWrap, { color: prawy.kolor ?? theme.colors.primary }]} numberOfLines={2}>{prawy.tekst}</Text>
@@ -116,7 +141,9 @@ const styles = StyleSheet.create({
     minHeight: 44,
   },
   bok: { width: 84, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  bokSzeroki: { width: 124 },
   bokPrawy: { justifyContent: 'flex-end' },
+  ladowanie: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
   tytulWrap: { flex: 1, alignItems: 'center' },
   tytul: { fontSize: 17, fontWeight: '800', textAlign: 'center' },
   podtytul: { fontSize: 11, marginTop: 1 },
