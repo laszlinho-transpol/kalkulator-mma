@@ -14,13 +14,20 @@ import type { Pracownik, RaportPracownika } from '../../budzet/typy';
 export type DaneRaportuPracy = Omit<RaportPracownika, 'id' | 'createdAt' | 'pracownikId' | 'data' | 'budowaId' | 'uwagi' | 'sprzetId'>;
 
 /** Stan formularza godzin i stawek pracownika na dany dzień. Stawki podpowiadają się z karty (z okresu obowiązującego w dniu). */
-export function usePracaPracownika(pracownik: Pracownik | undefined, data: string) {
-  const [godzinyTekst, setGodzinyTekst] = useState('8');
-  const [kierowcaTekst, setKierowcaTekst] = useState('');
-  const [pasazerTekst, setPasazerTekst] = useState('');
-  const [delegacja, setDelegacja] = useState(false);
-  const [stawkiTekst, setStawkiTekst] = useState<Partial<Record<PoleWynagrodzenia, string>>>({});
-  const dotkniete = useRef(new Set<PoleWynagrodzenia>());
+const liczbaPola = (n?: number) => (n ? String(n).replace('.', ',') : '');
+
+/** `poczatek` – zapisany raport do edycji: jego godziny i stawki zostają, dopóki ich nie zmienisz. */
+export function usePracaPracownika(pracownik: Pracownik | undefined, data: string, poczatek?: RaportPracownika) {
+  const edycjaPracy = poczatek && !poczatek.rodzaj ? poczatek : undefined;
+  const [godzinyTekst, setGodzinyTekst] = useState(edycjaPracy ? liczbaPola(edycjaPracy.godziny) || '0' : '8');
+  const [kierowcaTekst, setKierowcaTekst] = useState(liczbaPola(edycjaPracy?.godzinyKierowca));
+  const [pasazerTekst, setPasazerTekst] = useState(liczbaPola(edycjaPracy?.godzinyPasazer));
+  const [delegacja, setDelegacja] = useState(!!edycjaPracy?.delegacja);
+  const [stawkiTekst, setStawkiTekst] = useState<Partial<Record<PoleWynagrodzenia, string>>>(() => (
+    edycjaPracy ? Object.fromEntries(POLA_WYNAGRODZENIA.map((pole) => [pole.id, liczbaPola(edycjaPracy.stawki[pole.id])])) : {}
+  ));
+  const dotkniete = useRef(new Set<PoleWynagrodzenia>(edycjaPracy ? POLA_WYNAGRODZENIA.map((pole) => pole.id) : []));
+  const pracownikId = useRef(pracownik?.id);
 
   const obowiazujace = useMemo(
     () => (pracownik ? stawkiObowiazujace(pracownik.stawki, pracownik.historiaStawek, data) : {} as StawkiPracownika),
@@ -29,6 +36,8 @@ export function usePracaPracownika(pracownik: Pracownik | undefined, data: strin
   const okres = pracownik ? okresNaDzien(pracownik.historiaStawek, data) : undefined;
 
   useEffect(() => {
+    if (pracownikId.current === pracownik?.id) return;
+    pracownikId.current = pracownik?.id;
     dotkniete.current.clear();
   }, [pracownik?.id]);
 
