@@ -47,6 +47,8 @@ export interface StanDnia {
   wZakresie?: boolean;
   /** Zielone tło, np. dzień z raportem. */
   oznaczony?: boolean;
+  /** Czerwone tło, np. dzień roboczy bez obowiązkowego raportu. */
+  brak?: boolean;
 }
 
 interface SiatkaProps {
@@ -59,9 +61,11 @@ interface SiatkaProps {
   min?: string;
   /** Podpis zielonych dni w legendzie. */
   legendaOznaczonych?: string;
+  /** Podpis czerwonych dni w legendzie. */
+  legendaBraku?: string;
 }
 
-export function SiatkaKalendarza({ rok, miesiac, onZmienMiesiac, stanDnia, onWybierz, min, legendaOznaczonych }: SiatkaProps) {
+export function SiatkaKalendarza({ rok, miesiac, onZmienMiesiac, stanDnia, onWybierz, min, legendaOznaczonych, legendaBraku }: SiatkaProps) {
   const theme = useMotyw();
   const komorki = useMemo(() => siatkaMiesiaca(rok, miesiac), [rok, miesiac]);
   const dzis = isoZDaty(new Date());
@@ -92,24 +96,26 @@ export function SiatkaKalendarza({ rok, miesiac, onZmienMiesiac, stanDnia, onWyb
         ))}
         {komorki.map((iso, i) => {
           if (!iso) return <View key={`p-${i}`} style={styles.komorka} />;
-          const { wybrany, wZakresie, oznaczony } = stanDnia(iso);
+          const { wybrany, wZakresie, oznaczony, brak } = stanDnia(iso);
+          const pelne = oznaczony || brak;
           const dzisiaj = iso === dzis;
           const zablokowany = !!min && iso < min;
           const swieto = czySwieto(iso);
-          const kolor = wybrany ? '#1A1A1A' : oznaczony ? '#FFFFFF' : kolorDnia(theme, iso);
+          const kolor = wybrany ? '#1A1A1A' : pelne ? '#FFFFFF' : kolorDnia(theme, iso);
           return (
             <Naciskany
               key={iso}
               style={styles.komorka}
               onPress={() => onWybierz(iso)}
               disabled={zablokowany}
-              accessibilityLabel={`${dzisiaj ? 'Dziś, ' : ''}${iso}${oznaczony && legendaOznaczonych ? `, ${legendaOznaczonych}` : ''}`}
+              accessibilityLabel={`${dzisiaj ? 'Dziś, ' : ''}${iso}${oznaczony && legendaOznaczonych ? `, ${legendaOznaczonych}` : ''}${brak && legendaBraku ? `, ${legendaBraku}` : ''}`}
             >
               <View
                 style={[
                   styles.dzien,
                   wZakresie && !wybrany && { backgroundColor: `${theme.colors.primary}33` },
                   oznaczony && !wybrany && { backgroundColor: theme.colors.success },
+                  brak && !oznaczony && !wybrany && { backgroundColor: theme.colors.danger },
                   wybrany && { backgroundColor: theme.colors.primary },
                   dzisiaj && { borderWidth: 2, borderColor: theme.colors.info },
                   zablokowany && { opacity: 0.3 },
@@ -118,7 +124,7 @@ export function SiatkaKalendarza({ rok, miesiac, onZmienMiesiac, stanDnia, onWyb
                 <Text style={{ color: kolor, fontWeight: wybrany || dzisiaj || rodzajDnia(iso) !== 'roboczy' ? '800' : '500' }}>
                   {Number(iso.slice(8))}
                 </Text>
-                {swieto ? <View style={[styles.kropka, { backgroundColor: wybrany ? '#1A1A1A' : oznaczony ? '#FFFFFF' : theme.colors.niedziela }]} /> : null}
+                {swieto ? <View style={[styles.kropka, { backgroundColor: wybrany ? '#1A1A1A' : pelne ? '#FFFFFF' : theme.colors.niedziela }]} /> : null}
               </View>
             </Naciskany>
           );
@@ -126,6 +132,7 @@ export function SiatkaKalendarza({ rok, miesiac, onZmienMiesiac, stanDnia, onWyb
       </View>
       <View style={styles.legenda}>
         {legendaOznaczonych ? <Legenda kolor={theme.colors.success} tekst={legendaOznaczonych} /> : null}
+        {legendaBraku ? <Legenda kolor={theme.colors.danger} tekst={legendaBraku} /> : null}
         <Legenda kolor={theme.colors.sobota} tekst="sobota" />
         <Legenda kolor={theme.colors.niedziela} tekst="niedziela / święto" />
         <Legenda kolor={theme.colors.info} tekst="dziś" obwodka />
