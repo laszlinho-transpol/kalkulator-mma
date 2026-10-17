@@ -9,6 +9,8 @@ import { SafeModal } from '../common/SafeModal';
 import { InfoTooltip } from '../common/InfoTooltip';
 import { PoleKilometraz, parsujPolaKilometraza, polaZKilometraza } from '../common/PoleKilometraz';
 import { karta } from '../../constants/layout';
+import { WyborMieszanki } from '../mieszanki/WyborMieszanki';
+import { posortujMieszanki } from '../../mieszanki/kolejnosc';
 import { useMieszankiStore } from '../../stores/mieszankiStore';
 import { useWytwornieStore } from '../../stores/wytwornieStore';
 import {
@@ -226,10 +228,9 @@ export function SekcjaKonstrukcje({ projekt, theme, onZmien }: Props) {
             <Text style={{ color: theme.colors.secondary, fontSize: 12, fontWeight: '700' }}>
               {w.mieszankaIds.length === 0
                 ? 'Materiał zatwierdzony (opcjonalnie)'
-                : w.mieszankaIds.map((id) => {
-                    const m = mieszanki.find((x) => x.id === id);
-                    const wyt = etykietaWytworni(m?.wytworniaId) ?? m?.wytwórnia;
-                    return m ? `${m.rodzaj}${wyt ? ` · ${wyt}` : ''}` : id;
+                : posortujMieszanki(mieszanki.filter((x) => w.mieszankaIds.includes(x.id))).map((m) => {
+                    const wyt = etykietaWytworni(m.wytworniaId) ?? m.wytwórnia;
+                    return `${m.rodzaj}${wyt ? ` · ${wyt}` : ''}`;
                   }).join(', ')}
             </Text>
           </TouchableOpacity>
@@ -286,37 +287,23 @@ export function SekcjaKonstrukcje({ projekt, theme, onZmien }: Props) {
     onClose={() => setMixWarstwa(null)}
     prawy={{ tekst: 'Gotowe', onPress: () => setMixWarstwa(null), kolor: theme.colors.primary }}
   >
-    <ScrollView contentContainerStyle={{ padding: 16, gap: 8 }}>
-      {mieszanki.length === 0 ? (
-        <Text style={{ color: theme.colors.textSecondary }}>
-          Brak recept w bazie. Dodaj mieszanki w kafelku „Mieszanki”.
-        </Text>
-      ) : mieszanki.map((m) => {
-        const sel = mixTarget?.mieszankaIds.includes(m.id) ?? false;
-        const wyt = etykietaWytworni(m.wytworniaId) ?? m.wytwórnia;
-        return (
-          <TouchableOpacity
-            key={m.id}
-            style={[karta, { backgroundColor: sel ? `${theme.colors.primary}18` : theme.colors.card, borderColor: sel ? theme.colors.primary : theme.colors.border }]}
-            onPress={() => {
-              if (!mixWarstwa) return;
-              patchKonstrukcja(mixWarstwa.konstrukcjaId, (kk) => {
-                const war = (mixWarstwa.wyjatekId
-                  ? kk.wyjatki.find((w) => w.id === mixWarstwa.wyjatekId)?.warstwy
-                  : kk.warstwy)?.find((x) => x.id === mixWarstwa.warstwaId);
-                const ids = war?.mieszankaIds ?? [];
-                const next = ids.includes(m.id) ? ids.filter((id) => id !== m.id) : [...ids, m.id];
-                return patchWarstwy(kk, mixWarstwa.warstwaId, { mieszankaIds: next }, mixWarstwa.wyjatekId);
-              });
-            }}
-          >
-            <Text style={{ color: theme.colors.text, fontWeight: '700' }}>{m.rodzaj}{sel ? '  ✓' : ''}</Text>
-            <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>
-              ρ {m.ciezarObjetosciowy.toFixed(3)} t/m³{wyt ? ` · ${wyt}` : ''}
-            </Text>
-          </TouchableOpacity>
-        );
-      })}
+    <ScrollView contentContainerStyle={{ padding: 16 }}>
+      <WyborMieszanki
+        mieszanki={mieszanki}
+        zaznaczone={mixTarget?.mieszankaIds ?? []}
+        pustyTekst="Brak recept w bazie. Dodaj mieszanki w kafelku „Mieszanki”."
+        onWybierz={(m) => {
+          if (!mixWarstwa) return;
+          patchKonstrukcja(mixWarstwa.konstrukcjaId, (kk) => {
+            const war = (mixWarstwa.wyjatekId
+              ? kk.wyjatki.find((w) => w.id === mixWarstwa.wyjatekId)?.warstwy
+              : kk.warstwy)?.find((x) => x.id === mixWarstwa.warstwaId);
+            const ids = war?.mieszankaIds ?? [];
+            const next = ids.includes(m.id) ? ids.filter((id) => id !== m.id) : [...ids, m.id];
+            return patchWarstwy(kk, mixWarstwa.warstwaId, { mieszankaIds: next }, mixWarstwa.wyjatekId);
+          });
+        }}
+      />
     </ScrollView>
   </SafeModal>
   );

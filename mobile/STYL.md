@@ -43,6 +43,11 @@ opisanych niżej** – bez własnych kolorów, odstępów i nagłówków. Zmiana
    (linia ceny + przerywana linia wartości z karty).
 10. **Web.** Komunikaty i potwierdzenia przez `pokazKomunikat` / `potwierdzAkcje` (`src/utils/dialog.ts`) –
     `Alert.alert` z przyciskami nie działa w przeglądarce.
+11. **Mieszanki MMA.** Mieszankę zawsze wybieramy z konkretnej wytwórni – `WyborMieszanki`
+    (`src/components/mieszanki/WyborMieszanki.tsx`: najpierw wytwórnia, potem jej recepty; okno: `MieszankaPicker`).
+    Listy recept wyświetlamy przez `ListaMieszanek`, a sortujemy `posortujMieszanki` (`src/mieszanki/kolejnosc.ts`):
+    rodzaj warstwy od najniższej (podbudowy → wiążące → ścieralne), uziarnienie od największego (31,5 → 5),
+    kategoria ruchu od najwyższej. Grupa warstwy ma nagłówek, bloki uziarnienia są od siebie oddzielone.
 
 ## 2. Klocki (`src/components/ui`)
 

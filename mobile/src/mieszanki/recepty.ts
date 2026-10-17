@@ -3,6 +3,7 @@
 import { linieStawekPola, type OpisPolaStawki } from '../budzet/pracownicy';
 import { stawkiObowiazujace } from '../budzet/rozliczenie';
 import type { CenaRecepty, Mieszanka } from '../types';
+import { porownajMieszanki } from './kolejnosc';
 
 export const POLA_CENY: OpisPolaStawki<'cena'>[] = [
   { id: 'cena', nazwa: 'Cena', jednostka: 'zł / t', podpowiedz: 'Cena netto za tonę mieszanki.' },
@@ -44,5 +45,5 @@ export function numerDnia(iso: string): number {
 export function receptyWytworni(mieszanki: Mieszanka[], wytworniaId: string): Mieszanka[] {
   return mieszanki
     .filter((m) => m.wytworniaId === wytworniaId)
-    .sort((a, b) => a.rodzaj.localeCompare(b.rodzaj, 'pl') || (a.nrRecepty ?? '').localeCompare(b.nrRecepty ?? '', 'pl'));
+    .sort(porownajMieszanki);
 }

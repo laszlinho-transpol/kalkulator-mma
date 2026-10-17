@@ -7,11 +7,13 @@ import type { AppTheme } from '../../constants/theme';
 import { wstecz } from '../../budzet/nawigacja';
 import { parsujLiczbePola, tekstZapisanejStawki } from '../../budzet/rozliczenie';
 import { useWytwornieStore } from '../../stores/wytwornieStore';
+import { PODPOWIEDZI_KR } from '../../mieszanki/kolejnosc';
 
 export interface DaneReceptyFormularza {
   wytworniaId?: string;
   rodzaj: string;
   nrRecepty?: string;
+  kategoriaRuchu?: string;
   ciezarObjetosciowy: number;
   cena?: number;
 }
@@ -30,6 +32,7 @@ export function FormularzRecepty({ theme, tytul, wsteczDo, poczatek, onZapisz }:
   const [wytworniaId, setWytworniaId] = useState(poczatek?.wytworniaId ?? '');
   const [rodzaj, setRodzaj] = useState(poczatek?.rodzaj ?? '');
   const [nrRecepty, setNrRecepty] = useState(poczatek?.nrRecepty ?? '');
+  const [kr, setKr] = useState(poczatek?.kategoriaRuchu ?? '');
   const [ciezar, setCiezar] = useState(poczatek?.ciezarObjetosciowy ? String(poczatek.ciezarObjetosciowy).replace('.', ',') : '');
   const [cena, setCena] = useState(tekstZapisanejStawki(poczatek?.cena));
   const [blad, setBlad] = useState('');
@@ -52,6 +55,7 @@ export function FormularzRecepty({ theme, tytul, wsteczDo, poczatek, onZapisz }:
         wytworniaId: wytworniaId || undefined,
         rodzaj: rodzaj.trim().toUpperCase(),
         nrRecepty: nrRecepty.trim() || undefined,
+        kategoriaRuchu: kr.trim().toUpperCase().replace(/\s+/g, '') || undefined,
         ciezarObjetosciowy: Math.round(c * 1000) / 1000,
         cena: kwota,
       });
@@ -75,6 +79,21 @@ export function FormularzRecepty({ theme, tytul, wsteczDo, poczatek, onZapisz }:
           <Pole etykieta="Rodzaj" wymagane info="Typ mieszanki, np. AC22P." value={rodzaj} onChangeText={(t) => setRodzaj(t.toUpperCase())} placeholder="AC22P" accessibilityLabel="Rodzaj mieszanki" />
           <Pole etykieta="Nr recepty" info="Numer recepty wytwórni (opcjonalnie)." value={nrRecepty} onChangeText={setNrRecepty} placeholder="—" accessibilityLabel="Nr recepty" />
         </Wiersz>
+        <View>
+          <Pole
+            etykieta="Kategoria ruchu"
+            info="Opcjonalnie, np. KR3-4. Ustala kolejność recept o tym samym rodzaju i uziarnieniu – od najwyższej kategorii. Bez pola KR jest szukane w rodzaju i numerze recepty."
+            value={kr}
+            onChangeText={(t) => setKr(t.toUpperCase())}
+            placeholder="np. KR3-4"
+            accessibilityLabel="Kategoria ruchu"
+          />
+          <View style={[stylFormularza.chipy, { marginTop: 6 }]}>
+            {PODPOWIEDZI_KR.map((k) => (
+              <Wybor key={k} zaznaczony={kr === k} etykieta={k} accessibilityLabel={`Kategoria ${k}`} onPress={() => setKr(kr === k ? '' : k)} />
+            ))}
+          </View>
+        </View>
         <Wiersz>
           <Pole etykieta="Ciężar obj." wymagane info="Ciężar objętościowy – masa po zagęszczeniu, np. 2,455 t/m³." jednostka="t/m³" value={ciezar} onChangeText={setCiezar} placeholder="2,455" accessibilityLabel="Ciężar objętościowy" liczba />
           <Pole etykieta="Cena" info="Cena netto za tonę. Zmiany w czasie zapiszesz w zakładce Historia ceny na karcie recepty." jednostka="zł/t" value={cena} onChangeText={setCena} placeholder="np. 310" accessibilityLabel="Cena recepty" liczba />

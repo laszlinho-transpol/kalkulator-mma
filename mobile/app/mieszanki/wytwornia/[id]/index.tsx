@@ -13,6 +13,7 @@ import { useRouteId } from '../../../../src/hooks/useRouteId';
 import { useMieszankiStore } from '../../../../src/stores/mieszankiStore';
 import { useWytwornieStore } from '../../../../src/stores/wytwornieStore';
 import { cenaReceptyNaDzien, receptyWytworni } from '../../../../src/mieszanki/recepty';
+import { ListaMieszanek, WierszMieszanki } from '../../../../src/components/mieszanki/WyborMieszanki';
 import { czyKrotkiLinkMaps } from '../../../../src/utils/mapaLokalizacji';
 import { adresZLinkuMaps } from '../../../../src/utils/rozwinLinkMaps';
 import { formatLiczby } from '../../../../src/utils/calculations';
@@ -122,20 +123,21 @@ export default function KartaWytworniScreen() {
             >
               {recepty.length === 0 ? (
                 <Text style={{ color: theme.colors.textSecondary }}>Brak mieszanek. Dodaj pierwszą plusem.</Text>
-              ) : recepty.map((r) => {
-                const cena = cenaReceptyNaDzien(r, dzis);
-                return (
-                  <PozycjaListy
-                    key={r.id}
-                    plaska
-                    tytul={`${r.rodzaj}${r.nrRecepty ? ` · ${r.nrRecepty}` : ''}`}
-                    podtytul={`ρ = ${r.ciezarObjetosciowy.toFixed(3)} t/m³`}
-                    prawy={cena ? `${formatLiczby(cena)} zł/t` : 'bez ceny'}
-                    accessibilityLabel={`Recepta ${r.rodzaj}`}
-                    onPress={() => router.push(`/mieszanki/recepta/${r.id}` as never)}
-                  />
-                );
-              })}
+              ) : (
+                <ListaMieszanek
+                  mieszanki={recepty}
+                  renderuj={(r) => {
+                    const cena = cenaReceptyNaDzien(r, dzis);
+                    return (
+                      <WierszMieszanki
+                        mieszanka={r}
+                        prawy={cena ? `${formatLiczby(cena)} zł/t` : 'bez ceny'}
+                        onPress={() => router.push(`/mieszanki/recepta/${r.id}` as never)}
+                      />
+                    );
+                  }}
+                />
+              )}
             </Sekcja>
           )}
         </ScrollView>

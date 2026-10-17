@@ -60,6 +60,7 @@ export default function KartaReceptyScreen() {
                 <WierszDanych etykieta="Wytwórnia" wartosc={wytwornia?.nazwa ?? '—'} />
                 <WierszDanych etykieta="Rodzaj" wartosc={recepta.rodzaj} />
                 <WierszDanych etykieta="Nr recepty" wartosc={recepta.nrRecepty || '—'} />
+                <WierszDanych etykieta="Kategoria ruchu" wartosc={recepta.kategoriaRuchu || '—'} />
               </Sekcja>
               <Sekcja tytul="Parametry i cena">
                 <SiatkaDanych

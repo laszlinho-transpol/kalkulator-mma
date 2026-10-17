@@ -62,6 +62,8 @@ export interface Mieszanka {
   id: string;
   rodzaj: string;               // np. AC22P, SMA11
   nrRecepty?: string;
+  /** Np. „KR3-4”. Bez pola kategoria jest szukana w rodzaju i numerze recepty. */
+  kategoriaRuchu?: string;
   ciezarObjetosciowy: number;   // [t/m3], do 3 miejsc po przecinku
   wytworniaId?: string;
   /** @deprecated użyj wytworniaId – zachowane dla importu starych danych */

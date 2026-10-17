@@ -16,6 +16,7 @@ import {
 import type { PozycjaRaportu, RaportDzienny } from '../../src/raportyBudowy/typy';
 import { useBudowyStore } from '../../src/stores/budowyStore';
 import { useMieszankiStore } from '../../src/stores/mieszankiStore';
+import { WyborMieszanki } from '../../src/components/mieszanki/WyborMieszanki';
 import { generujIdRaportu, useRaportyBudowyStore } from '../../src/stores/raportyBudowyStore';
 import { Z_METROW_BIEZACYCH } from '../../src/constants';
 import { formatLiczby } from '../../src/utils/calculations';
@@ -281,17 +282,12 @@ export default function FormularzRaportuScreen() {
                     {recepty.length > 0 ? (
                       <View>
                         <Etykieta tekst="Recepta" info="Recepty przypisane do warstwy w Konstrukcjach. Przerób i materiał liczą się osobno dla każdej recepty." />
-                        <View style={stylFormularza.chipy}>
-                          {recepty.map((m) => (
-                            <Wybor
-                              key={m.id}
-                              zaznaczony={m.id === poz.mieszankaId}
-                              etykieta={nazwaRecepty(m)}
-                              accessibilityLabel={`Recepta ${nazwaRecepty(m)}`}
-                              onPress={() => zmienPozycje(poz.id, { mieszankaId: m.id === poz.mieszankaId ? undefined : m.id })}
-                            />
-                          ))}
-                        </View>
+                        <WyborMieszanki
+                          mieszanki={recepty}
+                          zaznaczone={poz.mieszankaId ? [poz.mieszankaId] : []}
+                          etykietaDostepnosci={(m) => `Recepta ${nazwaRecepty(m)}`}
+                          onWybierz={(m) => zmienPozycje(poz.id, { mieszankaId: m.id === poz.mieszankaId ? undefined : m.id })}
+                        />
                       </View>
                     ) : null}
 

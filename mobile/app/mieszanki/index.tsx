@@ -11,6 +11,7 @@ import { useWytwornieStore } from '../../src/stores/wytwornieStore';
 import { EmptyState } from '../../src/components/common/EmptyState';
 import { AppHeader, PozycjaListy, Sekcja, ODSTEP, useMotyw } from '../../src/components/ui';
 import { cenaReceptyNaDzien, receptyWytworni } from '../../src/mieszanki/recepty';
+import { ListaMieszanek, WierszMieszanki } from '../../src/components/mieszanki/WyborMieszanki';
 import { formatLiczby } from '../../src/utils/calculations';
 import { dzisIso } from '../../src/utils/zakresDat';
 
@@ -73,20 +74,19 @@ export default function MieszankiScreen() {
           })}
           {bezWytworni.length > 0 && (
             <Sekcja tytul={`Bez wytwórni · ${bezWytworni.length}`} info="Recepty bez przypisanej wytwórni. Przypisz ją w edycji recepty, aby pojawiła się na karcie wytwórni.">
-              {bezWytworni.map((m) => {
-                const cena = cenaReceptyNaDzien(m, dzis);
-                return (
-                  <PozycjaListy
-                    key={m.id}
-                    plaska
-                    tytul={`${m.rodzaj}${m.nrRecepty ? ` · ${m.nrRecepty}` : ''}`}
-                    podtytul={`ρ = ${m.ciezarObjetosciowy.toFixed(3)} t/m³`}
-                    prawy={cena ? `${formatLiczby(cena)} zł/t` : 'bez ceny'}
-                    accessibilityLabel={`Recepta ${m.rodzaj}`}
-                    onPress={() => router.push(`/mieszanki/recepta/${m.id}` as never)}
-                  />
-                );
-              })}
+              <ListaMieszanek
+                mieszanki={bezWytworni}
+                renderuj={(m) => {
+                  const cena = cenaReceptyNaDzien(m, dzis);
+                  return (
+                    <WierszMieszanki
+                      mieszanka={m}
+                      prawy={cena ? `${formatLiczby(cena)} zł/t` : 'bez ceny'}
+                      onPress={() => router.push(`/mieszanki/recepta/${m.id}` as never)}
+                    />
+                  );
+                }}
+              />
             </Sekcja>
           )}
         </ScrollView>
