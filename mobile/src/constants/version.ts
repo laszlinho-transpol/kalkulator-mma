@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.40';
+export const WERSJA_APLIKACJI = '1.8.41';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,17 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.41',
+    data: '2026-10-17',
+    tytul: 'Kategoria ruchu w nazwie recepty, przedmiar na warstwę',
+    zmiany: [
+      'Recepta: kategoria ruchu jest obowiązkowa – wpisujesz samą wartość (np. 1-2), formularz pokazuje gotową nazwę',
+      'W całej aplikacji recepta wyświetla się jako rodzaj + KR, np. AC16W KR1-2 (listy, karty, plan, obmiar, wbudowywanie, raporty, PDF)',
+      'Przedmiar budowy: jedna pozycja na mieszankę warstwy z pełnym tonażem; pod nią zatwierdzone recepty z wytwórniami zamiast powtórzeń warstwy',
+      'Eksport CSV: kolumny Warstwa, Mieszanka i Zatwierdzone recepty',
+    ],
+  },
   {
     wersja: '1.8.40',
     data: '2026-10-17',
