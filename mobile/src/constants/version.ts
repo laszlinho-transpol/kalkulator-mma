@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.44';
+export const WERSJA_APLIKACJI = '1.8.45';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,19 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.45',
+    data: '2026-10-17',
+    tytul: 'Udostępnianie stron jako PDF',
+    zmiany: [
+      'Strony z danymi mają w górnym pasku (obok Wstecz i domku) przycisk udostępniania – eksport strony do pliku PDF',
+      'PDF z karty sprzętu i pracownika, miesiąca raportów pracownika, budowy (projekt, przedmiar, wykonanie), raportu dnia i miesiąca budowy, planu układania, Live, obmiaru i archiwum',
+      'Na telefonie powstaje plik PDF i otwiera się arkusz udostępniania; w przeglądarce okno drukowania z opcją „Zapisz jako PDF”',
+      'Plan układania: ikona udostępniania otwiera wybór – PDF, plik do aplikacji albo interaktywny HTML',
+      'Geodezja i pomiary: usunięty systemowy pasek z napisem „niezbednik/geodezja/index” – nagłówek w stylu aplikacji',
+      'Wbudowywanie: przycisk „Zakończ” w nagłówku znów widoczny (czerwone tło)',
+    ],
+  },
   {
     wersja: '1.8.44',
     data: '2026-10-17',
