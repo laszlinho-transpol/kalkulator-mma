@@ -16,7 +16,7 @@ const praca = (data: string, wynagrodzenie: number, budowaId = 'b1'): RaportPrac
   id: `r${licznik += 1}`, pracownikId: 'p', data, budowaId, godziny: 10, godzinyPodstawowe: 8, nadgodziny: 2,
   stawki, wynagrodzenie, kwota: wynagrodzenie * 1.4, createdAt: `${data}T10:00:00Z`,
 });
-const wolne = (data: string, rodzaj: 'UW' | 'L4' | 'R8'): RaportPracownika => ({
+const wolne = (data: string, rodzaj: NonNullable<RaportPracownika['rodzaj']>): RaportPracownika => ({
   id: `r${licznik += 1}`, pracownikId: 'p', data, rodzaj, budowaId: '', grupaId: 'g1', godziny: 0, godzinyPodstawowe: 0, nadgodziny: 0,
   stawki, wynagrodzenie: 0, kwota: 0, createdAt: `${data}T10:00:00Z`,
 });
@@ -61,6 +61,19 @@ describe('nieobecności pracownika', () => {
     assert.equal(w.koszt, 336);
     assert.deepEqual(bankR8(pracownik({ '2026-09': 20 }), [r8]), { odlozone: 20, wykorzystane: 8, saldo: 12 });
     assert.equal(bankR8(pracownik({ '2026-09': 20 }), [r8], '2026-11').saldo, 20);
+  });
+
+  it('UB i NB: 0 zł dla pracownika i pracodawcy, liczone w dniach miesiąca', () => {
+    const ub = wolne('2026-10-14', 'UB');
+    const nb = wolne('2026-10-15', 'NB');
+    const raporty = [...trzyMiesiace(), praca('2026-10-13', 330), ub, nb];
+    const wyniki = rozliczNieobecnosci(pracownik(), raporty);
+    assert.deepEqual([wyniki.get(ub.id)!.wynagrodzenie, wyniki.get(ub.id)!.koszt, wyniki.get(nb.id)!.wynagrodzenie, wyniki.get(nb.id)!.koszt], [0, 0, 0, 0]);
+    const p = podsumowanieMiesiaca(pracownik(), przeliczoneRaporty(pracownik(), raporty), '2026-10');
+    assert.equal(p.dniUB, 1);
+    assert.equal(p.dniNB, 1);
+    assert.equal(p.wyplata, 330);
+    assert.equal(czyDzienNieobecnosci('UB', '2026-10-17'), false);
   });
 
   it('podsumowanie miesiąca: praca na budowę, nieobecności i odłożone godziny na brygadę', () => {

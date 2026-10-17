@@ -7,13 +7,15 @@ import { dniRoboczeMiesiaca, stawkiObowiazujace } from './rozliczenie';
 import type { GrupaPracownikow, Pracownik, RaportPracownika } from './typy';
 import type { StawkiPracownika } from './pracownicy';
 
-export type Nieobecnosc = 'UW' | 'L4' | 'R8';
+export type Nieobecnosc = 'UW' | 'L4' | 'R8' | 'UB' | 'NB';
 export type RodzajDniaPracownika = 'praca' | Nieobecnosc;
 
 export const NIEOBECNOSCI: { id: Nieobecnosc; nazwa: string; opis: string }[] = [
   { id: 'UW', nazwa: 'Urlop wypoczynkowy', opis: 'Średnia wypłat z 3 ostatnich miesięcy ÷ 3 ÷ dni robocze miesiąca. Koszt pracodawcy × ZUS.' },
   { id: 'L4', nazwa: 'Zwolnienie lekarskie', opis: 'Średnia wypłat z 12 ostatnich miesięcy ÷ dni kalendarzowe miesiąca × 0,8. Pracodawca płaci × 1,2 przez pierwsze 33 dni L4 w roku, od 34. dnia nic.' },
   { id: 'R8', nazwa: 'Dzień wolny za nadgodziny', opis: '8 × stawka 8h. Koszt pracodawcy × ZUS. Dzień schodzi z banku godzin odłożonych na zimę.' },
+  { id: 'UB', nazwa: 'Urlop bezpłatny', opis: 'Bez wynagrodzenia i bez kosztu pracodawcy – 0 zł.' },
+  { id: 'NB', nazwa: 'Nieobecność', opis: 'Bez wynagrodzenia i bez kosztu pracodawcy – 0 zł.' },
 ];
 
 export const ZUS_DOMYSLNY = 1.4;
@@ -50,7 +52,7 @@ export function dniKalendarzoweMiesiaca(miesiac: string): number {
 
 export const ostatniDzienMiesiaca = (miesiac: string) => `${miesiac}-${String(dniKalendarzoweMiesiaca(miesiac)).padStart(2, '0')}`;
 
-/** UW i R8 tylko w dni robocze; L4 obejmuje każdy dzień kalendarzowy. */
+/** UW, R8, UB i NB tylko w dni robocze; L4 obejmuje każdy dzień kalendarzowy. */
 export function czyDzienNieobecnosci(rodzaj: Nieobecnosc, iso: string): boolean {
   return rodzaj === 'L4' || !czyDzienWolny(iso);
 }
@@ -141,7 +143,9 @@ export function rozliczNieobecnosci(
     if (rodzaj !== 'praca') {
       const stawki = r.stawki;
       let wynik: WynikNieobecnosci;
-      if (rodzaj === 'UW') {
+      if (rodzaj === 'UB' || rodzaj === 'NB') {
+        wynik = { wynagrodzenie: 0, koszt: 0, linie: [`${nazwaNieobecnosci(rodzaj)} – 0 zł dla pracownika i pracodawcy`] };
+      } else if (rodzaj === 'UW') {
         const p = podstawa(miesiac, MIESIACE_UW, pierwszy, wyplaty);
         const dni = dniRoboczeMiesiaca(r.data);
         const dzien = p.miesiace > 0 && dni > 0 ? round2(p.suma / p.miesiace / dni) : 0;
@@ -223,7 +227,7 @@ export function bankR8(
 
 export interface PozycjaPodzialu {
   klucz: string;
-  /** Budowa (praca) albo brygada (UW, L4, R8, odłożone nadgodziny). */
+  /** Budowa (praca) albo brygada (UW, L4, R8, UB, NB, odłożone nadgodziny). */
   typ: 'budowa' | 'brygada';
   id?: string;
   wyplata: number;
@@ -238,6 +242,8 @@ export interface PodsumowanieMiesiaca {
   dniUW: number;
   dniL4: number;
   dniR8: number;
+  dniUB: number;
+  dniNB: number;
   delegacje: number;
   odlozenie: OdlozenieMiesiaca;
   /** Do wypłaty: wynagrodzenia + nieobecności − odłożone nadgodziny (bez delegacji). */
@@ -280,6 +286,8 @@ export function podsumowanieMiesiaca(
     dniUW: ile('UW'),
     dniL4: ile('L4'),
     dniR8: ile('R8'),
+    dniUB: ile('UB'),
+    dniNB: ile('NB'),
     delegacje,
     odlozenie,
     wyplata: round2(raporty.reduce((s, r) => s + r.wynagrodzenie, 0) - odlozenie.wynagrodzenie),

@@ -87,7 +87,7 @@ export default function MiesiacPracownikaScreen() {
         lewy={{ tekst: '‹ Wstecz', onPress: () => wstecz(powrot) }}
       />
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.tresc, { paddingBottom: insets.bottom + 24 }]}>
-        <Sekcja tytul="Podsumowanie" info="Godziny z dni pracy. UW i R8 liczą się w dniach roboczych, L4 w dniach kalendarzowych.">
+        <Sekcja tytul="Podsumowanie" info="Godziny z dni pracy. UW, R8, UB i NB liczą się w dniach roboczych, L4 w dniach kalendarzowych. UB i NB to 0 zł.">
           <SiatkaDanych
             pozycje={[
               { etykieta: 'Przepracowane', wartosc: h(p.godzinyPracy) },
@@ -95,6 +95,8 @@ export default function MiesiacPracownikaScreen() {
               { etykieta: 'Urlop UW', wartosc: dni(p.dniUW) },
               { etykieta: 'Zwolnienie L4', wartosc: dni(p.dniL4) },
               { etykieta: 'Wolne R8', wartosc: dni(p.dniR8) },
+              { etykieta: 'Urlop bezpłatny UB', wartosc: dni(p.dniUB) },
+              { etykieta: 'Nieobecność NB', wartosc: dni(p.dniNB) },
               { etykieta: 'Bank R8 na koniec', wartosc: h(bank.saldo), kolor: bank.saldo < 0 ? theme.colors.danger : undefined },
             ]}
           />
@@ -114,7 +116,7 @@ export default function MiesiacPracownikaScreen() {
           </View>
         </Sekcja>
 
-        <Sekcja tytul="Podział kosztów" info="Dni pracy idą na budowy. UW, L4, R8 i odłożone nadgodziny idą na brygadę pracownika.">
+        <Sekcja tytul="Podział kosztów" info="Dni pracy idą na budowy. UW, L4, R8, UB, NB i odłożone nadgodziny idą na brygadę pracownika.">
           {p.podzial.length === 0 ? (
             <Text style={[TYPOGRAFIA.opis, { color: theme.colors.textSecondary }]}>Brak kosztów w tym miesiącu.</Text>
           ) : p.podzial.map((poz) => (
@@ -189,7 +191,7 @@ export default function MiesiacPracownikaScreen() {
                   key={r.id}
                   tytul={wielkaLitera(formatujDzienIso(r.data))}
                   podtytul={`${rodzaj} – ${nazwaNieobecnosci(rodzaj).toLowerCase()} · ${nazwaBrygady(grupy, r.grupaId ?? pracownik.grupaId)}`}
-                  znaczek={{ tekst: rodzaj, kolor: rodzaj === 'L4' ? theme.colors.danger : rodzaj === 'UW' ? theme.colors.info : theme.colors.primary }}
+                  znaczek={{ tekst: rodzaj, kolor: rodzaj === 'L4' ? theme.colors.danger : rodzaj === 'UW' ? theme.colors.info : rodzaj === 'R8' ? theme.colors.primary : theme.colors.textSecondary }}
                   podsumowanie={`Wypłata ${zl(r.wynagrodzenie)} · koszt ${zl(r.kwota)}`}
                   accessibilityLabel={`Raport ${r.data}`}
                   onPress={otworz}

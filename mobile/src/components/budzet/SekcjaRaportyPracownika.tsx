@@ -50,6 +50,8 @@ export function SekcjaRaportyPracownika({ pracownik, raporty }: { pracownik: Pra
       p.dniUW ? `UW ${p.dniUW}` : '',
       p.dniL4 ? `L4 ${p.dniL4}` : '',
       p.dniR8 ? `R8 ${p.dniR8}` : '',
+      p.dniUB ? `UB ${p.dniUB}` : '',
+      p.dniNB ? `NB ${p.dniNB}` : '',
     ].filter(Boolean).join(' · ');
     return { podtytul: `${liczbaRaportow(liczba)} · ${formatLiczby(p.godzinyPracy)} h${dni ? ` · ${dni}` : ''}`, wyplata: `${formatLiczby(p.wyplata)} zł` };
   };
@@ -60,7 +62,7 @@ export function SekcjaRaportyPracownika({ pracownik, raporty }: { pracownik: Pra
         <Przycisk tekst="Dodaj raport" ikona="plus" onPress={() => nowy()} />
         {lata.length === 0 ? (
           <Text style={[TYPOGRAFIA.opis, { color: theme.colors.textSecondary }]}>
-            Brak raportów. Dodaj pierwszy raport – dzień pracy albo UW, L4, R8.
+            Brak raportów. Dodaj pierwszy raport – dzień pracy albo UW, L4, R8, UB, NB.
           </Text>
         ) : lata.map((r) => (
           <View key={r.rok} style={{ gap: ODSTEP.s }}>

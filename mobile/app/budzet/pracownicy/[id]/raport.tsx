@@ -193,7 +193,7 @@ function Formularz({ pracownik, edytowany, dataStartowa }: { pracownik: Pracowni
           tekst="Rodzaj dnia"
           info={zSprzetu
             ? 'Raport powstał razem z raportem sprzętu (pracownik jako operator) – zostaje dniem pracy.'
-            : 'Praca – godziny na budowie. UW, L4 i R8 nie mają budowy: koszt idzie na brygadę pracownika.'}
+            : 'Praca – godziny na budowie. UW, L4, R8, UB i NB nie mają budowy: koszt idzie na brygadę pracownika. Urlop bezpłatny (UB) i nieobecność (NB) to 0 zł.'}
         />
         <View style={stylFormularza.chipy}>
           {RODZAJE.filter((r) => !zSprzetu || r.id === 'praca').map((r) => (

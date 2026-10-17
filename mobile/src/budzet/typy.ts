@@ -47,8 +47,8 @@ export interface RaportPracownika {
   id: string;
   pracownikId: string;
   data: string;
-  /** Brak rodzaju = dzień pracy na budowie. UW, L4 i R8 nie mają budowy – koszt idzie na brygadę. */
-  rodzaj?: 'UW' | 'L4' | 'R8';
+  /** Brak rodzaju = dzień pracy na budowie. UW, L4, R8, UB i NB nie mają budowy – koszt idzie na brygadę. */
+  rodzaj?: 'UW' | 'L4' | 'R8' | 'UB' | 'NB';
   /** Pusty przy UW / L4 / R8. */
   budowaId: string;
   /** Brygada (grupa) pracownika w dniu nieobecności. */
