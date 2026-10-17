@@ -57,6 +57,12 @@ opisanych niżej** – bez własnych kolorów, odstępów i nagłówków. Zmiana
     (`AC16W KR1-2`) albo `nazwaMieszanki` (z numerem recepty) – nigdy samo `m.rodzaj`.
     Kilka recept (np. materiał zatwierdzony warstwy) pokazujemy jako osobne wiersze oddzielone linią
     (nazwa z KR, pod nią wytwórnia i nr recepty), nigdy sklejone przecinkami w jednym wierszu.
+13. **Zakładka raportów obiektu** (budowa, pracownik): `Przycisk` „Dodaj raport”, pod nim miesiące jako
+    `PozycjaListy` od najnowszego (u pracownika pogrupowane nagłówkami lat), niżej `SiatkaKalendarza`
+    na bieżący miesiąc – `oznaczony` = jest raport (zielony), `brak` = brak obowiązkowego raportu (czerwony,
+    `legendaBraku`). Dotknięcie dnia otwiera raport albo nowy raport z tą datą. Miesiąc to osobny ekran:
+    podsumowanie, podział kosztów i `Karta` na każdy raport (dotknięcie = edycja). Kwoty UW / L4 / R8 liczy
+    tylko `src/budzet/nieobecnosci.ts`.
 
 ## 2. Klocki (`src/components/ui`)
 
