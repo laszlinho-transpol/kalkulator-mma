@@ -222,19 +222,51 @@ export function SekcjaKonstrukcje({ projekt, theme, onZmien }: Props) {
               );
             })}
           </ScrollView>
-          <TouchableOpacity
-            style={[styles.chip, { alignSelf: 'flex-start', borderColor: theme.colors.secondary }]}
-            onPress={() => setMixWarstwa({ konstrukcjaId: k.legendaId, warstwaId: w.id, wyjatekId })}
-          >
-            <Text style={{ color: theme.colors.secondary, fontSize: 12, fontWeight: '700' }}>
-              {w.mieszankaIds.length === 0
-                ? 'Materiał zatwierdzony (opcjonalnie)'
-                : posortujMieszanki(mieszanki.filter((x) => w.mieszankaIds.includes(x.id))).map((m) => {
-                    const wyt = etykietaWytworni(m.wytworniaId) ?? m.wytwórnia;
-                    return `${rodzajMieszanki(m)}${wyt ? ` · ${wyt}` : ''}`;
-                  }).join(', ')}
-            </Text>
-          </TouchableOpacity>
+          {(() => {
+            const zatwierdzone = posortujMieszanki(mieszanki.filter((x) => w.mieszankaIds.includes(x.id)));
+            const otworz = () => setMixWarstwa({ konstrukcjaId: k.legendaId, warstwaId: w.id, wyjatekId });
+            if (zatwierdzone.length === 0) {
+              return (
+                <TouchableOpacity
+                  accessibilityLabel={`Materiał zatwierdzony ${w.nazwa}`}
+                  style={[styles.chip, { alignSelf: 'flex-start', borderColor: theme.colors.secondary }]}
+                  onPress={otworz}
+                >
+                  <Text style={{ color: theme.colors.secondary, fontSize: 12, fontWeight: '700' }}>Materiał zatwierdzony (opcjonalnie)</Text>
+                </TouchableOpacity>
+              );
+            }
+            return (
+              <View
+                accessibilityLabel={`Zatwierdzone recepty ${w.nazwa}`}
+                style={[styles.zatwierdzone, { borderColor: theme.colors.border, backgroundColor: theme.colors.card }]}
+              >
+                <View style={styles.naglowekZatwierdzonych}>
+                  <Text style={{ color: theme.colors.textSecondary, fontSize: 11, fontWeight: '800', flex: 1 }}>
+                    MATERIAŁ ZATWIERDZONY · {zatwierdzone.length}
+                  </Text>
+                  <TouchableOpacity accessibilityLabel={`Zmień materiał zatwierdzony ${w.nazwa}`} onPress={otworz} hitSlop={8}>
+                    <Text style={{ color: theme.colors.secondary, fontSize: 12, fontWeight: '800' }}>+ Dodaj / zmień</Text>
+                  </TouchableOpacity>
+                </View>
+                {zatwierdzone.map((m) => {
+                  const wyt = etykietaWytworni(m.wytworniaId) ?? m.wytwórnia;
+                  return (
+                    <TouchableOpacity
+                      key={m.id}
+                      onPress={otworz}
+                      style={[styles.wierszZatwierdzonej, { borderTopColor: theme.colors.border }]}
+                    >
+                      <Text style={{ color: theme.colors.text, fontSize: 13, fontWeight: '700' }}>{rodzajMieszanki(m)}</Text>
+                      <Text style={{ color: theme.colors.textSecondary, fontSize: 11 }}>
+                        {[wyt ?? 'Bez wytwórni', m.nrRecepty].filter(Boolean).join(' · ')}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            );
+          })()}
         </View>
       ))}
       <TouchableOpacity
@@ -525,6 +557,9 @@ const styles = StyleSheet.create({
   input: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 14 },
   miniLabel: { fontSize: 11, fontWeight: '700', marginBottom: 4, color: '#6B7280' },
   chip: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 6 },
+  zatwierdzone: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingTop: 8 },
+  naglowekZatwierdzonych: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingBottom: 6 },
+  wierszZatwierdzonej: { borderTopWidth: StyleSheet.hairlineWidth, paddingVertical: 7, gap: 1 },
   wyjatek: { borderWidth: 1, borderRadius: 10, padding: 10, gap: 8 },
   odcinki: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   odcinekBtn: {

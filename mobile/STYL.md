@@ -55,6 +55,8 @@ opisanych niżej** – bez własnych kolorów, odstępów i nagłówków. Zmiana
 12. **Kategoria ruchu.** Każda recepta ma obowiązkowe pole „Kategoria ruchu” – wpisujemy samą wartość (np. `1-2`).
     Recepta wszędzie (listy, karty, plan, obmiar, raporty, PDF/HTML) wyświetla się przez `rodzajMieszanki`
     (`AC16W KR1-2`) albo `nazwaMieszanki` (z numerem recepty) – nigdy samo `m.rodzaj`.
+    Kilka recept (np. materiał zatwierdzony warstwy) pokazujemy jako osobne wiersze oddzielone linią
+    (nazwa z KR, pod nią wytwórnia i nr recepty), nigdy sklejone przecinkami w jednym wierszu.
 
 ## 2. Klocki (`src/components/ui`)
 
