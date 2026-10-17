@@ -36,6 +36,8 @@ export interface Pracownik {
   grupaId?: string;
   stawki: StawkiPracownika;
   historiaStawek?: OkresStawek<StawkiPracownika>[];
+  /** Nadgodziny odłożone „na zimę” (R8): miesiąc YYYY-MM → godziny. Pomniejszają wypłatę tego miesiąca. */
+  odlozoneNadgodziny?: Record<string, number>;
   ulubiony?: boolean;
   createdAt: string;
   updatedAt: string;
@@ -45,7 +47,12 @@ export interface RaportPracownika {
   id: string;
   pracownikId: string;
   data: string;
+  /** Brak rodzaju = dzień pracy na budowie. UW, L4 i R8 nie mają budowy – koszt idzie na brygadę. */
+  rodzaj?: 'UW' | 'L4' | 'R8';
+  /** Pusty przy UW / L4 / R8. */
   budowaId: string;
+  /** Brygada (grupa) pracownika w dniu nieobecności. */
+  grupaId?: string;
   godziny: number;
   godzinyPodstawowe: number;
   nadgodziny: number;
