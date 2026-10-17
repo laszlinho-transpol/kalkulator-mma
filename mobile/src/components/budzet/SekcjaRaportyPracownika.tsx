@@ -51,7 +51,7 @@ export function SekcjaRaportyPracownika({ pracownik, raporty }: { pracownik: Pra
       p.dniL4 ? `L4 ${p.dniL4}` : '',
       p.dniR8 ? `R8 ${p.dniR8}` : '',
     ].filter(Boolean).join(' · ');
-    return `${liczbaRaportow(liczba)} · ${formatLiczby(p.godzinyPracy)} h${dni ? ` · ${dni}` : ''} · wypłata ${formatLiczby(p.wyplata)} zł`;
+    return { podtytul: `${liczbaRaportow(liczba)} · ${formatLiczby(p.godzinyPracy)} h${dni ? ` · ${dni}` : ''}`, wyplata: `${formatLiczby(p.wyplata)} zł` };
   };
 
   return (
@@ -65,17 +65,21 @@ export function SekcjaRaportyPracownika({ pracownik, raporty }: { pracownik: Pra
         ) : lata.map((r) => (
           <View key={r.rok} style={{ gap: ODSTEP.s }}>
             <Text accessibilityRole="header" style={[TYPOGRAFIA.sekcja, { color: theme.colors.textSecondary, marginTop: ODSTEP.s }]}>{r.rok}</Text>
-            {r.miesiace.map((m) => (
-              <PozycjaListy
-                key={m.miesiac}
-                plaska
-                ikona="📅"
-                tytul={etykietaMiesiaca(m.miesiac)}
-                podtytul={opisMiesiaca(m.miesiac, m.liczba)}
-                accessibilityLabel={`Miesiąc ${etykietaMiesiaca(m.miesiac)}`}
-                onPress={() => router.push({ pathname: '/budzet/pracownicy/[id]/miesiac', params: { id: pracownik.id, miesiac: m.miesiac } } as never)}
-              />
-            ))}
+            {r.miesiace.map((m) => {
+              const opis = opisMiesiaca(m.miesiac, m.liczba);
+              return (
+                <PozycjaListy
+                  key={m.miesiac}
+                  plaska
+                  ikona="📅"
+                  tytul={etykietaMiesiaca(m.miesiac)}
+                  podtytul={opis.podtytul}
+                  prawy={opis.wyplata}
+                  accessibilityLabel={`Miesiąc ${etykietaMiesiaca(m.miesiac)}`}
+                  onPress={() => router.push({ pathname: '/budzet/pracownicy/[id]/miesiac', params: { id: pracownik.id, miesiac: m.miesiac } } as never)}
+                />
+              );
+            })}
           </View>
         ))}
       </Sekcja>

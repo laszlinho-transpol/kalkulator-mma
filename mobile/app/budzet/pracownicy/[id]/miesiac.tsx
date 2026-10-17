@@ -13,6 +13,7 @@ import {
   DOMYSLNE_GODZINY_NA_ZIME, bankR8, czyMiesiacSezonuR8, godzinyNaZime, nazwaBrygady, nazwaNieobecnosci,
   ostatniDzienMiesiaca, podsumowanieMiesiaca, rodzajRaportu, rozliczNieobecnosci,
 } from '../../../../src/budzet/nieobecnosci';
+import { dataKrotko } from '../../../../src/budzet/wyswietlanie';
 import { wstecz } from '../../../../src/budzet/nawigacja';
 import { useRouteId } from '../../../../src/hooks/useRouteId';
 import { useBudowyStore } from '../../../../src/stores/budowyStore';
@@ -23,6 +24,7 @@ import { formatLiczby, round2 } from '../../../../src/utils/calculations';
 const wielkaLitera = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 const h = (n: number) => `${formatLiczby(n)} h`;
 const zl = (n: number) => `${formatLiczby(n)} zł`;
+const dni = (n: number) => (n === 1 ? '1 dzień' : `${n} dni`);
 
 export default function MiesiacPracownikaScreen() {
   const id = useRouteId();
@@ -90,9 +92,9 @@ export default function MiesiacPracownikaScreen() {
             pozycje={[
               { etykieta: 'Przepracowane', wartosc: h(p.godzinyPracy) },
               { etykieta: 'Nadgodziny', wartosc: h(p.nadgodziny), dopisek: p.odlozenie.godziny ? `${h(p.odlozenie.godziny)} na zimę` : undefined },
-              { etykieta: 'Urlop (UW)', wartosc: `${p.dniUW} dni` },
-              { etykieta: 'Zwolnienie (L4)', wartosc: `${p.dniL4} dni` },
-              { etykieta: 'Wolne za nadgodziny (R8)', wartosc: `${p.dniR8} dni` },
+              { etykieta: 'Urlop UW', wartosc: dni(p.dniUW) },
+              { etykieta: 'Zwolnienie L4', wartosc: dni(p.dniL4) },
+              { etykieta: 'Wolne R8', wartosc: dni(p.dniR8) },
               { etykieta: 'Bank R8 na koniec', wartosc: h(bank.saldo), kolor: bank.saldo < 0 ? theme.colors.danger : undefined },
             ]}
           />
@@ -120,7 +122,7 @@ export default function MiesiacPracownikaScreen() {
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={[TYPOGRAFIA.wartosc, { color: theme.colors.text }]} numberOfLines={2}>{nazwaPozycji(poz.typ, poz.id)}</Text>
                 <Text style={[TYPOGRAFIA.opis, { color: theme.colors.textSecondary }]}>
-                  {poz.typ === 'budowa' ? 'budowa' : 'brygada – UW, L4, R8'} · wypłata {zl(poz.wyplata)}
+                  {poz.typ} · wypłata {zl(poz.wyplata)}
                 </Text>
               </View>
               <Text accessibilityLabel={`Koszt ${nazwaPozycji(poz.typ, poz.id)}`} style={[TYPOGRAFIA.wartosc, { color: poz.koszt < 0 ? theme.colors.danger : theme.colors.text }]}>
@@ -139,7 +141,7 @@ export default function MiesiacPracownikaScreen() {
               zaznaczony={zaznaczony}
               tytul="R8 – zabrać godziny na zimę"
               opis={zaznaczony
-                ? `Odłożono ${h(zapisane)} × ${zl(p.odlozenie.stawka)} (stawka nadgodziny)`
+                ? `Odłożono ${h(zapisane)} × ${zl(p.odlozenie.stawka)}`
                 : `Domyślnie ${DOMYSLNE_GODZINY_NA_ZIME} h – liczbę zmienisz poniżej`}
               prawy={zaznaczony ? `−${zl(p.odlozenie.wynagrodzenie)}` : undefined}
               accessibilityLabel="R8 – zabrać godziny na zimę"
@@ -164,7 +166,7 @@ export default function MiesiacPracownikaScreen() {
             ) : null}
             {zaznaczony ? (
               <Text style={[TYPOGRAFIA.opis, { color: theme.colors.textSecondary }]}>
-                Wypłata −{zl(p.odlozenie.wynagrodzenie)} · koszt pracodawcy −{zl(p.odlozenie.koszt)} (stawka z {ostatniDzienMiesiaca(miesiac)})
+                Wypłata −{zl(p.odlozenie.wynagrodzenie)} · koszt pracodawcy −{zl(p.odlozenie.koszt)} (stawka nadgodziny z {dataKrotko(ostatniDzienMiesiaca(miesiac))})
               </Text>
             ) : null}
           </Sekcja>
