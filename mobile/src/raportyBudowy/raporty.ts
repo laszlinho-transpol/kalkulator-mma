@@ -8,6 +8,7 @@ import type { KategoriaWarstwy, Mieszanka, ProjektBudowy, WarstwaKonstrukcji } f
 import type {
   PozycjaRaportu, Przerzut, RaportDzienny, RodzajRozliczeniaTransportu, RozliczenieTransportu, WpisSamochodow,
 } from './typy';
+import { rodzajMieszanki } from '../mieszanki/kolejnosc';
 
 const MIESIACE_MIANOWNIK = [
   'Styczeń', 'Luty', 'Marzec', 'Kwiecień', 'Maj', 'Czerwiec',
@@ -42,8 +43,8 @@ export const czyKruszywo = (kategoria: KategoriaWarstwy): boolean => kategoria =
 
 export const nazwaIlosci = (kategoria: KategoriaWarstwy): string => (czyKruszywo(kategoria) ? 'Kruszywo' : 'Masa');
 
-export function nazwaRecepty(m: Pick<Mieszanka, 'rodzaj' | 'nrRecepty'>): string {
-  return m.nrRecepty ? `${m.rodzaj} · ${m.nrRecepty}` : m.rodzaj;
+export function nazwaRecepty(m: Pick<Mieszanka, 'rodzaj'> & Partial<Pick<Mieszanka, 'nrRecepty' | 'kategoriaRuchu'>>): string {
+  return m.nrRecepty ? `${rodzajMieszanki(m)} · ${m.nrRecepty}` : rodzajMieszanki(m);
 }
 
 /** Warstwy ze wszystkich konstrukcji budowy (także zmian konstrukcji) i odcinki, na których występują. */

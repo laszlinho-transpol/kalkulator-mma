@@ -16,6 +16,8 @@ import type { Mieszanka } from '../../../../src/types';
 import { formatLiczby } from '../../../../src/utils/calculations';
 import { dzisIso } from '../../../../src/utils/zakresDat';
 import { potwierdzAkcje } from '../../../../src/utils/dialog';
+import { normalizujKategorieRuchu, rodzajMieszanki } from '../../../../src/mieszanki/kolejnosc';
+import { nazwaMieszanki } from '../../../../src/components/mieszanki/WyborMieszanki';
 
 type ZakladkaRecepty = 'dane' | 'historia';
 
@@ -39,7 +41,7 @@ export default function KartaReceptyScreen() {
   return (
     <View style={[styles.ekran, { backgroundColor: theme.colors.background }]}>
       <AppHeader
-        tytul={recepta ? `${recepta.rodzaj}${recepta.nrRecepty ? ` · ${recepta.nrRecepty}` : ''}` : 'Recepta'}
+        tytul={recepta ? nazwaMieszanki(recepta) : 'Recepta'}
         podtytul={wytwornia?.nazwa ?? 'Bez wytwórni'}
         lewy={{ tekst: '‹ Wstecz', onPress: () => wstecz(powrot) }}
         prawy={recepta ? { tekst: 'Edytuj', onPress: edytuj } : undefined}
@@ -60,7 +62,7 @@ export default function KartaReceptyScreen() {
                 <WierszDanych etykieta="Wytwórnia" wartosc={wytwornia?.nazwa ?? '—'} />
                 <WierszDanych etykieta="Rodzaj" wartosc={recepta.rodzaj} />
                 <WierszDanych etykieta="Nr recepty" wartosc={recepta.nrRecepty || '—'} />
-                <WierszDanych etykieta="Kategoria ruchu" wartosc={recepta.kategoriaRuchu || '—'} />
+                <WierszDanych etykieta="Kategoria ruchu" wartosc={normalizujKategorieRuchu(recepta.kategoriaRuchu) ? `KR${normalizujKategorieRuchu(recepta.kategoriaRuchu)}` : '— (uzupełnij w Edytuj)'} />
               </Sekcja>
               <Sekcja tytul="Parametry i cena">
                 <SiatkaDanych
@@ -75,7 +77,7 @@ export default function KartaReceptyScreen() {
                 wariant="niebezpieczny"
                 ikona="usun"
                 tekst="Usuń receptę"
-                onPress={() => potwierdzAkcje('Usuń receptę', `Usunąć „${recepta.rodzaj}”?`, async () => {
+                onPress={() => potwierdzAkcje('Usuń receptę', `Usunąć „${rodzajMieszanki(recepta)}”?`, async () => {
                   await usunMieszanke(recepta.id);
                   router.replace(powrot as never);
                 })}

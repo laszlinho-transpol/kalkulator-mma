@@ -16,7 +16,7 @@ export const NAZWY_WARSTW: Record<WarstwaMieszanki, string> = {
   inna: 'Pozostałe',
 };
 
-export const PODPOWIEDZI_KR = ['KR1-2', 'KR3-4', 'KR5-7'];
+export const PODPOWIEDZI_KR = ['1-2', '3-4', '5-7'];
 
 /** Warstwy konstrukcji od najniższej – KŁSM leży pod podbudową bitumiczną. */
 export const KOLEJNOSC_KATEGORII: KategoriaWarstwy[] = ['klsm', 'podbudowa', 'wiazaca', 'sma', 'inna'];
@@ -28,10 +28,6 @@ export const NAZWY_KATEGORII: Record<KategoriaWarstwy, string> = {
   sma: 'Ścieralne',
   inna: 'Pozostałe',
 };
-
-export function kategoriaZWarstwyMieszanki(w: WarstwaMieszanki): KategoriaWarstwy {
-  return w === 'scieralna' ? 'sma' : w;
-}
 
 type DaneMieszanki = Pick<Mieszanka, 'rodzaj'> & Partial<Pick<Mieszanka, 'nrRecepty' | 'kategoriaRuchu'>>;
 
@@ -75,9 +71,34 @@ export function uziarnienieMieszanki(rodzaj: string): number | undefined {
   return liczba === 32 ? 31.5 : liczba;
 }
 
+/** Wartość pola KR bez przedrostka: „KR 3–4” → „3-4”; undefined gdy puste. */
+export function normalizujKategorieRuchu(tekst?: string): string | undefined {
+  const t = (tekst ?? '').toUpperCase().replace(/KR/g, '').replace(/\s+/g, '').replace(/[–÷]/g, '-');
+  return t || undefined;
+}
+
+/** Błąd wpisanej kategorii ruchu (1–7, pojedyncza albo zakres rosnący), undefined gdy poprawna. */
+export function bladKategoriiRuchu(tekst?: string): string | undefined {
+  const kr = normalizujKategorieRuchu(tekst);
+  if (!kr) return 'Podaj kategorię ruchu (np. 1-2).';
+  const m = /^([1-7])(?:-([1-7]))?$/.exec(kr);
+  if (!m || (m[2] && Number(m[2]) < Number(m[1]))) return 'Kategoria ruchu to liczba 1–7 albo zakres, np. 1-2, 3-4, 5-7.';
+  return undefined;
+}
+
+/** Nazwa recepty wszędzie w aplikacji: rodzaj i „KR” z wartością pola, np. „AC16W KR1-2”. */
+export function rodzajMieszanki(m: Pick<Mieszanka, 'rodzaj'> & Partial<Pick<Mieszanka, 'kategoriaRuchu'>>): string {
+  const kr = normalizujKategorieRuchu(m.kategoriaRuchu);
+  if (!kr || ZAKRES_KR.test(m.rodzaj)) return m.rodzaj;
+  return `${m.rodzaj} KR${kr}`;
+}
+
 /** Najwyższa kategoria ruchu z pola KR, rodzaju albo numeru recepty (KR3-4 → 4). */
 export function kategoriaRuchuMieszanki(m: DaneMieszanki): number | undefined {
-  for (const tekst of [m.kategoriaRuchu, m.rodzaj, m.nrRecepty]) {
+  const pole = normalizujKategorieRuchu(m.kategoriaRuchu);
+  const zPola = pole ? /^(\d)(?:-(\d))?/.exec(pole) : null;
+  if (zPola) return Math.max(Number(zPola[1]), Number(zPola[2] ?? zPola[1]));
+  for (const tekst of [m.rodzaj, m.nrRecepty]) {
     const z = tekst ? ZAKRES_KR.exec(tekst) : null;
     if (z) return Math.max(Number(z[1]), Number(z[2] ?? z[1]));
   }

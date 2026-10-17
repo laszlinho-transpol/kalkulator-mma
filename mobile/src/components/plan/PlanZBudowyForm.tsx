@@ -39,6 +39,7 @@ import {
 import type { KategoriaWarstwy, Plan, ProjektBudowy } from '../../types';
 import { Sekcja as SekcjaUi } from '../ui';
 import { pokazKomunikat } from '../../utils/dialog';
+import { rodzajMieszanki } from '../../mieszanki/kolejnosc';
 
 const MAX_DZIALEK = 20;
 
@@ -285,7 +286,7 @@ export function PlanZBudowyForm({ tytul, budowaId, initialPlan, onZapisz }: Prop
       opcje,
       odcinki,
       obszarNazwa: obszary.find((o) => o.id === z.legendaId)?.nazwa ?? '',
-      mieszankaNazwa: mieszanki.find((m) => m.id === z.mieszankaId)?.rodzaj ?? '',
+      mieszankaNazwa: (() => { const m = mieszanki.find((x) => x.id === z.mieszankaId); return m ? rodzajMieszanki(m) : ''; })(),
     };
   }), [zakladki, projekt, mieszanki, tonazAuta, obszary]);
 
@@ -622,7 +623,7 @@ export function PlanZBudowyForm({ tytul, budowaId, initialPlan, onZapisz }: Prop
               onPress={() => setPickerMix(true)}
             >
               {mieszanka
-                ? <Text style={{ color: theme.colors.text }}>{mieszanka.rodzaj}  •  ρ = {mieszanka.ciezarObjetosciowy.toFixed(3)} t/m³</Text>
+                ? <Text style={{ color: theme.colors.text }}>{rodzajMieszanki(mieszanka)}  •  ρ = {mieszanka.ciezarObjetosciowy.toFixed(3)} t/m³</Text>
                 : <Text style={{ color: theme.colors.textSecondary }}>Wybierz receptę z listy →</Text>}
             </TouchableOpacity>
           </Sekcja>

@@ -22,6 +22,7 @@ import { formatujKilometraz } from '../../../src/utils/obmiarFigura';
 import { generujRaportObmiaruPDF, stworzRaportObmiaruPDF } from '../../../src/utils/pdfGenerator';
 import { pokazKomunikat } from '../../../src/utils/dialog';
 import { Przycisk, Sekcja, SiatkaDanych, WierszDanych, kolorDnia, rodzajDnia } from '../../../src/components/ui';
+import { rodzajMieszanki } from '../../../src/mieszanki/kolejnosc';
 
 export default function ArchiwumObmiarScreen() {
   const colorScheme = useColorScheme();
@@ -139,7 +140,7 @@ export default function ArchiwumObmiarScreen() {
                   wartosc={`${formatujKilometraz(o.bazaStart?.kilometrazKm ?? o.kilometrazStartKm, o.bazaStart?.kilometrazM ?? o.kilometrazStartM)} → ${formatujKilometraz(o.bazaKoniec?.kilometrazKm ?? o.kilometrazKoniecKm, o.bazaKoniec?.kilometrazM ?? o.kilometrazKoniecM)}`}
                 />
               ) : null}
-              {mie ? <WierszDanych etykieta="Mieszanka" wartosc={`${mie.rodzaj} · ρ ${mie.ciezarObjetosciowy.toFixed(3)}`} /> : null}
+              {mie ? <WierszDanych etykieta="Mieszanka" wartosc={`${rodzajMieszanki(mie)} · ρ ${mie.ciezarObjetosciowy.toFixed(3)}`} /> : null}
               {wpisy.length === 0 ? (
                 <Text style={{ color: theme.colors.textSecondary, marginTop: 8 }}>Brak wpisów WZ.</Text>
               ) : wpisy.map((w) => {

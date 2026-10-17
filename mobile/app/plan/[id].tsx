@@ -38,6 +38,7 @@ import { eksportujJSON, generujInteraktywnyHTML } from '../../src/utils/htmlGene
 import type { DzialkaRobocza, Rzut } from '../../src/types';
 import { Przycisk, Sekcja, SiatkaDanych, WierszDanych, kolorDnia, rodzajDnia } from '../../src/components/ui';
 import { karta as kartaWspolna } from '../../src/constants/layout';
+import { rodzajMieszanki } from '../../src/mieszanki/kolejnosc';
 
 type ZakladkaTyp = 'plan' | 'tabela' | 'szkic';
 
@@ -198,7 +199,7 @@ export default function PlanDetailScreen() {
               return (
                 <Sekcja key={dz.id} tytul={dz.nazwa ? `${dz.nazwa} · ${zakres}` : zakres}>
                   <WierszDanych etykieta="Kierunek" wartosc={dz.kierunekUkladania === 'malejacy' ? 'malejący ↓' : 'rosnący ↑'} />
-                  <WierszDanych etykieta="Mieszanka" wartosc={`${mieszanka.rodzaj}  ρ=${mieszanka.ciezarObjetosciowy.toFixed(3)}`} />
+                  <WierszDanych etykieta="Mieszanka" wartosc={`${rodzajMieszanki(mieszanka)}  ρ=${mieszanka.ciezarObjetosciowy.toFixed(3)}`} />
                   <WierszDanych etykieta="Tolerancja" wartosc={formatujTolerancje(dz)} />
                   <SiatkaDanych
                     pozycje={[

@@ -11,6 +11,7 @@ import { obliczWynikiDzialki, obliczPowierzchnioweOdStartu, formatLiczby } from 
 import { formatujDatePl } from './dates';
 import { infoAutaWz, dlugoscUkladaniaObszaru } from './obmiarLive';
 import { formatujKilometraz } from './obmiarFigura';
+import { rodzajMieszanki } from '../mieszanki/kolejnosc';
 
 interface GenerujPDFOptions {
   plan: Plan;
@@ -95,7 +96,7 @@ export function htmlRaportuDnia({ plan, wpisyLive, mieszanki, budowa }: GenerujP
     return `
       <h2>Działka: ${dz.nazwa}</h2>
       <div class="section-box">
-        <div class="info-row"><span class="lbl">Mieszanka</span><span class="val">${mie?.rodzaj ?? '–'} (ρ = ${mie?.ciezarObjetosciowy.toFixed(3) ?? '–'} t/m³)</span></div>
+        <div class="info-row"><span class="lbl">Mieszanka</span><span class="val">${mie ? rodzajMieszanki(mie) : '–'} (ρ = ${mie?.ciezarObjetosciowy.toFixed(3) ?? '–'} t/m³)</span></div>
         <div class="info-row"><span class="lbl">Grubość projektowana</span><span class="val">${dz.grubosc} cm</span></div>
         ${wyniki ? `<div class="info-row"><span class="lbl">Masa planu</span><span class="val">${formatLiczby(wyniki.lacznaIloscMasy, 3)} Mg</span></div>` : ''}
         ${wpisyDz.length > 0 ? `
@@ -272,7 +273,7 @@ export async function stworzRaportObmiaruPDF({
         <div class="info-row"><span class="lbl">Powierzchnia</span><span class="val">${formatLiczby(o.powierzchniaM2)} m²</span></div>
         <div class="info-row"><span class="lbl">Długość układania</span><span class="val">${formatLiczby(dlugoscUkladaniaObszaru(o))} m</span></div>
         ${kmS || kmK ? `<div class="info-row"><span class="lbl">Kilometraż</span><span class="val">${escapeHtml(kmS)} → ${escapeHtml(kmK)}</span></div>` : ''}
-        ${mie ? `<div class="info-row"><span class="lbl">Mieszanka</span><span class="val">${escapeHtml(mie.rodzaj)} · ρ ${mie.ciezarObjetosciowy.toFixed(3)}</span></div>` : ''}
+        ${mie ? `<div class="info-row"><span class="lbl">Mieszanka</span><span class="val">${escapeHtml(rodzajMieszanki(mie))} · ρ ${mie.ciezarObjetosciowy.toFixed(3)}</span></div>` : ''}
         ${o.gruboscCm != null ? `<div class="info-row"><span class="lbl">Grubość planu</span><span class="val">${formatLiczby(o.gruboscCm)} cm</span></div>` : ''}
         <div class="info-row"><span class="lbl">Aut / tony</span><span class="val">${wpisy.length} · ${formatLiczby(wpisy.reduce((a, w) => a + w.tony, 0), 2)} Mg</span></div>
       </div>

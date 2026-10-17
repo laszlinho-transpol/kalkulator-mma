@@ -4,16 +4,18 @@ import { Etykieta, Wybor, stylFormularza } from '../common/Formularz';
 import { Naciskany } from '../ui/Naciskany';
 import { useMotyw } from '../../hooks/useMotyw';
 import { ODSTEP, PROMIEN, TYPOGRAFIA } from '../../constants/styl';
-import { etykietaUziarnienia, grupujMieszanki } from '../../mieszanki/kolejnosc';
+import { etykietaUziarnienia, grupujMieszanki, normalizujKategorieRuchu, rodzajMieszanki } from '../../mieszanki/kolejnosc';
 import { useWytwornieStore } from '../../stores/wytwornieStore';
 import type { Mieszanka } from '../../types';
 
 const BEZ_WYTWORNI = '__bez__';
 
-export const nazwaMieszanki = (m: Pick<Mieszanka, 'rodzaj' | 'nrRecepty'>) => `${m.rodzaj}${m.nrRecepty ? ` · ${m.nrRecepty}` : ''}`;
+export const nazwaMieszanki = (m: Pick<Mieszanka, 'rodzaj'> & Partial<Pick<Mieszanka, 'nrRecepty' | 'kategoriaRuchu'>>) => (
+  `${rodzajMieszanki(m)}${m.nrRecepty ? ` · ${m.nrRecepty}` : ''}`
+);
 
 export function opisMieszanki(m: Mieszanka): string {
-  return [`ρ = ${m.ciezarObjetosciowy.toFixed(3)} t/m³`, m.kategoriaRuchu].filter(Boolean).join(' · ');
+  return `ρ = ${m.ciezarObjetosciowy.toFixed(3)} t/m³${normalizujKategorieRuchu(m.kategoriaRuchu) ? '' : ' · bez kategorii ruchu'}`;
 }
 
 /** Mieszanki pogrupowane: nagłówek rodzaju warstwy, a w nim oddzielone bloki uziarnienia. */
@@ -57,7 +59,7 @@ export function ListaMieszanek<T extends Mieszanka>({ mieszanki, renderuj }: {
 export function WierszMieszanki({ mieszanka, prawy, onPress }: { mieszanka: Mieszanka; prawy?: string; onPress: () => void }) {
   const theme = useMotyw();
   return (
-    <Naciskany accessibilityRole="button" accessibilityLabel={`Recepta ${mieszanka.rodzaj}`} onPress={onPress} style={styles.wiersz}>
+    <Naciskany accessibilityRole="button" accessibilityLabel={`Recepta ${rodzajMieszanki(mieszanka)}`} onPress={onPress} style={styles.wiersz}>
       <View style={{ flex: 1 }}>
         <Text style={[TYPOGRAFIA.wartosc, { color: theme.colors.text }]} numberOfLines={1}>{nazwaMieszanki(mieszanka)}</Text>
         <Text style={[TYPOGRAFIA.opis, { color: theme.colors.textSecondary }]} numberOfLines={1}>{opisMieszanki(mieszanka)}</Text>

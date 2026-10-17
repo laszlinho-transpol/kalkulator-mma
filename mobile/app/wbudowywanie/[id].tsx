@@ -69,6 +69,7 @@ import {
 import { pokazKomunikat, potwierdzAkcje } from '../../src/utils/dialog';
 import type { DzialkaRobocza, Plan, WpisLive } from '../../src/types';
 import { karta as kartaWspolna } from '../../src/constants/layout';
+import { rodzajMieszanki } from '../../src/mieszanki/kolejnosc';
 
 type ZakladkaTyp = 'plan' | 'kontrola' | 'live' | 'pzt';
 
@@ -391,7 +392,7 @@ export default function WbudowywanieDetailScreen() {
     const dz = aktywnaDzialka?.dzialka;
     if (!dz) return;
     const mix = dz.mieszankaId;
-    const nazwaMix = getMieszanka(mix)?.rodzaj ?? 'mieszanki';
+    const nazwaMix = (getMieszanka(mix) ? rodzajMieszanki(getMieszanka(mix)!) : 'mieszanki');
     potwierdzAkcje(
       'Koniec mieszanki',
       `Zakończyć wszystkie działki mieszanki ${nazwaMix} i przejść do kolejnej?`,
@@ -641,7 +642,7 @@ export default function WbudowywanieDetailScreen() {
                     powObszaru += w.lacznaPowierzchnia;
                     masaObszaru += w.lacznaIloscMasy;
                     autaObszaru += w.iloscSamochodow;
-                    if (!mieszNazwy.includes(mie.rodzaj)) mieszNazwy.push(mie.rodzaj);
+                    if (!mieszNazwy.includes(rodzajMieszanki(mie))) mieszNazwy.push(rodzajMieszanki(mie));
                   }
                   return (
                     <View key={obszar.id}>
@@ -733,7 +734,7 @@ export default function WbudowywanieDetailScreen() {
                   {dz.nazwa}
                   {tabelaDz ? `  (auta ${tabelaDz.numerAutaOd}–${tabelaDz.numerAutaDo})` : ''}
                 </Text>
-                <IR label="Mieszanka" v={`${mie.rodzaj}  ρ=${mie.ciezarObjetosciowy.toFixed(3)}`} theme={theme} />
+                <IR label="Mieszanka" v={`${rodzajMieszanki(mie)}  ρ=${mie.ciezarObjetosciowy.toFixed(3)}`} theme={theme} />
                 <IR label="Grubość projektowa" v={`${gruboscProjektowa(dz)} cm`} theme={theme} />
                 <IR label="Tolerancja" v={formatujTolerancje(dz)} theme={theme} />
                 <IR label="Grubość wbudowywania" v={`${gruboscWbudowywania(dz)} cm`} theme={theme} />
@@ -1295,7 +1296,7 @@ export default function WbudowywanieDetailScreen() {
                       onPress={koniecMieszanki}
                     >
                       <Text style={{ color: theme.colors.info, fontWeight: '700', fontSize: 14 }}>
-                        Koniec mieszanki – {getMieszanka(aktywnaDzialka.dzialka.mieszankaId)?.rodzaj ?? 'następna'}
+                        Koniec mieszanki – {(() => { const m = getMieszanka(aktywnaDzialka.dzialka.mieszankaId); return m ? rodzajMieszanki(m) : 'następna'; })()}
                       </Text>
                     </TouchableOpacity>
                   )}

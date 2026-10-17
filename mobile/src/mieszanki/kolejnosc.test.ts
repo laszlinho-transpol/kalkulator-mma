@@ -1,7 +1,8 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  grupujMieszanki, kategoriaRuchuMieszanki, posortujMieszanki, uziarnienieMieszanki, warstwaMieszanki,
+  bladKategoriiRuchu, grupujMieszanki, kategoriaRuchuMieszanki, normalizujKategorieRuchu, posortujMieszanki, rodzajMieszanki,
+  uziarnienieMieszanki, warstwaMieszanki,
 } from './kolejnosc';
 
 describe('kolejność mieszanek', () => {
@@ -25,6 +26,23 @@ describe('kolejność mieszanek', () => {
     assert.equal(kategoriaRuchuMieszanki({ rodzaj: 'AC16W', kategoriaRuchu: 'KR5-7' }), 7);
     assert.equal(kategoriaRuchuMieszanki({ rodzaj: 'AC16W', nrRecepty: '12/2025 KR1-2' }), 2);
     assert.equal(kategoriaRuchuMieszanki({ rodzaj: 'AC16W' }), undefined);
+    assert.equal(kategoriaRuchuMieszanki({ rodzaj: 'AC16W', kategoriaRuchu: '1-2' }), 2);
+    assert.equal(kategoriaRuchuMieszanki({ rodzaj: 'AC16W', kategoriaRuchu: '5' }), 5);
+  });
+
+  it('nazwa recepty: rodzaj + KR z wpisanej wartości', () => {
+    assert.equal(normalizujKategorieRuchu(' kr 3 – 4 '), '3-4');
+    assert.equal(normalizujKategorieRuchu(''), undefined);
+    assert.equal(rodzajMieszanki({ rodzaj: 'AC16W', kategoriaRuchu: '1-2' }), 'AC16W KR1-2');
+    assert.equal(rodzajMieszanki({ rodzaj: 'AC16W', kategoriaRuchu: 'KR5-7' }), 'AC16W KR5-7');
+    assert.equal(rodzajMieszanki({ rodzaj: 'AC16W KR3-4', kategoriaRuchu: '3-4' }), 'AC16W KR3-4');
+    assert.equal(rodzajMieszanki({ rodzaj: 'SMA8' }), 'SMA8');
+    assert.equal(bladKategoriiRuchu('1-2'), undefined);
+    assert.equal(bladKategoriiRuchu('KR5-7'), undefined);
+    assert.equal(bladKategoriiRuchu('3'), undefined);
+    assert.ok(bladKategoriiRuchu(''));
+    assert.ok(bladKategoriiRuchu('4-2'));
+    assert.ok(bladKategoriiRuchu('8'));
   });
 
   it('sortuje: warstwa od dołu, uziarnienie malejąco, KR malejąco', () => {

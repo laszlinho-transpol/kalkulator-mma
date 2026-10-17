@@ -26,6 +26,7 @@ import { zakresKmObszaru } from '../../utils/planZBudowy';
 import { Z_METROW_BIEZACYCH } from '../../constants';
 import { Przycisk, PrzyciskIkony } from '../ui';
 import { potwierdzAkcje } from '../../utils/dialog';
+import { rodzajMieszanki } from '../../mieszanki/kolejnosc';
 
 interface Props {
   projekt: ProjektBudowy;
@@ -230,7 +231,7 @@ export function SekcjaKonstrukcje({ projekt, theme, onZmien }: Props) {
                 ? 'Materiał zatwierdzony (opcjonalnie)'
                 : posortujMieszanki(mieszanki.filter((x) => w.mieszankaIds.includes(x.id))).map((m) => {
                     const wyt = etykietaWytworni(m.wytworniaId) ?? m.wytwórnia;
-                    return `${m.rodzaj}${wyt ? ` · ${wyt}` : ''}`;
+                    return `${rodzajMieszanki(m)}${wyt ? ` · ${wyt}` : ''}`;
                   }).join(', ')}
             </Text>
           </TouchableOpacity>

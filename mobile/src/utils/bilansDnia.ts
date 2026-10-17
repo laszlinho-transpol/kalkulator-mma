@@ -4,6 +4,7 @@ import type { Plan, WpisLive } from '../types';
 import { obliczLacznaDlugosc, obliczPowierzchnioweOdStartu, obliczWynikiDzialki } from './calculations';
 import { pikietazPoMetrach } from './chainage';
 import { gruboscWbudowywania } from './grubosc';
+import { rodzajMieszanki } from '../mieszanki/kolejnosc';
 
 export interface MieszankaBilansu {
   id: string;
@@ -75,7 +76,7 @@ export function policzBilansDnia(
 
   const mieszankaNazwy = [...new Set(plan.dzialki.map((dz) => {
     const m = mieszanki.find((x) => x.id === dz.mieszankaId);
-    return m?.rodzaj;
+    return m ? rodzajMieszanki(m) : undefined;
   }).filter((x): x is string => !!x))];
 
   let masaPlanMg = 0;

@@ -40,6 +40,7 @@ import { wybierzPlikTlaPzt, rozmiarObrazu, zapiszJpegTla } from '../../src/utils
 import { PdfRasterizer } from '../../src/components/obmiar/PdfRasterizer';
 import { karta as kartaWspolna } from '../../src/constants/layout';
 import { pokazKomunikat, potwierdzAkcje } from '../../src/utils/dialog';
+import { rodzajMieszanki } from '../../src/mieszanki/kolejnosc';
 
 type SekcjaNr = 'start' | 'odsadzka' | 'konstrukcja' | null;
 
@@ -826,7 +827,7 @@ function KonstrukcjaObszaru({
       >
         <Text style={{ color: theme.colors.text, fontWeight: '700' }}>
           {mieszanka
-            ? `${mieszanka.rodzaj}${mieszanka.nrRecepty ? ` · ${mieszanka.nrRecepty}` : ''} · ρ ${mieszanka.ciezarObjetosciowy.toFixed(3)}`
+            ? `${rodzajMieszanki(mieszanka)}${mieszanka.nrRecepty ? ` · ${mieszanka.nrRecepty}` : ''} · ρ ${mieszanka.ciezarObjetosciowy.toFixed(3)}`
             : 'Wybierz mieszankę'}
         </Text>
       </TouchableOpacity>

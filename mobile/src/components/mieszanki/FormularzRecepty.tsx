@@ -7,7 +7,7 @@ import type { AppTheme } from '../../constants/theme';
 import { wstecz } from '../../budzet/nawigacja';
 import { parsujLiczbePola, tekstZapisanejStawki } from '../../budzet/rozliczenie';
 import { useWytwornieStore } from '../../stores/wytwornieStore';
-import { PODPOWIEDZI_KR } from '../../mieszanki/kolejnosc';
+import { PODPOWIEDZI_KR, bladKategoriiRuchu, normalizujKategorieRuchu, rodzajMieszanki } from '../../mieszanki/kolejnosc';
 
 export interface DaneReceptyFormularza {
   wytworniaId?: string;
@@ -32,7 +32,7 @@ export function FormularzRecepty({ theme, tytul, wsteczDo, poczatek, onZapisz }:
   const [wytworniaId, setWytworniaId] = useState(poczatek?.wytworniaId ?? '');
   const [rodzaj, setRodzaj] = useState(poczatek?.rodzaj ?? '');
   const [nrRecepty, setNrRecepty] = useState(poczatek?.nrRecepty ?? '');
-  const [kr, setKr] = useState(poczatek?.kategoriaRuchu ?? '');
+  const [kr, setKr] = useState(normalizujKategorieRuchu(poczatek?.kategoriaRuchu) ?? '');
   const [ciezar, setCiezar] = useState(poczatek?.ciezarObjetosciowy ? String(poczatek.ciezarObjetosciowy).replace('.', ',') : '');
   const [cena, setCena] = useState(tekstZapisanejStawki(poczatek?.cena));
   const [blad, setBlad] = useState('');
@@ -40,6 +40,8 @@ export function FormularzRecepty({ theme, tytul, wsteczDo, poczatek, onZapisz }:
 
   const zapisz = async () => {
     if (!rodzaj.trim()) { setBlad('Podaj rodzaj mieszanki (np. AC22P).'); return; }
+    const bladKr = bladKategoriiRuchu(kr);
+    if (bladKr) { setBlad(bladKr); return; }
     const c = parsujLiczbePola(ciezar);
     if (c == null || c <= 0 || c > 5) { setBlad('Podaj prawidłowy ciężar objętościowy (np. 2,455).'); return; }
     let kwota: number | undefined;
@@ -55,7 +57,7 @@ export function FormularzRecepty({ theme, tytul, wsteczDo, poczatek, onZapisz }:
         wytworniaId: wytworniaId || undefined,
         rodzaj: rodzaj.trim().toUpperCase(),
         nrRecepty: nrRecepty.trim() || undefined,
-        kategoriaRuchu: kr.trim().toUpperCase().replace(/\s+/g, '') || undefined,
+        kategoriaRuchu: normalizujKategorieRuchu(kr),
         ciezarObjetosciowy: Math.round(c * 1000) / 1000,
         cena: kwota,
       });
@@ -82,17 +84,23 @@ export function FormularzRecepty({ theme, tytul, wsteczDo, poczatek, onZapisz }:
         <View>
           <Pole
             etykieta="Kategoria ruchu"
-            info="Opcjonalnie, np. KR3-4. Ustala kolejność recept o tym samym rodzaju i uziarnieniu – od najwyższej kategorii. Bez pola KR jest szukane w rodzaju i numerze recepty."
+            wymagane
+            info="Wpisz samą wartość, np. 1-2. W całej aplikacji recepta pokazuje się jako rodzaj + KR, np. AC16W KR1-2. Kategoria ustala też kolejność recept o tym samym rodzaju – od najwyższej."
             value={kr}
-            onChangeText={(t) => setKr(t.toUpperCase())}
-            placeholder="np. KR3-4"
+            onChangeText={(t) => setKr(t.toUpperCase().replace(/KR/g, '').replace(/\s+/g, ''))}
+            placeholder="1-2"
             accessibilityLabel="Kategoria ruchu"
           />
           <View style={[stylFormularza.chipy, { marginTop: 6 }]}>
             {PODPOWIEDZI_KR.map((k) => (
-              <Wybor key={k} zaznaczony={kr === k} etykieta={k} accessibilityLabel={`Kategoria ${k}`} onPress={() => setKr(kr === k ? '' : k)} />
+              <Wybor key={k} zaznaczony={kr === k} etykieta={`KR${k}`} accessibilityLabel={`Kategoria KR${k}`} onPress={() => setKr(kr === k ? '' : k)} />
             ))}
           </View>
+          {rodzaj.trim() && normalizujKategorieRuchu(kr) ? (
+            <Text style={{ color: theme.colors.textSecondary, fontSize: 12, marginTop: 6 }}>
+              Nazwa w aplikacji: {rodzajMieszanki({ rodzaj: rodzaj.trim().toUpperCase(), kategoriaRuchu: kr })}
+            </Text>
+          ) : null}
         </View>
         <Wiersz>
           <Pole etykieta="Ciężar obj." wymagane info="Ciężar objętościowy – masa po zagęszczeniu, np. 2,455 t/m³." jednostka="t/m³" value={ciezar} onChangeText={setCiezar} placeholder="2,455" accessibilityLabel="Ciężar objętościowy" liczba />

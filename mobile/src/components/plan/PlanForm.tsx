@@ -32,6 +32,7 @@ import { obliczPikietazFigur, formatujPikietaz, nastepnyPikietaz } from '../../u
 import { DO_METROW_BIEZACYCH, NAZWY_FIGUR } from '../../constants';
 import type { DzialkaRobocza, Figura, KierunekUkladania, Mieszanka, Plan, Rzut } from '../../types';
 import { pokazKomunikat } from '../../utils/dialog';
+import { rodzajMieszanki } from '../../mieszanki/kolejnosc';
 
 // ---- Typ roboczy formularza działki (stringi dla pól numerycznych) ----
 export interface DzialkaForm {
@@ -462,7 +463,7 @@ function KartaDzialki({ dz, dzIdx, theme, tonazAuta, pobierzMieszanke, updateDzi
         onPress={onMieszankaPicker}
       >
         {mieszanka
-          ? <Text style={[styles.btnMieszankaTekst, { color: theme.colors.text }]}>{mieszanka.rodzaj}  •  ρ = {mieszanka.ciezarObjetosciowy.toFixed(3)} t/m³</Text>
+          ? <Text style={[styles.btnMieszankaTekst, { color: theme.colors.text }]}>{rodzajMieszanki(mieszanka)}  •  ρ = {mieszanka.ciezarObjetosciowy.toFixed(3)} t/m³</Text>
           : <Text style={[styles.btnMieszankaTekst, { color: theme.colors.textSecondary }]}>Dotknij, aby wybrać mieszankę →</Text>
         }
       </TouchableOpacity>
