@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.43';
+export const WERSJA_APLIKACJI = '1.8.44';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,15 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.44',
+    data: '2026-10-17',
+    tytul: 'Urlop bezpłatny i nieobecność w raportach pracownika',
+    zmiany: [
+      'Raport pracownika: nowe rodzaje dnia UB – urlop bezpłatny i NB – nieobecność; 0 zł dla pracownika i dla pracodawcy',
+      'UB i NB wpisuje się w dni robocze (także kilka dni naraz), zamykają czerwony dzień w kalendarzu i są liczone w miesiącu pracownika',
+    ],
+  },
   {
     wersja: '1.8.43',
     data: '2026-10-17',
