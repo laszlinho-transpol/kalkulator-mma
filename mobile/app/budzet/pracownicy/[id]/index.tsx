@@ -21,10 +21,6 @@ import { AkcjeTelefonu, Przycisk, Sekcja, SiatkaDanych, WierszDanych } from '../
 import { karta as kartaWspolna } from '../../../../src/constants/layout';
 
 const linieWynagrodzenia = (stawki: StawkiPracownika) => linieStawekPola(POLA_WYNAGRODZENIA, stawki);
-const liniaNaKafelek = (linia: string) => {
-  const i = linia.indexOf(': ');
-  return i < 0 ? { etykieta: linia, wartosc: '' } : { etykieta: linia.slice(0, i), wartosc: linia.slice(i + 2) };
-};
 
 export default function KartaPracownikaScreen() {
   const id = useRouteId();
@@ -114,11 +110,18 @@ export default function KartaPracownikaScreen() {
                 )}
               </Sekcja>
               <Sekcja tytul="Wynagrodzenie" info="Stawki z karty. Okresy z innymi stawkami ustawisz w zakładce Historia stawek.">
-                {linieWynagrodzenia(pracownik.stawki).length === 0 ? (
-                  <Text style={{ color: theme.colors.textSecondary }}>Brak stawek.</Text>
-                ) : (
-                  <SiatkaDanych pozycje={linieWynagrodzenia(pracownik.stawki).map(liniaNaKafelek)} />
-                )}
+                <SiatkaDanych
+                  pozycje={POLA_WYNAGRODZENIA.map((pole) => {
+                    const wartosc = pracownik.stawki[pole.id];
+                    return {
+                      etykieta: pole.nazwa,
+                      wartosc: !wartosc ? '—' : pole.mnoznik ? `× ${formatLiczby(wartosc)}` : `${formatLiczby(wartosc)} ${pole.jednostka}`,
+                    };
+                  })}
+                />
+                {!pracownik.stawki.delegacja ? (
+                  <Przycisk maly wariant="tekst" tekst="Uzupełnij stawkę delegacji" accessibilityLabel="Uzupełnij delegację" onPress={edytuj} />
+                ) : null}
               </Sekcja>
             </>
           ) : null}
