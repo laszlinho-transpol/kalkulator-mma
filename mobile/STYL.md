@@ -48,6 +48,8 @@ opisanych niżej** – bez własnych kolorów, odstępów i nagłówków. Zmiana
     Listy recept wyświetlamy przez `ListaMieszanek`, a sortujemy `posortujMieszanki` (`src/mieszanki/kolejnosc.ts`):
     rodzaj warstwy od najniższej (podbudowy → wiążące → ścieralne), uziarnienie od największego (31,5 → 5),
     kategoria ruchu od najwyższej. Grupa warstwy ma nagłówek, bloki uziarnienia są od siebie oddzielone.
+    Ta sama kolejność obowiązuje na stronie budowy: kolumny przedmiaru i „Suma mieszanek” idą od najniższej
+    warstwy (`KOLEJNOSC_KATEGORII`: KŁSM → podbudowy → wiążące → ścieralne), sumy grupowane nagłówkami warstw.
 
 ## 2. Klocki (`src/components/ui`)
 

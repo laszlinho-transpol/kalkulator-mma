@@ -42,6 +42,7 @@ import {
   sumaOsiTrasyM,
   podsumowanieOsiTrasy,
   odsadzkiWarstwy,
+  type WierszPrzedmiaru,
 } from './projektBudowy';
 
 function prostokat(id: string, kolor: string, dlugoscM: number, szerM: number, nazwa: string): ObszarObmiaru {
@@ -471,6 +472,27 @@ describe('projektBudowy', () => {
     assert.equal(poNazwie[0].nazwa, 'Trasa L+P');
     const zpowrotem = obliczPrzedmiar(rozlaczWiersz(zScaleniem, scalony[0].id));
     assert.equal(zpowrotem.length, 2);
+  });
+
+  it('sumy mieszanek od najniższej warstwy: KŁSM, podbudowy, wiążące, ścieralne', () => {
+    const T = '2026-01-01T00:00:00.000Z';
+    const mix = (id: string, rodzaj: string, kategoriaRuchu?: string): Mieszanka => ({ id, rodzaj, kategoriaRuchu, ciezarObjetosciowy: 2.4, createdAt: T, updatedAt: T });
+    const mieszanki = [mix('s', 'SMA8'), mix('a11', 'AC11S'), mix('w1', 'AC16W', 'KR1-2'), mix('w7', 'AC16W', 'KR5-7'), mix('w22', 'AC22W'), mix('p', 'AC22P')];
+    const war = (nazwa: string, kategoria: WierszPrzedmiaru['warstwy'][0]['kategoria'], mieszankaIds: string[]) => ({
+      nazwa, kategoria, kolejnosc: 1, powierzchniaM2: 100, gruboscCm: 4, odsadzkaCm: 0, tony: 10, mieszankaIds,
+    });
+    const wiersze: WierszPrzedmiaru[] = [{
+      id: 'r', nazwa: 'Trasa', legendaIds: ['r'], powierzchniaObrysuM2: 100, dlugoscM: 10, daSieScalicZ: [],
+      warstwy: [
+        war('SMA', 'sma', ['s', 'a11']), war('Wiążąca', 'wiazaca', ['w1', 'w22', 'w7']),
+        war('Podbudowa', 'podbudowa', ['p']), war('KŁSM', 'klsm', []),
+      ],
+    }];
+    const sumy = sumyMieszanek(wiersze, mieszanki);
+    assert.deepEqual(
+      sumy.map((s) => `${s.warstwa}:${s.nazwa}`),
+      ['klsm:KŁSM', 'podbudowa:AC22P', 'wiazaca:AC22W', 'wiazaca:AC16W KR5-7', 'wiazaca:AC16W KR1-2', 'sma:AC11S', 'sma:SMA8'],
+    );
   });
 
   it('sumuje tę samą mieszankę przy różnych grubościach', () => {

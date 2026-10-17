@@ -18,8 +18,10 @@ import {
   scalWiersze,
   sumyMieszanek,
   zmienNazweScalonegoWiersza,
+  type SumaMieszanki,
   type WierszPrzedmiaru,
 } from '../../utils/projektBudowy';
+import { NAZWY_KATEGORII } from '../../mieszanki/kolejnosc';
 import { formatLiczby } from '../../utils/calculations';
 import { pokazKomunikat } from '../../utils/dialog';
 
@@ -31,10 +33,10 @@ interface Props {
 }
 
 const KAT_KOLUMNY: { kat: WierszPrzedmiaru['warstwy'][0]['kategoria']; etykieta: string }[] = [
-  { kat: 'sma', etykieta: 'SMA' },
-  { kat: 'wiazaca', etykieta: 'Wiążąca' },
-  { kat: 'podbudowa', etykieta: 'Podbudowa' },
   { kat: 'klsm', etykieta: 'KŁSM' },
+  { kat: 'podbudowa', etykieta: 'Podbudowa' },
+  { kat: 'wiazaca', etykieta: 'Wiążąca' },
+  { kat: 'sma', etykieta: 'Ścieralna' },
 ];
 
 export function SekcjaPrzedmiar({ projekt, theme, kodBudowy, onZmien }: Props) {
@@ -51,6 +53,13 @@ export function SekcjaPrzedmiar({ projekt, theme, kodBudowy, onZmien }: Props) {
     () => sumyMieszanek(wiersze, mieszanki, (id) => wytwornie.find((w) => w.id === id)?.nazwa),
     [wiersze, mieszanki, wytwornie],
   );
+
+  const grupySum = sumy.reduce<{ warstwa: SumaMieszanki['warstwa']; sumy: SumaMieszanki[] }[]>((acc, x) => {
+    const ostatnia = acc[acc.length - 1];
+    if (ostatnia && ostatnia.warstwa === x.warstwa) ostatnia.sumy.push(x);
+    else acc.push({ warstwa: x.warstwa, sumy: [x] });
+    return acc;
+  }, []);
 
   if (!czyLegendaUzupelniona(projekt.legenda) || projekt.konstrukcje.length === 0) {
     return (
@@ -197,13 +206,23 @@ export function SekcjaPrzedmiar({ projekt, theme, kodBudowy, onZmien }: Props) {
       </ScrollView>
 
       <Text style={{ color: theme.colors.primary, fontWeight: '800', fontSize: 12 }}>SUMA MIESZANEK</Text>
-      {sumy.map((s) => (
-        <View key={s.klucz} style={[karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-          <Text style={{ color: theme.colors.text, fontWeight: '700' }}>{s.nazwa}</Text>
-          <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>
-            {s.wytwornia ? `${s.wytwornia} · ` : ''}
-            {formatLiczby(s.powierzchniaM2, 1)} m² · grubość ważona {formatLiczby(s.gruboscWazonaCm, 1)} cm · {formatLiczby(s.tony, 2)} t
-          </Text>
+      {grupySum.map((g) => (
+        <View key={g.warstwa} accessibilityLabel={`Suma ${NAZWY_KATEGORII[g.warstwa]}`} style={styles.grupa}>
+          <View style={[styles.naglowekGrupy, { borderBottomColor: theme.colors.primary }]}>
+            <Text style={[styles.tytulGrupy, { color: theme.colors.text }]}>{NAZWY_KATEGORII[g.warstwa]}</Text>
+            <Text style={{ color: theme.colors.textSecondary, fontSize: 12, fontWeight: '700' }}>
+              {formatLiczby(g.sumy.reduce((suma, x) => suma + x.tony, 0), 2)} t
+            </Text>
+          </View>
+          {g.sumy.map((s) => (
+            <View key={s.klucz} style={[karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+              <Text style={{ color: theme.colors.text, fontWeight: '700' }}>{s.nazwa}</Text>
+              <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>
+                {s.wytwornia ? `${s.wytwornia} · ` : ''}
+                {formatLiczby(s.powierzchniaM2, 1)} m² · grubość ważona {formatLiczby(s.gruboscWazonaCm, 1)} cm · {formatLiczby(s.tony, 2)} t
+              </Text>
+            </View>
+          ))}
         </View>
       ))}
     </View>
@@ -220,5 +239,8 @@ const styles = StyleSheet.create({
   td: { fontSize: 11, paddingHorizontal: 8, lineHeight: 16 },
   colNazwa: { width: 168, paddingHorizontal: 8 },
   colKat: { width: 96, textAlign: 'right' },
+  grupa: { gap: 6, marginBottom: 6 },
+  naglowekGrupy: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', borderBottomWidth: 2, paddingBottom: 4 },
+  tytulGrupy: { fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
   nazwaInput: { borderWidth: 1, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 4, fontSize: 12, fontWeight: '700' },
 });

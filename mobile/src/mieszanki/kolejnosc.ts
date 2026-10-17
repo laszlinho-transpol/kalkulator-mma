@@ -3,7 +3,7 @@
 // 2) uziarnienie od największego: 31,5 → 22 → 16 → 11 → 8 → 5,
 // 3) kategoria ruchu od najwyższej (KR7 → KR1).
 
-import type { Mieszanka } from '../types';
+import type { KategoriaWarstwy, Mieszanka } from '../types';
 
 export type WarstwaMieszanki = 'podbudowa' | 'wiazaca' | 'scieralna' | 'inna';
 
@@ -17,6 +17,21 @@ export const NAZWY_WARSTW: Record<WarstwaMieszanki, string> = {
 };
 
 export const PODPOWIEDZI_KR = ['KR1-2', 'KR3-4', 'KR5-7'];
+
+/** Warstwy konstrukcji od najniższej – KŁSM leży pod podbudową bitumiczną. */
+export const KOLEJNOSC_KATEGORII: KategoriaWarstwy[] = ['klsm', 'podbudowa', 'wiazaca', 'sma', 'inna'];
+
+export const NAZWY_KATEGORII: Record<KategoriaWarstwy, string> = {
+  klsm: 'Kruszywo (KŁSM)',
+  podbudowa: 'Podbudowy',
+  wiazaca: 'Wiążące',
+  sma: 'Ścieralne',
+  inna: 'Pozostałe',
+};
+
+export function kategoriaZWarstwyMieszanki(w: WarstwaMieszanki): KategoriaWarstwy {
+  return w === 'scieralna' ? 'sma' : w;
+}
 
 type DaneMieszanki = Pick<Mieszanka, 'rodzaj'> & Partial<Pick<Mieszanka, 'nrRecepty' | 'kategoriaRuchu'>>;
 
