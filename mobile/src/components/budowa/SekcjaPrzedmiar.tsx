@@ -216,11 +216,26 @@ export function SekcjaPrzedmiar({ projekt, theme, kodBudowy, onZmien }: Props) {
           </View>
           {g.sumy.map((s) => (
             <View key={s.klucz} style={[karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-              <Text style={{ color: theme.colors.text, fontWeight: '700' }}>{s.nazwa}</Text>
+              <View style={styles.rzad}>
+                <Text style={{ color: theme.colors.text, fontWeight: '700', flex: 1 }}>{s.nazwa}</Text>
+                <Text style={{ color: theme.colors.text, fontWeight: '800' }}>{formatLiczby(s.tony, 2)} t</Text>
+              </View>
               <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>
-                {s.wytwornia ? `${s.wytwornia} · ` : ''}
-                {formatLiczby(s.powierzchniaM2, 1)} m² · grubość ważona {formatLiczby(s.gruboscWazonaCm, 1)} cm · {formatLiczby(s.tony, 2)} t
+                {formatLiczby(s.powierzchniaM2, 1)} m² · grubość ważona {formatLiczby(s.gruboscWazonaCm, 1)} cm
               </Text>
+              {s.recepty.length > 0 ? (
+                <View accessibilityLabel={`Zatwierdzone recepty ${s.nazwa}`} style={[styles.recepty, { borderTopColor: theme.colors.border }]}>
+                  <Text style={{ color: theme.colors.textSecondary, fontSize: 11, fontWeight: '700' }}>
+                    {s.recepty.length === 1 ? 'Zatwierdzona recepta' : `Zatwierdzone recepty · ${s.recepty.length}`}
+                  </Text>
+                  {s.recepty.map((r) => (
+                    <Text key={r.mieszankaId} style={{ color: theme.colors.text, fontSize: 12 }}>
+                      {r.nazwa}
+                      <Text style={{ color: theme.colors.textSecondary }}>{r.wytwornia ? ` · ${r.wytwornia}` : ' · bez wytwórni'}</Text>
+                    </Text>
+                  ))}
+                </View>
+              ) : null}
             </View>
           ))}
         </View>
@@ -240,6 +255,7 @@ const styles = StyleSheet.create({
   colNazwa: { width: 168, paddingHorizontal: 8 },
   colKat: { width: 96, textAlign: 'right' },
   grupa: { gap: 6, marginBottom: 6 },
+  recepty: { borderTopWidth: StyleSheet.hairlineWidth, marginTop: 6, paddingTop: 6, gap: 2 },
   naglowekGrupy: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', borderBottomWidth: 2, paddingBottom: 4 },
   tytulGrupy: { fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
   nazwaInput: { borderWidth: 1, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 4, fontSize: 12, fontWeight: '700' },

@@ -20,7 +20,7 @@ import type {
 import { DOMYSLNA_SKALA_PZT } from '../types';
 import { round2, round3 } from './calculations';
 import {
-  KOLEJNOSC_KATEGORII, kategoriaRuchuMieszanki, kategoriaZWarstwyMieszanki, uziarnienieMieszanki, warstwaMieszanki,
+  KOLEJNOSC_KATEGORII, NAZWY_KATEGORII, kategoriaRuchuMieszanki, normalizujKategorieRuchu, porownajMieszanki, rodzajMieszanki, uziarnienieMieszanki,
 } from '../mieszanki/kolejnosc';
 import { dlugoscUkladaniaObszaru } from './obmiarLive';
 import { dlugoscKilometrazaObszaru, bokiFigury } from './obmiarFigura';
@@ -882,86 +882,95 @@ export function obliczPrzedmiar(
   return wynik;
 }
 
-export interface SumaMieszanki {
-  klucz: string;
-  mieszankaId?: string;
+export interface ReceptaSumy {
+  mieszankaId: string;
+  /** Rodzaj z KR i numerem recepty, np. „AC16W KR3-4 · 12/2026”. */
   nazwa: string;
   wytwornia?: string;
-  /** Grupa warstwy do kolejności i nagłówków: z rodzaju recepty, a bez niej z kategorii warstwy. */
+}
+
+/** Jedna pozycja na mieszankę warstwy konstrukcji – tonaż całej warstwy, a pod nim zatwierdzone recepty. */
+export interface SumaMieszanki {
+  klucz: string;
+  nazwa: string;
   warstwa: KategoriaWarstwy;
+  recepty: ReceptaSumy[];
   powierzchniaM2: number;
   gruboscWazonaCm: number;
   tony: number;
 }
 
+type ReceptaDoSum = Pick<Mieszanka, 'id' | 'rodzaj' | 'ciezarObjetosciowy' | 'wytworniaId' | 'wytwórnia'>
+  & Partial<Pick<Mieszanka, 'nrRecepty' | 'kategoriaRuchu'>>;
+
+/** Nazwa warstwy, a gdy jest ogólna („Wiążąca”) – wspólny rodzaj zatwierdzonych recept; KR, gdy wszystkie recepty mają ten sam. */
+function nazwaSumy(nazwaWarstwy: string, recepty: ReceptaDoSum[]): string {
+  const rodzaje = [...new Set(recepty.map((m) => m.rodzaj))];
+  const baza = uziarnienieMieszanki(nazwaWarstwy) == null && rodzaje.length === 1 ? rodzaje[0] : nazwaWarstwy;
+  const kr = [...new Set(recepty.map((m) => normalizujKategorieRuchu(m.kategoriaRuchu)))];
+  return kr.length === 1 && kr[0] ? rodzajMieszanki({ rodzaj: baza, kategoriaRuchu: kr[0] }) : baza;
+}
+
 /** Kolejność jak w wytwórniach: od najniższej warstwy (KŁSM, podbudowy, wiążące, ścieralne), uziarnienie i KR malejąco. */
 export function sumyMieszanek(
   wiersze: WierszPrzedmiaru[],
-  mieszanki: (Pick<Mieszanka, 'id' | 'rodzaj' | 'ciezarObjetosciowy' | 'wytworniaId' | 'wytwórnia'> & Partial<Pick<Mieszanka, 'nrRecepty' | 'kategoriaRuchu'>>)[],
+  mieszanki: ReceptaDoSum[],
   nazwaWytworni: (id?: string) => string | undefined = () => undefined,
 ): SumaMieszanki[] {
-  const acc = new Map<string, SumaMieszanki>();
-  const dodaj = (klucz: string, patch: Omit<SumaMieszanki, 'klucz'>) => {
-    const prev = acc.get(klucz);
-    if (!prev) {
-      acc.set(klucz, { klucz, ...patch });
-      return;
-    }
-    const sumaM2 = prev.powierzchniaM2 + patch.powierzchniaM2;
-    acc.set(klucz, {
-      ...prev,
-      powierzchniaM2: round2(sumaM2),
-      gruboscWazonaCm: sumaM2 > 0
-        ? round2((prev.gruboscWazonaCm * prev.powierzchniaM2 + patch.gruboscWazonaCm * patch.powierzchniaM2) / sumaM2)
-        : prev.gruboscWazonaCm,
-      tony: round3(prev.tony + patch.tony),
-    });
-  };
-
+  const acc = new Map<string, { nazwaWarstwy: string; mieszankaIds: Set<string>; suma: Omit<SumaMieszanki, 'nazwa' | 'recepty'> }>();
   for (const wiersz of wiersze) {
     for (const war of wiersz.warstwy) {
-      if (war.mieszankaIds.length === 0) {
-        dodaj(`warstwa:${war.kategoria}:${war.nazwa}`, {
-          nazwa: war.nazwa,
-          warstwa: war.kategoria,
-          powierzchniaM2: war.powierzchniaM2,
-          gruboscWazonaCm: war.gruboscCm,
-          tony: war.tony,
+      const klucz = `${war.kategoria}:${war.nazwa}`;
+      const prev = acc.get(klucz);
+      if (!prev) {
+        acc.set(klucz, {
+          nazwaWarstwy: war.nazwa,
+          mieszankaIds: new Set(war.mieszankaIds),
+          suma: { klucz, warstwa: war.kategoria, powierzchniaM2: round2(war.powierzchniaM2), gruboscWazonaCm: war.gruboscCm, tony: round3(war.tony) },
         });
         continue;
       }
-      const udzial = 1 / war.mieszankaIds.length;
-      for (const mid of war.mieszankaIds) {
-        const m = mieszanki.find((x) => x.id === mid);
-        const zRecepty = m ? warstwaMieszanki(m.rodzaj) : 'inna';
-        dodaj(`mix:${mid}`, {
-          mieszankaId: mid,
-          nazwa: m ? [m.rodzaj, m.kategoriaRuchu].filter(Boolean).join(' ') : war.nazwa,
-          warstwa: zRecepty === 'inna' ? war.kategoria : kategoriaZWarstwyMieszanki(zRecepty),
-          wytwornia: nazwaWytworni(m?.wytworniaId) ?? m?.wytwórnia,
-          powierzchniaM2: round2(war.powierzchniaM2 * udzial),
-          gruboscWazonaCm: war.gruboscCm,
-          tony: round3(war.tony * udzial),
-        });
-      }
+      war.mieszankaIds.forEach((id) => prev.mieszankaIds.add(id));
+      const s = prev.suma;
+      const sumaM2 = s.powierzchniaM2 + war.powierzchniaM2;
+      s.gruboscWazonaCm = sumaM2 > 0 ? round2((s.gruboscWazonaCm * s.powierzchniaM2 + war.gruboscCm * war.powierzchniaM2) / sumaM2) : s.gruboscWazonaCm;
+      s.powierzchniaM2 = round2(sumaM2);
+      s.tony = round3(s.tony + war.tony);
     }
   }
 
-  const recepta = (s: SumaMieszanki) => mieszanki.find((m) => m.id === s.mieszankaId) ?? { rodzaj: s.nazwa };
-  return [...acc.values()].sort((a, b) => (
+  const wynik = [...acc.values()].map(({ nazwaWarstwy, mieszankaIds, suma }) => {
+    const recepty = mieszanki.filter((m) => mieszankaIds.has(m.id));
+    const poKolei = [...recepty].sort((a, b) => porownajMieszanki(a, b)
+      || (nazwaWytworni(a.wytworniaId) ?? a.wytwórnia ?? '').localeCompare(nazwaWytworni(b.wytworniaId) ?? b.wytwórnia ?? '', 'pl'));
+    return {
+      ...suma,
+      nazwa: nazwaSumy(nazwaWarstwy, recepty),
+      recepty: poKolei.map((m) => ({
+        mieszankaId: m.id,
+        nazwa: `${rodzajMieszanki(m)}${m.nrRecepty ? ` · ${m.nrRecepty}` : ''}`,
+        wytwornia: nazwaWytworni(m.wytworniaId) ?? m.wytwórnia,
+      })),
+    };
+  });
+  return wynik.sort((a, b) => (
     KOLEJNOSC_KATEGORII.indexOf(a.warstwa) - KOLEJNOSC_KATEGORII.indexOf(b.warstwa)
     || (uziarnienieMieszanki(b.nazwa) ?? -1) - (uziarnienieMieszanki(a.nazwa) ?? -1)
-    || (kategoriaRuchuMieszanki(recepta(b)) ?? 0) - (kategoriaRuchuMieszanki(recepta(a)) ?? 0)
+    || (kategoriaRuchuMieszanki({ rodzaj: b.nazwa }) ?? 0) - (kategoriaRuchuMieszanki({ rodzaj: a.nazwa }) ?? 0)
     || a.nazwa.localeCompare(b.nazwa, 'pl')
-    || (a.wytwornia ?? '').localeCompare(b.wytwornia ?? '', 'pl')
   ));
 }
 
 export function csvSumMieszanek(sumy: SumaMieszanki[]): string {
-  const nag = 'Mieszanka / warstwa;Wytwórnia;Powierzchnia m²;Grubość ważona cm;Tony';
-  const wiersze = sumy.map((s) =>
-    [s.nazwa, s.wytwornia ?? '', s.powierzchniaM2.toFixed(2).replace('.', ','), s.gruboscWazonaCm.toFixed(2).replace('.', ','), s.tony.toFixed(3).replace('.', ',')].join(';'),
-  );
+  const nag = 'Warstwa;Mieszanka;Zatwierdzone recepty;Powierzchnia m²;Grubość ważona cm;Tony';
+  const wiersze = sumy.map((s) => [
+    NAZWY_KATEGORII[s.warstwa],
+    s.nazwa,
+    s.recepty.map((r) => (r.wytwornia ? `${r.nazwa} (${r.wytwornia})` : r.nazwa)).join(' | '),
+    s.powierzchniaM2.toFixed(2).replace('.', ','),
+    s.gruboscWazonaCm.toFixed(2).replace('.', ','),
+    s.tony.toFixed(3).replace('.', ','),
+  ].join(';'));
   return [nag, ...wiersze].join('\n');
 }
 

@@ -25,6 +25,7 @@ import {
   scalWiersze,
   sugerowanaNazwaLegendy,
   sumyMieszanek,
+  csvSumMieszanek,
   tonyZPowierzchni,
   usunArkusz,
   zastosujKilometrazArkuszy,
@@ -474,25 +475,35 @@ describe('projektBudowy', () => {
     assert.equal(zpowrotem.length, 2);
   });
 
-  it('sumy mieszanek od najniższej warstwy: KŁSM, podbudowy, wiążące, ścieralne', () => {
+  it('sumy mieszanek: jedna pozycja na warstwę konstrukcji z listą zatwierdzonych recept', () => {
     const T = '2026-01-01T00:00:00.000Z';
-    const mix = (id: string, rodzaj: string, kategoriaRuchu?: string): Mieszanka => ({ id, rodzaj, kategoriaRuchu, ciezarObjetosciowy: 2.4, createdAt: T, updatedAt: T });
-    const mieszanki = [mix('s', 'SMA8'), mix('a11', 'AC11S'), mix('w1', 'AC16W', 'KR1-2'), mix('w7', 'AC16W', 'KR5-7'), mix('w22', 'AC22W'), mix('p', 'AC22P')];
+    const mix = (id: string, rodzaj: string, kategoriaRuchu: string | undefined, wytworniaId: string): Mieszanka => ({
+      id, rodzaj, kategoriaRuchu, wytworniaId, ciezarObjetosciowy: 2.4, createdAt: T, updatedAt: T,
+    });
+    const mieszanki = [
+      mix('sS', 'SMA8', '3-4', 'S'), mix('sB', 'SMA8', 'KR3-4', 'B'),
+      mix('wS', 'AC16W', '3-4', 'S'), mix('wB', 'AC16W', '3-4', 'B'),
+      mix('pS', 'AC22P', '3-4', 'S'), mix('pB', 'AC22P', '1-2', 'B'),
+    ];
     const war = (nazwa: string, kategoria: WierszPrzedmiaru['warstwy'][0]['kategoria'], mieszankaIds: string[]) => ({
       nazwa, kategoria, kolejnosc: 1, powierzchniaM2: 100, gruboscCm: 4, odsadzkaCm: 0, tony: 10, mieszankaIds,
     });
-    const wiersze: WierszPrzedmiaru[] = [{
-      id: 'r', nazwa: 'Trasa', legendaIds: ['r'], powierzchniaObrysuM2: 100, dlugoscM: 10, daSieScalicZ: [],
+    const wiersz = (id: string): WierszPrzedmiaru => ({
+      id, nazwa: id, legendaIds: [id], powierzchniaObrysuM2: 100, dlugoscM: 10, daSieScalicZ: [],
       warstwy: [
-        war('SMA', 'sma', ['s', 'a11']), war('Wiążąca', 'wiazaca', ['w1', 'w22', 'w7']),
-        war('Podbudowa', 'podbudowa', ['p']), war('KŁSM', 'klsm', []),
+        war('SMA8', 'sma', ['sB', 'sS']), war('Wiążąca', 'wiazaca', ['wS', 'wB']),
+        war('Podbudowa', 'podbudowa', ['pS', 'pB']), war('KŁSM', 'klsm', []),
       ],
-    }];
-    const sumy = sumyMieszanek(wiersze, mieszanki);
+    });
+    const nazwy: Record<string, string> = { S: 'Strabag', B: 'Budimex' };
+    const sumy = sumyMieszanek([wiersz('prawa'), wiersz('lewa')], mieszanki, (id) => (id ? nazwy[id] : undefined));
     assert.deepEqual(
-      sumy.map((s) => `${s.warstwa}:${s.nazwa}`),
-      ['klsm:KŁSM', 'podbudowa:AC22P', 'wiazaca:AC22W', 'wiazaca:AC16W KR5-7', 'wiazaca:AC16W KR1-2', 'sma:AC11S', 'sma:SMA8'],
+      sumy.map((s) => `${s.warstwa}:${s.nazwa}:${s.tony}`),
+      ['klsm:KŁSM:20', 'podbudowa:AC22P:20', 'wiazaca:AC16W KR3-4:20', 'sma:SMA8 KR3-4:20'],
     );
+    assert.deepEqual(sumy[1].recepty.map((r) => `${r.nazwa} · ${r.wytwornia}`), ['AC22P KR3-4 · Strabag', 'AC22P KR1-2 · Budimex']);
+    assert.deepEqual(sumy[3].recepty.map((r) => `${r.nazwa} · ${r.wytwornia}`), ['SMA8 KR3-4 · Budimex', 'SMA8 KR3-4 · Strabag']);
+    assert.match(csvSumMieszanek(sumy).split('\n')[3], /^Wiążące;AC16W KR3-4;AC16W KR3-4 \(Budimex\) \| AC16W KR3-4 \(Strabag\);200,00;4,00;20,000$/);
   });
 
   it('sumuje tę samą mieszankę przy różnych grubościach', () => {
@@ -527,7 +538,7 @@ describe('projektBudowy', () => {
     const wiersze = obliczPrzedmiar(projekt, [mix]);
     const sumy = sumyMieszanek(wiersze, [mix]);
     assert.equal(sumy.length, 1);
-    assert.equal(sumy[0].mieszankaId, 'm1');
+    assert.deepEqual(sumy[0].recepty.map((r) => r.mieszankaId), ['m1']);
     assert.equal(sumy[0].powierzchniaM2, 1000 + 200);
     assert.equal(sumy[0].tony, tonyZPowierzchni(1000, 8, 2.5) + tonyZPowierzchni(200, 4, 2.5));
     assert.equal(sumy[0].gruboscWazonaCm, 7.33);

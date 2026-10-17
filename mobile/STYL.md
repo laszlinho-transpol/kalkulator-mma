@@ -50,6 +50,11 @@ opisanych niżej** – bez własnych kolorów, odstępów i nagłówków. Zmiana
     kategoria ruchu od najwyższej. Grupa warstwy ma nagłówek, bloki uziarnienia są od siebie oddzielone.
     Ta sama kolejność obowiązuje na stronie budowy: kolumny przedmiaru i „Suma mieszanek” idą od najniższej
     warstwy (`KOLEJNOSC_KATEGORII`: KŁSM → podbudowy → wiążące → ścieralne), sumy grupowane nagłówkami warstw.
+    Suma to jedna pozycja na mieszankę warstwy konstrukcji (pełny tonaż), a pod nią lista zatwierdzonych recept
+    z wytwórniami – tonażu nie dzielimy między recepty.
+12. **Kategoria ruchu.** Każda recepta ma obowiązkowe pole „Kategoria ruchu” – wpisujemy samą wartość (np. `1-2`).
+    Recepta wszędzie (listy, karty, plan, obmiar, raporty, PDF/HTML) wyświetla się przez `rodzajMieszanki`
+    (`AC16W KR1-2`) albo `nazwaMieszanki` (z numerem recepty) – nigdy samo `m.rodzaj`.
 
 ## 2. Klocki (`src/components/ui`)
 
