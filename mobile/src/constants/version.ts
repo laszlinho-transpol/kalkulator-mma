@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.42';
+export const WERSJA_APLIKACJI = '1.8.43';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,22 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.43',
+    data: '2026-10-17',
+    tytul: 'Raporty pracowników: UW, L4, R8 i miesięczne rozliczenie',
+    zmiany: [
+      'Karta pracownika → Raporty: „Dodaj raport”, pod nim lata i miesiące od najnowszego (raporty, godziny, UW/L4/R8, wypłata), niżej kalendarz bieżącego miesiąca',
+      'Kalendarz: zielony dzień = raport, czerwony = dzień roboczy (pn–pt) bez raportu do uzupełnienia; dotknięcie otwiera raport albo nowy z tą datą',
+      'Raport: rodzaj dnia Praca / UW / L4 / R8; nieobecności bez budowy – koszt idzie na brygadę pracownika; można wpisać kilka dni naraz',
+      'UW: wypłaty z 3 ostatnich miesięcy (bez delegacji) ÷ 3 ÷ dni robocze miesiąca, pracodawca × ZUS',
+      'L4: wypłaty z 12 ostatnich miesięcy (albo krótszego okresu) ÷ liczba miesięcy ÷ dni kalendarzowe × 0,8; pracodawca × 1,2 przez pierwsze 33 dni L4 w roku, od 34. dnia 0 zł',
+      'R8: 8 × stawka 8h, pracodawca × ZUS; dzień schodzi z banku godzin odłożonych na zimę',
+      'Każdy raport można otworzyć, edytować, zapisać i usunąć',
+      'Miesiąc pracownika: godziny, nadgodziny, dni UW / L4 / R8, bank R8, wypłata pracownika, koszt pracodawcy i podział kosztów na budowy i brygadę',
+      'R8 – zabrać godziny na zimę: pole w miesiącach kwiecień–listopad (w innych po rozwinięciu), domyślnie 20 h; zmniejsza wypłatę i koszt pracodawcy tego miesiąca',
+    ],
+  },
   {
     wersja: '1.8.42',
     data: '2026-10-17',
