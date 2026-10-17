@@ -186,6 +186,7 @@ export default function RootLayout() {
         <Stack.Screen name="budzet/pracownicy/[id]/index" options={{ headerShown: false }} />
         <Stack.Screen name="budzet/pracownicy/[id]/edytuj" options={{ headerShown: false }} />
         <Stack.Screen name="budzet/pracownicy/[id]/raport" options={{ headerShown: false }} />
+        <Stack.Screen name="budzet/pracownicy/[id]/miesiac" options={{ headerShown: false }} />
         <Stack.Screen name="budzet/firmy/index" options={{ headerShown: false }} />
         <Stack.Screen name="budzet/firmy/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="budzet/grupa-bitumiczna/index" options={{ headerShown: false }} />
