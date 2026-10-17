@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.41';
+export const WERSJA_APLIKACJI = '1.8.42';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,15 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.42',
+    data: '2026-10-17',
+    tytul: 'Materiał zatwierdzony warstwy w osobnych wierszach',
+    zmiany: [
+      'Konstrukcje: materiał zatwierdzony warstwy to ramka z nagłówkiem i liczbą recept; każda recepta w osobnym wierszu (nazwa z KR, pod nią wytwórnia i nr recepty)',
+      'Przycisk „+ Dodaj / zmień” otwiera wybór recept z wytwórni; dotknięcie recepty też',
+    ],
+  },
   {
     wersja: '1.8.41',
     data: '2026-10-17',
