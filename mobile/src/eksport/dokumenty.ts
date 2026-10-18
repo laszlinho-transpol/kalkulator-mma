@@ -381,7 +381,7 @@ export function dokumentRaportuBudowy({ raport, budowa, mieszanki, raportyPracow
           naglowki: ['Materiał', 'Ilość', 'Cena', 'Kwota'],
           liczbowe: [1, 2, 3],
           wiersze: materialy.map((m) => [
-            `${m.nazwa}${m.uwagi ? ` – ${m.uwagi}` : ''}`, `${formatLiczby(m.ilosc)} ${m.jednostka}`,
+            [m.nazwa, m.firma, m.uwagi].filter(Boolean).join(' – '), `${formatLiczby(m.ilosc)} ${m.jednostka}`,
             `${zl(m.cena)}${m.zmieniona ? ' (zmieniona)' : ''}`, zl(m.kwota),
           ]),
           suma: materialy.length ? ['Razem', '', '', zl(sumaKwot(materialy))] : undefined,

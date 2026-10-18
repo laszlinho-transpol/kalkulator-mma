@@ -218,6 +218,7 @@ export interface WierszMaterialu {
   zmieniona: boolean;
   kwota: number;
   uwagi?: string;
+  firma?: string;
   dodatkowy: boolean;
 }
 
@@ -261,6 +262,7 @@ export function materialyRaportu(
       zmieniona: false,
       kwota: round2(d.ilosc * d.cena),
       uwagi: d.uwagi,
+      firma: d.firma,
       dodatkowy: true,
     });
   }

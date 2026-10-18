@@ -9,7 +9,8 @@ import { materialyRaportu, sumaKwot, type WierszMaterialu } from '../../raportyB
 import { generujIdRaportu } from '../../stores/raportyBudowyStore';
 import { useMieszankiStore } from '../../stores/mieszankiStore';
 import type { MaterialDodatkowy, RaportDzienny } from '../../raportyBudowy/typy';
-import { Tabela } from './wspolne';
+import { useFirmyStore } from '../../stores/firmyStore';
+import { PoleFirmy, Tabela } from './wspolne';
 
 type Okno =
   | { rodzaj: 'cena'; wiersz: WierszMaterialu }
@@ -30,6 +31,8 @@ export function ZakladkaMaterial({ raport, onZmien }: {
   const [ilosc, setIlosc] = useState('');
   const [jednostka, setJednostka] = useState('t');
   const [uwagi, setUwagi] = useState('');
+  const [firma, setFirma] = useState('');
+  const znajdzLubDodajFirme = useFirmyStore((s) => s.znajdzLubDodaj);
   const [blad, setBlad] = useState('');
 
   const otworz = (klucz: string) => {
@@ -39,7 +42,7 @@ export function ZakladkaMaterial({ raport, onZmien }: {
     if (w.dodatkowy) {
       const m = raport.materialyDodatkowe.find((x) => x.id === klucz);
       setNazwa(m?.nazwa ?? ''); setIlosc(tekst(m?.ilosc)); setJednostka(m?.jednostka ?? 't');
-      setCena(tekst(m?.cena)); setUwagi(m?.uwagi ?? '');
+      setCena(tekst(m?.cena)); setUwagi(m?.uwagi ?? ''); setFirma(m?.firma ?? '');
       setOkno({ rodzaj: 'dodatkowy', material: m });
     } else {
       setCena(tekst(w.cena));
@@ -48,7 +51,7 @@ export function ZakladkaMaterial({ raport, onZmien }: {
   };
 
   const nowy = () => {
-    setNazwa(''); setIlosc(''); setJednostka('t'); setCena(''); setUwagi(''); setBlad('');
+    setNazwa(''); setIlosc(''); setJednostka('t'); setCena(''); setUwagi(''); setFirma(''); setBlad('');
     setOkno({ rodzaj: 'dodatkowy' });
   };
 
@@ -72,7 +75,9 @@ export function ZakladkaMaterial({ raport, onZmien }: {
       jednostka: jednostka.trim() || 'szt.',
       cena: c,
       uwagi: uwagi.trim() || undefined,
+      firma: firma.trim() || undefined,
     };
+    if (material.firma) void znajdzLubDodajFirme(material.firma);
     onZmien({
       materialyDodatkowe: okno.material
         ? raport.materialyDodatkowe.map((m) => (m.id === material.id ? material : m))
@@ -120,7 +125,7 @@ export function ZakladkaMaterial({ raport, onZmien }: {
               etykieta: `Materiał ${w.nazwa}`,
               komorki: [w.nazwa, `${formatLiczby(w.ilosc)} ${w.jednostka}`, `${formatLiczby(w.cena)}${w.zmieniona ? '*' : ''}`, `${formatLiczby(w.kwota)} zł`],
               dopisek: w.dodatkowy
-                ? w.uwagi
+                ? [w.firma, w.uwagi].filter(Boolean).join(' · ') || undefined
                 : w.cenaRecepty == null && !w.zmieniona ? 'Brak ceny w recepcie – dotknij, żeby wpisać.' : w.zmieniona ? `Cena z recepty: ${w.cenaRecepty != null ? `${formatLiczby(w.cenaRecepty)} zł/t` : '—'}` : undefined,
             }))}
             suma={['Razem', '', '', `${formatLiczby(suma)} zł`]}
@@ -158,6 +163,7 @@ export function ZakladkaMaterial({ raport, onZmien }: {
                 <Pole etykieta="Jednostka" value={jednostka} onChangeText={setJednostka} accessibilityLabel="Jednostka materiału" />
               </Wiersz>
               <Pole etykieta="Cena" jednostka={`zł/${jednostka.trim() || 'j.'}`} liczba value={cena} onChangeText={setCena} accessibilityLabel="Cena materiału" />
+              <PoleFirmy value={firma} onChangeText={setFirma} etykieta="Dostawca" />
               <Pole etykieta="Uwagi" value={uwagi} onChangeText={setUwagi} placeholder="Opcjonalnie" accessibilityLabel="Uwagi materiału" />
               {okno?.rodzaj === 'dodatkowy' && okno.material ? <Przycisk tekst="Usuń materiał" wariant="niebezpieczny" ikona="usun" onPress={usun} /> : null}
             </>

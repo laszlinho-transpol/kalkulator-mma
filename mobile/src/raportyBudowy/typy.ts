@@ -38,6 +38,8 @@ export interface MaterialDodatkowy {
   jednostka: string;
   cena: number;
   uwagi?: string;
+  /** Dostawca z bazy firm. */
+  firma?: string;
 }
 
 export type RodzajRozliczeniaTransportu = 'km' | 'kurs' | 'tkm' | 'godz';

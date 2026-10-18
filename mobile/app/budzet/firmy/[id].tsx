@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { KontaktyWytworni } from '../../../src/components/mieszanki/KontaktyWytworni';
 import { AppHeader, Karta, Pole, PozycjaListy, Przycisk, Sekcja, WierszDanych, stylFormularza, useMotyw, ODSTEP, TYPOGRAFIA } from '../../../src/components/ui';
@@ -20,7 +20,8 @@ export default function KartaFirmyScreen() {
   const aktualizuj = useFirmyStore((s) => s.aktualizuj);
   const sprzet = useSprzetStore((s) => s.sprzet);
   const raporty = useSprzetStore((s) => s.raporty);
-  const [edycja, setEdycja] = useState(false);
+  const { nowa } = useLocalSearchParams<{ nowa?: string }>();
+  const [edycja, setEdycja] = useState(nowa === '1');
 
   const maszyny = useMemo(() => sprzet
     .filter((m) => m.firmaId === id)
