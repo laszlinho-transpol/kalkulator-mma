@@ -131,13 +131,7 @@ export default function NowyPlanHarmonogramuScreen() {
         ) : null}
 
         {tryb === 'zaawansowany' ? (
-          <View style={{ gap: ODSTEP.m }}>
-            <Text style={[TYPOGRAFIA.opis, { color: theme.colors.text }]}>
-              W „Zaplanuj masę” wybierzesz obszar, warstwę i kilometraż. Otrzymasz powierzchnię, ilość masy do zamówienia i liczbę aut.
-              Zapisany plan pojawi się w harmonogramie tego dnia i na stronie Wbudowywanie.
-            </Text>
-            <Przycisk tekst="Dalej: Zaplanuj masę *" ikona="dalej" onPress={dalejZaawansowany} />
-          </View>
+          <Przycisk tekst="Dalej: Zaplanuj masę *" ikona="dalej" onPress={dalejZaawansowany} />
         ) : (
           <>
             {budowa ? (

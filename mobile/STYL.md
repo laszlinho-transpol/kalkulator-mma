@@ -69,6 +69,12 @@ opisanych niżej** – bez własnych kolorów, odstępów i nagłówków. Zmiana
     (`DokumentPdf`: sekcje z blokami `dane` / `tabela` / `tekst`) i wysyłamy `udostepnijDokumentPdf`;
     gotowe raporty HTML (dzień, obmiar) idą przez `udostepnijHtmlJakoPdf`. Nie składamy HTML-a w ekranie.
     Natywnie: plik PDF + arkusz udostępniania, na webie okno drukowania („Zapisz jako PDF”).
+15. **Status budowy i Harmonogram.** Status budowy (aktywna / gwarancja z opcjonalną datą / zakończona) liczy
+    tylko `src/utils/statusBudowy.ts` – po dacie gwarancji budowa sama trafia do zakończonych; listy wyboru
+    budów biorą `budowaWToku`. Budowę dodajemy i edytujemy wyłącznie `FormularzBudowy` (menu Budowa, karta
+    budowy, „Dodaj plan”). Harmonogram łączy wpisy proste (`harmonogramStore`) i plany z „Zaplanuj masę”
+    w `src/harmonogram/harmonogram.ts` (tygodnie pn–nd, numer TK wg ISO, eksport PDF z wyborem kolumn).
+    W `SiatkaKalendarza` minione dni bez danych to `nieaktywny`, dni z planem `zaplanowany`.
 
 ## 2. Klocki (`src/components/ui`)
 

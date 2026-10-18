@@ -95,6 +95,8 @@ Ilość aut       = ceil(Masa_Mg / Tonaz_auta)   [domyślnie 25.5t, edytowalne]
      przycisk udostępniania → PDF (`udostepnij`, treść w `src/eksport/dokumenty.ts`),
    - treść w osobnych kartach jak plan dnia na „Wbudowywaniu”, długie strony dzielone zakładkami,
    - jeden kalendarz dla wszystkich dat (soboty, niedziele i święta we własnych kolorach),
+   - budowę dodajemy/edytujemy tylko `FormularzBudowy` (status z `src/utils/statusBudowy.ts`),
+     harmonogram liczy `src/harmonogram/harmonogram.ts`,
    - wspólną zmianę wyglądu robimy w klocku, nie na pojedynczym ekranie.
 
 ## TRZY ŻELAZNE ZASADY (OBOWIĄZKOWE)
