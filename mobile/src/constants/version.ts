@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.45';
+export const WERSJA_APLIKACJI = '1.8.46';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,21 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.46',
+    data: '2026-10-18',
+    tytul: 'Harmonogram, status budowy, nowe firmy',
+    zmiany: [
+      'Kafelek „Zaplanuj masę” zastąpiony przez „Harmonogram”: dzisiejsza data i numer tygodnia kalendarzowego (TK)',
+      'Harmonogram tygodnia od poniedziałku do niedzieli z przewijaniem tygodni',
+      'Kalendarz miesiąca: minione dni szare, dzień z raportem dziennym zielony i do otwarcia; dziś i kolejne dni pokazują plany i „Dodaj plan”',
+      'Dodaj plan – prosty: budowa (aktywne, na gwarancji albo nowa), mieszanka zatwierdzona na budowie lub „Inne” z listy wytwórni, ilość w tonach',
+      'Dodaj plan – zaawansowany (*): dla budów z obszarami XFDF i konstrukcjami otwiera „Zaplanuj masę” na wybrany dzień; plan trafia do harmonogramu i na Wbudowywanie',
+      'Wyślij harmonogram jako PDF: zakres dat, wybór zawartości (pełny zestaw albo data, recepta, ilość), tabela na każdy tydzień z sumami',
+      'Budowa: przycisk „Edytuj” na liście i na karcie budowy; status aktywna / gwarancja (opcjonalnie do dnia – potem sama przechodzi do zakończonych) / zakończona',
+      'Firmy: przycisk „+ Nowa”; dodane firmy podpowiadają się w sprzęcie, transporcie i jako dostawca materiału w raporcie dnia',
+    ],
+  },
   {
     wersja: '1.8.45',
     data: '2026-10-17',
