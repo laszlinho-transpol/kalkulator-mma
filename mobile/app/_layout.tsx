@@ -18,6 +18,7 @@ import { usePracownicyStore } from '../src/stores/pracownicyStore';
 import { useGrupyPracownikowStore } from '../src/stores/grupyPracownikowStore';
 import { useSprzetStore } from '../src/stores/sprzetStore';
 import { useRaportyBudowyStore } from '../src/stores/raportyBudowyStore';
+import { useHarmonogramStore } from '../src/stores/harmonogramStore';
 import { lightTheme, darkTheme } from '../src/constants/theme';
 import { LoadingScreen } from '../src/components/common/LoadingScreen';
 import { ErrorBoundary } from '../src/components/common/ErrorBoundary';
@@ -43,6 +44,7 @@ export default function RootLayout() {
   const zaladujGrupyPracownikow = useGrupyPracownikowStore((s) => s.zaladuj);
   const zaladujSprzet = useSprzetStore((s) => s.zaladuj);
   const zaladujRaportyBudowy = useRaportyBudowyStore((s) => s.zaladuj);
+  const zaladujHarmonogram = useHarmonogramStore((s) => s.zaladuj);
 
   const [ladowanie, setLadowanie] = useState(true);
   const [loadingWidoczny, setLoadingWidoczny] = useState(true);
@@ -66,6 +68,7 @@ export default function RootLayout() {
           zaladujGrupyPracownikow(),
           zaladujSprzet(),
           zaladujRaportyBudowy(),
+          zaladujHarmonogram(),
         ]);
         const onboardingComplete = await AsyncStorage.getItem(KLUCZ_ONBOARDING);
         if (!onboardingComplete) {
@@ -139,6 +142,8 @@ export default function RootLayout() {
             name="ustawienia"
             options={{ headerShown: false, animation: 'slide_from_right' }}
           />
+          <Stack.Screen name="harmonogram/index" options={{ headerShown: false }} />
+          <Stack.Screen name="harmonogram/nowy" options={{ headerShown: false, animation: 'slide_from_bottom' }} />
           <Stack.Screen name="plan/index" options={{ headerShown: false }} />
           <Stack.Screen
             name="plan/nowy"
