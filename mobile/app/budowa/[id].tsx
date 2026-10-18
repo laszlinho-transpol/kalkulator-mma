@@ -24,6 +24,8 @@ import { usePracownicyStore } from '../../src/stores/pracownicyStore';
 import { useSprzetStore } from '../../src/stores/sprzetStore';
 import { dokumentBudowy } from '../../src/eksport/dokumenty';
 import { udostepnijDokumentPdf } from '../../src/eksport/udostepnijPdf';
+import { FormularzBudowy } from '../../src/components/budowa/FormularzBudowy';
+import { opisStatusu, statusBudowy } from '../../src/utils/statusBudowy';
 
 const PROJEKT = [
   { id: 'pzt', nazwa: 'PZT' },
@@ -49,6 +51,7 @@ export default function BudowaSzablonScreen() {
   const zapiszProjekt = useBudowyStore((s) => s.zapiszProjekt);
   const [mapaAktywna, setMapaAktywna] = useState(false);
   const [blokadaPodgladu, setBlokadaPodgladu] = useState(false);
+  const [edycja, setEdycja] = useState(false);
   const [aktywna, setAktywna] = useState<string>(() => (zakladka && NAZWY[zakladka] ? zakladka : 'pzt'));
 
   useEffect(() => {
@@ -100,10 +103,12 @@ export default function BudowaSzablonScreen() {
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <AppHeader
         tytul={budowa.kodBudowy}
-        podtytul={budowa.nazwaInwestycji}
+        podtytul={statusBudowy(budowa) === 'aktywna' ? budowa.nazwaInwestycji : `${budowa.nazwaInwestycji} · ${opisStatusu(budowa)}`}
         lewy={{ tekst: '‹ Wstecz', onPress: () => router.back() }}
         udostepnij={udostepnij}
+        prawy={{ tekst: 'Edytuj', onPress: () => setEdycja(true) }}
       />
+      <FormularzBudowy widoczny={edycja} budowa={budowa} onZamknij={() => setEdycja(false)} onZapisano={() => setEdycja(false)} />
       <View style={[styles.menu, { backgroundColor: theme.colors.background, borderBottomColor: theme.colors.border }]}>
         <Text style={[styles.grupa, { color: theme.colors.textSecondary }]}>Projekt</Text>
         <RzadPrzyciskow pozycje={PROJEKT} aktywna={aktywna} theme={theme} onPress={setAktywna} />

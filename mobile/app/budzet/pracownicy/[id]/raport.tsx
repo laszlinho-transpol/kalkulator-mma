@@ -20,6 +20,7 @@ import { useGrupyPracownikowStore } from '../../../../src/stores/grupyPracowniko
 import { usePracownicyStore } from '../../../../src/stores/pracownicyStore';
 import { formatLiczby, round2 } from '../../../../src/utils/calculations';
 import { potwierdzAkcje } from '../../../../src/utils/dialog';
+import { budowaWToku } from '../../../../src/utils/statusBudowy';
 
 type DaneRaportu = Omit<RaportPracownika, 'id' | 'createdAt'>;
 
@@ -89,8 +90,8 @@ function Formularz({ pracownik, edytowany, dataStartowa }: { pracownik: Pracowni
   }, [inne]);
 
   const budowyKolejnosc = [...budowy].sort((a, b) => {
-    const archiwum = (status?: string) => (status === 'archiwalna' ? 1 : 0);
-    return archiwum(a.status) - archiwum(b.status) || a.kodBudowy.localeCompare(b.kodBudowy, 'pl');
+    const archiwum = (b: Parameters<typeof budowaWToku>[0]) => (budowaWToku(b) ? 0 : 1);
+    return archiwum(a) - archiwum(b) || a.kodBudowy.localeCompare(b.kodBudowy, 'pl');
   });
 
   const nieobecnosc = rodzaj === 'praca' ? undefined : rodzaj;

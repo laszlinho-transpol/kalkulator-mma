@@ -22,6 +22,7 @@ import { usePracownicyStore } from '../../../../src/stores/pracownicyStore';
 import { useSprzetStore } from '../../../../src/stores/sprzetStore';
 import type { PozycjaRaportuSprzetu } from '../../../../src/budzet/typy';
 import { PolaPracyPracownika, usePracaPracownika } from '../../../../src/components/budzet/PracaPracownika';
+import { budowaWToku } from '../../../../src/utils/statusBudowy';
 
 const MIESIACE = [
   'styczeń', 'luty', 'marzec', 'kwiecień', 'maj', 'czerwiec',
@@ -85,8 +86,8 @@ export default function RaportSprzetuScreen() {
   const dozowanie = parsujLiczbePola(dozowanieTekst) ?? 0;
   const miesiac = MIESIACE[(Number(data.split('-')[1]) || 1) - 1];
   const budowyKolejnosc = [...budowy].sort((a, b) => {
-    const archiwum = (status?: string) => (status === 'archiwalna' ? 1 : 0);
-    return archiwum(a.status) - archiwum(b.status) || a.kodBudowy.localeCompare(b.kodBudowy, 'pl');
+    const archiwum = (b: Parameters<typeof budowaWToku>[0]) => (budowaWToku(b) ? 0 : 1);
+    return archiwum(a) - archiwum(b) || a.kodBudowy.localeCompare(b.kodBudowy, 'pl');
   });
 
   const pozycje: PozycjaRaportuSprzetu[] = zaznaczone.map((rodzaj) => {

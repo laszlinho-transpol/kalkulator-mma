@@ -18,6 +18,7 @@ import { Karta, ODSTEP, TYPOGRAFIA } from '../../src/components/ui';
 import { komentarzPlanuBudowy, tytulPlanuBudowy } from '../../src/utils/planZBudowy';
 import { potwierdzAkcje } from '../../src/utils/dialog';
 import type { Plan, Budowa } from '../../src/types';
+import { budowaWToku } from '../../src/utils/statusBudowy';
 
 export default function WbudowywanieScreen() {
   const colorScheme = useColorScheme();
@@ -27,7 +28,7 @@ export default function WbudowywanieScreen() {
   const { budowy } = useBudowyStore();
   const { wpisyDlaPlanu, wyczyścWpisyPlanu } = useLiveStore();
   const aktywne = plany.filter((p) => p.status === 'aktywny');
-  const budowyAktywne = budowy.filter((b) => b.status !== 'archiwalna');
+  const budowyAktywne = budowy.filter((b) => budowaWToku(b));
 
   const formatujDate = (iso: string) =>
     new Date(iso).toLocaleDateString('pl-PL', { weekday: 'short', day: 'numeric', month: 'long' });

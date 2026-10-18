@@ -75,7 +75,7 @@ export const useBudowyStore = create<BudowyStore>((set, get) => ({
 
   archiwizujBudowe: async (id) => {
     const zaktualizowane = get().budowy.map((b) =>
-      b.id === id ? { ...b, status: 'archiwalna' as const, updatedAt: new Date().toISOString() } : b,
+      b.id === id ? { ...b, status: 'zakonczona' as const, updatedAt: new Date().toISOString() } : b,
     );
     set({ budowy: zaktualizowane });
     await zapiszDoStorage(zaktualizowane);

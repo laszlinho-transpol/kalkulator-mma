@@ -42,6 +42,7 @@ import { karta as kartaWspolna } from '../../src/constants/layout';
 import { pokazKomunikat, potwierdzAkcje } from '../../src/utils/dialog';
 import { generujRaportObmiaruPDF } from '../../src/utils/pdfGenerator';
 import { rodzajMieszanki } from '../../src/mieszanki/kolejnosc';
+import { budowaWToku } from '../../src/utils/statusBudowy';
 
 type SekcjaNr = 'start' | 'odsadzka' | 'konstrukcja' | null;
 
@@ -716,7 +717,7 @@ export default function ObmiarDetailScreen() {
       />
       <BudowaPicker
         visible={pickerBudowa}
-        budowy={budowy.filter((b) => b.status !== 'archiwalna')}
+        budowy={budowy.filter((b) => budowaWToku(b))}
         selectedId={sesja.budowaId}
         theme={theme}
         onSelect={(bid) => ustawBudoweSesji(sesja.id, bid)}

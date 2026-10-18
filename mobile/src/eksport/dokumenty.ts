@@ -15,6 +15,7 @@ import type { RaportDzienny } from '../raportyBudowy/typy';
 import { NAZWY_KATEGORII, rodzajMieszanki } from '../mieszanki/kolejnosc';
 import { formatujKmM, obliczPrzedmiar, sumyMieszanek } from '../utils/projektBudowy';
 import type { Budowa, Mieszanka, ProjektBudowy, WarstwaKonstrukcji } from '../types';
+import { opisStatusu } from '../utils/statusBudowy';
 import { dane, tekst, type DokumentPdf, type SekcjaPdf } from './dokumentPdf';
 
 const zl = (n: number) => `${formatLiczby(n)} zł`;
@@ -287,7 +288,7 @@ export function dokumentBudowy({ budowa, projekt, mieszanki, nazwaWytworni, rapo
           { etykieta: 'Inwestycja', wartosc: budowa.nazwaInwestycji },
           { etykieta: 'Kilometraż początkowy', wartosc: formatujKmM(projekt.kilometrazPoczatkowyM) },
           { etykieta: 'Arkusze PZT', wartosc: String(projekt.arkusze.length) },
-          { etykieta: 'Status', wartosc: budowa.status === 'archiwalna' ? 'archiwalna' : 'aktywna' },
+          { etykieta: 'Status', wartosc: opisStatusu(budowa) },
         ])],
       },
       ...konstrukcje,

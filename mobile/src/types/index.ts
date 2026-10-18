@@ -34,7 +34,10 @@ export interface Budowa {
   zalaczniki?: ZalacznikPlanu[];
   /** Szablon PROJEKT / WYKONANIE (PZT, legenda, konstrukcje, przedmiar) */
   projekt?: ProjektBudowy;
-  status?: 'aktywna' | 'archiwalna';
+  /** „archiwalna” – zapis sprzed statusów, czytany jak „zakonczona”. */
+  status?: 'aktywna' | 'gwarancja' | 'zakonczona' | 'archiwalna';
+  /** Koniec gwarancji (YYYY-MM-DD); po tej dacie budowa jest zakończona. */
+  gwarancjaDo?: string;
   createdAt: string;
   updatedAt: string;
 }

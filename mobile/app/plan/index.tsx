@@ -15,6 +15,7 @@ import { EmptyState } from '../../src/components/common/EmptyState';
 import { AppHeader } from '../../src/components/common/AppHeader';
 import { InfoTooltip } from '../../src/components/common/InfoTooltip';
 import { PozycjaListy, TYPOGRAFIA } from '../../src/components/ui';
+import { budowaWToku } from '../../src/utils/statusBudowy';
 
 export default function PlanListaScreen() {
   const colorScheme = useColorScheme();
@@ -23,7 +24,7 @@ export default function PlanListaScreen() {
   const { plany } = usePlanyStore();
   const { budowy } = useBudowyStore();
   const aktywne = plany.filter((p) => p.status === 'aktywny');
-  const budowyAktywne = budowy.filter((b) => b.status !== 'archiwalna');
+  const budowyAktywne = budowy.filter((b) => budowaWToku(b));
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
