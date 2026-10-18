@@ -188,10 +188,12 @@ interface Props {
   tytul: string;
   budowaId: string;
   initialPlan?: Plan;
+  /** YYYY-MM-DD dnia z Harmonogramu; bez niej – następny dzień. */
+  dataPoczatkowa?: string;
   onZapisz: (dane: Omit<Plan, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
 }
 
-export function PlanZBudowyForm({ tytul, budowaId, initialPlan, onZapisz }: Props) {
+export function PlanZBudowyForm({ tytul, budowaId, initialPlan, dataPoczatkowa, onZapisz }: Props) {
   const colorScheme = useColorScheme();
   const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
   const insets = useSafeAreaInsets();
@@ -205,7 +207,11 @@ export function PlanZBudowyForm({ tytul, budowaId, initialPlan, onZapisz }: Prop
   );
 
   const [data, setData] = useState<Date>(
-    initialPlan ? new Date(initialPlan.dataWbudowywania) : nastepnyDzienKalendarzowy(),
+    initialPlan
+      ? new Date(initialPlan.dataWbudowywania)
+      : dataPoczatkowa && /^\d{4}-\d{2}-\d{2}$/.test(dataPoczatkowa)
+        ? new Date(`${dataPoczatkowa}T12:00:00`)
+        : nastepnyDzienKalendarzowy(),
   );
   const [zakladki, setZakladki] = useState<ZakladkaDraft[]>(() => zakladkiZPlanu(initialPlan, obszary[0]?.id ?? ''));
   const [aktywna, setAktywna] = useState(0);
