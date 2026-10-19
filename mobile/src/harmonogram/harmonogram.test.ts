@@ -7,6 +7,7 @@ import {
   dokumentHarmonogramu,
   etykietaTygodnia,
   mieszankiBudowy,
+  mieszankiWpisu,
   numerTygodnia,
   poczatekTygodnia,
   pozycjeHarmonogramu,
@@ -86,6 +87,23 @@ describe('harmonogram – pozycje', () => {
     assert.equal(p[0].tony, 96);
     assert.equal(p[0].auta, 4);
     assert.deepEqual([p[1].rodzaj, p[1].tony, p[1].recepta, p[1].auta], ['prosty', 120, 'AC 16 W', undefined]);
+  });
+
+  it('jeden plan prosty z kilkoma mieszankami: wiersz na mieszankę, stary zapis z jedną mieszanką', () => {
+    const wpis = {
+      id: 'w1', data: '2026-10-21', budowaId: 'b1', createdAt: '', updatedAt: '',
+      mieszanki: [{ mieszankaId: 'm2', ilosc: 300 }, { mieszankaId: 'm1', ilosc: 120 }],
+    };
+    assert.deepEqual(mieszankiWpisu({ mieszankaId: 'm1', ilosc: 50 }), [{ mieszankaId: 'm1', ilosc: 50 }]);
+    assert.deepEqual(mieszankiWpisu({}), []);
+    const p = pozycjeHarmonogramu({ wpisy: [wpis], plany: [], budowy, mieszanki });
+    assert.deepEqual(p.map((x) => [x.wpisId, x.recepta, x.tony]), [['w1', 'AC 16 W', 300], ['w1', 'AC 11 S · R/1', 120]]);
+    assert.notEqual(p[0].klucz, p[1].klucz);
+    const d = dokumentHarmonogramu({ pozycje: p, od: '2026-10-19', doDnia: '2026-10-25', kolumny: ['recepta', 'tony'] });
+    const t = d.sekcje[0].bloki[0];
+    assert.ok(t.typ === 'tabela');
+    assert.equal(t.wiersze.length, 2);
+    assert.equal(t.suma?.[2], '420,00 t');
   });
 
   it('plan z figur: pozycja na każdą działkę', () => {

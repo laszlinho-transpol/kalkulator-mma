@@ -13,13 +13,26 @@ export interface WpisHarmonogramu {
   /** YYYY-MM-DD */
   data: string;
   budowaId: string;
-  mieszankaId: string;
-  /** [t] */
-  ilosc: number;
+  /** Mieszanki planu dnia z ilością [t]. */
+  mieszanki?: MieszankaWpisu[];
+  /** @deprecated wpisy z 1.8.46 – jedna mieszanka; czytaj przez `mieszankiWpisu`. */
+  mieszankaId?: string;
+  /** @deprecated [t] */
+  ilosc?: number;
   uwagi?: string;
   createdAt: string;
   updatedAt: string;
 }
+
+export interface MieszankaWpisu {
+  mieszankaId: string;
+  /** [t] */
+  ilosc: number;
+}
+
+export const mieszankiWpisu = (w: Pick<WpisHarmonogramu, 'mieszanki' | 'mieszankaId' | 'ilosc'>): MieszankaWpisu[] => (
+  w.mieszanki?.length ? w.mieszanki : w.mieszankaId ? [{ mieszankaId: w.mieszankaId, ilosc: w.ilosc ?? 0 }] : []
+);
 
 export interface PozycjaHarmonogramu {
   klucz: string;
@@ -160,16 +173,16 @@ export function pozycjeHarmonogramu({ wpisy, plany, budowy, mieszanki }: {
   budowy: BudowaH[];
   mieszanki: MieszankaH[];
 }): PozycjaHarmonogramu[] {
-  const proste: PozycjaHarmonogramu[] = wpisy.map((w) => ({
-    klucz: w.id,
+  const proste: PozycjaHarmonogramu[] = wpisy.flatMap((w) => mieszankiWpisu(w).map((x, i) => ({
+    klucz: `${w.id}-${i}`,
     data: w.data,
-    rodzaj: 'prosty',
+    rodzaj: 'prosty' as const,
     wpisId: w.id,
     budowaId: w.budowaId,
     budowa: nazwaBudowy(budowy, w.budowaId),
-    recepta: nazwaRecepty(mieszanki.find((m) => m.id === w.mieszankaId)),
-    tony: w.ilosc,
-  }));
+    recepta: nazwaRecepty(mieszanki.find((m) => m.id === x.mieszankaId)),
+    tony: x.ilosc,
+  })));
   return [...proste, ...plany.flatMap((p) => pozycjePlanu(p, budowy, mieszanki))]
     .sort((a, b) => a.data.localeCompare(b.data) || a.budowa.localeCompare(b.budowa, 'pl'));
 }

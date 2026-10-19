@@ -3,21 +3,25 @@
 // ============================================================
 
 import React, { useMemo, useState } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import {
-  AppHeader, Etykieta, KalendarzDnia, Pole, Przycisk, Wybor, isoZDaty, stylFormularza, useMotyw, ODSTEP, TYPOGRAFIA,
+  AppHeader, Etykieta, KalendarzDnia, Pole, Przycisk, PrzyciskIkony, Wybor, isoZDaty, stylFormularza, useMotyw, ODSTEP, PROMIEN, TYPOGRAFIA,
 } from '../../src/components/ui';
 import { FormularzBudowy } from '../../src/components/budowa/FormularzBudowy';
 import { WyborMieszanki, nazwaMieszanki } from '../../src/components/mieszanki/WyborMieszanki';
 import { wstecz } from '../../src/budzet/nawigacja';
-import { brakiZaawansowanego, mieszankiBudowy } from '../../src/harmonogram/harmonogram';
+import { brakiZaawansowanego, mieszankiBudowy, mieszankiWpisu } from '../../src/harmonogram/harmonogram';
+import { formatLiczby } from '../../src/utils/calculations';
 import { useBudowyStore } from '../../src/stores/budowyStore';
 import { useHarmonogramStore } from '../../src/stores/harmonogramStore';
 import { useMieszankiStore } from '../../src/stores/mieszankiStore';
 import { grupyBudow, opisStatusu } from '../../src/utils/statusBudowy';
 
 type Tryb = 'prosty' | 'zaawansowany';
+type WierszMieszanki = { mieszankaId: string; ilosc: string };
+
+const tonyZ = (t: string) => Number(t.replace(',', '.'));
 
 export default function NowyPlanHarmonogramuScreen() {
   const theme = useMotyw();
@@ -32,9 +36,10 @@ export default function NowyPlanHarmonogramuScreen() {
   const [data, setData] = useState(edytowany?.data ?? (dataParam && dataParam >= dzis ? dataParam : dzis));
   const [budowaId, setBudowaId] = useState(edytowany?.budowaId ?? '');
   const [tryb, setTryb] = useState<Tryb>('prosty');
-  const [mieszankaId, setMieszankaId] = useState(edytowany?.mieszankaId ?? '');
+  const [wiersze, setWiersze] = useState<WierszMieszanki[]>(() => (
+    edytowany ? mieszankiWpisu(edytowany).map((x) => ({ mieszankaId: x.mieszankaId, ilosc: String(x.ilosc).replace('.', ',') })) : []
+  ));
   const [inne, setInne] = useState(false);
-  const [ilosc, setIlosc] = useState(edytowany ? String(edytowany.ilosc).replace('.', ',') : '');
   const [uwagi, setUwagi] = useState(edytowany?.uwagi ?? '');
   const [nowaBudowa, setNowaBudowa] = useState(false);
   const [blad, setBlad] = useState('');
@@ -47,22 +52,40 @@ export default function NowyPlanHarmonogramuScreen() {
   }, [budowa, mieszanki]);
   const braki = brakiZaawansowanego(budowa);
   const pokazInne = inne || (!!budowa && zatwierdzone.length === 0)
-    || (!!mieszankaId && !zatwierdzone.some((m) => m.id === mieszankaId));
+    || wiersze.some((w) => !zatwierdzone.some((m) => m.id === w.mieszankaId));
+  const wybrane = wiersze.map((w) => w.mieszankaId);
+  const razem = wiersze.reduce((s, w) => s + (Number.isFinite(tonyZ(w.ilosc)) ? tonyZ(w.ilosc) : 0), 0);
+
+  const przelaczMieszanke = (mid: string) => setWiersze((obecne) => (
+    obecne.some((w) => w.mieszankaId === mid) ? obecne.filter((w) => w.mieszankaId !== mid) : [...obecne, { mieszankaId: mid, ilosc: '' }]
+  ));
+  const ustawIlosc = (mid: string, ilosc: string) => setWiersze((obecne) => obecne.map((w) => (w.mieszankaId === mid ? { ...w, ilosc } : w)));
 
   const wybierzBudowe = (bid: string) => {
     setBudowaId(bid);
-    setMieszankaId('');
+    setWiersze([]);
     setInne(false);
     setBlad('');
     if (brakiZaawansowanego(budowy.find((b) => b.id === bid)).length > 0) setTryb('prosty');
   };
 
   const zapisz = async () => {
-    const tony = Number(ilosc.replace(',', '.'));
     if (!budowaId) { setBlad('Wybierz budowę.'); return; }
-    if (!mieszankaId) { setBlad('Wybierz mieszankę.'); return; }
-    if (!Number.isFinite(tony) || tony <= 0) { setBlad('Podaj ilość masy w tonach.'); return; }
-    const dane = { data, budowaId, mieszankaId, ilosc: tony, uwagi: uwagi.trim() || undefined };
+    if (wiersze.length === 0) { setBlad('Wybierz co najmniej jedną mieszankę.'); return; }
+    const bezIlosci = wiersze.find((w) => !(tonyZ(w.ilosc) > 0));
+    if (bezIlosci) {
+      const m = mieszanki.find((x) => x.id === bezIlosci.mieszankaId);
+      setBlad(`Podaj ilość w tonach dla ${m ? nazwaMieszanki(m) : 'mieszanki'}.`);
+      return;
+    }
+    const dane = {
+      data,
+      budowaId,
+      mieszanki: wiersze.map((w) => ({ mieszankaId: w.mieszankaId, ilosc: tonyZ(w.ilosc) })),
+      mieszankaId: undefined,
+      ilosc: undefined,
+      uwagi: uwagi.trim() || undefined,
+    };
     if (edytowany) await aktualizuj(edytowany.id, dane);
     else await dodaj(dane);
     wstecz('/harmonogram');
@@ -136,18 +159,21 @@ export default function NowyPlanHarmonogramuScreen() {
           <>
             {budowa ? (
               <View>
-                <Etykieta tekst="Mieszanka" info="Mieszanki zatwierdzone w konstrukcjach tej budowy. „Inne” pokazuje wszystkie wytwórnie i ich mieszanki." />
+                <Etykieta
+                  tekst="Mieszanki"
+                  info="Jeden plan dnia może mieć kilka mieszanek – zaznacz każdą i podaj jej ilość. Na liście są mieszanki zatwierdzone w konstrukcjach tej budowy; „Inne” pokazuje wszystkie wytwórnie i ich mieszanki."
+                />
                 <View style={stylFormularza.chipy}>
                   {zatwierdzone.map((m) => (
                     <Wybor
                       key={m.id}
-                      zaznaczony={!pokazInne && m.id === mieszankaId}
-                      etykieta={nazwaMieszanki(m)}
+                      zaznaczony={wybrane.includes(m.id)}
+                      etykieta={`${wybrane.includes(m.id) ? '✓ ' : ''}${nazwaMieszanki(m)}`}
                       accessibilityLabel={`Mieszanka ${nazwaMieszanki(m)}`}
-                      onPress={() => { setMieszankaId(m.id); setInne(false); }}
+                      onPress={() => przelaczMieszanke(m.id)}
                     />
                   ))}
-                  <Wybor zaznaczony={pokazInne} etykieta="Inne" accessibilityLabel="Inna mieszanka" onPress={() => setInne(true)} />
+                  <Wybor zaznaczony={pokazInne} etykieta="Inne" accessibilityLabel="Inna mieszanka" onPress={() => setInne(!inne || !pokazInne)} />
                 </View>
                 {zatwierdzone.length === 0 ? (
                   <Text style={[TYPOGRAFIA.opis, { color: theme.colors.textSecondary, marginTop: ODSTEP.xs }]}>
@@ -158,15 +184,37 @@ export default function NowyPlanHarmonogramuScreen() {
                   <View style={{ marginTop: ODSTEP.s }}>
                     <WyborMieszanki
                       mieszanki={mieszanki}
-                      zaznaczone={mieszankaId ? [mieszankaId] : []}
-                      onWybierz={(m) => setMieszankaId(m.id)}
+                      zaznaczone={wybrane}
+                      onWybierz={(m) => przelaczMieszanke(m.id)}
                       pustyTekst="Brak mieszanek – dodaj je w menu Mieszanki."
                     />
                   </View>
                 ) : null}
               </View>
             ) : null}
-            <Pole etykieta="Ilość" value={ilosc} onChangeText={setIlosc} liczba jednostka="t" placeholder="np. 120" accessibilityLabel="Ilość ton" />
+            {wiersze.length > 0 ? (
+              <View>
+                <Etykieta tekst={`Ilość · ${wiersze.length} ${wiersze.length === 1 ? 'mieszanka' : wiersze.length < 5 ? 'mieszanki' : 'mieszanek'}`} />
+                <View style={{ gap: ODSTEP.s }}>
+                  {wiersze.map((w) => {
+                    const m = mieszanki.find((x) => x.id === w.mieszankaId);
+                    const nazwa = m ? nazwaMieszanki(m) : 'Mieszanka usunięta';
+                    return (
+                      <View key={w.mieszankaId} style={[styles.wiersz, { borderColor: theme.colors.border, backgroundColor: theme.colors.card }]}>
+                        <Text style={[TYPOGRAFIA.wartosc, styles.nazwa, { color: theme.colors.text }]} numberOfLines={2}>{nazwa}</Text>
+                        <View style={styles.ilosc}>
+                          <Pole value={w.ilosc} onChangeText={(t) => ustawIlosc(w.mieszankaId, t)} liczba jednostka="t" placeholder="np. 120" accessibilityLabel={`Ilość ton ${nazwa}`} />
+                        </View>
+                        <PrzyciskIkony ikona="usun" kolor={theme.colors.danger} accessibilityLabel={`Usuń mieszankę ${nazwa}`} onPress={() => przelaczMieszanke(w.mieszankaId)} />
+                      </View>
+                    );
+                  })}
+                  {wiersze.length > 1 ? (
+                    <Text style={[TYPOGRAFIA.podsumowanie, { color: theme.colors.text, textAlign: 'right' }]}>Razem {formatLiczby(razem)} t</Text>
+                  ) : null}
+                </View>
+              </View>
+            ) : null}
             <Pole etykieta="Uwagi" value={uwagi} onChangeText={setUwagi} placeholder="opcjonalnie" multiline />
             <Przycisk tekst={edytowany ? 'Zapisz zmiany' : 'Zapisz plan'} onPress={() => { void zapisz(); }} />
           </>
@@ -182,3 +230,9 @@ export default function NowyPlanHarmonogramuScreen() {
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  wiersz: { flexDirection: 'row', alignItems: 'center', gap: ODSTEP.s, borderWidth: 1, borderRadius: PROMIEN.m, paddingLeft: ODSTEP.m, paddingRight: ODSTEP.xs, paddingVertical: ODSTEP.xs },
+  nazwa: { flex: 1 },
+  ilosc: { width: 130 },
+});

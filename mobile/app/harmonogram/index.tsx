@@ -40,6 +40,18 @@ const podsumowaniePozycji = (p: PozycjaHarmonogramu) => [
   p.auta != null ? `${p.auta} aut` : '',
 ].filter(Boolean).join(' · ');
 
+/** Linia w tygodniu: plan prosty z kilkoma mieszankami w jednej linii, plan „Zaplanuj masę” (*) osobno. */
+function liniePlanow(lista: PozycjaHarmonogramu[]): { klucz: string; tekst: string }[] {
+  const linie: { klucz: string; tekst: string; budowa: string; czesci: string[] }[] = [];
+  for (const p of lista) {
+    const czesc = `${p.recepta} · ${formatLiczby(p.tony)} t`;
+    const jest = p.wpisId ? linie.find((l) => l.klucz === p.wpisId) : undefined;
+    if (jest) jest.czesci.push(czesc);
+    else linie.push({ klucz: p.wpisId ?? p.klucz, tekst: p.rodzaj === 'plan' ? '* ' : '', budowa: p.budowa, czesci: [czesc] });
+  }
+  return linie.map((l) => ({ klucz: l.klucz, tekst: `${l.tekst}${l.czesci.join(' + ')} · ${l.budowa}` }));
+}
+
 export default function HarmonogramScreen() {
   const theme = useMotyw();
   const insets = useSafeAreaInsets();
@@ -93,6 +105,40 @@ export default function HarmonogramScreen() {
   ));
   const wZakresiePdf = pozycje.filter((p) => p.data >= pdfOd && p.data <= pdfDo).length;
   const tenSamZestaw = (z: KolumnaHarmonogramu[]) => z.length === kolumny.length && z.every((k) => kolumny.includes(k));
+
+  const kartaWpisu = (lista: PozycjaHarmonogramu[]) => {
+    const p = lista[0];
+    const recepty = lista.map((x) => x.recepta).join(', ');
+    const suma = lista.reduce((s, x) => s + x.tony, 0);
+    const usun = () => potwierdzAkcje('Usuń plan', `Usunąć plan ${recepty} (${formatLiczby(suma)} t)?`, () => {
+      if (p.wpisId) void usunWpis(p.wpisId);
+    });
+    return (
+      <Karta
+        key={p.wpisId}
+        tytul={p.budowa}
+        podtytul={lista.map((x) => `${x.recepta}: ${formatLiczby(x.tony)} t`).join('\n')}
+        podsumowanie={lista.length > 1 ? `Razem ${formatLiczby(suma)} t` : `${formatLiczby(suma)} t`}
+        accessibilityLabel={`Plan ${recepty} ${p.data}`}
+        akcje={[
+          { tekst: 'Edytuj', accessibilityLabel: `Edytuj plan ${recepty}`, onPress: () => router.push(`/harmonogram/nowy?id=${p.wpisId}` as never) },
+          { tekst: 'Usuń', rodzaj: 'niebezpieczna', accessibilityLabel: `Usuń plan ${recepty}`, onPress: usun },
+        ]}
+      />
+    );
+  };
+
+  const kartyDnia = (lista: PozycjaHarmonogramu[]) => {
+    const wpisy = new Map<string, PozycjaHarmonogramu[]>();
+    for (const p of lista) if (p.wpisId) wpisy.set(p.wpisId, [...(wpisy.get(p.wpisId) ?? []), p]);
+    const pokazane = new Set<string>();
+    return lista.map((p) => {
+      if (!p.wpisId) return kartaPozycji(p);
+      if (pokazane.has(p.wpisId)) return null;
+      pokazane.add(p.wpisId);
+      return kartaWpisu(wpisy.get(p.wpisId) ?? [p]);
+    });
+  };
 
   const kartaPozycji = (p: PozycjaHarmonogramu) => {
     const usun = () => potwierdzAkcje('Usuń plan', `Usunąć plan ${p.recepta} (${formatLiczby(p.tony)} t)?`, () => {
@@ -191,9 +237,9 @@ export default function HarmonogramScreen() {
                   </View>
                   {lista.length === 0 ? (
                     <Text style={[TYPOGRAFIA.opis, { color: theme.colors.textSecondary }]}>—</Text>
-                  ) : lista.map((p) => (
-                    <Text key={p.klucz} style={[TYPOGRAFIA.opis, { color: theme.colors.text }]} numberOfLines={2}>
-                      {p.rodzaj === 'plan' ? '* ' : ''}{p.recepta} · {formatLiczby(p.tony)} t · {p.budowa}
+                  ) : liniePlanow(lista).map((l) => (
+                    <Text key={l.klucz} style={[TYPOGRAFIA.opis, { color: theme.colors.text }]} numberOfLines={3}>
+                      {l.tekst}
                     </Text>
                   ))}
                 </Naciskany>
@@ -247,7 +293,7 @@ export default function HarmonogramScreen() {
               <>
                 {planyWybranego.length === 0 ? (
                   <Text style={[TYPOGRAFIA.opis, { color: theme.colors.textSecondary }]}>Na ten dzień nie ma planu.</Text>
-                ) : planyWybranego.map(kartaPozycji)}
+                ) : kartyDnia(planyWybranego)}
                 <Przycisk
                   tekst="Dodaj plan"
                   ikona="plus"
@@ -259,7 +305,7 @@ export default function HarmonogramScreen() {
             {minionyWybrany && planyWybranego.length > 0 ? (
               <>
                 <Text style={[TYPOGRAFIA.sekcja, { color: theme.colors.textSecondary }]}>Plan z tego dnia</Text>
-                {planyWybranego.map(kartaPozycji)}
+                {kartyDnia(planyWybranego)}
               </>
             ) : null}
           </View>
