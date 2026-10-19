@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.46';
+export const WERSJA_APLIKACJI = '1.8.47';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,17 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.47',
+    data: '2026-10-19',
+    tytul: 'Kilka mieszanek w jednym planie harmonogramu',
+    zmiany: [
+      'Dodaj plan: można zaznaczyć kilka mieszanek (zatwierdzone na budowie i „Inne”) – każda ma własną ilość w tonach, pod listą suma „Razem”',
+      'Plan dnia pokazuje się jako jedna karta budowy z listą mieszanek i sumą; w tygodniu w jednej linii',
+      'PDF harmonogramu: wiersz na każdą mieszankę planu, suma tygodnia bez zmian',
+      'Plany z jedną mieszanką zapisane w 1.8.46 działają bez zmian',
+    ],
+  },
   {
     wersja: '1.8.46',
     data: '2026-10-18',
