@@ -80,10 +80,14 @@ opisanych niżej** – bez własnych kolorów, odstępów i nagłówków. Zmiana
     nigdy jako obraz rastrowy – żeby przy każdym przybliżeniu było ostre i wyraźne. Geometria zawsze we
     współrzędnych PDF arkusza (jak `wierzcholkiPdf` z XFDF), grubość kreski szkicu w jednostkach PDF
     (`gruboscPdf`) – rysunek jest proporcjonalny do pliku i przy przybliżaniu/oddalaniu skaluje się razem
-    z planem, nie „pływa” i nie zmienia wielkości względem niego. Znaczniki interfejsu na mapie (znak „i”,
-    strzałki, kreski start/koniec, napisy) mają stały rozmiar na ekranie: rozmiar dzielony przez skalę
-    widoku albo `vectorEffect="non-scaling-stroke"`. Rysujemy w `PztArkuszPodglad` (props `liniowka`,
-    `rysowanie`), logika liniówki i szkicu w `src/liniowka/liniowka.ts`.
+    z planem, nie „pływa” i nie zmienia wielkości względem niego. To samo dotyczy znaków liniówki: strzałki
+    kierunku układania i znak „i” liczymy z szerokości pasa (jednostki PDF), więc rosną i maleją z planem.
+    Stałą grubość na ekranie (`vectorEffect="non-scaling-stroke"`) mają tylko linie: obrysy obszarów,
+    kreski start/koniec, oś, podświetlenie LED i najcieńsza linia szkicu („linia obszaru”, `gruboscPdf: 0`).
+    Szkic na istniejącej warstwie jest przycinany (`ClipPath`) do jej obszarów – farba poza nimi nie trafia
+    na liniówkę ani do powierzchni; wiaderko zalewa do linii szkicu i krawędzi obszarów, a wynik zapisuje
+    jako wielokąt SVG (`plama`). Rysujemy w `PztArkuszPodglad` (props `liniowka`, `rysowanie`), logika
+    liniówki i szkicu w `src/liniowka/liniowka.ts` i `src/liniowka/rasterSzkicu.ts`.
 
 ## 2. Klocki (`src/components/ui`)
 

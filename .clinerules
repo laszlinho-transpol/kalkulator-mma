@@ -99,7 +99,9 @@ Ilość aut       = ceil(Masa_Mg / Tonaz_auta)   [domyślnie 25.5t, edytowalne]
      harmonogram liczy `src/harmonogram/harmonogram.ts`,
    - szkice i wszystkie działania na plikach PZT zapisujemy jako SVG (we współrzędnych PDF arkusza), żeby były
      ostre i wyraźne; są proporcjonalne do pliku i przy przybliżaniu/oddalaniu nie zmieniają wielkości względem
-     planu (znaczniki interfejsu – stały rozmiar na ekranie); logika liniówki w `src/liniowka/liniowka.ts`,
+     planu – dotyczy też strzałek i znaku „i” liniówki (stałą grubość na ekranie mają tylko linie: obrysy,
+     kreski start/koniec, podświetlenie, „linia obszaru” szkicu); szkic na istniejącej warstwie przycinamy
+     do jej obszarów; logika w `src/liniowka/liniowka.ts` i `src/liniowka/rasterSzkicu.ts`,
    - wspólną zmianę wyglądu robimy w klocku, nie na pojedynczym ekranie.
 
 ## TRZY ŻELAZNE ZASADY (OBOWIĄZKOWE)
