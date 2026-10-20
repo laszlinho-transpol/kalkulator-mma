@@ -130,7 +130,7 @@ function KoloryLiniowki({ projekt, theme, onZmien }: Props) {
   return (
     <Sekcja
       tytul="Kolory warstw liniówki"
-      info="Kolor i krycie każdej warstwy na liniówce. Ścieralna zawsze leży na wierzchu i zakrywa niższe warstwy."
+      info="Każda warstwa użyta w konstrukcjach. Ścieralna to SMA, AC8S, AC11S; wiążąca to AC11W i AC16W (każde KR); MCE i inne podbudowy niebitumiczne mają własną warstwę. Ścieralna zawsze leży na wierzchu i zakrywa niższe warstwy."
     >
       <View style={{ gap: 12 }}>
         {warstwy.map((w) => (
@@ -143,7 +143,14 @@ function KoloryLiniowki({ projekt, theme, onZmien }: Props) {
               <View style={[styles.probka, { borderColor: w.kolor }]}>
                 <View style={[StyleSheet.absoluteFill, { backgroundColor: w.kolor, opacity: w.krycie, borderRadius: 5 }]} />
               </View>
-              <Text style={{ color: theme.colors.text, fontWeight: '800', flex: 1 }} numberOfLines={1}>{w.nazwa}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: theme.colors.text, fontWeight: '800' }} numberOfLines={1}>{w.nazwa}</Text>
+                {w.sklad.length > 0 && !(w.sklad.length === 1 && w.sklad[0] === w.nazwa) ? (
+                  <Text style={{ color: theme.colors.textSecondary, fontSize: 11 }} numberOfLines={2} accessibilityLabel={`Skład ${w.nazwa}`}>
+                    {w.sklad.join(', ')}
+                  </Text>
+                ) : null}
+              </View>
               <TouchableOpacity
                 accessibilityLabel={`Mniejsze krycie ${w.nazwa}`}
                 onPress={() => ustaw(w, { krycie: Math.max(0.1, Math.round((w.krycie - 0.1) * 10) / 10) })}

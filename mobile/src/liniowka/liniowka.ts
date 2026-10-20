@@ -18,6 +18,7 @@ import type {
 import type { RaportDzienny } from '../raportyBudowy/typy';
 import { kluczLegendy, segmentyKonstrukcji } from '../utils/projektBudowy';
 import { pasujeWarstwa } from '../utils/planZBudowy';
+import { warstwaMieszanki } from '../mieszanki/kolejnosc';
 import { poleZamalowaniaPdf } from './rasterSzkicu';
 
 export const KOLORY_DOMYSLNE: Record<Exclude<KategoriaWarstwy, 'inna'>, KolorWarstwyLiniowki> = {
@@ -44,8 +45,27 @@ const KOLEJNOSC_DOMYSLNA: Record<KategoriaWarstwy, number> = { sma: 1, wiazaca: 
 const POZIOM_SCIERALNEJ = 1000;
 const POZIOM_WLASNEJ = 500;
 
+const NIEBITUMICZNA = /MCE|CEMENT|BETON|STABILIZ|SPOIW|GRUNT/i;
+const KRUSZYWO = /K[ŁL]SM|KRUSZYW/i;
+
+/**
+ * Warstwa liniówki z nazwy warstwy konstrukcji/raportu: SMA, AC8S, AC11S → ścieralna;
+ * AC11W, AC16W (każde KR) → wiążąca; AC..P → podbudowa bitumiczna. MCE i inne podbudowy
+ * niebitumiczne są osobnymi warstwami pod własną nazwą.
+ */
+export function kategoriaLiniowki(kategoria: KategoriaWarstwy, nazwa: string): KategoriaWarstwy {
+  if (NIEBITUMICZNA.test(nazwa)) return 'inna';
+  if (kategoria === 'klsm' || KRUSZYWO.test(nazwa)) return 'klsm';
+  const zNazwy = warstwaMieszanki(nazwa);
+  if (zNazwy === 'scieralna') return 'sma';
+  if (zNazwy === 'wiazaca') return 'wiazaca';
+  if (zNazwy === 'podbudowa') return 'podbudowa';
+  return kategoria;
+}
+
 export function kluczWarstwyLiniowki(kategoria: KategoriaWarstwy, nazwa: string): string {
-  return kategoria === 'inna' ? `inna|${nazwa.trim().toLowerCase()}` : kategoria;
+  const k = kategoriaLiniowki(kategoria, nazwa);
+  return k === 'inna' ? `inna|${nazwa.trim().toLowerCase()}` : k;
 }
 
 export function kluczWlasnej(id: string): string {
@@ -159,7 +179,7 @@ export function kolejnoscWKonstrukcji(projekt: ProjektBudowy, s: Pick<SegmentLin
 
 /** Im wyższy poziom, tym wyżej na mapie. Ścieralna zawsze na wierzchu. */
 export function poziomSegmentu(projekt: ProjektBudowy, s: SegmentLiniowki): number {
-  if (s.kategoria === 'sma') return POZIOM_SCIERALNEJ;
+  if (s.klucz === 'sma') return POZIOM_SCIERALNEJ;
   return -kolejnoscWKonstrukcji(projekt, s);
 }
 
@@ -195,9 +215,14 @@ export interface WarstwaLiniowki {
   krycie: number;
   poziom: number;
   wlasna: boolean;
+  /** Nazwy warstw konstrukcji i raportów, które trafiają do tej warstwy liniówki (np. SMA 11, AC11S). */
+  sklad: string[];
 }
 
-/** Wszystkie warstwy: z konstrukcji, z odcinków i własne ze szkiców – z kolorami. */
+/**
+ * Wszystkie warstwy: każda warstwa użyta w konstrukcjach (z wyjątkami), z odcinków i własne ze szkiców.
+ * `wszystkieGlowne` dokłada brakujące główne warstwy (np. gdy projekt nie ma jeszcze konstrukcji).
+ */
 export function warstwyLiniowki(
   projekt: ProjektBudowy,
   segmenty: SegmentLiniowki[] = [],
@@ -205,15 +230,18 @@ export function warstwyLiniowki(
 ): WarstwaLiniowki[] {
   const ustawienia: LiniowkaProjektu = projekt.liniowka ?? {};
   const kolory = ustawienia.kolory ?? {};
-  const kategorie = new Set<KategoriaWarstwy>();
+  const sklady = new Map<string, Set<string>>();
   const inne = new Map<string, string>();
   const dodaj = (kategoria: KategoriaWarstwy, nazwa: string) => {
-    if (kategoria === 'inna') {
-      const k = kluczWarstwyLiniowki('inna', nazwa);
-      if (nazwa.trim() && !inne.has(k)) inne.set(k, nazwa.trim());
-    } else {
-      kategorie.add(kategoria);
+    const t = nazwa.trim();
+    const klucz = kluczWarstwyLiniowki(kategoria, t);
+    if (klucz.startsWith('inna|')) {
+      if (!t) return;
+      if (!inne.has(klucz)) inne.set(klucz, t);
     }
+    const s = sklady.get(klucz) ?? new Set<string>();
+    if (t) s.add(t);
+    sklady.set(klucz, s);
   };
   for (const k of projekt.konstrukcje) {
     for (const w of k.warstwy) dodaj(w.kategoria, w.nazwa);
@@ -221,23 +249,29 @@ export function warstwyLiniowki(
   }
   for (const s of segmenty) dodaj(s.kategoria, s.warstwaNazwa);
   for (const sz of ustawienia.szkice ?? []) {
-    if (KATEGORIE_GLOWNE.includes(sz.warstwaKlucz as Exclude<KategoriaWarstwy, 'inna'>)) kategorie.add(sz.warstwaKlucz as KategoriaWarstwy);
+    if (KATEGORIE_GLOWNE.includes(sz.warstwaKlucz as Exclude<KategoriaWarstwy, 'inna'>) && !sklady.has(sz.warstwaKlucz)) {
+      sklady.set(sz.warstwaKlucz, new Set());
+    }
   }
+  const brakWarstw = sklady.size === 0;
+  const sklad = (klucz: string) => [...(sklady.get(klucz) ?? [])].sort((a, b) => a.localeCompare(b, 'pl'));
 
   const out: WarstwaLiniowki[] = [];
   for (const kat of KATEGORIE_GLOWNE) {
-    if (!kategorie.has(kat) && !opcje.wszystkieGlowne) continue;
+    if (!sklady.has(kat) && !(opcje.wszystkieGlowne && brakWarstw)) continue;
     const kol = kolory[kat] ?? KOLORY_DOMYSLNE[kat];
-    out.push({ klucz: kat, nazwa: NAZWY_KATEGORII_LINIOWKI[kat], kolor: kol.kolor, krycie: kol.krycie, poziom: poziomKlucza(kat), wlasna: false });
+    out.push({
+      klucz: kat, nazwa: NAZWY_KATEGORII_LINIOWKI[kat], kolor: kol.kolor, krycie: kol.krycie, poziom: poziomKlucza(kat), wlasna: false, sklad: sklad(kat),
+    });
   }
   [...inne.entries()].sort((a, b) => a[1].localeCompare(b[1], 'pl')).forEach(([klucz, nazwa], i) => {
     const kol = kolory[klucz] ?? { kolor: PALETA_INNYCH[i % PALETA_INNYCH.length], krycie: KRYCIE_INNYCH };
-    out.push({ klucz, nazwa, kolor: kol.kolor, krycie: kol.krycie, poziom: poziomKlucza(klucz), wlasna: false });
+    out.push({ klucz, nazwa, kolor: kol.kolor, krycie: kol.krycie, poziom: poziomKlucza(klucz), wlasna: false, sklad: [] });
   });
   (ustawienia.warstwyWlasne ?? []).forEach((w, i) => {
     const klucz = kluczWlasnej(w.id);
     const kol = kolory[klucz] ?? { kolor: PALETA_INNYCH[(i + 3) % PALETA_INNYCH.length], krycie: KRYCIE_WLASNYCH };
-    out.push({ klucz, nazwa: w.nazwa, opis: w.opis, kolor: kol.kolor, krycie: kol.krycie, poziom: poziomKlucza(klucz), wlasna: true });
+    out.push({ klucz, nazwa: w.nazwa, opis: w.opis, kolor: kol.kolor, krycie: kol.krycie, poziom: poziomKlucza(klucz), wlasna: true, sklad: [] });
   });
   return out;
 }
@@ -309,6 +343,10 @@ export function wymazGumka(elementy: ElementSzkicu[], p: Punkt2D, promien: numbe
   const out: ElementSzkicu[] = [];
   for (const e of elementy) {
     const pts = e.punktyPdf;
+    if (e.wypelnienie) {
+      if (!elementPodPunktem([{ ...e, plama: false }], p, promien)) out.push(e);
+      continue;
+    }
     const usun = pts.map((q) => odl(q, p) <= promien);
     const ciecia = pts.slice(1).map((q, i) => !usun[i] && !usun[i + 1] && odlOdOdcinka(p, pts[i], q) <= promien);
     if (!usun.some(Boolean) && !ciecia.some(Boolean)) {
@@ -366,6 +404,133 @@ export function obszaryWarstwy(projekt: ProjektBudowy, arkusz: ArkuszPzt, klucz:
   return pasujace.length > 0 ? pasujace : arkusz.obszary;
 }
 
+/** Obszary, w których widać i liczy się szkic: wybrany obszar arkusza albo (starsze szkice) obszary warstwy. */
+export function klipSzkicu(
+  projekt: ProjektBudowy,
+  arkusz: ArkuszPzt,
+  szkic: Pick<SzkicLiniowki, 'warstwaKlucz' | 'obszarId'>,
+): ObszarObmiaru[] | null {
+  if (szkic.obszarId) {
+    const o = arkusz.obszary.find((x) => x.id === szkic.obszarId);
+    if (o) return [o];
+  }
+  return obszaryWarstwy(projekt, arkusz, szkic.warstwaKlucz);
+}
+
+/** Najbliższy punkt na obwodzie wielokąta. */
+function rzutNaObwod(p: Punkt2D, poly: Punkt2D[]): Punkt2D {
+  let best = poly[0];
+  let bestD = Infinity;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const a = poly[j];
+    const b = poly[i];
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const l2 = dx * dx + dy * dy;
+    const t = l2 < 1e-12 ? 0 : Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / l2));
+    const q = { x: a.x + t * dx, y: a.y + t * dy };
+    const d = odl(p, q);
+    if (d < bestD) {
+      bestD = d;
+      best = q;
+    }
+  }
+  return best;
+}
+
+/** Węzeł poza obszarem zatrzymuje się na jego granicy. Bez klipu – punkt bez zmian. */
+export function dociagnijDoObszaru(p: Punkt2D, klip: Punkt2D[][] | null | undefined): Punkt2D {
+  const polys = (klip ?? []).filter((poly) => poly.length >= 3);
+  if (polys.length === 0 || polys.some((poly) => punktWWielokacie(p, poly))) return p;
+  let best = p;
+  let bestD = Infinity;
+  for (const poly of polys) {
+    const q = rzutNaObwod(p, poly);
+    const d = odl(p, q);
+    if (d < bestD) {
+      bestD = d;
+      best = q;
+    }
+  }
+  return best;
+}
+
+/** Linia łamana: węzły i dla każdej krawędzi (i → i+1, ostatnia zamyka) punkt kontrolny łuku albo null. */
+export interface LamanaSzkicu {
+  wezly: Punkt2D[];
+  luki: Array<Punkt2D | null>;
+}
+
+export const pustaLamana = (): LamanaSzkicu => ({ wezly: [], luki: [] });
+
+/** Krawędzie łamanej – zamykająca dopiero od 3 węzłów. */
+export function krawedzieLamanej(l: LamanaSzkicu): Array<{ i: number; a: Punkt2D; b: Punkt2D; c: Punkt2D | null }> {
+  const n = l.wezly.length;
+  if (n < 2) return [];
+  const ile = n >= 3 ? n : n - 1;
+  return Array.from({ length: ile }, (_, i) => ({ i, a: l.wezly[i], b: l.wezly[(i + 1) % n], c: l.luki[i] ?? null }));
+}
+
+/** Punkt w połowie krawędzi (na łuku) – uchwyt do wyginania. */
+export function srodekKrawedzi(a: Punkt2D, b: Punkt2D, c: Punkt2D | null): Punkt2D {
+  if (!c) return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+  return { x: (a.x + 2 * c.x + b.x) / 4, y: (a.y + 2 * c.y + b.y) / 4 };
+}
+
+/** Punkt kontrolny łuku, który przechodzi przez przeciągnięty środek krawędzi. Blisko prostej = bez łuku. */
+export function lukPrzezPunkt(a: Punkt2D, b: Punkt2D, m: Punkt2D, tolerancja = 0): Punkt2D | null {
+  const prosty = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+  if (odl(m, prosty) <= tolerancja) return null;
+  return { x: 2 * m.x - prosty.x, y: 2 * m.y - prosty.y };
+}
+
+export function dodajWezel(l: LamanaSzkicu, p: Punkt2D): LamanaSzkicu {
+  return { wezly: [...l.wezly, p], luki: [...l.luki, null] };
+}
+
+export function usunOstatniWezel(l: LamanaSzkicu): LamanaSzkicu {
+  return { wezly: l.wezly.slice(0, -1), luki: l.luki.slice(0, -1).map((c, i, arr) => (i === arr.length - 1 ? null : c)) };
+}
+
+export function przesunWezel(l: LamanaSzkicu, i: number, p: Punkt2D): LamanaSzkicu {
+  return { ...l, wezly: l.wezly.map((q, k) => (k === i ? p : q)) };
+}
+
+export function ustawLuk(l: LamanaSzkicu, i: number, c: Punkt2D | null): LamanaSzkicu {
+  const luki = l.wezly.map((_, k) => l.luki[k] ?? null);
+  luki[i] = c;
+  return { ...l, luki };
+}
+
+/** Obrys zamkniętej łamanej z łukami rozpisanymi na krótkie odcinki. */
+export function obrysLamanej(l: LamanaSzkicu, krokiLuku = 24): Punkt2D[] {
+  const out: Punkt2D[] = [];
+  for (const { a, b, c } of krawedzieLamanej({ ...l, wezly: l.wezly.length >= 3 ? l.wezly : [] })) {
+    out.push(a);
+    if (!c) continue;
+    for (let k = 1; k < krokiLuku; k++) {
+      const t = k / krokiLuku;
+      const u = 1 - t;
+      out.push({ x: u * u * a.x + 2 * u * t * c.x + t * t * b.x, y: u * u * a.y + 2 * u * t * c.y + t * t * b.y });
+    }
+  }
+  return out;
+}
+
+/** Zamknięta łamana jako wypełniony obszar szkicu (z zapisanymi węzłami do dalszej edycji). */
+export function elementZLamanej(l: LamanaSzkicu, kolor: string): ElementSzkicu | null {
+  const obrys = obrysLamanej(l);
+  if (obrys.length < 3 || poleWielokata(obrys) < 1e-9) return null;
+  return {
+    id: noweId(),
+    punktyPdf: obrys,
+    kolor,
+    gruboscPdf: 0,
+    wypelnienie: kolor,
+    lamana: { wezly: l.wezly, luki: l.wezly.map((_, i) => l.luki[i] ?? null) },
+  };
+}
+
 /** m² terenu na jednostkę² PDF – z powierzchni obszaru XFDF. */
 export function skalaM2Obszaru(o: ObszarObmiaru): number | null {
   const pdf = poleWielokata(o.wierzcholkiPdf);
@@ -411,7 +576,7 @@ export function nowySzkic(
   arkuszId: string,
   elementy: ElementSzkicu[],
   warstwaKlucz: string,
-  dodatki: Partial<Pick<SzkicLiniowki, 'opis' | 'powierzchniaM2' | 'powierzchnie' | 'raportId'>> = {},
+  dodatki: Partial<Pick<SzkicLiniowki, 'opis' | 'powierzchniaM2' | 'powierzchnie' | 'raportId' | 'obszarId'>> = {},
 ): SzkicLiniowki {
   const teraz = new Date().toISOString();
   return { id: noweId(), arkuszId, elementy, warstwaKlucz, ...dodatki, createdAt: teraz, updatedAt: teraz };

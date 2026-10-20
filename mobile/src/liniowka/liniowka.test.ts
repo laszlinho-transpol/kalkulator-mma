@@ -4,9 +4,20 @@ import type { ArkuszPzt, ElementSzkicu, ProjektBudowy, Punkt2D, WarstwaKonstrukc
 import type { RaportDzienny } from '../raportyBudowy/typy';
 import { poleZamalowaniaPdf, wypelnijDoKrawedzi } from './rasterSzkicu';
 import {
+  dociagnijDoObszaru,
   dodajWarstweWlasna,
+  dodajWezel,
   elementPodPunktem,
+  elementZLamanej,
+  kategoriaLiniowki,
+  klipSzkicu,
   kluczWarstwyLiniowki,
+  lukPrzezPunkt,
+  obrysLamanej,
+  pustaLamana,
+  srodekKrawedzi,
+  ustawLuk,
+  usunOstatniWezel,
   obszaryWarstwy,
   powierzchnieSzkicu,
   posortujDoRysowania,
@@ -208,5 +219,92 @@ describe('liniówka – szkic', () => {
     const po = wymazGumka([linia], { x: 5, y: 0.2 }, 1);
     assert.deepEqual(po.map((e) => e.punktyPdf.length), [2]);
     assert.deepEqual(po[0].punktyPdf[0], { x: 10, y: 0 });
+  });
+});
+
+describe('liniówka – warstwy z konstrukcji', () => {
+  it('ścieralna: SMA, AC8S, AC11S; wiążąca: AC11W, AC16W każde KR; MCE osobno', () => {
+    assert.equal(kategoriaLiniowki('inna', 'AC8S'), 'sma');
+    assert.equal(kategoriaLiniowki('inna', 'AC 11 S'), 'sma');
+    assert.equal(kategoriaLiniowki('sma', 'SMA 11'), 'sma');
+    assert.equal(kategoriaLiniowki('inna', 'AC11W'), 'wiazaca');
+    assert.equal(kategoriaLiniowki('podbudowa', 'AC16W KR1-2'), 'wiazaca');
+    assert.equal(kategoriaLiniowki('wiazaca', 'AC16W KR 3-4'), 'wiazaca');
+    assert.equal(kategoriaLiniowki('podbudowa', 'AC22P'), 'podbudowa');
+    assert.equal(kategoriaLiniowki('podbudowa', 'MCE'), 'inna');
+    assert.equal(kluczWarstwyLiniowki('klsm', 'MCE'), 'inna|mce');
+    assert.equal(kategoriaLiniowki('inna', 'KŁSM 0/31,5'), 'klsm');
+  });
+
+  it('wyciąga każdą warstwę użytą w konstrukcjach i wyjątkach, ze składem', () => {
+    const p: ProjektBudowy = {
+      ...projekt,
+      konstrukcje: [
+        { legendaId: 'L1', warstwy: [warstwa(1, 'SMA 11', 'sma'), warstwa(2, 'AC16W KR3-4', 'wiazaca'), warstwa(3, 'MCE', 'podbudowa')], wyjatki: [] },
+        {
+          legendaId: 'L2',
+          warstwy: [warstwa(1, 'AC11S', 'inna'), warstwa(2, 'AC16W KR1-2', 'podbudowa')],
+          wyjatki: [{ id: 'x', kmOdM: 0, kmDoM: 10, warstwy: [warstwa(1, 'AC8S', 'sma'), warstwa(2, 'AC11W', 'wiazaca')] }],
+        },
+      ],
+    };
+    const w = warstwyLiniowki(p, [], { wszystkieGlowne: true });
+    const k = Object.fromEntries(w.map((x) => [x.klucz, x]));
+    assert.deepEqual(Object.keys(k).sort(), ['inna|mce', 'sma', 'wiazaca']);
+    assert.deepEqual(k.sma.sklad, ['AC11S', 'AC8S', 'SMA 11']);
+    assert.deepEqual(k.wiazaca.sklad, ['AC11W', 'AC16W KR1-2', 'AC16W KR3-4']);
+    assert.equal(k['inna|mce'].nazwa, 'MCE');
+    const pusty = warstwyLiniowki({ ...projekt, konstrukcje: [] }, [], { wszystkieGlowne: true });
+    assert.equal(pusty.length, 4);
+  });
+});
+
+describe('liniówka – obszar szkicu i linia łamana', () => {
+  const kw: Punkt2D[] = [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }, { x: 0, y: 10 }];
+
+  it('węzeł poza obszarem zatrzymuje się na granicy', () => {
+    assert.deepEqual(dociagnijDoObszaru({ x: 5, y: 5 }, [kw]), { x: 5, y: 5 });
+    assert.deepEqual(dociagnijDoObszaru({ x: 15, y: 5 }, [kw]), { x: 10, y: 5 });
+    assert.deepEqual(dociagnijDoObszaru({ x: 5, y: -3 }, [kw]), { x: 5, y: 0 });
+    assert.deepEqual(dociagnijDoObszaru({ x: 50, y: 50 }, null), { x: 50, y: 50 });
+  });
+
+  it('łuk przechodzi przez przeciągnięty środek krawędzi', () => {
+    const a = { x: 0, y: 0 };
+    const b = { x: 10, y: 0 };
+    const c = lukPrzezPunkt(a, b, { x: 5, y: 4 })!;
+    const m = srodekKrawedzi(a, b, c);
+    assert.ok(Math.abs(m.x - 5) < 1e-9 && Math.abs(m.y - 4) < 1e-9);
+    assert.equal(lukPrzezPunkt(a, b, { x: 5, y: 0.1 }, 0.5), null);
+  });
+
+  it('zamknięta łamana z łukiem daje wypełniony obszar z zapisanymi węzłami', () => {
+    let l = pustaLamana();
+    for (const p of [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }, { x: 0, y: 10 }]) l = dodajWezel(l, p);
+    const prosty = elementZLamanej(l, '#f00')!;
+    assert.equal(prosty.wypelnienie, '#f00');
+    assert.equal(prosty.lamana?.wezly.length, 4);
+    assert.equal(poleZamalowaniaPdf([prosty]) > 90, true);
+    const wypukly = ustawLuk(l, 0, lukPrzezPunkt(l.wezly[0], l.wezly[1], { x: 5, y: -4 }));
+    const obrys = obrysLamanej(wypukly);
+    assert.ok(obrys.length > 20);
+    assert.ok(Math.min(...obrys.map((p) => p.y)) < -3.5);
+    assert.ok(poleZamalowaniaPdf([elementZLamanej(wypukly, '#f00')!]) > poleZamalowaniaPdf([prosty]) + 15);
+    assert.equal(elementZLamanej(usunOstatniWezel(usunOstatniWezel(l)), '#f00'), null);
+  });
+
+  it('gumka usuwa całe wypełnienie, szkic widać tylko w wybranym obszarze', () => {
+    const el = elementZLamanej([{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }].reduce(dodajWezel, pustaLamana()), '#f00')!;
+    assert.deepEqual(wymazGumka([el], { x: 7, y: 2 }, 0.5), []);
+    assert.deepEqual(wymazGumka([el], { x: 50, y: 50 }, 0.5), [el]);
+    const arkusz = {
+      id: 'a1', nazwa: 'A', zrodloNazwa: '', kolejnosc: 1, kontynuacjaPoprzedniego: false, kilometrazPoczatkowyM: 0, kilometrazKoncowyM: 100,
+      obszary: [
+        { id: 'o1', nazwa: 'Trasa P', kolejnosc: 1, wierzcholkiPdf: kw, wierzcholkiM: [], powierzchniaM2: 100, obwodM: 0, zrodloNazwa: '', kolorWypelnienia: '#FFEE58' },
+        { id: 'o2', nazwa: 'Trasa P2', kolejnosc: 2, wierzcholkiPdf: kw, wierzcholkiM: [], powierzchniaM2: 100, obwodM: 0, zrodloNazwa: '', kolorWypelnienia: '#FFEE58' },
+      ],
+    } as ArkuszPzt;
+    assert.deepEqual(klipSzkicu(projekt, arkusz, { warstwaKlucz: 'sma', obszarId: 'o2' })?.map((o) => o.id), ['o2']);
+    assert.deepEqual(klipSzkicu(projekt, arkusz, { warstwaKlucz: 'sma' })?.map((o) => o.id), ['o1', 'o2']);
   });
 });

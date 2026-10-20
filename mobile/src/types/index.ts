@@ -630,6 +630,8 @@ export interface ElementSzkicu {
   plama?: boolean;
   /** Niezamalowane wyspy wewnątrz plamy. */
   otwory?: Punkt2D[][];
+  /** Obszar z linii łamanej: węzły i punkty kontrolne łuków krawędzi (null = prosta). */
+  lamana?: { wezly: Punkt2D[]; luki: Array<Punkt2D | null> };
 }
 
 export interface PowierzchniaSzkicuObszaru {
@@ -644,6 +646,8 @@ export interface SzkicLiniowki {
   elementy: ElementSzkicu[];
   /** Klucz warstwy liniówki: kategoria, `inna|nazwa` albo `wlasna|id`. */
   warstwaKlucz: string;
+  /** Obszar arkusza, po którym rysowano – szkic widać i liczy się tylko w nim. */
+  obszarId?: string;
   opis?: string;
   /** Zamalowana powierzchnia z dnia zapisu [m²]. */
   powierzchniaM2?: number;
