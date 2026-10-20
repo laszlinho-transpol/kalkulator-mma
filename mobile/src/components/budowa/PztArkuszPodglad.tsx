@@ -8,10 +8,13 @@ import {
   PinchGestureHandler,
   State,
 } from 'react-native-gesture-handler';
-import Svg, { Circle, G, Image as SvgImage, Line, Path, Polygon, Polyline, Rect, Text as SvgText } from 'react-native-svg';
+import Svg, {
+  Circle, ClipPath, Defs, G, Image as SvgImage, Line, Path, Polygon, Polyline, Rect, Text as SvgText,
+} from 'react-native-svg';
 import { InfoTooltip } from '../common/InfoTooltip';
 import type { ArkuszPzt, ElementSzkicu, Punkt2D, TloArkuszaPzt } from '../../types';
-import { dodajPunktKreski, punktWWielokacie, stacjeZnakowInfo, wymazGumka, wypelnijWiadrem } from '../../liniowka/liniowka';
+import { dodajPunktKreski, elementPodPunktem, punktWWielokacie, stacjeZnakowInfo, wymazGumka } from '../../liniowka/liniowka';
+import { wypelnijDoKrawedzi, zakresPunktow } from '../../liniowka/rasterSzkicu';
 import { kluczLegendy } from '../../utils/projektBudowy';
 import { bboxWielokata } from '../../utils/obmiarGeometry';
 import {
@@ -129,6 +132,8 @@ export interface OdcinekLiniowkiPodgladu {
   kolor: string;
   krycie: number;
   reczny?: boolean;
+  /** Klucz warstwy – strzałki dnia leżą tuż nad swoją warstwą. */
+  warstwa?: string;
 }
 
 export interface SzkicPodgladu {
@@ -137,6 +142,8 @@ export interface SzkicPodgladu {
   krycie: number;
   /** Ile odcinków liniówki leży pod szkicem. Brak = na wierzchu. */
   poIndeksie?: number;
+  /** Obszary warstwy (PDF) – szkic widać tylko w nich. Brak = cały arkusz. */
+  klip?: Punkt2D[][] | null;
 }
 
 export interface LiniowkaPodgladu {
@@ -144,6 +151,8 @@ export interface LiniowkaPodgladu {
   szkice?: SzkicPodgladu[];
   podswietlonyId?: string;
   onPressOdcinek?: (id: string) => void;
+  podswietlonySzkicId?: string;
+  onPressSzkic?: (id: string) => void;
 }
 
 export type NarzedzieSzkicu = 'pioro' | 'wiadro' | 'gumka';
@@ -151,14 +160,19 @@ export type NarzedzieSzkicu = 'pioro' | 'wiadro' | 'gumka';
 export interface RysowaniePodgladu {
   narzedzie: NarzedzieSzkicu;
   kolor: string;
-  /** Grubość na ekranie przy obecnym przybliżeniu – zapisywana w jednostkach PDF. */
+  /** Grubość na ekranie przy obecnym przybliżeniu – zapisywana w jednostkach PDF. 0 = linia obszaru. */
   gruboscPx: number;
   elementy: ElementSzkicu[];
   onZmien: (elementy: ElementSzkicu[]) => void;
+  /** Obszary warstwy (PDF): pióro i wiaderko działają tylko w nich. Brak = cały arkusz. */
+  klip?: Punkt2D[][] | null;
+  onWiadroBezGranic?: () => void;
 }
 
 const PROMIEN_GUMKI_PX = 12;
-const PROMIEN_ZNAKU_PX = 9;
+const LINIA_OBSZARU_PX = 1.25;
+const LED_HALO = '#FDE047';
+const LED_RDZEN = '#FFFBEB';
 
 function sciezkaSvg(pts: Punkt2D[], zamknij: boolean): string {
   if (pts.length === 0) return '';
@@ -166,10 +180,18 @@ function sciezkaSvg(pts: Punkt2D[], zamknij: boolean): string {
   return `M${p0.x.toFixed(2)},${p0.y.toFixed(2)}${reszta.map((p) => `L${p.x.toFixed(2)},${p.y.toFixed(2)}`).join('')}${zamknij ? 'Z' : ''}`;
 }
 
-function strzalka(mx: number, my: number, ux: number, uy: number, s: number): string {
-  const dl = 14 / s;
-  const pol = 6 / s;
-  const odstep = 3 / s;
+function idKlipu(id: string): string {
+  return `klip-${id.replace(/[^A-Za-z0-9_-]/g, '_')}`;
+}
+
+interface WymiarStrzalki {
+  dl: number;
+  pol: number;
+  odstep: number;
+}
+
+/** Strzałka w jednostkach rysunku – rośnie i maleje razem z planem. */
+function strzalka(mx: number, my: number, ux: number, uy: number, { dl, pol, odstep }: WymiarStrzalki): string {
   const bx = mx + ux * odstep;
   const by = my + uy * odstep;
   const tx = bx + ux * dl;
@@ -501,8 +523,11 @@ export function PztArkuszPodglad({
     const out: Array<OdcinekLiniowkiPodgladu & {
       idx: number;
       wielokaty: Array<{ pts: Punkt2D[]; punkty: string }>;
-      kreski: Array<{ rola: 'start' | 'koniec'; x1: number; y1: number; x2: number; y2: number; mx: number; my: number; ux: number; uy: number }>;
-      znaki: Punkt2D[];
+      kreski: Array<{
+        rola: 'start' | 'koniec'; x1: number; y1: number; x2: number; y2: number; mx: number; my: number; ux: number; uy: number;
+        wymiar: WymiarStrzalki;
+      }>;
+      znaki: Array<Punkt2D & { r: number }>;
     }> = [];
     for (const [idx, o] of odcinkiLiniowki.entries()) {
       const lo = Math.min(o.kmOdM, o.kmDoM);
@@ -522,11 +547,21 @@ export function PztArkuszPodglad({
         });
       if (wielokaty.length === 0) continue;
       const rosnie = o.kmDoM >= o.kmOdM;
+      const dlOdcinkaSvg = Math.abs(sB - sA) * mapa.skalaFit;
+      const szerPasaSvg = Math.max(0.5, medianaSzerokosciObszarowPdf(obszary)) * mapa.skalaFit;
       const kreski: (typeof out)[number]['kreski'] = [];
       for (const [rola, km] of [['start', o.kmOdM], ['koniec', o.kmDoM]] as const) {
         if (!naArkuszu(km)) continue;
-        const s = sZKm(km);
-        const cz = czoloObmiaruPdf(obszary, osPdf, s);
+        const s0 = sZKm(km);
+        const wGlab = Math.sign(rola === 'start' ? sB - sA : sA - sB);
+        // Na krawędzi arkusza prostopadła mija obrys obszaru – czoło szukamy odrobinę w głąb odcinka.
+        let s = s0;
+        let cz = czoloObmiaruPdf(obszary, osPdf, s);
+        for (const f of [0.005, 0.01, 0.02, 0.04, 0.08]) {
+          if (cz) break;
+          s = s0 + wGlab * f * Math.abs(sB - sA);
+          cz = czoloObmiaruPdf(obszary, osPdf, s);
+        }
         const t = stycznyNaOsi(osPdf, s);
         if (!cz || !t) continue;
         const a = toSvg(cz.a);
@@ -534,16 +569,24 @@ export function PztArkuszPodglad({
         const m = toSvg(cz.srodek);
         const l = Math.hypot(t.dx, t.dy) || 1;
         const kier = (rosnie ? 1 : -1) * (rola === 'start' ? 1 : -1);
-        kreski.push({ rola, x1: a.x, y1: a.y, x2: b.x, y2: b.y, mx: m.x, my: m.y, ux: (t.dx / l) * kier, uy: (-t.dy / l) * kier });
+        const szer = Math.hypot(b.x - a.x, b.y - a.y) || szerPasaSvg;
+        const dl = Math.min(szer * 0.75, dlOdcinkaSvg * 0.3);
+        kreski.push({
+          rola, x1: a.x, y1: a.y, x2: b.x, y2: b.y, mx: m.x, my: m.y, ux: (t.dx / l) * kier, uy: (-t.dy / l) * kier,
+          wymiar: { dl, pol: Math.min(szer * 0.32, dl * 0.55), odstep: dl * 0.12 },
+        });
       }
       const znaki = stacjeZnakowInfo(o.kmOdM, o.kmDoM)
         .filter((km) => km >= odKm && km <= doKm)
         .map((km) => {
           const s = sZKm(km);
-          const p = pasUkladaniaPdf(obszary, osPdf, s)?.srodek ?? punktNaOsi(osPdf, s);
-          return p ? toSvg(p) : null;
+          const pas = pasUkladaniaPdf(obszary, osPdf, s);
+          const p = pas?.srodek ?? punktNaOsi(osPdf, s);
+          if (!p) return null;
+          const szer = pas && pas.szer > 0.4 ? pas.szer * mapa.skalaFit : szerPasaSvg;
+          return { ...toSvg(p), r: Math.min(szer * 0.3, dlOdcinkaSvg * 0.2) };
         })
-        .filter((p): p is Punkt2D => !!p);
+        .filter((p): p is Punkt2D & { r: number } => !!p);
       out.push({ ...o, idx, wielokaty, kreski, znaki });
     }
     return out;
@@ -566,21 +609,29 @@ export function PztArkuszPodglad({
     const toSvg = (p: Punkt2D) => pdfDoSvgPodgladu(p, mapa.mapaSvg);
     const lista: SzkicPodgladu[] = [
       ...(liniowka?.szkice ?? []),
-      ...(rysowanie ? [{ id: 'rysowany', krycie: 0.5, elementy: rysowanie.elementy }] : []),
+      ...(rysowanie ? [{ id: 'rysowany', krycie: 0.5, elementy: rysowanie.elementy, klip: rysowanie.klip }] : []),
     ];
     return lista.map((sz) => ({
       id: sz.id,
       krycie: sz.krycie,
       poIndeksie: sz.poIndeksie ?? Infinity,
+      klip: sz.klip?.map((poly) => poly.map(toSvg).map((p) => `${p.x},${p.y}`).join(' ')),
       elementy: sz.elementy.map((e) => ({
         id: e.id,
-        d: sciezkaSvg(e.punktyPdf.map(toSvg), !!e.wypelnienie),
+        d: [e.punktyPdf, ...(e.otwory ?? [])].map((r) => sciezkaSvg(r.map(toSvg), !!e.wypelnienie)).join(''),
         kolor: e.kolor,
-        szer: Math.max(0.2, e.gruboscPdf * mapa.skalaFit),
+        szer: e.gruboscPdf > 0 ? Math.max(0.05, e.gruboscPdf * mapa.skalaFit) : 0,
         wypelnienie: e.wypelnienie,
+        plama: !!e.plama,
       })),
     }));
   }, [mapa, liniowka?.szkice, rysowanie]);
+  const szkiceRef = useRef(liniowka?.szkice);
+  szkiceRef.current = liniowka?.szkice;
+  const onPressSzkicRef = useRef(liniowka?.onPressSzkic);
+  onPressSzkicRef.current = liniowka?.onPressSzkic;
+  const arkuszRef = useRef(arkusz);
+  arkuszRef.current = arkusz;
 
   const mapaRef = useRef(mapa);
   mapaRef.current = mapa;
@@ -635,11 +686,34 @@ export function PztArkuszPodglad({
     if (r.narzedzie !== 'pioro') return;
     const pdf = pdfZEkranu(ekranX, ekranY);
     if (!pdf) return;
-    const next = dodajPunktKreski(kreskaRef.current, pdf, 2 / pdfNaEkranPx());
+    const next = dodajPunktKreski(kreskaRef.current, pdf, 1 / pdfNaEkranPx());
     if (next !== kreskaRef.current) {
       kreskaRef.current = next;
       setKreska(next);
     }
+  };
+
+  const wiadroW = (ekranX: number, ekranY: number) => {
+    const r = rysowanieRef.current;
+    const pdf = pdfZEkranu(ekranX, ekranY);
+    if (!r || !pdf) return;
+    const { w, h } = rozmiarRef.current;
+    const rogi = [pdfZEkranu(0, 0), pdfZEkranu(w, h), pdfZEkranu(0, h), pdfZEkranu(w, 0)].filter((p): p is Punkt2D => !!p);
+    const widok = zakresPunktow(rogi);
+    if (!widok) return;
+    const dx = widok.maxX - widok.minX;
+    const dy = widok.maxY - widok.minY;
+    const po = wypelnijDoKrawedzi({
+      elementy: elementyRef.current,
+      punkt: pdf,
+      kolor: r.kolor,
+      krawedzie: arkuszRef.current.obszary.map((o) => o.wierzcholkiPdf),
+      dozwolone: r.klip,
+      zakres: { minX: widok.minX - dx, minY: widok.minY - dy, maxX: widok.maxX + dx, maxY: widok.maxY + dy },
+      liniaObszaruPdf: LINIA_OBSZARU_PX / pdfNaEkranPx(),
+    });
+    if (po) zmienElementy(po);
+    else r.onWiadroBezGranic?.();
   };
 
   const zakonczKreske = () => {
@@ -654,7 +728,7 @@ export function PztArkuszPodglad({
         id: `k${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
         punktyPdf: pts,
         kolor: r.kolor,
-        gruboscPdf: r.gruboscPx / pdfNaEkranPx(),
+        gruboscPdf: r.gruboscPx > 0 ? r.gruboscPx / pdfNaEkranPx() : 0,
       },
     ]);
   };
@@ -667,30 +741,45 @@ export function PztArkuszPodglad({
     const r = rysowanieRef.current;
     if (r) {
       if (r.narzedzie === 'gumka') gumkaW(ekranX, ekranY);
-      if (r.narzedzie === 'wiadro') {
-        const pdf = pdfZEkranu(ekranX, ekranY);
-        const po = pdf ? wypelnijWiadrem(elementyRef.current, pdf, r.kolor) : null;
-        if (po) zmienElementy(po);
-      }
+      if (r.narzedzie === 'wiadro') wiadroW(ekranX, ekranY);
       return;
     }
     const lin = liniowkaSvgRef.current;
     const cbOdcinek = onPressOdcinekRef.current;
-    if (lin.length > 0 && cbOdcinek) {
-      const svg = punktSvgZEkranu({
-        ekranX,
-        ekranY,
-        szer: rozmiarRef.current.w,
-        wys: rozmiarRef.current.h,
-        tx: bazaX.current,
-        ty: bazaY.current,
-        rot: 0,
-        skala: bazaSkali.current,
-      });
-      const zasieg = (PROMIEN_ZNAKU_PX + 5) / bazaSkali.current;
-      const odGory = [...lin].reverse();
-      const zeZnakiem = odGory.find((o) => o.znaki.some((z) => Math.hypot(z.x - svg.x, z.y - svg.y) <= zasieg));
-      const trafiony = zeZnakiem ?? odGory.find((o) => o.wielokaty.some((w) => punktWWielokacie(svg, w.pts)));
+    const svg = punktSvgZEkranu({
+      ekranX,
+      ekranY,
+      szer: rozmiarRef.current.w,
+      wys: rozmiarRef.current.h,
+      tx: bazaX.current,
+      ty: bazaY.current,
+      rot: 0,
+      skala: bazaSkali.current,
+    });
+    const odGory = [...lin].reverse();
+    if (cbOdcinek) {
+      const zapas = 8 / bazaSkali.current;
+      const zeZnakiem = odGory.find((o) => o.znaki.some((z) => Math.hypot(z.x - svg.x, z.y - svg.y) <= Math.max(z.r, zapas)));
+      if (zeZnakiem) {
+        cbOdcinek(zeZnakiem.id);
+        return;
+      }
+    }
+    const cbSzkic = onPressSzkicRef.current;
+    const pdfTap = cbSzkic ? pdfZEkranu(ekranX, ekranY) : null;
+    if (cbSzkic && pdfTap) {
+      const tol = 6 / pdfNaEkranPx();
+      const trafionySzkic = [...(szkiceRef.current ?? [])].reverse().find((sz) => (
+        (!sz.klip || sz.klip.some((poly) => punktWWielokacie(pdfTap, poly)))
+        && !!elementPodPunktem(sz.elementy, pdfTap, tol)
+      ));
+      if (trafionySzkic) {
+        cbSzkic(trafionySzkic.id);
+        return;
+      }
+    }
+    if (cbOdcinek) {
+      const trafiony = odGory.find((o) => o.wielokaty.some((w) => punktWWielokacie(svg, w.pts)));
       if (trafiony) {
         cbOdcinek(trafiony.id);
         return;
@@ -1023,32 +1112,88 @@ export function PztArkuszPodglad({
   const buforTla = tloMeta && tickTla >= 0
     ? (buforTlaArkusza(arkusz.id) ?? podlaczBuforDoArkusza(arkusz.id, tloMeta.nazwa) ?? null)
     : null;
-  const sZnak = Math.max(xform.s, 0.08);
-  const rZnakInfo = PROMIEN_ZNAKU_PX / sZnak;
   const podswietlony = liniowka?.podswietlonyId
     ? liniowkaSvg.find((o) => o.id === liniowka.podswietlonyId)
+    : undefined;
+  const szkicPodswietlony = liniowka?.podswietlonySzkicId
+    ? szkiceSvg.find((sz) => sz.id === liniowka.podswietlonySzkicId)
     : undefined;
   const kreskaSvg = kreska.length >= 2 && mapa
     ? sciezkaSvg(kreska.map((p) => pdfDoSvgPodgladu(p, mapa.mapaSvg)), false)
     : '';
+  const klipSvg = rysowanie?.klip ? szkiceSvg.find((sz) => sz.id === 'rysowany')?.klip : undefined;
+  const wKlipie = (sz: { id: string; klip?: string[] }, tresc: React.ReactNode, klucz: string) => (
+    sz.klip?.length ? (
+      <G key={klucz}>
+        <Defs>
+          <ClipPath id={idKlipu(`${klucz}-${sz.id}`)}>
+            {sz.klip.map((pts, i) => <Polygon key={i} points={pts} />)}
+          </ClipPath>
+        </Defs>
+        <G clipPath={`url(#${idKlipu(`${klucz}-${sz.id}`)})`}>{tresc}</G>
+      </G>
+    ) : <G key={klucz}>{tresc}</G>
+  );
   const szkiceMiedzy = (lo: number, hi: number) => szkiceSvg
     .filter((sz) => sz.poIndeksie > lo && sz.poIndeksie <= hi)
-    .map((sz) => (
-      <G key={`sz-${sz.id}`}>
-        {sz.elementy.map((e) => (
-          <Path
-            key={e.id}
-            d={e.d}
-            stroke={e.kolor}
-            strokeWidth={e.szer}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            fill={e.wypelnienie ?? 'none'}
-            fillOpacity={e.wypelnienie ? sz.krycie : 0}
-          />
-        ))}
+    .map((sz) => wKlipie(sz, sz.elementy.map((e) => (
+      <Path
+        key={e.id}
+        d={e.d}
+        stroke={e.plama ? 'none' : e.kolor}
+        strokeWidth={e.plama ? 0 : (e.szer || LINIA_OBSZARU_PX)}
+        vectorEffect={e.szer ? undefined : 'non-scaling-stroke'}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill={e.wypelnienie ?? 'none'}
+        fillRule="evenodd"
+        fillOpacity={e.wypelnienie ? sz.krycie : 0}
+      />
+    )), `sz-${sz.id}`));
+  /** Świecący obrys jak taśma LED: szeroka poświata, jaśniejsza smuga i biały rdzeń. */
+  const obrysLed = (klucz: string, rysuj: (p: { stroke: string; strokeWidth: number; strokeOpacity: number }) => React.ReactNode) => (
+    <G key={klucz}>
+      {rysuj({ stroke: LED_HALO, strokeWidth: 16, strokeOpacity: 0.18 })}
+      {rysuj({ stroke: LED_HALO, strokeWidth: 9, strokeOpacity: 0.4 })}
+      {rysuj({ stroke: '#FACC15', strokeWidth: 4.5, strokeOpacity: 0.95 })}
+      {rysuj({ stroke: LED_RDZEN, strokeWidth: 1.6, strokeOpacity: 1 })}
+    </G>
+  );
+  const kreskiOdcinka = (o: (typeof liniowkaSvg)[number], klucz: string) => o.kreski.map((k) => {
+    const kolor = k.rola === 'start' ? '#16A34A' : '#DC2626';
+    return (
+      <G key={`${klucz}-${o.id}-${k.rola}`}>
+        <Line
+          x1={k.x1}
+          y1={k.y1}
+          x2={k.x2}
+          y2={k.y2}
+          stroke={kolor}
+          strokeWidth={swEkran * 1.8}
+          strokeLinecap="butt"
+          vectorEffect="non-scaling-stroke"
+        />
+        <Polygon
+          points={strzalka(k.mx, k.my, k.ux, k.uy, k.wymiar)}
+          fill={kolor}
+          stroke="#FFFFFF"
+          strokeWidth={k.wymiar.dl * 0.06}
+          strokeLinejoin="round"
+        />
       </G>
-    ));
+    );
+  });
+  const grupyWarstw: Array<{ warstwa: string; odcinki: typeof liniowkaSvg; indeksy: number[] }> = [];
+  liniowkaSvg.forEach((o, i) => {
+    const ost = grupyWarstw[grupyWarstw.length - 1];
+    const w = o.warstwa ?? o.id;
+    if (ost && ost.warstwa === w) {
+      ost.odcinki.push(o);
+      ost.indeksy.push(i);
+    } else {
+      grupyWarstw.push({ warstwa: w, odcinki: [o], indeksy: [i] });
+    }
+  });
 
   return (
     <View>
@@ -1220,26 +1365,46 @@ export function PztArkuszPodglad({
                         {mapa.ulozone.map((pts, i) => (
                           <Polygon key={`ulo-${i}`} points={pts} fill={FILL_ULOZONE} />
                         ))}
-                        {liniowkaSvg.map((o, i) => (
-                          <G key={`lin-${o.id}`}>
-                            {szkiceMiedzy(i === 0 ? -1 : liniowkaSvg[i - 1].idx, o.idx)}
-                            {o.wielokaty.map((w, j) => (
-                              <Polygon
-                                key={j}
-                                points={w.punkty}
-                                fill={o.kolor}
-                                fillOpacity={o.krycie}
-                                stroke={o.reczny ? o.kolor : 'none'}
-                                strokeOpacity={1}
-                                strokeWidth={o.reczny ? swEkran * 1.6 : 0}
-                                strokeDasharray={o.reczny ? `${dash * 1.4} ${dash}` : undefined}
-                                strokeLinejoin="round"
-                                vectorEffect="non-scaling-stroke"
-                              />
-                            ))}
+                        {grupyWarstw.map((g) => (
+                          <G key={`lw-${g.indeksy[0]}`}>
+                            {g.odcinki.map((o, n) => {
+                              const i = g.indeksy[n];
+                              return (
+                                <G key={`lin-${o.id}`}>
+                                  {szkiceMiedzy(i === 0 ? -1 : liniowkaSvg[i - 1].idx, o.idx)}
+                                  {o.wielokaty.map((w, j) => (
+                                    <Polygon
+                                      key={j}
+                                      points={w.punkty}
+                                      fill={o.kolor}
+                                      fillOpacity={o.krycie}
+                                      stroke={o.reczny ? o.kolor : 'none'}
+                                      strokeOpacity={1}
+                                      strokeWidth={o.reczny ? swEkran * 1.6 : 0}
+                                      strokeDasharray={o.reczny ? `${dash * 1.4} ${dash}` : undefined}
+                                      strokeLinejoin="round"
+                                      vectorEffect="non-scaling-stroke"
+                                    />
+                                  ))}
+                                </G>
+                              );
+                            })}
+                            {g.odcinki.flatMap((o) => kreskiOdcinka(o, 'lk'))}
                           </G>
                         ))}
                         {szkiceMiedzy(liniowkaSvg.length ? liniowkaSvg[liniowkaSvg.length - 1].idx : -1, Infinity)}
+                        {klipSvg?.map((pts, i) => (
+                          <Polygon
+                            key={`kl-${i}`}
+                            points={pts}
+                            fill="none"
+                            stroke="#E8A020"
+                            strokeWidth={swEkran * 1.6}
+                            strokeDasharray={`${dash * 1.2} ${dash * 0.7}`}
+                            strokeLinejoin="round"
+                            vectorEffect="non-scaling-stroke"
+                          />
+                        ))}
                         {mapa.obszary.flatMap((o) =>
                           o.krawedzniki.map((k) => (
                             <Polyline
@@ -1332,46 +1497,39 @@ export function PztArkuszPodglad({
                             </G>
                           );
                         })}
-                        {liniowkaSvg.flatMap((o) => o.kreski.map((k) => {
-                          const kolor = k.rola === 'start' ? '#16A34A' : '#DC2626';
-                          return (
-                            <G key={`lk-${o.id}-${k.rola}`}>
-                              <Line
-                                x1={k.x1}
-                                y1={k.y1}
-                                x2={k.x2}
-                                y2={k.y2}
-                                stroke={kolor}
-                                strokeWidth={swEkran * 1.8}
-                                strokeLinecap="butt"
-                                vectorEffect="non-scaling-stroke"
-                              />
-                              <Polygon
-                                points={strzalka(k.mx, k.my, k.ux, k.uy, sZnak)}
-                                fill={kolor}
-                                stroke="#FFFFFF"
-                                strokeWidth={1}
-                                vectorEffect="non-scaling-stroke"
-                              />
-                            </G>
-                          );
-                        }))}
                         {podswietlony ? (
-                          <G>
+                          <G accessibilityLabel="Podświetlony obszar">
                             {podswietlony.wielokaty.map((w, j) => (
                               <Polygon
-                                key={`ps-${j}`}
+                                key={`psf-${j}`}
                                 points={w.punkty}
                                 fill={podswietlony.kolor}
-                                fillOpacity={Math.min(1, podswietlony.krycie + 0.2)}
-                                stroke="#F59E0B"
-                                strokeWidth={4}
+                                fillOpacity={Math.min(1, podswietlony.krycie + 0.15)}
+                              />
+                            ))}
+                            {podswietlony.wielokaty.map((w, j) => obrysLed(`ps-${j}`, (p) => (
+                              <Polygon
+                                points={w.punkty}
+                                fill="none"
+                                {...p}
                                 strokeLinejoin="round"
                                 vectorEffect="non-scaling-stroke"
                               />
-                            ))}
+                            )))}
+                            {kreskiOdcinka(podswietlony, 'psk')}
                           </G>
                         ) : null}
+                        {szkicPodswietlony ? wKlipie(szkicPodswietlony, szkicPodswietlony.elementy.map((e) => obrysLed(`pss-${e.id}`, (p) => (
+                          <Path
+                            d={e.d}
+                            fill="none"
+                            {...p}
+                            strokeWidth={p.strokeWidth + (e.szer ? e.szer * xform.s : 0)}
+                            strokeLinejoin="round"
+                            strokeLinecap="round"
+                            vectorEffect="non-scaling-stroke"
+                          />
+                        ))), 'pss') : null}
                         {liniowkaSvg.flatMap((o) => o.znaki.map((z, j) => {
                           const on = o.id === liniowka?.podswietlonyId;
                           return (
@@ -1379,16 +1537,15 @@ export function PztArkuszPodglad({
                               <Circle
                                 cx={z.x}
                                 cy={z.y}
-                                r={rZnakInfo}
+                                r={z.r}
                                 fill={on ? '#F59E0B' : '#1D4ED8'}
                                 stroke="#FFFFFF"
-                                strokeWidth={1.5}
-                                vectorEffect="non-scaling-stroke"
+                                strokeWidth={z.r * 0.16}
                               />
                               <SvgText
                                 x={z.x}
-                                y={z.y + rZnakInfo * 0.42}
-                                fontSize={rZnakInfo * 1.25}
+                                y={z.y + z.r * 0.42}
+                                fontSize={z.r * 1.25}
                                 fontWeight="800"
                                 fontStyle="italic"
                                 fill="#FFFFFF"
@@ -1399,16 +1556,17 @@ export function PztArkuszPodglad({
                             </G>
                           );
                         }))}
-                        {kreskaSvg && rysowanie ? (
+                        {kreskaSvg && rysowanie ? wKlipie({ id: 'rysowany', klip: klipSvg }, (
                           <Path
                             d={kreskaSvg}
                             stroke={rysowanie.kolor}
-                            strokeWidth={rysowanie.gruboscPx / sZnak}
+                            strokeWidth={rysowanie.gruboscPx || LINIA_OBSZARU_PX}
+                            vectorEffect="non-scaling-stroke"
                             strokeLinecap="round"
                             strokeLinejoin="round"
                             fill="none"
                           />
-                        ) : null}
+                        ), 'kreska') : null}
                         {mapa.maszyny.map((m) => (
                           <G key={m.id} onPress={m.rodzaj === 'auto' ? () => onPressAuto?.(m.id) : undefined}>
                             <MaszynaObmiaru
