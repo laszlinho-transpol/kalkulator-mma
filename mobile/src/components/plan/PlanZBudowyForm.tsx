@@ -36,8 +36,8 @@ import {
   zbudujPlanZZakladek,
   type ZakladkaDoZbudowania,
 } from '../../utils/planZBudowy';
-import type { KategoriaWarstwy, Plan, ProjektBudowy } from '../../types';
-import { Sekcja as SekcjaUi } from '../ui';
+import type { KategoriaWarstwy, Plan, ProjektBudowy, ZakladkaPlanuBudowy } from '../../types';
+import { Pole, Sekcja as SekcjaUi, isoZDaty } from '../ui';
 import { pokazKomunikat } from '../../utils/dialog';
 import { rodzajMieszanki } from '../../mieszanki/kolejnosc';
 
@@ -190,10 +190,15 @@ interface Props {
   initialPlan?: Plan;
   /** YYYY-MM-DD dnia z Harmonogramu; bez niej – następny dzień. */
   dataPoczatkowa?: string;
-  onZapisz: (dane: Omit<Plan, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
+  onZapisz?: (dane: Omit<Plan, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
+  /** Obszar wykonany poza raportem (liniówka): bez aut i rzutów, recepta nieobowiązkowa, z komentarzem. */
+  reczny?: {
+    komentarz?: string;
+    onZapisz: (wpis: { data: string; zakladki: ZakladkaPlanuBudowy[]; powierzchnieM2: number[]; komentarz: string }) => Promise<void>;
+  };
 }
 
-export function PlanZBudowyForm({ tytul, budowaId, initialPlan, dataPoczatkowa, onZapisz }: Props) {
+export function PlanZBudowyForm({ tytul, budowaId, initialPlan, dataPoczatkowa, onZapisz, reczny }: Props) {
   const colorScheme = useColorScheme();
   const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
   const insets = useSafeAreaInsets();
@@ -221,6 +226,7 @@ export function PlanZBudowyForm({ tytul, budowaId, initialPlan, dataPoczatkowa, 
     return initialPlan.rzuty.map((r) => r.iloscSamochodow).join('+');
   });
   const [pickerMix, setPickerMix] = useState(false);
+  const [komentarz, setKomentarz] = useState(reczny?.komentarz ?? '');
   const [mapaKm, setMapaKm] = useState<'start' | 'koniec' | null>(null);
 
   const aktywnaIdx = Math.min(aktywna, Math.max(0, zakladki.length - 1));
@@ -361,7 +367,7 @@ export function PlanZBudowyForm({ tytul, budowaId, initialPlan, dataPoczatkowa, 
       if (!z.legendaId) { pokazKomunikat('Obszar', `${nr}Wybierz obszar z listy.`); setAktywna(i); return; }
       if (!z.warstwaNazwa) { pokazKomunikat('Warstwa', `${nr}Wybierz warstwę.`); setAktywna(i); return; }
       if (w.od === w.dok) { pokazKomunikat('Kilometraż', `${nr}Start i koniec muszą się różnić – od tego zależy kierunek układania.`); setAktywna(i); return; }
-      if (!z.mieszankaId) { pokazKomunikat('Recepta', `${nr}Wybierz receptę, aby przeliczyć gęstość i masę.`); setAktywna(i); return; }
+      if (!z.mieszankaId && !reczny) { pokazKomunikat('Recepta', `${nr}Wybierz receptę, aby przeliczyć gęstość i masę.`); setAktywna(i); return; }
       if (w.odcinki.length === 0) { pokazKomunikat('Konstrukcja', `${nr}W podanym kilometrażu nie ma konstrukcji dla tego obszaru.`); setAktywna(i); return; }
       doZbudowania.push({
         id: z.id,
@@ -380,6 +386,15 @@ export function PlanZBudowyForm({ tytul, budowaId, initialPlan, dataPoczatkowa, 
         )),
       });
     }
+    if (reczny) {
+      await reczny.onZapisz({
+        data: isoZDaty(data),
+        zakladki: doZbudowania.map(({ gestoscTm3: _g, ...z }) => z),
+        powierzchnieM2: wyniki.map((w) => roundSum(w.odcinki.map((o) => o.powierzchniaM2))),
+        komentarz: komentarz.trim(),
+      });
+      return;
+    }
     let rzuty = generujDomyslneRzuty(Math.max(1, sumaAut));
     if (rzutyStr.trim()) {
       const parsed = parsujRzuty(rzutyStr);
@@ -396,7 +411,7 @@ export function PlanZBudowyForm({ tytul, budowaId, initialPlan, dataPoczatkowa, 
       rzuty,
       zakladki: doZbudowania,
     });
-    await onZapisz(dane);
+    await onZapisz?.(dane);
   };
 
   if (!budowa) {
@@ -430,7 +445,7 @@ export function PlanZBudowyForm({ tytul, budowaId, initialPlan, dataPoczatkowa, 
       />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={[styl.zawartosc, { paddingBottom: insets.bottom + 28 }]} keyboardShouldPersistTaps="handled">
-          <Sekcja tytul="Data układania" theme={theme}>
+          <Sekcja tytul={reczny ? 'Data wykonania' : 'Data układania'} theme={theme}>
             <DatePickerButton label="Data" value={data} onChange={setData} />
           </Sekcja>
 
@@ -660,11 +675,18 @@ export function PlanZBudowyForm({ tytul, budowaId, initialPlan, dataPoczatkowa, 
             ))}
           </Sekcja>
 
+          {reczny ? (
+            <Sekcja tytul="Komentarz" theme={theme} info="Kto i dlaczego wykonał obszar poza raportem, np. firma, numer zlecenia.">
+              <Pole value={komentarz} onChangeText={setKomentarz} multiline accessibilityLabel="Komentarz" placeholder="np. wykonała firma X" />
+            </Sekcja>
+          ) : null}
+
           <View
             accessibilityLabel="Auta i podsumowanie"
             style={[styl.podsum, { backgroundColor: `${theme.colors.primary}12`, borderColor: theme.colors.primary }]}
           >
-            <Text style={{ color: theme.colors.primary, fontWeight: '800', marginBottom: 8 }}>AUTA I PODSUMOWANIE</Text>
+            <Text style={{ color: theme.colors.primary, fontWeight: '800', marginBottom: 8 }}>{reczny ? 'PODSUMOWANIE' : 'AUTA I PODSUMOWANIE'}</Text>
+            {reczny ? null : (
             <View style={styl.dwa}>
               <View style={{ flex: 1 }}>
                 <NumericInput label="Tonaż na auto" value={tonazStr} onChangeText={setTonazStr} unit="t" decimals={1} placeholder="25.5" />
@@ -688,7 +710,8 @@ export function PlanZBudowyForm({ tytul, budowaId, initialPlan, dataPoczatkowa, 
                 />
               </View>
             </View>
-            {rzutyStr && !walidujRzuty(rzutyStr, sumaAut) ? (
+            )}
+            {!reczny && rzutyStr && !walidujRzuty(rzutyStr, sumaAut) ? (
               <Text style={{ color: theme.colors.danger, marginTop: 4 }}>Suma rzutów musi wynosić {sumaAut}</Text>
             ) : null}
 
