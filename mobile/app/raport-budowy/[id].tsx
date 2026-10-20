@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { AppHeader, Przycisk, Sekcja, SiatkaDanych, Zakladki, useMotyw, ODSTEP, TYPOGRAFIA } from '../../src/components/ui';
+import { AppHeader, Przycisk, Sekcja, SiatkaDanych, WierszDanych, Zakladki, useMotyw, ODSTEP, TYPOGRAFIA } from '../../src/components/ui';
+import { szkiceRaportu, warstwyLiniowki } from '../../src/liniowka/liniowka';
 import { formatujDzienIso } from '../../src/components/common/KalendarzDnia';
 import { ZakladkaPrzerob } from '../../src/components/raportyBudowy/ZakladkaPrzerob';
 import { ZakladkaMaterial } from '../../src/components/raportyBudowy/ZakladkaMaterial';
@@ -60,6 +61,8 @@ export default function RaportDziennyScreen() {
   }
 
   const dzien = podsumowanieDnia(raport, mieszanki, raportyPracownikow, raportySprzetu);
+  const szkice = szkiceRaportu(budowa?.projekt, raport.id);
+  const warstwy = szkice.length > 0 && budowa?.projekt ? warstwyLiniowki(budowa.projekt) : [];
 
   const usunRaport = () => potwierdzAkcje('Usunąć raport?', `Raport z dnia ${dataKrotko(raport.data)} zniknie razem z materiałem i transportem.`, () => {
     void usun(raport.id).then(() => wstecz(powrot));
@@ -89,6 +92,26 @@ export default function RaportDziennyScreen() {
             ]}
           />
         </Sekcja>
+
+        {szkice.length > 0 ? (
+          <Sekcja tytul="Szkice z liniówki" info="Obszary dorysowane na liniówce i podłączone do tego raportu.">
+            <View style={{ gap: ODSTEP.s }}>
+              {szkice.map((s) => (
+                <WierszDanych
+                  key={s.id}
+                  etykieta={warstwy.find((w) => w.klucz === s.warstwaKlucz)?.nazwa ?? 'Szkic'}
+                  wartosc={s.powierzchniaM2 != null ? `${formatLiczby(s.powierzchniaM2)} m²` : '—'}
+                />
+              ))}
+              <Przycisk
+                tekst="Pokaż na liniówce"
+                wariant="drugi"
+                maly
+                onPress={() => router.push(`/budowa/${raport.budowaId}?zakladka=liniowka` as never)}
+              />
+            </View>
+          </Sekcja>
+        ) : null}
 
         <Zakladki<ZakladkaRaportu> theme={theme} aktywna={zakladka} onZmien={setZakladka} zakladki={ZAKLADKI} />
 
