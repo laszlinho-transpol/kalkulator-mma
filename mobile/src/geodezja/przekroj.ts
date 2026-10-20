@@ -64,6 +64,109 @@ export interface ElementPrzekroju {
   lawa?: boolean;
   /** Lustrzane odbicie (np. skos krawężnika w lewo). */
   odwroc?: boolean;
+  /** Warstwy nawierzchni bitumicznej od góry; suma grubości = `wys`. */
+  warstwy?: WarstwaNawierzchni[];
+  /** Lewa / prawa krawędź warstw: 0 = pionowo, n = skos 1:n (n cm w poziomie na 1 cm grubości). */
+  krawedzL?: number;
+  krawedzP?: number;
+  /** Zagłębienie korytka / muldy względem krawędzi [cm]. */
+  zaglebienie?: number;
+}
+
+export interface WarstwaNawierzchni {
+  id: string;
+  nazwa: string;
+  /** Grubość [cm]. */
+  grubosc: number;
+  /** Szerokość górnej krawędzi warstwy [cm]; brak = szerokość elementu (pierwsza) albo dół warstwy wyżej. */
+  szer?: number;
+}
+
+export const NAZWY_WARSTW_BITUMICZNYCH = ['Warstwa ścieralna', 'Warstwa wiążąca', 'Podbudowa bitumiczna'];
+
+export function domyslneWarstwy(): WarstwaNawierzchni[] {
+  return [
+    { id: generujIdGeo(), nazwa: NAZWY_WARSTW_BITUMICZNYCH[0], grubosc: 4 },
+    { id: generujIdGeo(), nazwa: NAZWY_WARSTW_BITUMICZNYCH[1], grubosc: 5 },
+  ];
+}
+
+/** Warstwy elementu z nawierzchnią bitumiczną (stary zapis bez warstw = jedna warstwa o grubości elementu). */
+export function warstwyElementu(e: Pick<ElementPrzekroju, 'ksztalt' | 'wys' | 'warstwy'>): WarstwaNawierzchni[] {
+  if (e.ksztalt !== 'asfalt') return [];
+  return e.warstwy?.length ? e.warstwy : [{ id: 'calosc', nazwa: '', grubosc: e.wys }];
+}
+
+/** Zmiana warstw z przeliczeniem grubości elementu. */
+export function zWarstwami(warstwy: WarstwaNawierzchni[]): Pick<ElementPrzekroju, 'warstwy' | 'wys'> {
+  return { warstwy, wys: Math.max(0.1, warstwy.reduce((s, w) => s + (w.grubosc > 0 ? w.grubosc : 0), 0)) };
+}
+
+export interface GeometriaWarstwy {
+  warstwa: WarstwaNawierzchni;
+  /** Głębokość górnej krawędzi pod powierzchnią [cm]. */
+  gora: number;
+  /** Wysunięcie poza lewą / prawą krawędź elementu u góry i u dołu warstwy [cm]. */
+  lGora: number;
+  pGora: number;
+  lDol: number;
+  pDol: number;
+  /** Szerokość u góry i u dołu [cm]. */
+  szerGora: number;
+  szerDol: number;
+}
+
+export function geometriaWarstw(e: ElementPrzekroju): GeometriaWarstwy[] {
+  const nL = Math.max(0, e.krawedzL ?? 0);
+  const nP = Math.max(0, e.krawedzP ?? 0);
+  // Szerokość wpisana ręcznie poszerza warstwę po stronie ze skosem (po obu, gdy obie krawędzie są takie same).
+  const udzialL = (nL > 0) === (nP > 0) ? 0.5 : nL > 0 ? 1 : 0;
+  const wynik: GeometriaWarstwy[] = [];
+  let gora = 0;
+  let l = 0;
+  let p = 0;
+  warstwyElementu(e).forEach((w) => {
+    const g = Math.max(0, w.grubosc);
+    if (w.szer && w.szer > 0) {
+      const nadmiar = w.szer - e.szer;
+      l = nadmiar * udzialL;
+      p = nadmiar - l;
+    }
+    const lDol = l + nL * g;
+    const pDol = p + nP * g;
+    wynik.push({ warstwa: w, gora, lGora: l, pGora: p, lDol, pDol, szerGora: e.szer + l + p, szerDol: e.szer + lDol + pDol });
+    gora += g;
+    l = lDol;
+    p = pDol;
+  });
+  return wynik;
+}
+
+const ZAGLEBIENIE_KORYTKA: Partial<Record<KsztaltElementu, number>> = { korytko_sciekowe: 0.2, korytko_muldowe: 0.3 };
+
+export function maZaglebienie(e: Pick<ElementPrzekroju, 'ksztalt'>): boolean {
+  return ZAGLEBIENIE_KORYTKA[e.ksztalt] != null;
+}
+
+/** Zagłębienie korytka / muldy [cm] (0 dla pozostałych elementów). */
+export function zaglebienieElementu(e: Pick<ElementPrzekroju, 'ksztalt' | 'wys' | 'zaglebienie'>): number {
+  const wzgl = ZAGLEBIENIE_KORYTKA[e.ksztalt];
+  if (wzgl == null) return 0;
+  const z = e.zaglebienie ?? wzgl * e.wys;
+  return Math.max(0, Math.min(z, e.wys * 0.9));
+}
+
+/** Obrys elementu blokowego (korytka z zagłębieniem wpisanym przez użytkownika). */
+export function obrysElementu(e: ElementPrzekroju): Komenda[] {
+  if (e.ksztalt === 'korytko_sciekowe') {
+    const v = zaglebienieElementu(e) / e.wys;
+    return [['M', 0, 0], ['L', 0.3, 0], ['L', 0.44, v], ['L', 0.56, v], ['L', 0.7, 0], ['L', 1, 0], ['L', 1, 1], ['L', 0, 1], ['Z']];
+  }
+  if (e.ksztalt === 'korytko_muldowe') {
+    const v = zaglebienieElementu(e) / e.wys;
+    return [['M', 0, 0], ['L', 0.08, 0], ['Q', 0.5, 2 * v, 0.92, 0], ['L', 1, 0], ['L', 1, 1], ['L', 0, 1], ['Z']];
+  }
+  return KSZTALTY[e.ksztalt].obrys;
 }
 
 export interface PomiarPrzekroju {
@@ -101,9 +204,8 @@ export type Komenda = ['M', number, number] | ['L', number, number] | ['Q', numb
 
 interface OpisKsztaltu {
   obrys: Komenda[];
-  /** Miejsce przyłożenia łaty (u) i zagłębienie powierzchni w tym miejscu (v). */
+  /** Miejsce przyłożenia łaty (u, 0…1 od lewej). */
   pomiarU: number;
-  pomiarV: number;
   /** Typowe wystawienie ponad sąsiedni pas [cm] – domyślny skok przy dodawaniu. */
   wystawienie: number;
 }
@@ -113,35 +215,35 @@ const prostokat: Komenda[] = [['M', 0, 0], ['L', 1, 0], ['L', 1, 1], ['L', 0, 1]
 export const KSZTALTY: Record<KsztaltElementu, OpisKsztaltu> = {
   kraweznik: {
     obrys: [['M', 0, 0], ['L', 0.82, 0], ['Q', 1, 0, 1, 0.1], ['L', 1, 1], ['L', 0, 1], ['Z']],
-    pomiarU: 0.4, pomiarV: 0, wystawienie: 12,
+    pomiarU: 0.4, wystawienie: 12,
   },
   kraweznik_najazdowy: {
     obrys: [['M', 0, 0], ['L', 0.45, 0], ['L', 1, 0.5], ['L', 1, 1], ['L', 0, 1], ['Z']],
-    pomiarU: 0.22, pomiarV: 0, wystawienie: 4,
+    pomiarU: 0.22, wystawienie: 4,
   },
   kraweznik_trapezowy: {
     obrys: [['M', 0, 0.55], ['L', 0.3, 0], ['L', 0.7, 0], ['L', 1, 0.55], ['L', 1, 1], ['L', 0, 1], ['Z']],
-    pomiarU: 0.5, pomiarV: 0, wystawienie: 3,
+    pomiarU: 0.5, wystawienie: 3,
   },
   obrzeze: {
     obrys: [['M', 0, 1], ['L', 0, 0.12], ['Q', 0, 0, 0.5, 0], ['Q', 1, 0, 1, 0.12], ['L', 1, 1], ['Z']],
-    pomiarU: 0.5, pomiarV: 0, wystawienie: 2,
+    pomiarU: 0.5, wystawienie: 2,
   },
   opornik: {
     obrys: [['M', 0, 1], ['L', 0, 0.08], ['L', 0.12, 0], ['L', 0.88, 0], ['L', 1, 0.08], ['L', 1, 1], ['Z']],
-    pomiarU: 0.5, pomiarV: 0, wystawienie: 0,
+    pomiarU: 0.5, wystawienie: 0,
   },
   korytko_sciekowe: {
     obrys: [['M', 0, 0], ['L', 0.3, 0], ['L', 0.44, 0.2], ['L', 0.56, 0.2], ['L', 0.7, 0], ['L', 1, 0], ['L', 1, 1], ['L', 0, 1], ['Z']],
-    pomiarU: 0.5, pomiarV: 0.2, wystawienie: 0,
+    pomiarU: 0.5, wystawienie: 0,
   },
   korytko_muldowe: {
     obrys: [['M', 0, 0], ['L', 0.08, 0], ['Q', 0.5, 0.6, 0.92, 0], ['L', 1, 0], ['L', 1, 1], ['L', 0, 1], ['Z']],
-    pomiarU: 0.5, pomiarV: 0.3, wystawienie: 0,
+    pomiarU: 0.5, wystawienie: 0,
   },
-  kostka_betonowa: { obrys: prostokat, pomiarU: 0, pomiarV: 0, wystawienie: 0 },
-  kostka_kamienna: { obrys: prostokat, pomiarU: 0, pomiarV: 0, wystawienie: 0 },
-  asfalt: { obrys: prostokat, pomiarU: 0, pomiarV: 0, wystawienie: 0 },
+  kostka_betonowa: { obrys: prostokat, pomiarU: 0, wystawienie: 0 },
+  kostka_kamienna: { obrys: prostokat, pomiarU: 0, wystawienie: 0 },
+  asfalt: { obrys: prostokat, pomiarU: 0, wystawienie: 0 },
 };
 
 /** Moduł spoin kostki [cm]. */
@@ -160,7 +262,7 @@ export function domyslnySkok(poprzedni: ElementPrzekroju | undefined, wzor: Wzor
 }
 
 export function elementZWzoru(wzor: WzorElementu, poprzedni?: ElementPrzekroju, id = generujIdGeo()): ElementPrzekroju {
-  return {
+  const e: ElementPrzekroju = {
     id,
     wzor: wzor.id,
     nazwa: wzor.nazwa,
@@ -173,6 +275,7 @@ export function elementZWzoru(wzor: WzorElementu, poprzedni?: ElementPrzekroju, 
     podbudowa: wzor.podbudowa,
     lawa: wzor.lawa,
   };
+  return wzor.ksztalt === 'asfalt' ? { ...e, ...zWarstwami(domyslneWarstwy()), krawedzL: 0, krawedzP: 0 } : e;
 }
 
 export function dodajElement(p: PrzekrojPoprzeczny, wzor: WzorElementu, poIndeksie = p.elementy.length - 1): PrzekrojPoprzeczny {
@@ -230,9 +333,21 @@ export interface UlozonyElement {
   rx1: number;
   skrocony: boolean;
   punkty: PunktPomiarowy[];
+  /** Wysunięcie ławy poza element w lewo / w prawo [cm] (0, gdy zaszłaby pod sąsiada). */
+  lawaL: number;
+  lawaP: number;
 }
 
 export const SZEROKOSC_SKROCONA = 120;
+export const GRUBOSC_LAWY = 15;
+export const WYSUNIECIE_LAWY = 5;
+
+/** Najniższy punkt elementu przy jego lewej / prawej krawędzi [cm]. */
+function spodPrzyKrawedzi(u: UlozonyElement, strona: 'l' | 'p'): number {
+  const e = u.element;
+  if (e.typ === 'pas') return (strona === 'l' ? u.hL : u.hP) - e.wys - (e.podbudowa ?? 0);
+  return u.hL - e.wys - (e.lawa ? GRUBOSC_LAWY : 0);
+}
 
 export function ulozPrzekroj(p: PrzekrojPoprzeczny): UlozonyElement[] {
   const wynik: UlozonyElement[] = [];
@@ -252,12 +367,21 @@ export function ulozPrzekroj(p: PrzekrojPoprzeczny): UlozonyElement[] {
     } else {
       const k = KSZTALTY[e.ksztalt];
       const u = e.odwroc ? 1 - k.pomiarU : k.pomiarU;
-      punkty.push({ klucz: `${e.id}:s`, elementId: e.id, nazwa: `${nr}. ${e.nazwa}`, x: x + u * e.szer, h: hL - k.pomiarV * e.wys });
+      punkty.push({ klucz: `${e.id}:s`, elementId: e.id, nazwa: `${nr}. ${e.nazwa}`, x: x + u * e.szer, h: hL - zaglebienieElementu(e) });
     }
-    wynik.push({ element: e, indeks, x0: x, x1: x + e.szer, hL, hP, rx0: rx, rx1: rx + rw, skrocony, punkty });
+    wynik.push({ element: e, indeks, x0: x, x1: x + e.szer, hL, hP, rx0: rx, rx1: rx + rw, skrocony, punkty, lawaL: 0, lawaP: 0 });
     x += e.szer;
     rx += rw;
     h = hP;
+  });
+  // Ława wystaje poza element tylko tam, gdzie sąsiad kończy się nad nią – nie wchodzi pod poprzedni ani następny obiekt.
+  wynik.forEach((u, i) => {
+    if (u.element.typ !== 'blok' || !u.element.lawa) return;
+    const gora = u.hL - u.element.wys;
+    const lewy = wynik[i - 1];
+    const prawy = wynik[i + 1];
+    u.lawaL = !lewy || spodPrzyKrawedzi(lewy, 'p') >= gora ? WYSUNIECIE_LAWY : 0;
+    u.lawaP = !prawy || spodPrzyKrawedzi(prawy, 'l') >= gora ? WYSUNIECIE_LAWY : 0;
   });
   return wynik;
 }

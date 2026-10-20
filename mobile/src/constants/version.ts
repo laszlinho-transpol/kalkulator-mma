@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.51';
+export const WERSJA_APLIKACJI = '1.8.52';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,19 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.52',
+    data: '2026-10-20',
+    tytul: 'Przekrój poprzeczny: warstwy jezdni, pomiar w tej samej skali',
+    zmiany: [
+      'Zakładka Pomiar pokazuje rysunek w tej samej skali co kreator – wpisanie odczytu ani przełączenie zakładki nie zmniejsza rysunku',
+      'Odczyty łaty na rysunku w nawiasie, np. „+12 (1230)”; rzędne w liście pod rysunkiem i w eksporcie SVG/PDF',
+      'Nawierzchnia bitumiczna: dowolna liczba warstw z nazwą, grubością i szerokością; lewa i prawa krawędź warstw prosto, skos 1:1 albo dowolny 1:n',
+      'Skok (różnica wysokości) przyjmuje liczby ujemne; przycisk ± zmienia kierunek w górę / w dół',
+      'Ława betonowa nie wchodzi pod sąsiedni element',
+      'Korytka ściekowe i muldowe: zwymiarowane zagłębienie, wartość do zmiany w kreatorze',
+    ],
+  },
   {
     wersja: '1.8.51',
     data: '2026-10-20',

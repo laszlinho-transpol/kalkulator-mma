@@ -14,9 +14,11 @@ import { useRouteId } from '../../../../src/hooks/useRouteId';
 import { useGeodezjaStore } from '../../../../src/stores/geodezjaStore';
 import { fm, liczbaZTekstu, naSwiat, zeZnakiem, zoomWokol, type Pkt, type Widok } from '../../../../src/geodezja/geometria';
 import {
-  KATALOG_ELEMENTOW, dodajElement, edytujElement, kluczZera, nowyPrzekroj, przeliczPomiar, przesunElement, usunElement,
-  type ElementPrzekroju, type PrzekrojPoprzeczny, type WzorElementu,
+  KATALOG_ELEMENTOW, NAZWY_WARSTW_BITUMICZNYCH, dodajElement, edytujElement, geometriaWarstw, kluczZera, maZaglebienie,
+  nowyPrzekroj, przeliczPomiar, przesunElement, usunElement, warstwyElementu, zWarstwami, zaglebienieElementu,
+  type ElementPrzekroju, type PrzekrojPoprzeczny, type WarstwaNawierzchni, type WzorElementu,
 } from '../../../../src/geodezja/przekroj';
+import { generujIdGeo } from '../../../../src/geodezja/szkic';
 import {
   PAPIER, elementPodPunktem, punktPomiaruPodEkranem, rysunekPrzekroju, svgPrzekroju, widokPrzekroju,
 } from '../../../../src/geodezja/rysunek';
@@ -74,13 +76,13 @@ export default function PrzekrojScreen() {
   const liczbaElementow = przekroj?.elementy.length ?? 0;
 
   const dopasuj = () => {
-    if (przekroj && rozmiar.w > 0) setWidok(widokPrzekroju(przekroj, rozmiar.w, rozmiar.h - 44, zakladka === 'pomiar' ? 225 : 115));
+    if (przekroj && rozmiar.w > 0) setWidok(widokPrzekroju(przekroj, rozmiar.w, rozmiar.h - 44));
   };
 
   useEffect(() => {
     dopasuj();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rozmiar.w, rozmiar.h, liczbaElementow, przekroj?.skrocone, zakladka]);
+  }, [rozmiar.w, rozmiar.h, liczbaElementow, przekroj?.skrocone]);
 
   const prymitywy = useMemo(
     () => (przekroj ? rysunekPrzekroju(przekroj, widok, {
@@ -270,7 +272,7 @@ export default function PrzekrojScreen() {
 
 // ------------------------------------------------------------
 
-function PoleLiczby({ etykieta, wartosc, onZmien, jednostka, mnoznik = 1, miejsca = 0, accessibilityLabel }: {
+function PoleLiczby({ etykieta, wartosc, onZmien, jednostka, mnoznik = 1, miejsca = 0, accessibilityLabel, ujemne, placeholder }: {
   etykieta: string;
   wartosc: number | undefined;
   onZmien: (n: number | undefined) => void;
@@ -279,6 +281,9 @@ function PoleLiczby({ etykieta, wartosc, onZmien, jednostka, mnoznik = 1, miejsc
   mnoznik?: number;
   miejsca?: number;
   accessibilityLabel?: string;
+  /** Klawiatura ze znakiem minus. */
+  ujemne?: boolean;
+  placeholder?: string;
 }) {
   const sformatuj = (v: number | undefined) => (v == null ? '' : fm(v * mnoznik, miejsca).replace(/,0+$/, '').replace(/(,\d*?)0+$/, '$1'));
   const [t, setT] = useState(sformatuj(wartosc));
@@ -296,12 +301,16 @@ function PoleLiczby({ etykieta, wartosc, onZmien, jednostka, mnoznik = 1, miejsc
       value={t}
       onChangeText={(v) => {
         setT(v);
+        // Sam minus (początek liczby ujemnej) nie zmienia wartości – inaczej pole wróciłoby do „0”.
+        if (/^\s*[-−–]\s*$/.test(v)) return;
         const n = liczbaZTekstu(v);
         const w = n == null ? undefined : n / mnoznik;
         ostatnia.current = w;
         onZmien(w);
       }}
       liczba
+      klawiatura={ujemne ? 'numbers-and-punctuation' : undefined}
+      placeholder={placeholder}
       jednostka={jednostka}
       accessibilityLabel={accessibilityLabel ?? `${etykieta} [${jednostka}]`}
     />
@@ -320,9 +329,13 @@ function KartaElementu({ element: e, indeks, liczba, rozwiniety, onWybierz, onZm
 }) {
   const theme = useMotyw();
   const pas = e.typ === 'pas';
+  const asfalt = e.ksztalt === 'asfalt';
+  const liczbaWarstw = warstwyElementu(e).length;
   const opis = [
     pas ? `${fm(e.szer / 100, 2)} m` : `${fm(e.szer, 0)}×${fm(e.wys, 0)} cm`,
-    pas ? `gr. ${fm(e.wys, 0)} cm` : null,
+    pas ? `gr. ${fm(e.wys, e.wys % 1 ? 1 : 0)} cm` : null,
+    asfalt ? `${liczbaWarstw} ${liczbaWarstw === 1 ? 'warstwa' : liczbaWarstw < 5 ? 'warstwy' : 'warstw'}` : null,
+    maZaglebienie(e) ? `zagł. ${fm(zaglebienieElementu(e), 1)} cm` : null,
     indeks > 0 ? `skok ${zeZnakiem(e.skok, 0)} cm` : null,
     pas && e.spadek ? `${fm(Math.abs(e.spadek), 1)}% ${e.spadek > 0 ? '→' : '←'}` : null,
   ].filter(Boolean).join(' · ');
@@ -346,7 +359,19 @@ function KartaElementu({ element: e, indeks, liczba, rozwiniety, onWybierz, onZm
             ) : (
               <PoleLiczby etykieta="Szerokość" wartosc={e.szer} miejsca={1} jednostka="cm" onZmien={(n) => n && n > 0 && onZmien({ szer: n })} />
             )}
-            <PoleLiczby etykieta={pas ? 'Grubość' : 'Wysokość'} wartosc={e.wys} miejsca={1} jednostka="cm" onZmien={(n) => n && n > 0 && onZmien({ wys: n })} />
+            {asfalt ? null : (
+              <PoleLiczby etykieta={pas ? 'Grubość' : 'Wysokość'} wartosc={e.wys} miejsca={1} jednostka="cm" onZmien={(n) => n && n > 0 && onZmien({ wys: n })} />
+            )}
+            {maZaglebienie(e) ? (
+              <PoleLiczby
+                etykieta="Zagłębienie"
+                wartosc={zaglebienieElementu(e)}
+                miejsca={1}
+                jednostka="cm"
+                accessibilityLabel="Zagłębienie korytka [cm]"
+                onZmien={(n) => n != null && n >= 0 && onZmien({ zaglebienie: n })}
+              />
+            ) : null}
           </Wiersz>
           <Wiersz>
             {indeks > 0 ? (
@@ -355,8 +380,9 @@ function KartaElementu({ element: e, indeks, liczba, rozwiniety, onWybierz, onZm
                 wartosc={e.skok}
                 miejsca={1}
                 jednostka="cm"
+                ujemne
                 accessibilityLabel="Różnica wysokości względem poprzedniego [cm]"
-                onZmien={(n) => onZmien({ skok: n ?? 0 })}
+                onZmien={(n) => n != null && onZmien({ skok: n })}
               />
             ) : null}
             {pas ? (
@@ -366,7 +392,15 @@ function KartaElementu({ element: e, indeks, liczba, rozwiniety, onWybierz, onZm
               <PoleLiczby etykieta="Podbudowa" wartosc={e.podbudowa} miejsca={1} jednostka="cm" onZmien={(n) => onZmien({ podbudowa: n })} />
             ) : null}
           </Wiersz>
+          {asfalt ? <EdytorWarstw element={e} onZmien={onZmien} /> : null}
           <View style={styles.rzad}>
+            {indeks > 0 ? (
+              <PrzyciskPaska
+                tekst={`± Skok ${e.skok < 0 ? '↓ w dół' : '↑ w górę'}`}
+                onPress={() => onZmien({ skok: -e.skok })}
+                accessibilityLabel="Zmień znak skoku"
+              />
+            ) : null}
             {pas ? (
               <>
                 <Wybor zaznaczony={(e.spadek ?? 0) < 0} etykieta="Spadek ←" accessibilityLabel="Spadek w lewo" onPress={() => onZmien({ spadek: -Math.abs(e.spadek ?? 2) })} />
@@ -386,6 +420,89 @@ function KartaElementu({ element: e, indeks, liczba, rozwiniety, onWybierz, onZm
             <PrzyciskPaska tekst="Usuń" onPress={onUsun} accessibilityLabel="Usuń element" kolor={theme.colors.danger} />
           </View>
         </View>
+      ) : null}
+    </View>
+  );
+}
+
+function EdytorWarstw({ element: e, onZmien }: { element: ElementPrzekroju; onZmien: (z: Partial<ElementPrzekroju>) => void }) {
+  const theme = useMotyw();
+  const warstwy = e.warstwy?.length ? e.warstwy : [{ id: 'calosc', nazwa: NAZWY_WARSTW_BITUMICZNYCH[0], grubosc: e.wys }];
+  const geometria = geometriaWarstw({ ...e, warstwy });
+  const zmienWarstwy = (nowe: WarstwaNawierzchni[]) => onZmien(zWarstwami(nowe));
+  const zmienWarstwe = (id: string, z: Partial<WarstwaNawierzchni>) => zmienWarstwy(warstwy.map((w) => (w.id === id ? { ...w, ...z } : w)));
+  return (
+    <View style={[styles.warstwy, { borderColor: theme.colors.border }]}>
+      <Text style={[styles.naglowekWarstw, { color: theme.colors.textSecondary }]}>
+        WARSTWY · {warstwy.length} · razem {fm(e.wys, e.wys % 1 ? 1 : 0)} cm
+      </Text>
+      {warstwy.map((w, i) => (
+        <View key={w.id} style={[styles.warstwa, { borderColor: theme.colors.border, backgroundColor: theme.colors.inputBackground }]}>
+          <View style={styles.rzad}>
+            <View style={[styles.probka, { backgroundColor: PAPIER.warstwyAsfaltu[i % PAPIER.warstwyAsfaltu.length] }]} />
+            <Text style={{ color: theme.colors.text, fontWeight: '800', flex: 1 }}>Warstwa {i + 1}</Text>
+            {warstwy.length > 1 ? (
+              <PrzyciskPaska tekst="Usuń" onPress={() => zmienWarstwy(warstwy.filter((x) => x.id !== w.id))} accessibilityLabel={`Usuń warstwę ${i + 1}`} kolor={theme.colors.danger} />
+            ) : null}
+          </View>
+          <Pole etykieta="Nazwa" value={w.nazwa} onChangeText={(t) => zmienWarstwe(w.id, { nazwa: t })} accessibilityLabel={`Nazwa warstwy ${i + 1}`} />
+          <Wiersz>
+            <PoleLiczby
+              etykieta="Grubość"
+              wartosc={w.grubosc}
+              miejsca={1}
+              jednostka="cm"
+              accessibilityLabel={`Grubość warstwy ${i + 1} [cm]`}
+              onZmien={(n) => n != null && n > 0 && zmienWarstwe(w.id, { grubosc: n })}
+            />
+            <PoleLiczby
+              etykieta="Szerokość"
+              wartosc={w.szer}
+              mnoznik={0.01}
+              miejsca={2}
+              jednostka="m"
+              placeholder={fm(geometria[i].szerGora / 100, 2)}
+              accessibilityLabel={`Szerokość warstwy ${i + 1} [m]`}
+              onZmien={(n) => zmienWarstwe(w.id, { szer: n != null && n > 0 ? n : undefined })}
+            />
+          </Wiersz>
+        </View>
+      ))}
+      <PrzyciskPaska
+        tekst="+ Dodaj warstwę"
+        accessibilityLabel="Dodaj warstwę"
+        onPress={() => zmienWarstwy([
+          ...warstwy,
+          { id: generujIdGeo(), nazwa: NAZWY_WARSTW_BITUMICZNYCH[warstwy.length] ?? `Warstwa ${warstwy.length + 1}`, grubosc: warstwy.length >= 2 ? 8 : 5 },
+        ])}
+      />
+      <KrawedzWarstw strona="lewa" wartosc={e.krawedzL ?? 0} onZmien={(n) => onZmien({ krawedzL: n })} />
+      <KrawedzWarstw strona="prawa" wartosc={e.krawedzP ?? 0} onZmien={(n) => onZmien({ krawedzP: n })} />
+    </View>
+  );
+}
+
+function KrawedzWarstw({ strona, wartosc, onZmien }: { strona: 'lewa' | 'prawa'; wartosc: number; onZmien: (n: number) => void }) {
+  const theme = useMotyw();
+  const [inny, setInny] = useState(wartosc !== 0 && wartosc !== 1);
+  const etykieta = strona === 'lewa' ? 'Lewa krawędź' : 'Prawa krawędź';
+  return (
+    <View style={{ gap: 6 }}>
+      <Text style={[styles.naglowekWarstw, { color: theme.colors.textSecondary }]}>{etykieta.toUpperCase()} WARSTW</Text>
+      <View style={styles.rzad}>
+        <Wybor zaznaczony={!inny && wartosc === 0} etykieta="Prosto" accessibilityLabel={`${etykieta} prosto`} onPress={() => { setInny(false); onZmien(0); }} />
+        <Wybor zaznaczony={!inny && wartosc === 1} etykieta="Skos 1:1" accessibilityLabel={`${etykieta} skos 1:1`} onPress={() => { setInny(false); onZmien(1); }} />
+        <Wybor zaznaczony={inny} etykieta="Inny skos" accessibilityLabel={`${etykieta} inny skos`} onPress={() => { setInny(true); if (wartosc === 0 || wartosc === 1) onZmien(1.5); }} />
+      </View>
+      {inny ? (
+        <PoleLiczby
+          etykieta="Skos 1 : n (n cm w poziomie na 1 cm grubości)"
+          wartosc={wartosc}
+          miejsca={2}
+          jednostka="n"
+          accessibilityLabel={`${etykieta} skos 1:n`}
+          onZmien={(n) => n != null && n >= 0 && onZmien(n)}
+        />
       ) : null}
     </View>
   );
@@ -497,6 +614,10 @@ const styles = StyleSheet.create({
   naglowekKarty: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   numer: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
   wierszPomiaru: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderRadius: PROMIEN.m, paddingHorizontal: 12, paddingVertical: 8 },
+  warstwy: { borderTopWidth: 1, paddingTop: 10, gap: 8 },
+  naglowekWarstw: { fontSize: 12, fontWeight: '800', letterSpacing: 0.4 },
+  warstwa: { borderWidth: 1, borderRadius: PROMIEN.m, padding: 10, gap: 8 },
+  probka: { width: 14, height: 14, borderRadius: 3 },
   siatkaKatalogu: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center' },
   kafelekKatalogu: { width: 148, borderWidth: 1, borderRadius: PROMIEN.m, padding: 8, alignItems: 'center', gap: 4 },
 });

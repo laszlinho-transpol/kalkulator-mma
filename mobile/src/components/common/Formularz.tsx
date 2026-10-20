@@ -58,7 +58,7 @@ export function Pole({
   jednostka?: string;
   wymagane?: boolean;
   multiline?: boolean;
-  klawiatura?: 'url' | 'phone-pad' | 'email-address';
+  klawiatura?: 'url' | 'phone-pad' | 'email-address' | 'numbers-and-punctuation';
 }) {
   const theme = useMotyw();
   return (

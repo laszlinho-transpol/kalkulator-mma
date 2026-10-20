@@ -1,14 +1,14 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { czynnikLuku, fm, odl, zoomWokol } from './geometria';
+import { czynnikLuku, fm, liczbaZTekstu, odl, zoomWokol } from './geometria';
 import {
   analizaLinii, celeDlaPunktu, dodajPunkt, dodajPunktPosredni, edytujLinie, geometriaLinii, horyzontInstrumentu,
   nowySzkicGeodezyjny, odlegloscPosredniegoOd, polacz, pozycjaPunktu, przesunPunkt, punktWidoczny, przelaczWarstwe,
   usunPunkt, ustawDlugoscLinii, warstwySzkicu, wygnijLinie, wysokoscPunktu, type SzkicGeodezyjny,
 } from './szkic';
 import {
-  KATALOG_ELEMENTOW, dodajElement, edytujElement, nowyPrzekroj, przeliczPomiar, przesunElement, szerokoscPrzekroju,
-  ulozPrzekroj, usunElement,
+  KATALOG_ELEMENTOW, dodajElement, edytujElement, geometriaWarstw, nowyPrzekroj, przeliczPomiar, przesunElement,
+  punktyPomiarowe, szerokoscPrzekroju, ulozPrzekroj, usunElement, zWarstwami, zaglebienieElementu,
 } from './przekroj';
 import { rysunekPrzekroju, rysunekSzkicu, svgPrzekroju, svgSzkicu } from './rysunek';
 
@@ -227,6 +227,66 @@ describe('rysunek i SVG', () => {
     assert.ok(teksty.includes('3,00'));
     assert.ok(svgPrzekroju(p).svg.includes('<path'));
     assert.equal(fm(-0.0001, 2), '0,00');
+  });
+
+  it('pomiar: odczyt łaty w nawiasie, rzędna tylko w eksporcie', () => {
+    let p = nowyPrzekroj('KR2', T, 'pr');
+    p = dodajElement(p, KATALOG_ELEMENTOW[0]);
+    p = dodajElement(p, KATALOG_ELEMENTOW.find((w) => w.id === 'asfalt')!);
+    p = { ...p, pomiar: { klucz: `${p.elementy[0].id}:s`, odczyt: 1500, rzedna: 120.4 } };
+    const teksty = rysunekPrzekroju(p, { s: 100, tx: 20, ty: 300 }, { pomiar: true })
+      .filter((q) => q.t === 'tekst').map((q) => (q as { tekst: string }).tekst);
+    assert.ok(teksty.includes('+18  (1500)'), teksty.join(' | '));
+    assert.ok(teksty.includes('0  (1680)'));
+    assert.ok(!teksty.some((t) => t.includes('H 120')));
+    assert.ok(svgPrzekroju(p).svg.includes('H 120,400'));
+  });
+
+  it('nawierzchnia bitumiczna: warstwy, szerokości i skos krawędzi', () => {
+    let p = nowyPrzekroj('KR2', T, 'pr');
+    p = dodajElement(p, KATALOG_ELEMENTOW.find((w) => w.id === 'asfalt')!);
+    const e = p.elementy[0];
+    assert.deepEqual(e.warstwy!.map((w) => [w.nazwa, w.grubosc]), [['Warstwa ścieralna', 4], ['Warstwa wiążąca', 5]]);
+    assert.equal(e.wys, 9);
+    const warstwy = [...e.warstwy!, { id: 'w3', nazwa: 'Podbudowa bitumiczna', grubosc: 8 }];
+    p = edytujElement(p, e.id, { ...zWarstwami(warstwy), krawedzL: 1, krawedzP: 1 });
+    const g = geometriaWarstw(p.elementy[0]);
+    assert.equal(p.elementy[0].wys, 17);
+    assert.deepEqual(g.map((x) => [x.gora, x.szerGora, x.szerDol]), [[0, 300, 308], [4, 308, 318], [9, 318, 334]]);
+    p = edytujElement(p, e.id, { krawedzL: 0 });
+    assert.deepEqual(geometriaWarstw(p.elementy[0]).map((x) => [x.lDol, x.pDol, x.szerDol]), [[0, 4, 304], [0, 9, 309], [0, 17, 317]]);
+    p = edytujElement(p, e.id, { warstwy: warstwy.map((w, i) => (i === 1 ? { ...w, szer: 350 } : w)), krawedzP: 0 });
+    assert.deepEqual(geometriaWarstw(p.elementy[0]).map((x) => x.szerGora), [300, 350, 350]);
+    const teksty = rysunekPrzekroju(p, { s: 400, tx: 20, ty: 300 }, {}).filter((q) => q.t === 'tekst').map((q) => (q as { tekst: string }).tekst);
+    assert.ok(teksty.includes('Warstwa ścieralna 4 cm'), teksty.join(' | '));
+  });
+
+  it('korytko: zagłębienie wymiarowane i zmienne, łata w dnie', () => {
+    let p = nowyPrzekroj('K', T, 'pr');
+    p = dodajElement(p, KATALOG_ELEMENTOW.find((w) => w.id === 'ko-sciekowe')!);
+    assert.equal(zaglebienieElementu(p.elementy[0]), 3);
+    assert.equal(punktyPomiarowe(p)[0].h, -3);
+    p = edytujElement(p, p.elementy[0].id, { zaglebienie: 5 });
+    assert.equal(punktyPomiarowe(p)[0].h, -5);
+    const teksty = rysunekPrzekroju(p, { s: 400, tx: 20, ty: 300 }, {}).filter((q) => q.t === 'tekst').map((q) => (q as { tekst: string }).tekst);
+    assert.ok(teksty.includes('5 cm'), teksty.join(' | '));
+  });
+
+  it('ława nie wchodzi pod sąsiedni element', () => {
+    let p = nowyPrzekroj('K', T, 'pr');
+    p = dodajElement(p, KATALOG_ELEMENTOW.find((w) => w.id === 'kb-8')!);
+    p = dodajElement(p, KATALOG_ELEMENTOW[0]);
+    p = dodajElement(p, KATALOG_ELEMENTOW[0]);
+    const u = ulozPrzekroj(p);
+    assert.equal(u[1].lawaL, 0);
+    assert.equal(u[1].lawaP, 0);
+    assert.equal(u[2].lawaL, 0);
+    assert.equal(u[2].lawaP, 5);
+  });
+
+  it('liczba ujemna z minusem typograficznym', () => {
+    assert.equal(liczbaZTekstu('−12,5'), -12.5);
+    assert.equal(liczbaZTekstu('-'), undefined);
   });
 
   it('zoom wokół punktu trzyma punkt pod kursorem', () => {

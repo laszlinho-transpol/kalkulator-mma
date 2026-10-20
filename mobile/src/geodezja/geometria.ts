@@ -162,7 +162,7 @@ export function zeZnakiem(n: number, miejsca = 0): string {
 /** Liczba wpisana przez użytkownika (przecinek lub kropka); puste → undefined. */
 export function liczbaZTekstu(t: string | undefined): number | undefined {
   if (t == null) return undefined;
-  const s = t.trim().replace(',', '.').replace(/\s/g, '');
+  const s = t.trim().replace(',', '.').replace(/[−–]/g, '-').replace(/\s/g, '');
   if (s === '' || s === '-' || s === '.') return undefined;
   const n = Number(s);
   return Number.isFinite(n) ? n : undefined;

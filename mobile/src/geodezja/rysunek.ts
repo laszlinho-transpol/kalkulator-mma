@@ -7,8 +7,8 @@ import {
   punktWidoczny, sciezkaLinii, warstwySzkicu, wysokoscPunktu, type SzkicGeodezyjny,
 } from './szkic';
 import {
-  KSZTALTY, kluczZera, modulKostki, przeliczPomiar, szerokoscPrzekroju, ulozPrzekroj, type Komenda,
-  type PrzekrojPoprzeczny, type UlozonyElement,
+  GRUBOSC_LAWY, geometriaWarstw, kluczZera, maZaglebienie, modulKostki, obrysElementu, przeliczPomiar, szerokoscPrzekroju,
+  ulozPrzekroj, zaglebienieElementu, type Komenda, type PrzekrojPoprzeczny, type UlozonyElement,
 } from './przekroj';
 
 export type Prymityw =
@@ -46,6 +46,7 @@ export const PAPIER = {
   kostka: '#D9D2C3',
   kamien: '#BDB6A8',
   podbudowa: '#EDE6D6',
+  warstwyAsfaltu: ['#3F4652', '#5A6270', '#747C88', '#4B5260'],
 } as const;
 
 const KOLORY_WARSTW = ['#C2410C', '#1D4ED8', '#7C3AED', '#0F766E', '#B91C1C', '#A16207', '#BE185D', '#0369A1'];
@@ -219,8 +220,10 @@ export function rysunekSzkicu(s: SzkicGeodezyjny, w: Widok, o: OpcjeRysunkuSzkic
 export interface OpcjePrzekroju {
   zaznaczonyElement?: string | null;
   zaznaczonyPunkt?: string | null;
-  /** Odczyty i rzędne przy trójkątach. */
+  /** Odczyty łaty (w nawiasie) przy trójkątach. */
   pomiar?: boolean;
+  /** Także rzędne przy trójkątach (eksport – na ekranie są w liście pod rysunkiem). */
+  rzedne?: boolean;
   /** Sam rysunek elementów – bez trójkątów, wymiarów i numerów (podgląd w katalogu). */
   bezOpisow?: boolean;
 }
@@ -271,15 +274,28 @@ export function zakresPrzekroju(p: PrzekrojPoprzeczny): ZakresRysunku | null {
   if (u.length === 0) return null;
   let minH = Infinity;
   let maxH = -Infinity;
+  let minX = Infinity;
+  let maxX = -Infinity;
   for (const e of u) {
-    minH = Math.min(minH, Math.min(e.hL, e.hP) - e.element.wys - (e.element.podbudowa ?? 0) - (e.element.lawa ? 15 : 0));
+    minH = Math.min(minH, Math.min(e.hL, e.hP) - e.element.wys - (e.element.podbudowa ?? 0) - (e.element.lawa ? GRUBOSC_LAWY : 0));
     maxH = Math.max(maxH, e.hL, e.hP);
+    const gw = geometriaWarstw(e.element);
+    const wysL = Math.max(0, ...gw.map((g) => Math.max(g.lGora, g.lDol)));
+    const wysP = Math.max(0, ...gw.map((g) => Math.max(g.pGora, g.pDol)));
+    minX = Math.min(minX, e.rx0 - wysL - e.lawaL);
+    maxX = Math.max(maxX, e.rx1 + wysP + e.lawaP);
   }
-  return { minX: u[0].rx0 / 100, maxX: u[u.length - 1].rx1 / 100, minY: -maxH / 100, maxY: -minH / 100 };
+  return { minX: minX / 100, maxX: maxX / 100, minY: -maxH / 100, maxY: -minH / 100 };
 }
 
+/** Odstęp linii wymiarowej od najwyższego punktu [px]: mieści pionowy opis „+12 (1230)” nad trójkątem. */
+const ODSUNIECIE_WYMIAROW = 105;
+const ODSUNIECIE_WYMIAROW_Z_RZEDNYMI = 175;
+/** Miejsce nad rysunkiem na opisy i wymiary – to samo w kreatorze i w pomiarze, więc skala się nie zmienia. */
+export const GORA_PRZEKROJU = ODSUNIECIE_WYMIAROW + 45;
+
 /** Widok mieszczący przekrój w ramce; `gora` px nad rysunkiem zostaje na trójkąty, opisy i wymiary. */
-export function widokPrzekroju(p: PrzekrojPoprzeczny, szer: number, wys: number, gora = 160, margines = 24): Widok {
+export function widokPrzekroju(p: PrzekrojPoprzeczny, szer: number, wys: number, gora = GORA_PRZEKROJU, margines = 24): Widok {
   const z = zakresPrzekroju(p);
   if (!z) return { s: 100, tx: szer / 2, ty: wys / 2 };
   const s = Math.max(5, Math.min((szer - 2 * margines) / Math.max(z.maxX - z.minX, 0.05), (wys - gora - 30) / Math.max(z.maxY - z.minY, 0.05), 2500));
@@ -312,16 +328,43 @@ export function rysunekPrzekroju(p: PrzekrojPoprzeczny, w: Widok, o: OpcjePrzekr
       const hAt = (rx: number) => u.hL + ((u.hP - u.hL) * (rx - u.rx0)) / Math.max(rw, 1e-9);
       const lg = E(u.rx0, u.hL);
       const pg = E(u.rx1, u.hP);
-      const ld = E(u.rx0, u.hL - e.wys);
-      const pd = E(u.rx1, u.hP - e.wys);
+      const warstwy = geometriaWarstw(e);
+      const dolna = warstwy[warstwy.length - 1];
+      const lDol = dolna ? dolna.lDol : 0;
+      const pDol = dolna ? dolna.pDol : 0;
+      const ld = E(u.rx0 - lDol, hAt(u.rx0 - lDol) - e.wys);
+      const pd = E(u.rx1 + pDol, hAt(u.rx1 + pDol) - e.wys);
       if (e.podbudowa) {
         const wysPb = e.podbudowa * px;
         const d = `M${ld.x} ${ld.y}L${pd.x} ${pd.y}L${pd.x} ${pd.y + wysPb}L${ld.x} ${ld.y + wysPb}Z`;
         elementy.push({ t: 'sciezka', d, wypelnienie: PAPIER.podbudowa, kolor: PAPIER.olowek, grubosc: 0.8 });
         elementy.push({ t: 'sciezka', d: kreskowanie(ld, pd, wysPb), kolor: PAPIER.betonCiemny, grubosc: 0.7 });
       }
-      const wyp = e.ksztalt === 'asfalt' ? PAPIER.asfalt : e.ksztalt === 'kostka_kamienna' ? PAPIER.kamien : PAPIER.kostka;
-      elementy.push({ t: 'sciezka', d: `M${lg.x} ${lg.y}L${pg.x} ${pg.y}L${pd.x} ${pd.y}L${ld.x} ${ld.y}Z`, wypelnienie: wyp, kolor: obrys, grubosc });
+      if (warstwy.length) {
+        const xOpisu = u.rx0 + rw * (u.skrocony ? 0.75 : 0.5);
+        warstwy.forEach((g, i) => {
+          const gr = g.warstwa.grubosc;
+          const a = E(u.rx0 - g.lGora, hAt(u.rx0 - g.lGora) - g.gora);
+          const b = E(u.rx1 + g.pGora, hAt(u.rx1 + g.pGora) - g.gora);
+          const c = E(u.rx1 + g.pDol, hAt(u.rx1 + g.pDol) - g.gora - gr);
+          const d = E(u.rx0 - g.lDol, hAt(u.rx0 - g.lDol) - g.gora - gr);
+          elementy.push({
+            t: 'sciezka', d: `M${a.x} ${a.y}L${b.x} ${b.y}L${c.x} ${c.y}L${d.x} ${d.y}Z`,
+            wypelnienie: PAPIER.warstwyAsfaltu[i % PAPIER.warstwyAsfaltu.length], kolor: obrys, grubosc,
+          });
+          const wysPx = gr * px;
+          if (g.warstwa.nazwa && wysPx >= 8) {
+            const s = E(xOpisu, hAt(xOpisu) - g.gora - gr / 2);
+            opisy.push({
+              t: 'tekst', x: s.x, y: s.y + Math.min(10, wysPx - 2) * 0.35, tekst: `${g.warstwa.nazwa} ${fm(gr, gr % 1 ? 1 : 0)} cm`,
+              kolor: '#FFFFFF', rozmiar: Math.min(10, wysPx - 2), pogrubiony: true, kotwica: 'middle', obrot: katNapisu(lg, pg),
+            });
+          }
+        });
+      } else {
+        const wyp = e.ksztalt === 'kostka_kamienna' ? PAPIER.kamien : PAPIER.kostka;
+        elementy.push({ t: 'sciezka', d: `M${lg.x} ${lg.y}L${pg.x} ${pg.y}L${pd.x} ${pd.y}L${ld.x} ${ld.y}Z`, wypelnienie: wyp, kolor: obrys, grubosc });
+      }
       const modul = modulKostki(e);
       if (modul) {
         let spoiny = '';
@@ -356,20 +399,34 @@ export function rysunekPrzekroju(p: PrzekrojPoprzeczny, w: Widok, o: OpcjePrzekr
         });
       }
     } else {
-      const k = KSZTALTY[e.ksztalt];
       const f = (uu: number, vv: number) => E(u.rx0 + (e.odwroc ? 1 - uu : uu) * rw, u.hL - vv * e.wys);
       if (e.lawa) {
-        const l = E(u.rx0 - 5, u.hL - e.wys);
-        const pr = E(u.rx1 + 5, u.hL - e.wys);
-        const wysL = 15 * px;
+        const l = E(u.rx0 - u.lawaL, u.hL - e.wys);
+        const pr = E(u.rx1 + u.lawaP, u.hL - e.wys);
+        const wysL = GRUBOSC_LAWY * px;
         elementy.push({ t: 'sciezka', d: `M${l.x} ${l.y}L${pr.x} ${pr.y}L${pr.x} ${pr.y + wysL}L${l.x} ${l.y + wysL}Z`, wypelnienie: PAPIER.beton, kolor: PAPIER.olowek, grubosc: 0.8 });
         elementy.push({ t: 'sciezka', d: kreskowanie(l, pr, wysL, 5), kolor: PAPIER.betonCiemny, grubosc: 0.7 });
       }
-      elementy.push({ t: 'sciezka', d: sciezkaKomend(k.obrys, f), wypelnienie: PAPIER.beton, kolor: obrys, grubosc });
+      elementy.push({ t: 'sciezka', d: sciezkaKomend(obrysElementu(e), f), wypelnienie: PAPIER.beton, kolor: obrys, grubosc });
+      if (maZaglebienie(e)) {
+        // Wymiar zagłębienia obok trójkąta łaty: linia pomocnicza od dna i pionowy wymiar od krawędzi do dna.
+        const z = zaglebienieElementu(e);
+        const dno = f(0.5, z / e.wys);
+        const g = f(0.86, 0);
+        const d = f(0.86, z / e.wys);
+        const k = 3;
+        opisy.push({ t: 'sciezka', d: `M${dno.x} ${dno.y}H${d.x}`, kolor: PAPIER.spadek, grubosc: 0.8, kreska: '3 2' });
+        opisy.push({
+          t: 'sciezka',
+          d: `M${g.x} ${g.y}V${d.y}M${g.x - k} ${g.y + k}L${g.x + k} ${g.y - k}M${d.x - k} ${d.y + k}L${d.x + k} ${d.y - k}`,
+          kolor: PAPIER.spadek, grubosc: 1,
+        });
+        opisy.push({ t: 'tekst', x: g.x, y: d.y + 12, tekst: `${fm(z, z % 1 ? 1 : 0)} cm`, kolor: PAPIER.spadek, rozmiar: 10, pogrubiony: true, kotwica: 'middle', halo: true });
+      }
     }
 
     const srodekX = E((u.rx0 + u.rx1) / 2, 0).x;
-    const dolY = E(0, Math.min(u.hL, u.hP) - e.wys - (e.podbudowa ?? 0) - (e.lawa ? 15 : 0)).y;
+    const dolY = E(0, Math.min(u.hL, u.hP) - e.wys - (e.podbudowa ?? 0) - (e.lawa ? GRUBOSC_LAWY : 0)).y;
     opisy.push({ t: 'tekst', x: srodekX, y: dolY + 14, tekst: String(u.indeks + 1), kolor: PAPIER.olowek, rozmiar: 11, pogrubiony: true, kotwica: 'middle' });
   }
   if (o.bezOpisow) return elementy;
@@ -399,8 +456,8 @@ export function rysunekPrzekroju(p: PrzekrojPoprzeczny, w: Widok, o: OpcjePrzekr
     const podstawa = szczyt - (Math.abs(lx - g.x) > 1 ? 16 : 4);
     if (Math.abs(lx - g.x) > 1) wynik.push({ t: 'sciezka', d: `M${g.x} ${szczyt}L${lx} ${podstawa + 2}`, kolor, grubosc: 0.8 });
     const czesci = [pp.klucz === zero ? '0' : zeZnakiem(r?.wzgledem0 ?? 0, 0)];
-    if (o.pomiar && r?.odczyt != null) czesci.push(`${r.odczyt} mm`);
-    if (o.pomiar && r?.rzedna != null) czesci.push(`H ${fm(r.rzedna, 3)}`);
+    if (o.pomiar && r?.odczyt != null) czesci.push(`(${r.odczyt})`);
+    if (o.pomiar && o.rzedne && r?.rzedna != null) czesci.push(`H ${fm(r.rzedna, 3)}`);
     wynik.push({
       t: 'tekst', x: lx + 4, y: podstawa, tekst: czesci.join('  '), kolor: r?.wpisany ? PAPIER.cel : PAPIER.tusz,
       rozmiar: 11, pogrubiony: true, obrot: -90, halo: true,
@@ -408,7 +465,7 @@ export function rysunekPrzekroju(p: PrzekrojPoprzeczny, w: Widok, o: OpcjePrzekr
   }
 
   // Wymiary nad rysunkiem: szerokości elementów i całkowita.
-  const yWym = najwyzej - (o.pomiar ? 180 : 72);
+  const yWym = najwyzej - (o.pomiar && o.rzedne ? ODSUNIECIE_WYMIAROW_Z_RZEDNYMI : ODSUNIECIE_WYMIAROW);
   const kreska = (x: number, y: number) => `M${x} ${y - 5}L${x} ${y + 5}M${x - 3} ${y + 3}L${x + 3} ${y - 3}`;
   let dWym = `M${E(ulozone[0].rx0, 0).x} ${yWym}H${E(ulozone[ulozone.length - 1].rx1, 0).x}`;
   for (const u of ulozone) {
@@ -524,6 +581,6 @@ export function svgPrzekroju(p: PrzekrojPoprzeczny, szer = 1200, pomiar = true):
   const sk = Math.min((szer - 60) / Math.max(z.maxX - z.minX, 0.05), 2500);
   const wys = Math.round((z.maxY - z.minY) * sk + gora + 50);
   const w = widokPrzekroju(p, szer, wys, gora, 30);
-  const prym = rysunekPrzekroju(p, w, { pomiar });
+  const prym = rysunekPrzekroju(p, w, { pomiar, rzedne: pomiar });
   return { svg: svgZPrymitywow(prym, szer, wys, { tytul: p.nazwa, podtytul: p.opis }), szer, wys };
 }
