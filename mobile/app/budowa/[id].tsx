@@ -15,6 +15,7 @@ import { SekcjaLegenda } from '../../src/components/budowa/SekcjaLegenda';
 import { SekcjaKonstrukcje } from '../../src/components/budowa/SekcjaKonstrukcje';
 import { SekcjaPrzedmiar } from '../../src/components/budowa/SekcjaPrzedmiar';
 import { SekcjaRaporty } from '../../src/components/budowa/SekcjaRaporty';
+import { SekcjaLiniowka } from '../../src/components/budowa/SekcjaLiniowka';
 import { pustyProjektBudowy, zsynchronizujLegendeProjektu } from '../../src/utils/projektBudowy';
 import type { ProjektBudowy } from '../../src/types';
 import { useMieszankiStore } from '../../src/stores/mieszankiStore';
@@ -138,7 +139,18 @@ export default function BudowaSzablonScreen() {
             {aktywna === 'przedmiar' ? (
               <SekcjaPrzedmiar projekt={projekt} theme={theme} kodBudowy={budowa.kodBudowy} onZmien={onZmien} />
             ) : null}
-            {aktywna === 'liniowka' || aktywna === 'zaawansowanie' ? (
+            {aktywna === 'liniowka' ? (
+              <SekcjaLiniowka
+                projekt={projekt}
+                budowaId={budowa.id}
+                theme={theme}
+                onZmien={onZmien}
+                blokadaPodgladu={blokadaPodgladu}
+                onBlokadaPodgladu={setBlokadaPodgladu}
+                onDotykZmiana={setMapaAktywna}
+              />
+            ) : null}
+            {aktywna === 'zaawansowanie' ? (
               <Text style={{ color: theme.colors.textSecondary, fontSize: 13 }}>W przygotowaniu.</Text>
             ) : null}
           </Sekcja>

@@ -194,7 +194,11 @@ export interface WarstwaLiniowki {
 }
 
 /** Wszystkie warstwy: z konstrukcji, z odcinków i własne ze szkiców – z kolorami. */
-export function warstwyLiniowki(projekt: ProjektBudowy, segmenty: SegmentLiniowki[] = []): WarstwaLiniowki[] {
+export function warstwyLiniowki(
+  projekt: ProjektBudowy,
+  segmenty: SegmentLiniowki[] = [],
+  opcje: { wszystkieGlowne?: boolean } = {},
+): WarstwaLiniowki[] {
   const ustawienia: LiniowkaProjektu = projekt.liniowka ?? {};
   const kolory = ustawienia.kolory ?? {};
   const kategorie = new Set<KategoriaWarstwy>();
@@ -218,7 +222,7 @@ export function warstwyLiniowki(projekt: ProjektBudowy, segmenty: SegmentLiniowk
 
   const out: WarstwaLiniowki[] = [];
   for (const kat of KATEGORIE_GLOWNE) {
-    if (!kategorie.has(kat)) continue;
+    if (!kategorie.has(kat) && !opcje.wszystkieGlowne) continue;
     const kol = kolory[kat] ?? KOLORY_DOMYSLNE[kat];
     out.push({ klucz: kat, nazwa: NAZWY_KATEGORII_LINIOWKI[kat], kolor: kol.kolor, krycie: kol.krycie, poziom: poziomKlucza(kat), wlasna: false });
   }
