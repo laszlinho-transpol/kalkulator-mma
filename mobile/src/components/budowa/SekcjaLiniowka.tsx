@@ -2,7 +2,8 @@ import React, { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
 import type { AppTheme } from '../../constants/theme';
-import type { ElementSzkicu, ProjektBudowy } from '../../types';
+import type { ArkuszPzt, ElementSzkicu, PowierzchniaSzkicuObszaru, ProjektBudowy } from '../../types';
+import type { RaportDzienny } from '../../raportyBudowy/typy';
 import { useRaportyBudowyStore } from '../../stores/raportyBudowyStore';
 import { useMieszankiStore } from '../../stores/mieszankiStore';
 import { useWytwornieStore } from '../../stores/wytwornieStore';
@@ -10,7 +11,9 @@ import {
   dniLiniowki,
   dodajWarstweWlasna,
   nowySzkic,
+  obszaryWarstwy,
   posortujDoRysowania,
+  powierzchnieSzkicu,
   poziomKlucza,
   poziomSegmentu,
   segmentyLiniowki,
@@ -36,7 +39,8 @@ import {
 import { PztArkuszPodglad, type NarzedzieSzkicu, type OdcinekLiniowkiPodgladu, type SzkicPodgladu } from './PztArkuszPodglad';
 
 const KOLORY_PIORA = ['#DC2626', '#16A34A', '#2563EB', '#EAB308', '#9333EA', '#EA580C', '#111827', '#FFFFFF'];
-const GRUBOSCI_PIORA = [2, 4, 8];
+/** 0 = linia obszaru: tak cienka jak obrys XFDF przy każdym przybliżeniu. */
+const GRUBOSCI_PIORA = [0, 2, 4, 8];
 const NARZEDZIA: Array<{ id: NarzedzieSzkicu; nazwa: string }> = [
   { id: 'pioro', nazwa: '✏️ Pióro' },
   { id: 'wiadro', nazwa: '🪣 Wiadro' },
@@ -59,7 +63,13 @@ interface SzkicRoboczy {
   elementy: ElementSzkicu[];
   historia: ElementSzkicu[][];
   warstwaKlucz?: string;
+  nowaWarstwa?: { nazwa: string; opis?: string };
+  raportId?: string;
 }
+
+type WyborWarstwy = { klucz: string } | { nazwa: string; opis?: string };
+
+const m2 = (x: number) => `${formatLiczby(x)} m²`;
 
 const dataPl = (iso: string) => {
   const [y, m, d] = iso.split('-');
@@ -81,8 +91,14 @@ export function SekcjaLiniowka({ projekt, budowaId, theme, onZmien, blokadaPodgl
   const [kolorPiora, setKolorPiora] = useState(KOLORY_PIORA[0]);
   const [grubosc, setGrubosc] = useState(GRUBOSCI_PIORA[1]);
   const [zapisSzkicu, setZapisSzkicu] = useState(false);
+  const [wyborWarstwy, setWyborWarstwy] = useState(false);
+  const [wybranySzkicId, setWybranySzkicId] = useState<string | undefined>();
 
   const aktywny = projekt.arkusze.find((a) => a.id === arkuszId) ?? projekt.arkusze[0];
+  const raportyBudowy = useMemo(
+    () => raporty.filter((r) => r.budowaId === budowaId).sort((a, b) => b.data.localeCompare(a.data)),
+    [raporty, budowaId],
+  );
 
   const segmenty = useMemo(() => segmentyLiniowki(projekt, raporty, budowaId, (id) => {
     const m = mieszanki.find((x) => x.id === id);
@@ -114,8 +130,14 @@ export function SekcjaLiniowka({ projekt, budowaId, theme, onZmien, blokadaPodgl
       kolor: w?.kolor ?? '#9CA3AF',
       krycie: w?.krycie ?? 0.3,
       reczny: s.zrodlo === 'reczny',
+      warstwa: s.klucz,
     };
   }), [widoczne, warstwaPoKluczu, projekt]);
+
+  const klipWarstwy = (arkusz: ArkuszPzt | undefined, klucz: string | undefined) => {
+    if (!arkusz || !klucz) return null;
+    return obszaryWarstwy(projekt, arkusz, klucz);
+  };
 
   const szkicePodgladu = useMemo<SzkicPodgladu[]>(() => szkice
     .filter((s) => s.arkuszId === aktywny?.id && s.id !== szkic?.id && !ukryte.has(s.warstwaKlucz))
@@ -126,10 +148,16 @@ export function SekcjaLiniowka({ projekt, budowaId, theme, onZmien, blokadaPodgl
         elementy: s.elementy,
         krycie: warstwaPoKluczu.get(s.warstwaKlucz)?.krycie ?? 0.5,
         poIndeksie: poziomy.filter((x) => x <= p).length,
+        klip: obszaryWarstwy(projekt, aktywny!, s.warstwaKlucz)?.map((o) => o.wierzcholkiPdf) ?? null,
       };
-    }), [szkice, aktywny?.id, szkic?.id, ukryte, warstwaPoKluczu, poziomy]);
+    }), [szkice, aktywny, szkic?.id, ukryte, warstwaPoKluczu, poziomy, projekt]);
 
   const wybrany = segmenty.find((s) => s.id === wybranyId);
+  const wybranySzkic = szkice.find((s) => s.id === wybranySzkicId);
+  const raportPoId = (id?: string) => (id ? raportyBudowy.find((r) => r.id === id) : undefined);
+  const nazwaWarstwySzkicu = (s: Pick<SzkicRoboczy, 'warstwaKlucz' | 'nowaWarstwa'>) => (
+    s.nowaWarstwa?.nazwa ?? (s.warstwaKlucz ? warstwaPoKluczu.get(s.warstwaKlucz)?.nazwa : undefined) ?? 'Szkic'
+  );
 
   const arkuszSegmentu = (s: SegmentLiniowki) => {
     const klucz = wpisLegendyObszaru(projekt, s.legendaId)?.klucz;
@@ -160,17 +188,24 @@ export function SekcjaLiniowka({ projekt, budowaId, theme, onZmien, blokadaPodgl
     return n;
   });
 
-  const zacznijSzkic = (istniejacy?: typeof szkice[number]) => {
+  const zacznijSzkic = (istniejacy?: typeof szkice[number], wybor?: WyborWarstwy) => {
     if (!aktywny && !istniejacy) return;
     if (istniejacy) setArkuszId(istniejacy.arkuszId);
     setWybranyId(undefined);
+    setWybranySzkicId(undefined);
+    setWyborWarstwy(false);
+    const klucz = istniejacy?.warstwaKlucz ?? (wybor && 'klucz' in wybor ? wybor.klucz : undefined);
     setSzkic({
       id: istniejacy?.id,
       arkuszId: istniejacy?.arkuszId ?? aktywny!.id,
       elementy: istniejacy?.elementy ?? [],
       historia: [],
-      warstwaKlucz: istniejacy?.warstwaKlucz,
+      warstwaKlucz: klucz,
+      nowaWarstwa: wybor && 'nazwa' in wybor ? wybor : undefined,
+      raportId: istniejacy?.raportId,
     });
+    const kolorWarstwy = klucz ? warstwaPoKluczu.get(klucz)?.kolor : undefined;
+    if (kolorWarstwy) setKolorPiora(kolorWarstwy);
     setNarzedzie('pioro');
     onBlokadaPodgladu?.(true);
   };
@@ -179,6 +214,16 @@ export function SekcjaLiniowka({ projekt, budowaId, theme, onZmien, blokadaPodgl
     setSzkic(null);
     setZapisSzkicu(false);
     onBlokadaPodgladu?.(false);
+  };
+
+  const wybierzOdcinek = (id: string) => {
+    setWybranySzkicId(undefined);
+    setWybranyId(id);
+  };
+
+  const wybierzSzkic = (id: string) => {
+    setWybranyId(undefined);
+    setWybranySzkicId(id);
   };
 
   const zmienElementySzkicu = (elementy: ElementSzkicu[]) => setSzkic((s) => (s
@@ -208,11 +253,23 @@ export function SekcjaLiniowka({ projekt, budowaId, theme, onZmien, blokadaPodgl
   }
 
   const arkuszSzkicu = szkic ? projekt.arkusze.find((a) => a.id === szkic.arkuszId) ?? aktywny : aktywny;
+  const klipSzkicu = szkic && !szkic.nowaWarstwa ? klipWarstwy(arkuszSzkicu, szkic.warstwaKlucz) : null;
+  const wynikSzkicu = szkic && zapisSzkicu ? powierzchnieSzkicu(szkic.elementy, arkuszSzkicu, klipSzkicu) : null;
 
   return (
     <View style={{ gap: ODSTEP.m }}>
       {szkic ? (
         <View style={[styles.pasek, { borderColor: theme.colors.primary, backgroundColor: `${theme.colors.primary}10` }]}>
+          <View accessibilityLabel="Warstwa szkicu">
+            <Text style={[TYPOGRAFIA.wartosc, { color: theme.colors.text }]} numberOfLines={1}>
+              {`Warstwa: ${nazwaWarstwySzkicu(szkic)}`}
+            </Text>
+            <Text style={[TYPOGRAFIA.opis, { color: theme.colors.textSecondary }]}>
+              {klipSzkicu
+                ? 'Malujesz tylko po obszarze tej warstwy (obrys przerywany).'
+                : 'Nowa warstwa – rysujesz po całym arkuszu.'}
+            </Text>
+          </View>
           <View style={stylFormularza.chipy}>
             {NARZEDZIA.map((n) => (
               <Wybor key={n.id} zaznaczony={narzedzie === n.id} etykieta={n.nazwa} accessibilityLabel={`Narzędzie ${n.id}`} onPress={() => setNarzedzie(n.id)} />
@@ -233,12 +290,12 @@ export function SekcjaLiniowka({ projekt, budowaId, theme, onZmien, blokadaPodgl
             {GRUBOSCI_PIORA.map((g) => (
               <TouchableOpacity
                 key={g}
-                accessibilityLabel={`Grubość ${g}`}
+                accessibilityLabel={g === 0 ? 'Grubość linii obszaru' : `Grubość ${g}`}
                 accessibilityState={{ selected: g === grubosc }}
                 onPress={() => setGrubosc(g)}
                 style={[styles.grubosc, { borderColor: g === grubosc ? theme.colors.primary : theme.colors.border, backgroundColor: theme.colors.card }]}
               >
-                <View style={{ width: 22, height: g, borderRadius: g / 2, backgroundColor: kolorPiora === '#FFFFFF' ? theme.colors.text : kolorPiora }} />
+                <View style={{ width: 22, height: g || 1, borderRadius: (g || 1) / 2, backgroundColor: kolorPiora === '#FFFFFF' ? theme.colors.text : kolorPiora }} />
               </TouchableOpacity>
             ))}
             <View style={{ flex: 1 }} />
@@ -316,7 +373,9 @@ export function SekcjaLiniowka({ projekt, budowaId, theme, onZmien, blokadaPodgl
           odcinki: odcinkiPodgladu,
           szkice: szkicePodgladu,
           podswietlonyId: wybranyId,
-          onPressOdcinek: szkic ? undefined : setWybranyId,
+          onPressOdcinek: szkic ? undefined : wybierzOdcinek,
+          podswietlonySzkicId: wybranySzkicId,
+          onPressSzkic: szkic ? undefined : wybierzSzkic,
         }}
         rysowanie={szkic ? {
           narzedzie,
@@ -324,8 +383,36 @@ export function SekcjaLiniowka({ projekt, budowaId, theme, onZmien, blokadaPodgl
           gruboscPx: grubosc,
           elementy: szkic.elementy,
           onZmien: zmienElementySzkicu,
+          klip: klipSzkicu?.map((o) => o.wierzcholkiPdf) ?? null,
+          onWiadroBezGranic: () => pokazKomunikat(
+            'Wiaderko',
+            klipSzkicu
+              ? 'Stuknij wewnątrz obszaru warstwy (obrys przerywany).'
+              : 'Farba nie ma granic – obrysuj miejsce linią albo stuknij wewnątrz obszaru PZT.',
+          ),
         } : undefined}
       />
+
+      {wybranySzkic && !szkic ? (
+        <View accessibilityLabel="Informacja o szkicu">
+          <Karta
+            tytul={`Szkic · ${warstwaPoKluczu.get(wybranySzkic.warstwaKlucz)?.nazwa ?? 'warstwa'}`}
+            znaczek={{ tekst: 'Szkic', kolor: warstwaPoKluczu.get(wybranySzkic.warstwaKlucz)?.kolor ?? theme.colors.primary }}
+            akcje={[
+              ...(raportPoId(wybranySzkic.raportId) ? [{
+                tekst: 'Otwórz raport', rodzaj: 'glowna' as const, onPress: () => router.push(`/raport-budowy/${wybranySzkic.raportId}` as never),
+              }] : []),
+              { tekst: 'Edytuj', onPress: () => zacznijSzkic(wybranySzkic) },
+              { tekst: 'Zamknij', onPress: () => setWybranySzkicId(undefined) },
+            ]}
+          >
+            {wybranySzkic.powierzchniaM2 != null ? <WierszDanych etykieta="Zamalowano" wartosc={m2(wybranySzkic.powierzchniaM2)} /> : null}
+            {(wybranySzkic.powierzchnie ?? []).map((p) => <WierszDanych key={p.obszarId} etykieta={p.obszarNazwa || 'Obszar'} wartosc={m2(p.m2)} />)}
+            <WierszDanych etykieta="Raport" wartosc={raportPoId(wybranySzkic.raportId) ? dataPl(raportPoId(wybranySzkic.raportId)!.data) : 'nie podłączono'} />
+            {warstwaPoKluczu.get(wybranySzkic.warstwaKlucz)?.opis ? <WierszDanych etykieta="Opis" wartosc={warstwaPoKluczu.get(wybranySzkic.warstwaKlucz)!.opis!} /> : null}
+          </Karta>
+        </View>
+      ) : null}
 
       {wybrany && !szkic ? (
         <View accessibilityLabel="Informacja o obszarze">
@@ -360,7 +447,7 @@ export function SekcjaLiniowka({ projekt, budowaId, theme, onZmien, blokadaPodgl
             onPress={() => router.push(`/budowa/liniowka-reczna?budowaId=${budowaId}` as never)}
             style={{ flex: 1 }}
           />
-          <Przycisk tekst="Szkicuj" ikona="edytuj" wariant="drugi" onPress={() => zacznijSzkic()} style={{ flex: 1 }} />
+          <Przycisk tekst="Szkicuj" ikona="edytuj" wariant="drugi" onPress={() => setWyborWarstwy(true)} style={{ flex: 1 }} />
         </View>
       ) : null}
 
@@ -389,12 +476,20 @@ export function SekcjaLiniowka({ projekt, budowaId, theme, onZmien, blokadaPodgl
             {szkice.map((s) => {
               const w = warstwaPoKluczu.get(s.warstwaKlucz);
               const ark = projekt.arkusze.find((a) => a.id === s.arkuszId);
+              const rap = raportPoId(s.raportId);
               return (
                 <Karta
                   key={s.id}
                   tytul={w?.nazwa ?? 'Szkic'}
-                  podtytul={[ark ? etykietaZakladkiArkusza(ark.nazwa) : '', `${s.elementy.length} el.`, w?.opis ?? ''].filter(Boolean).join(' · ')}
+                  podtytul={[
+                    ark ? etykietaZakladkiArkusza(ark.nazwa) : '',
+                    s.powierzchniaM2 != null ? m2(s.powierzchniaM2) : `${s.elementy.length} el.`,
+                    rap ? `raport ${dataPl(rap.data)}` : '',
+                    w?.opis ?? '',
+                  ].filter(Boolean).join(' · ')}
                   akcje={[
+                    { tekst: 'Pokaż', onPress: () => { setArkuszId(s.arkuszId); wybierzSzkic(s.id); } },
+                    ...(rap ? [{ tekst: 'Raport', onPress: () => router.push(`/raport-budowy/${rap.id}` as never) }] : []),
                     { tekst: 'Edytuj', accessibilityLabel: `Edytuj szkic ${w?.nazwa ?? ''}`, onPress: () => zacznijSzkic(s) },
                     {
                       tekst: 'Usuń',
@@ -418,30 +513,43 @@ export function SekcjaLiniowka({ projekt, budowaId, theme, onZmien, blokadaPodgl
         onPokaz={pokaz}
       />
 
-      {szkic ? (
+      <OknoWarstwySzkicu
+        widoczne={wyborWarstwy}
+        theme={theme}
+        warstwy={warstwy}
+        onClose={() => setWyborWarstwy(false)}
+        onWybierz={(w) => zacznijSzkic(undefined, w)}
+      />
+
+      {szkic && wynikSzkicu ? (
         <OknoZapisuSzkicu
           widoczne={zapisSzkicu}
           theme={theme}
-          warstwy={warstwy}
-          poczatkowa={szkic.warstwaKlucz}
+          nazwaWarstwy={nazwaWarstwySzkicu(szkic)}
+          wynik={wynikSzkicu}
+          wKlipie={!!klipSzkicu}
+          raporty={raportyBudowy}
+          raportId={szkic.raportId}
           onClose={() => setZapisSzkicu(false)}
-          onZapisz={(wybor) => {
+          onZapisz={(raportId) => {
             let p = projekt;
-            let klucz = wybor.klucz;
-            if (!klucz) {
-              const nowa = dodajWarstweWlasna(p, wybor.nazwa, wybor.opis, kolorPiora);
+            let klucz = szkic.warstwaKlucz;
+            if (szkic.nowaWarstwa || !klucz) {
+              const nowa = dodajWarstweWlasna(p, szkic.nowaWarstwa?.nazwa ?? 'Szkic', szkic.nowaWarstwa?.opis, kolorPiora);
               p = nowa.projekt;
               klucz = nowa.klucz;
             }
+            const dane = { powierzchniaM2: wynikSzkicu.razemM2, powierzchnie: wynikSzkicu.powierzchnie, raportId };
             const istniejacy = szkice.find((s) => s.id === szkic.id);
             const zapis = istniejacy
-              ? { ...istniejacy, elementy: szkic.elementy, warstwaKlucz: klucz, updatedAt: new Date().toISOString() }
-              : nowySzkic(szkic.arkuszId, szkic.elementy, klucz);
+              ? { ...istniejacy, ...dane, elementy: szkic.elementy, warstwaKlucz: klucz, updatedAt: new Date().toISOString() }
+              : nowySzkic(szkic.arkuszId, szkic.elementy, klucz, dane);
             onZmien(zapiszSzkic(p, zapis));
+            const k = klucz;
             setUkryte((u) => {
-              if (!u.has(klucz!)) return u;
+              if (!u.has(k)) return u;
               const n = new Set(u);
-              n.delete(klucz!);
+              n.delete(k);
               return n;
             });
             zakonczSzkic();
@@ -542,34 +650,90 @@ function OknoWyszukaj({ widoczne, theme, segmenty, warstwaPoKluczu, onClose, onP
   );
 }
 
-function OknoZapisuSzkicu({ widoczne, theme, warstwy, poczatkowa, onClose, onZapisz }: {
+function OknoWarstwySzkicu({ widoczne, theme, warstwy, onClose, onWybierz }: {
   widoczne: boolean;
   theme: AppTheme;
   warstwy: WarstwaLiniowki[];
-  poczatkowa?: string;
   onClose: () => void;
-  onZapisz: (w: { klucz?: string; nazwa: string; opis?: string }) => void;
+  onWybierz: (w: WyborWarstwy) => void;
 }) {
-  const [klucz, setKlucz] = useState<string | undefined>(poczatkowa ?? warstwy[0]?.klucz);
-  const [nowa, setNowa] = useState(!poczatkowa && warstwy.length === 0);
+  const [klucz, setKlucz] = useState<string | undefined>();
+  const [nowa, setNowa] = useState(false);
   const [nazwa, setNazwa] = useState('');
   const [opis, setOpis] = useState('');
+  const nowaWarstwa = nowa || warstwy.length === 0;
 
-  const zapisz = () => {
-    if (nowa) {
+  const dalej = () => {
+    if (nowaWarstwa) {
       if (!nazwa.trim()) {
         pokazKomunikat('Warstwa', 'Podaj nazwę nowej warstwy.');
         return;
       }
-      onZapisz({ nazwa, opis });
-      return;
-    }
-    if (!klucz) {
+      onWybierz({ nazwa: nazwa.trim(), opis: opis.trim() || undefined });
+    } else if (klucz) {
+      onWybierz({ klucz });
+    } else {
       pokazKomunikat('Warstwa', 'Wybierz warstwę albo dodaj nową.');
       return;
     }
-    onZapisz({ klucz, nazwa: '' });
+    setKlucz(undefined);
+    setNowa(false);
+    setNazwa('');
+    setOpis('');
   };
+
+  return (
+    <SafeModal
+      visible={widoczne}
+      tytul="Warstwa szkicu"
+      theme={theme}
+      onClose={onClose}
+      prawy={{ tekst: 'Rysuj', onPress: dalej, kolor: theme.colors.primary }}
+    >
+      <ScrollView contentContainerStyle={{ padding: ODSTEP.l, gap: ODSTEP.m }} keyboardShouldPersistTaps="handled">
+        <Sekcja
+          tytul="Warstwa"
+          info="Istniejąca warstwa: malujesz tylko po jej obszarze na PZT, a po zatwierdzeniu dostajesz zamalowaną powierzchnię. Nowa warstwa: rysujesz po całym arkuszu."
+        >
+          <View style={stylFormularza.chipy}>
+            {warstwy.map((w) => (
+              <Wybor
+                key={w.klucz}
+                zaznaczony={!nowaWarstwa && klucz === w.klucz}
+                etykieta={w.nazwa}
+                accessibilityLabel={`Przypisz do ${w.nazwa}`}
+                onPress={() => { setNowa(false); setKlucz(w.klucz); }}
+              />
+            ))}
+            <Wybor zaznaczony={nowaWarstwa} etykieta="+ Nowa warstwa" onPress={() => setNowa(true)} />
+          </View>
+        </Sekcja>
+        {nowaWarstwa ? (
+          <Sekcja tytul="Nowa warstwa" info="Dostaje kolor pióra. Trafia na liniówkę i do filtra warstw.">
+            <View style={{ gap: ODSTEP.m }}>
+              <Pole etykieta="Nazwa" value={nazwa} onChangeText={setNazwa} accessibilityLabel="Nazwa nowej warstwy" wymagane />
+              <Pole etykieta="Opis" value={opis} onChangeText={setOpis} accessibilityLabel="Opis nowej warstwy" multiline />
+            </View>
+          </Sekcja>
+        ) : null}
+        <Przycisk tekst="Rysuj" accessibilityLabel="Zacznij rysować" onPress={dalej} />
+      </ScrollView>
+    </SafeModal>
+  );
+}
+
+function OknoZapisuSzkicu({ widoczne, theme, nazwaWarstwy, wynik, wKlipie, raporty, raportId, onClose, onZapisz }: {
+  widoczne: boolean;
+  theme: AppTheme;
+  nazwaWarstwy: string;
+  wynik: { razemM2: number; powierzchnie: PowierzchniaSzkicuObszaru[] };
+  wKlipie: boolean;
+  raporty: RaportDzienny[];
+  raportId?: string;
+  onClose: () => void;
+  onZapisz: (raportId: string | undefined) => void;
+}) {
+  const [raport, setRaport] = useState<string | undefined>(raportId);
 
   return (
     <SafeModal
@@ -577,31 +741,41 @@ function OknoZapisuSzkicu({ widoczne, theme, warstwy, poczatkowa, onClose, onZap
       tytul="Zapisz szkic"
       theme={theme}
       onClose={onClose}
-      prawy={{ tekst: 'Zapisz', onPress: zapisz, kolor: theme.colors.primary }}
+      prawy={{ tekst: 'Zapisz', onPress: () => onZapisz(raport), kolor: theme.colors.primary }}
     >
       <ScrollView contentContainerStyle={{ padding: ODSTEP.l, gap: ODSTEP.m }} keyboardShouldPersistTaps="handled">
-        <Sekcja tytul="Warstwa" info="Szkic przypisany do warstwy pojawia się na liniówce i w filtrze warstw. Nowa warstwa dostaje kolor pióra.">
-          <View style={stylFormularza.chipy}>
-            {warstwy.map((w) => (
-              <Wybor
-                key={w.klucz}
-                zaznaczony={!nowa && klucz === w.klucz}
-                etykieta={w.nazwa}
-                accessibilityLabel={`Przypisz do ${w.nazwa}`}
-                onPress={() => { setNowa(false); setKlucz(w.klucz); }}
-              />
+        <Sekcja
+          tytul="Zamalowana powierzchnia"
+          info={wKlipie
+            ? 'Liczona tylko wewnątrz obszarów warstwy, w skali powierzchni obszaru z XFDF.'
+            : 'Liczona w skali arkusza. Poniżej część, która wypada na obszarach PZT.'}
+        >
+          <View accessibilityLabel="Powierzchnia szkicu">
+            <WierszDanych etykieta={`Razem · ${nazwaWarstwy}`} wartosc={m2(wynik.razemM2)} />
+            {wynik.powierzchnie.map((p) => (
+              <WierszDanych key={p.obszarId} etykieta={p.obszarNazwa || 'Obszar'} wartosc={m2(p.m2)} />
             ))}
-            <Wybor zaznaczony={nowa} etykieta="+ Nowa warstwa" onPress={() => setNowa(true)} />
           </View>
         </Sekcja>
-        {nowa ? (
-          <Sekcja tytul="Nowa warstwa">
-            <View style={{ gap: ODSTEP.m }}>
-              <Pole etykieta="Nazwa" value={nazwa} onChangeText={setNazwa} accessibilityLabel="Nazwa nowej warstwy" wymagane />
-              <Pole etykieta="Opis" value={opis} onChangeText={setOpis} accessibilityLabel="Opis nowej warstwy" multiline />
+        <Sekcja tytul="Raport dzienny" info="Podłączony szkic widać w raporcie z tego dnia, a z liniówki przejdziesz do raportu.">
+          {raporty.length === 0 ? (
+            <Text style={[TYPOGRAFIA.opis, { color: theme.colors.textSecondary }]}>Brak raportów tej budowy.</Text>
+          ) : (
+            <View style={stylFormularza.chipy}>
+              <Wybor zaznaczony={!raport} etykieta="Bez raportu" onPress={() => setRaport(undefined)} />
+              {raporty.map((r) => (
+                <Wybor
+                  key={r.id}
+                  zaznaczony={raport === r.id}
+                  etykieta={dataPl(r.data)}
+                  accessibilityLabel={`Raport ${dataPl(r.data)}`}
+                  onPress={() => setRaport(r.id)}
+                />
+              ))}
             </View>
-          </Sekcja>
-        ) : null}
+          )}
+        </Sekcja>
+        <Przycisk tekst="Zapisz" accessibilityLabel="Zapisz szkic na liniówce" onPress={() => onZapisz(raport)} />
       </ScrollView>
     </SafeModal>
   );
