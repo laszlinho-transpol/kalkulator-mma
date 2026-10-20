@@ -13,7 +13,10 @@ import Svg, {
 } from 'react-native-svg';
 import { InfoTooltip } from '../common/InfoTooltip';
 import type { ArkuszPzt, ElementSzkicu, Punkt2D, TloArkuszaPzt } from '../../types';
-import { dodajPunktKreski, elementPodPunktem, punktWWielokacie, stacjeZnakowInfo, wymazGumka } from '../../liniowka/liniowka';
+import {
+  dociagnijDoObszaru, dodajPunktKreski, dodajWezel, elementPodPunktem, krawedzieLamanej, lukPrzezPunkt, obrysLamanej,
+  przesunWezel, punktWWielokacie, srodekKrawedzi, stacjeZnakowInfo, ustawLuk, wymazGumka, type LamanaSzkicu,
+} from '../../liniowka/liniowka';
 import { wypelnijDoKrawedzi, zakresPunktow } from '../../liniowka/rasterSzkicu';
 import { kluczLegendy } from '../../utils/projektBudowy';
 import { bboxWielokata } from '../../utils/obmiarGeometry';
@@ -155,7 +158,7 @@ export interface LiniowkaPodgladu {
   onPressSzkic?: (id: string) => void;
 }
 
-export type NarzedzieSzkicu = 'pioro' | 'wiadro' | 'gumka';
+export type NarzedzieSzkicu = 'pioro' | 'wiadro' | 'gumka' | 'lamana';
 
 export interface RysowaniePodgladu {
   narzedzie: NarzedzieSzkicu;
@@ -167,9 +170,17 @@ export interface RysowaniePodgladu {
   /** Obszary warstwy (PDF): pióro i wiaderko działają tylko w nich. Brak = cały arkusz. */
   klip?: Punkt2D[][] | null;
   onWiadroBezGranic?: () => void;
+  /** Linia łamana w budowie (narzędzie „lamana”). */
+  lamana?: LamanaSzkicu;
+  onLamana?: (l: LamanaSzkicu) => void;
+  /** Wybór obszaru: stuknięcie zwraca punkt PDF, nic się nie rysuje; `klip` = obszary do wyboru. */
+  onWskazObszar?: (p: Punkt2D) => void;
 }
 
+type ChwytLamanej = { typ: 'wezel'; i: number } | { typ: 'luk'; i: number } | { typ: 'widok' };
+
 const PROMIEN_GUMKI_PX = 12;
+const CHWYT_WEZLA_PX = 16;
 const LINIA_OBSZARU_PX = 1.25;
 const LED_HALO = '#FDE047';
 const LED_RDZEN = '#FFFBEB';
@@ -676,9 +687,68 @@ export function PztArkuszPodglad({
     }
   };
 
+  const chwytRef = useRef<ChwytLamanej | null>(null);
+  const zLamana = (r: RysowaniePodgladu | undefined) => !!r && (r.narzedzie === 'lamana' || !!r.onWskazObszar);
+
+  const chwytLamanej = (ekranX: number, ekranY: number): ChwytLamanej => {
+    const r = rysowanieRef.current;
+    const pdf = pdfZEkranu(ekranX, ekranY);
+    const l = r?.lamana;
+    if (!pdf || !l || r?.onWskazObszar) return { typ: 'widok' };
+    let best: ChwytLamanej = { typ: 'widok' };
+    let bestD = CHWYT_WEZLA_PX / pdfNaEkranPx();
+    l.wezly.forEach((w, i) => {
+      const d = Math.hypot(w.x - pdf.x, w.y - pdf.y);
+      if (d <= bestD) {
+        best = { typ: 'wezel', i };
+        bestD = d;
+      }
+    });
+    if (best.typ !== 'widok') return best;
+    for (const k of krawedzieLamanej(l)) {
+      const m = srodekKrawedzi(k.a, k.b, k.c);
+      const d = Math.hypot(m.x - pdf.x, m.y - pdf.y);
+      if (d <= bestD) {
+        best = { typ: 'luk', i: k.i };
+        bestD = d;
+      }
+    }
+    return best;
+  };
+
+  const przeciagnijLamana = (ekranX: number, ekranY: number, c: ChwytLamanej) => {
+    const r = rysowanieRef.current;
+    const l = r?.lamana;
+    const pdf = pdfZEkranu(ekranX, ekranY);
+    if (!r || !l || !pdf || !r.onLamana) return;
+    if (c.typ === 'wezel') {
+      r.onLamana(przesunWezel(l, c.i, dociagnijDoObszaru(pdf, r.klip)));
+    } else if (c.typ === 'luk') {
+      const k = krawedzieLamanej(l).find((x) => x.i === c.i);
+      if (k) r.onLamana(ustawLuk(l, c.i, lukPrzezPunkt(k.a, k.b, pdf, 3 / pdfNaEkranPx())));
+    }
+  };
+
+  const lamanaTap = (ekranX: number, ekranY: number) => {
+    const r = rysowanieRef.current;
+    const pdf = pdfZEkranu(ekranX, ekranY);
+    if (!r || !pdf || !r.onLamana) return;
+    const l = r.lamana ?? { wezly: [], luki: [] };
+    if (l.wezly.length === 0) {
+      const tol = 6 / pdfNaEkranPx();
+      const gotowa = [...elementyRef.current].reverse().find((e) => e.lamana && elementPodPunktem([e], pdf, tol));
+      if (gotowa?.lamana) {
+        zmienElementy(elementyRef.current.filter((e) => e !== gotowa));
+        r.onLamana({ wezly: gotowa.lamana.wezly, luki: gotowa.lamana.luki });
+        return;
+      }
+    }
+    r.onLamana(dodajWezel(l, dociagnijDoObszaru(pdf, r.klip)));
+  };
+
   const rysujPunkt = (ekranX: number, ekranY: number) => {
     const r = rysowanieRef.current;
-    if (!r) return;
+    if (!r || r.onWskazObszar) return;
     if (r.narzedzie === 'gumka') {
       gumkaW(ekranX, ekranY);
       return;
@@ -740,8 +810,14 @@ export function PztArkuszPodglad({
     }
     const r = rysowanieRef.current;
     if (r) {
+      if (r.onWskazObszar) {
+        const pdf = pdfZEkranu(ekranX, ekranY);
+        if (pdf) r.onWskazObszar(pdf);
+        return;
+      }
       if (r.narzedzie === 'gumka') gumkaW(ekranX, ekranY);
       if (r.narzedzie === 'wiadro') wiadroW(ekranX, ekranY);
+      if (r.narzedzie === 'lamana') lamanaTap(ekranX, ekranY);
       return;
     }
     const lin = liniowkaSvgRef.current;
@@ -1024,6 +1100,19 @@ export function PztArkuszPodglad({
     if (rysowanieRef.current) {
       const x = e.nativeEvent.x as number | undefined;
       const y = e.nativeEvent.y as number | undefined;
+      const c = chwytRef.current;
+      if (zLamana(rysowanieRef.current) && c) {
+        if (c.typ === 'widok') {
+          const t = clampTrans(
+            bazaX.current + e.nativeEvent.translationX * PAN_CZYNNIK,
+            bazaY.current + e.nativeEvent.translationY * PAN_CZYNNIK,
+          );
+          ustawWidok(bazaSkali.current, t.x, t.y);
+        } else if (x != null && y != null) {
+          przeciagnijLamana(x, y, c);
+        }
+        return;
+      }
       if (x != null && y != null) rysujPunkt(x, y);
       return;
     }
@@ -1045,11 +1134,20 @@ export function PztArkuszPodglad({
       const y = e.nativeEvent.y as number | undefined;
       if (st === State.BEGAN) {
         kreskaRef.current = [];
+        chwytRef.current = zLamana(rysowanieRef.current) && x != null && y != null ? chwytLamanej(x, y) : null;
         // Gumka dopiero przy ruchu: usunięcie ścieżki pod kursorem w pointerdown psuje przechwycenie wskaźnika na webie.
         if (x != null && y != null && rysowanieRef.current.narzedzie === 'pioro') rysujPunkt(x, y);
       }
       if (st === State.FAILED || st === State.CANCELLED || st === State.END) {
-        if (tap && kreskaRef.current.length < 2) {
+        const c = chwytRef.current;
+        chwytRef.current = null;
+        if (c?.typ === 'widok' && !tap && e.nativeEvent.oldState === State.ACTIVE) {
+          const t = clampTrans(bazaX.current + dx * PAN_CZYNNIK, bazaY.current + dy * PAN_CZYNNIK);
+          bazaX.current = t.x;
+          bazaY.current = t.y;
+          ustawWidok(bazaSkali.current, t.x, t.y);
+        }
+        if (tap && kreskaRef.current.length < 2 && (!c || c.typ === 'widok')) {
           kreskaRef.current = [];
           if (x != null && y != null) obsluzTapMapy(x, y);
         }
@@ -1122,6 +1220,17 @@ export function PztArkuszPodglad({
     ? sciezkaSvg(kreska.map((p) => pdfDoSvgPodgladu(p, mapa.mapaSvg)), false)
     : '';
   const klipSvg = rysowanie?.klip ? szkiceSvg.find((sz) => sz.id === 'rysowany')?.klip : undefined;
+  const lam = rysowanie?.lamana;
+  const lamanaSvg = lam && lam.wezly.length > 0 ? (() => {
+    const toS = (p: Punkt2D) => pdfDoSvgPodgladu(p, mapa.mapaSvg);
+    const zamknieta = lam.wezly.length >= 3;
+    return {
+      zamknieta,
+      d: sciezkaSvg((zamknieta ? obrysLamanej(lam) : lam.wezly).map(toS), zamknieta),
+      wezly: lam.wezly.map(toS),
+      uchwyty: krawedzieLamanej(lam).map((k) => ({ i: k.i, luk: !!k.c, ...toS(srodekKrawedzi(k.a, k.b, k.c)) })),
+    };
+  })() : null;
   const wKlipie = (sz: { id: string; klip?: string[] }, tresc: React.ReactNode, klucz: string) => (
     sz.klip?.length ? (
       <G key={klucz}>
@@ -1567,6 +1676,47 @@ export function PztArkuszPodglad({
                             fill="none"
                           />
                         ), 'kreska') : null}
+                        {lamanaSvg && rysowanie ? (
+                          <G accessibilityLabel="Linia łamana">
+                            {lamanaSvg.zamknieta ? wKlipie({ id: 'rysowany', klip: klipSvg }, (
+                              <Path d={lamanaSvg.d} fill={rysowanie.kolor} fillOpacity={0.35} stroke="none" />
+                            ), 'lam-wyp') : null}
+                            <Path
+                              d={lamanaSvg.d}
+                              fill="none"
+                              stroke={rysowanie.kolor === '#FFFFFF' ? '#111827' : rysowanie.kolor}
+                              strokeWidth={2}
+                              strokeLinejoin="round"
+                              vectorEffect="non-scaling-stroke"
+                            />
+                            {lamanaSvg.uchwyty.map((u) => (
+                              <Circle
+                                key={`lu-${u.i}`}
+                                cx={u.x}
+                                cy={u.y}
+                                r={5 / xform.s}
+                                fill={u.luk ? rysowanie.kolor : '#FFFFFF'}
+                                fillOpacity={0.9}
+                                stroke="#111827"
+                                strokeWidth={1.2}
+                                strokeDasharray="2 2"
+                                vectorEffect="non-scaling-stroke"
+                              />
+                            ))}
+                            {lamanaSvg.wezly.map((w, i) => (
+                              <Circle
+                                key={`lw-${i}`}
+                                cx={w.x}
+                                cy={w.y}
+                                r={(i === 0 ? 8 : 7) / xform.s}
+                                fill="#FFFFFF"
+                                stroke={rysowanie.kolor === '#FFFFFF' ? '#111827' : rysowanie.kolor}
+                                strokeWidth={2.5}
+                                vectorEffect="non-scaling-stroke"
+                              />
+                            ))}
+                          </G>
+                        ) : null}
                         {mapa.maszyny.map((m) => (
                           <G key={m.id} onPress={m.rodzaj === 'auto' ? () => onPressAuto?.(m.id) : undefined}>
                             <MaszynaObmiaru

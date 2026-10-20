@@ -1,8 +1,8 @@
-import React, { useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { router } from 'expo-router';
 import type { AppTheme } from '../../constants/theme';
-import type { ArkuszPzt, ElementSzkicu, PowierzchniaSzkicuObszaru, ProjektBudowy } from '../../types';
+import type { ArkuszPzt, ElementSzkicu, ObszarObmiaru, PowierzchniaSzkicuObszaru, ProjektBudowy } from '../../types';
 import type { RaportDzienny } from '../../raportyBudowy/typy';
 import { useRaportyBudowyStore } from '../../stores/raportyBudowyStore';
 import { useMieszankiStore } from '../../stores/mieszankiStore';
@@ -10,8 +10,14 @@ import { useWytwornieStore } from '../../stores/wytwornieStore';
 import {
   dniLiniowki,
   dodajWarstweWlasna,
+  elementZLamanej,
+  klipSzkicu as klipZapisanegoSzkicu,
   nowySzkic,
   obszaryWarstwy,
+  punktWWielokacie,
+  pustaLamana,
+  usunOstatniWezel,
+  type LamanaSzkicu,
   posortujDoRysowania,
   powierzchnieSzkicu,
   poziomKlucza,
@@ -43,9 +49,13 @@ const KOLORY_PIORA = ['#DC2626', '#16A34A', '#2563EB', '#EAB308', '#9333EA', '#E
 const GRUBOSCI_PIORA = [0, 2, 4, 8];
 const NARZEDZIA: Array<{ id: NarzedzieSzkicu; nazwa: string }> = [
   { id: 'pioro', nazwa: '✏️ Pióro' },
+  { id: 'lamana', nazwa: '⬠ Łamana' },
   { id: 'wiadro', nazwa: '🪣 Wiadro' },
   { id: 'gumka', nazwa: '⌫ Gumka' },
 ];
+
+/** Obszar szkicu: id obszaru arkusza, cały arkusz (tylko nowa warstwa) albo wskazanie na mapie. */
+type WyborObszaru = { obszarId: string } | 'arkusz' | 'mapa';
 
 interface Props {
   projekt: ProjektBudowy;
@@ -55,6 +65,8 @@ interface Props {
   blokadaPodgladu?: boolean;
   onBlokadaPodgladu?: (v: boolean) => void;
   onDotykZmiana?: (aktywny: boolean) => void;
+  /** Tryb rysowania: strona chowa menu i przewija do mapy. */
+  onSkupienie?: (aktywny: boolean) => void;
 }
 
 interface SzkicRoboczy {
@@ -65,6 +77,9 @@ interface SzkicRoboczy {
   warstwaKlucz?: string;
   nowaWarstwa?: { nazwa: string; opis?: string };
   raportId?: string;
+  obszarId?: string;
+  /** Czeka na stuknięcie obszaru na mapie. */
+  wskazObszar?: boolean;
 }
 
 type WyborWarstwy = { klucz: string } | { nazwa: string; opis?: string };
@@ -78,7 +93,17 @@ const dataPl = (iso: string) => {
 
 const zakresKm = (s: Pick<SegmentLiniowki, 'kmOdM' | 'kmDoM'>) => `${formatujKmM(s.kmOdM)} – ${formatujKmM(s.kmDoM)}`;
 
-export function SekcjaLiniowka({ projekt, budowaId, theme, onZmien, blokadaPodgladu = false, onBlokadaPodgladu, onDotykZmiana }: Props) {
+/** Nazwa obszaru z XFDF i nazwa z legendy (np. „Obszar 3 · zjazd”). */
+function nazwaObszaru(projekt: ProjektBudowy, o: ObszarObmiaru): string {
+  const leg = projekt.legenda.find((w) => w.klucz === kluczLegendy('obszar', o.kolorWypelnienia))?.nazwa?.trim();
+  const nazwa = o.nazwa?.trim() || 'Obszar';
+  return leg && !nazwa.toLowerCase().includes(leg.toLowerCase()) ? `${nazwa} · ${leg}` : nazwa;
+}
+
+export function SekcjaLiniowka({
+  projekt, budowaId, theme, onZmien, blokadaPodgladu = false, onBlokadaPodgladu, onDotykZmiana, onSkupienie,
+}: Props) {
+  const { height: wysOkna } = useWindowDimensions();
   const raporty = useRaportyBudowyStore((s) => s.raporty);
   const mieszanki = useMieszankiStore((s) => s.mieszanki);
   const wytwornie = useWytwornieStore((s) => s.wytwornie);
@@ -93,6 +118,13 @@ export function SekcjaLiniowka({ projekt, budowaId, theme, onZmien, blokadaPodgl
   const [zapisSzkicu, setZapisSzkicu] = useState(false);
   const [wyborWarstwy, setWyborWarstwy] = useState(false);
   const [wybranySzkicId, setWybranySzkicId] = useState<string | undefined>();
+  const [lamana, setLamana] = useState<LamanaSzkicu>(pustaLamana);
+  const [ustawieniaPiora, setUstawieniaPiora] = useState(false);
+  const rysuje = !!szkic;
+  useEffect(() => {
+    onSkupienie?.(rysuje);
+    return () => onSkupienie?.(false);
+  }, [rysuje, onSkupienie]);
 
   const aktywny = projekt.arkusze.find((a) => a.id === arkuszId) ?? projekt.arkusze[0];
   const raportyBudowy = useMemo(
@@ -148,7 +180,7 @@ export function SekcjaLiniowka({ projekt, budowaId, theme, onZmien, blokadaPodgl
         elementy: s.elementy,
         krycie: warstwaPoKluczu.get(s.warstwaKlucz)?.krycie ?? 0.5,
         poIndeksie: poziomy.filter((x) => x <= p).length,
-        klip: obszaryWarstwy(projekt, aktywny!, s.warstwaKlucz)?.map((o) => o.wierzcholkiPdf) ?? null,
+        klip: klipZapisanegoSzkicu(projekt, aktywny!, s)?.map((o) => o.wierzcholkiPdf) ?? null,
       };
     }), [szkice, aktywny, szkic?.id, ukryte, warstwaPoKluczu, poziomy, projekt]);
 
@@ -188,32 +220,55 @@ export function SekcjaLiniowka({ projekt, budowaId, theme, onZmien, blokadaPodgl
     return n;
   });
 
-  const zacznijSzkic = (istniejacy?: typeof szkice[number], wybor?: WyborWarstwy) => {
+  const zacznijSzkic = (istniejacy?: typeof szkice[number], wybor?: WyborWarstwy, obszar: WyborObszaru = 'mapa') => {
     if (!aktywny && !istniejacy) return;
     if (istniejacy) setArkuszId(istniejacy.arkuszId);
     setWybranyId(undefined);
     setWybranySzkicId(undefined);
     setWyborWarstwy(false);
     const klucz = istniejacy?.warstwaKlucz ?? (wybor && 'klucz' in wybor ? wybor.klucz : undefined);
+    const nowa = wybor && 'nazwa' in wybor ? wybor : undefined;
+    const obszarId = istniejacy ? istniejacy.obszarId : (typeof obszar === 'object' ? obszar.obszarId : undefined);
     setSzkic({
       id: istniejacy?.id,
       arkuszId: istniejacy?.arkuszId ?? aktywny!.id,
       elementy: istniejacy?.elementy ?? [],
       historia: [],
       warstwaKlucz: klucz,
-      nowaWarstwa: wybor && 'nazwa' in wybor ? wybor : undefined,
+      nowaWarstwa: nowa,
       raportId: istniejacy?.raportId,
+      obszarId,
+      wskazObszar: !istniejacy && obszar === 'mapa',
     });
     const kolorWarstwy = klucz ? warstwaPoKluczu.get(klucz)?.kolor : undefined;
     if (kolorWarstwy) setKolorPiora(kolorWarstwy);
     setNarzedzie('pioro');
+    setLamana(pustaLamana());
+    setUstawieniaPiora(false);
     onBlokadaPodgladu?.(true);
   };
 
   const zakonczSzkic = () => {
     setSzkic(null);
     setZapisSzkicu(false);
+    setLamana(pustaLamana());
     onBlokadaPodgladu?.(false);
+  };
+
+  /** Dokłada zamkniętą łamaną (od 3 węzłów) do szkicu; zwraca elementy po zmianie. */
+  const zatwierdzLamana = (): ElementSzkicu[] | null => {
+    if (!szkic) return null;
+    const el = lamana.wezly.length >= 3 ? elementZLamanej(lamana, kolorPiora) : null;
+    setLamana(pustaLamana());
+    if (!el) return szkic.elementy;
+    const elementy = [...szkic.elementy, el];
+    zmienElementySzkicu(elementy);
+    return elementy;
+  };
+
+  const zmienNarzedzie = (n: NarzedzieSzkicu) => {
+    if (narzedzie === 'lamana' && n !== 'lamana') zatwierdzLamana();
+    setNarzedzie(n);
   };
 
   const wybierzOdcinek = (id: string) => {
@@ -230,7 +285,15 @@ export function SekcjaLiniowka({ projekt, budowaId, theme, onZmien, blokadaPodgl
     ? { ...s, elementy, historia: [...s.historia.slice(-30), s.elementy] }
     : s));
 
-  const cofnij = () => setSzkic((s) => {
+  const cofnij = () => {
+    if (lamana.wezly.length > 0) {
+      setLamana(usunOstatniWezel(lamana));
+      return;
+    }
+    cofnijElementy();
+  };
+
+  const cofnijElementy = () => setSzkic((s) => {
     if (!s || s.historia.length === 0) return s;
     return { ...s, elementy: s.historia[s.historia.length - 1], historia: s.historia.slice(0, -1) };
   });
@@ -253,72 +316,137 @@ export function SekcjaLiniowka({ projekt, budowaId, theme, onZmien, blokadaPodgl
   }
 
   const arkuszSzkicu = szkic ? projekt.arkusze.find((a) => a.id === szkic.arkuszId) ?? aktywny : aktywny;
-  const klipSzkicu = szkic && !szkic.nowaWarstwa ? klipWarstwy(arkuszSzkicu, szkic.warstwaKlucz) : null;
+  const obszaryDoWyboru: ObszarObmiaru[] = !szkic ? [] : (
+    szkic.nowaWarstwa || !szkic.warstwaKlucz
+      ? arkuszSzkicu.obszary
+      : (obszaryWarstwy(projekt, arkuszSzkicu, szkic.warstwaKlucz) ?? arkuszSzkicu.obszary)
+  );
+  const obszarSzkicu = szkic?.obszarId ? arkuszSzkicu.obszary.find((o) => o.id === szkic.obszarId) : undefined;
+  const klipSzkicu = !szkic ? null : (obszarSzkicu ? [obszarSzkicu] : (szkic.nowaWarstwa ? null : klipWarstwy(arkuszSzkicu, szkic.warstwaKlucz)));
   const wynikSzkicu = szkic && zapisSzkicu ? powierzchnieSzkicu(szkic.elementy, arkuszSzkicu, klipSzkicu) : null;
+
+  const wskazObszar = (p: { x: number; y: number }) => {
+    const trafione = obszaryDoWyboru
+      .filter((o) => punktWWielokacie(p, o.wierzcholkiPdf))
+      .sort((a, b) => a.powierzchniaM2 - b.powierzchniaM2);
+    if (trafione.length === 0) {
+      pokazKomunikat('Obszar', 'Stuknij wewnątrz jednego z obszarów z przerywanym obrysem.');
+      return;
+    }
+    setLamana(pustaLamana());
+    setSzkic((s) => (s ? { ...s, obszarId: trafione[0].id, wskazObszar: false } : s));
+  };
+
+  const zatwierdzSzkic = () => {
+    if (!szkic) return;
+    const elementy = zatwierdzLamana() ?? szkic.elementy;
+    if (elementy.length === 0) {
+      pokazKomunikat('Szkic', 'Narysuj coś na arkuszu albo wybierz Anuluj.');
+      return;
+    }
+    setZapisSzkicu(true);
+  };
+
+  const opisObszaruSzkicu = szkic?.wskazObszar
+    ? 'Stuknij obszar na mapie'
+    : obszarSzkicu ? nazwaObszaru(projekt, obszarSzkicu) : (klipSzkicu ? 'obszary warstwy' : 'cały arkusz');
+
+  const pasekSzkicu = szkic ? (
+    <View
+      accessibilityLabel="Narzędzia szkicu"
+      style={[styles.pasek, { borderColor: theme.colors.primary, backgroundColor: theme.colors.card }]}
+    >
+      <View style={styles.rzad}>
+        <View style={{ flex: 1 }} accessibilityLabel="Warstwa szkicu">
+          <Text style={[TYPOGRAFIA.wartosc, { color: theme.colors.text }]} numberOfLines={1}>
+            {nazwaWarstwySzkicu(szkic)}
+          </Text>
+          <Text
+            style={[TYPOGRAFIA.opis, { color: szkic.wskazObszar ? theme.colors.warning : theme.colors.textSecondary, fontWeight: '700' }]}
+            numberOfLines={1}
+            accessibilityLabel="Obszar szkicu"
+          >
+            {opisObszaruSzkicu}
+          </Text>
+        </View>
+        {!szkic.wskazObszar ? (
+          <Przycisk
+            tekst="Obszar"
+            wariant="tekst"
+            maly
+            accessibilityLabel="Zmień obszar szkicu"
+            onPress={() => { zatwierdzLamana(); setSzkic((s) => (s ? { ...s, wskazObszar: true } : s)); }}
+          />
+        ) : null}
+        <Przycisk tekst="Anuluj" wariant="niebezpieczny" maly onPress={zakonczSzkic} />
+        <Przycisk tekst="OK" maly accessibilityLabel="Zatwierdź szkic" onPress={zatwierdzSzkic} />
+      </View>
+      {!szkic.wskazObszar ? (
+        <>
+          <View style={styles.rzad}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={styles.rzad}>
+              {NARZEDZIA.map((n) => (
+                <Wybor key={n.id} zaznaczony={narzedzie === n.id} etykieta={n.nazwa} accessibilityLabel={`Narzędzie ${n.id}`} onPress={() => zmienNarzedzie(n.id)} />
+              ))}
+            </ScrollView>
+            <TouchableOpacity
+              accessibilityLabel="Kolor i grubość pióra"
+              accessibilityState={{ expanded: ustawieniaPiora }}
+              onPress={() => setUstawieniaPiora((v) => !v)}
+              style={[styles.probka, { backgroundColor: kolorPiora, borderColor: theme.colors.text, borderWidth: 2 }]}
+            />
+            <Przycisk tekst="Cofnij" wariant="drugi" maly disabled={szkic.historia.length === 0 && lamana.wezly.length === 0} onPress={cofnij} />
+          </View>
+          {ustawieniaPiora ? (
+            <View style={styles.rzad}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={styles.rzad}>
+                {KOLORY_PIORA.map((k) => (
+                  <TouchableOpacity
+                    key={k}
+                    accessibilityLabel={`Kolor ${k}`}
+                    accessibilityState={{ selected: k === kolorPiora }}
+                    onPress={() => setKolorPiora(k)}
+                    style={[styles.probka, { backgroundColor: k, borderColor: k === kolorPiora ? theme.colors.text : theme.colors.border, borderWidth: k === kolorPiora ? 3 : 1 }]}
+                  />
+                ))}
+                {GRUBOSCI_PIORA.map((g) => (
+                  <TouchableOpacity
+                    key={g}
+                    accessibilityLabel={g === 0 ? 'Grubość linii obszaru' : `Grubość ${g}`}
+                    accessibilityState={{ selected: g === grubosc }}
+                    onPress={() => setGrubosc(g)}
+                    style={[styles.grubosc, { borderColor: g === grubosc ? theme.colors.primary : theme.colors.border, backgroundColor: theme.colors.card }]}
+                  >
+                    <View style={{ width: 22, height: g || 1, borderRadius: (g || 1) / 2, backgroundColor: kolorPiora === '#FFFFFF' ? theme.colors.text : kolorPiora }} />
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          ) : null}
+          {narzedzie === 'lamana' ? (
+            <View style={styles.rzad}>
+              <Text style={[TYPOGRAFIA.opis, { color: theme.colors.textSecondary, flex: 1 }]} numberOfLines={2}>
+                {lamana.wezly.length < 3
+                  ? `Stawiaj węzły stuknięciem (${lamana.wezly.length}/3).`
+                  : 'Przeciągaj węzły; środek krawędzi wygina łuk.'}
+              </Text>
+              <Przycisk
+                tekst="OK obszaru"
+                maly
+                accessibilityLabel="Zatwierdź obszar łamanej"
+                disabled={lamana.wezly.length < 3}
+                onPress={() => { zatwierdzLamana(); }}
+              />
+            </View>
+          ) : null}
+        </>
+      ) : null}
+    </View>
+  ) : null;
 
   return (
     <View style={{ gap: ODSTEP.m }}>
-      {szkic ? (
-        <View style={[styles.pasek, { borderColor: theme.colors.primary, backgroundColor: `${theme.colors.primary}10` }]}>
-          <View accessibilityLabel="Warstwa szkicu">
-            <Text style={[TYPOGRAFIA.wartosc, { color: theme.colors.text }]} numberOfLines={1}>
-              {`Warstwa: ${nazwaWarstwySzkicu(szkic)}`}
-            </Text>
-            <Text style={[TYPOGRAFIA.opis, { color: theme.colors.textSecondary }]}>
-              {klipSzkicu
-                ? 'Malujesz tylko po obszarze tej warstwy (obrys przerywany).'
-                : 'Nowa warstwa – rysujesz po całym arkuszu.'}
-            </Text>
-          </View>
-          <View style={stylFormularza.chipy}>
-            {NARZEDZIA.map((n) => (
-              <Wybor key={n.id} zaznaczony={narzedzie === n.id} etykieta={n.nazwa} accessibilityLabel={`Narzędzie ${n.id}`} onPress={() => setNarzedzie(n.id)} />
-            ))}
-          </View>
-          <View style={styles.rzad}>
-            {KOLORY_PIORA.map((k) => (
-              <TouchableOpacity
-                key={k}
-                accessibilityLabel={`Kolor ${k}`}
-                accessibilityState={{ selected: k === kolorPiora }}
-                onPress={() => setKolorPiora(k)}
-                style={[styles.probka, { backgroundColor: k, borderColor: k === kolorPiora ? theme.colors.text : theme.colors.border, borderWidth: k === kolorPiora ? 3 : 1 }]}
-              />
-            ))}
-          </View>
-          <View style={styles.rzad}>
-            {GRUBOSCI_PIORA.map((g) => (
-              <TouchableOpacity
-                key={g}
-                accessibilityLabel={g === 0 ? 'Grubość linii obszaru' : `Grubość ${g}`}
-                accessibilityState={{ selected: g === grubosc }}
-                onPress={() => setGrubosc(g)}
-                style={[styles.grubosc, { borderColor: g === grubosc ? theme.colors.primary : theme.colors.border, backgroundColor: theme.colors.card }]}
-              >
-                <View style={{ width: 22, height: g || 1, borderRadius: (g || 1) / 2, backgroundColor: kolorPiora === '#FFFFFF' ? theme.colors.text : kolorPiora }} />
-              </TouchableOpacity>
-            ))}
-            <View style={{ flex: 1 }} />
-            <Przycisk tekst="Cofnij" wariant="drugi" maly disabled={szkic.historia.length === 0} onPress={cofnij} />
-          </View>
-          <View style={styles.rzad}>
-            <Przycisk tekst="Anuluj" wariant="niebezpieczny" maly onPress={zakonczSzkic} style={{ flex: 1 }} />
-            <Przycisk
-              tekst="OK"
-              maly
-              accessibilityLabel="Zatwierdź szkic"
-              onPress={() => {
-                if (szkic.elementy.length === 0) {
-                  pokazKomunikat('Szkic', 'Narysuj coś na arkuszu albo wybierz Anuluj.');
-                  return;
-                }
-                setZapisSzkicu(true);
-              }}
-              style={{ flex: 1 }}
-            />
-          </View>
-        </View>
-      ) : (
+      {!szkic ? (
         <View style={styles.filtrRzad}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={styles.rzad}>
             {warstwyFiltra.length === 0 ? (
@@ -329,7 +457,7 @@ export function SekcjaLiniowka({ projekt, budowaId, theme, onZmien, blokadaPodgl
           </ScrollView>
           <Przycisk tekst="Wyszukaj" wariant="drugi" maly onPress={() => setSzukaj(true)} />
         </View>
-      )}
+      ) : null}
 
       {projekt.arkusze.length > 1 && !szkic ? (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rzad}>
@@ -357,41 +485,49 @@ export function SekcjaLiniowka({ projekt, budowaId, theme, onZmien, blokadaPodgl
         </ScrollView>
       ) : null}
 
-      <PztArkuszPodglad
-        arkusz={arkuszSzkicu}
-        theme={theme}
-        wysokosc={420}
-        blokadaPodgladu={blokadaPodgladu}
-        onBlokadaPodgladu={onBlokadaPodgladu}
-        onDotykZmiana={onDotykZmiana}
-        podzialkaM={projekt.podzialkaKilometrazuM ?? 50}
-        onTloZmiana={(patch) => {
-          if (!arkuszSzkicu.tlo) return;
-          onZmien(ustawTloArkusza(projekt, arkuszSzkicu.id, { ...arkuszSzkicu.tlo, ...patch }));
-        }}
-        liniowka={{
-          odcinki: odcinkiPodgladu,
-          szkice: szkicePodgladu,
-          podswietlonyId: wybranyId,
-          onPressOdcinek: szkic ? undefined : wybierzOdcinek,
-          podswietlonySzkicId: wybranySzkicId,
-          onPressSzkic: szkic ? undefined : wybierzSzkic,
-        }}
-        rysowanie={szkic ? {
-          narzedzie,
-          kolor: kolorPiora,
-          gruboscPx: grubosc,
-          elementy: szkic.elementy,
-          onZmien: zmienElementySzkicu,
-          klip: klipSzkicu?.map((o) => o.wierzcholkiPdf) ?? null,
-          onWiadroBezGranic: () => pokazKomunikat(
-            'Wiaderko',
-            klipSzkicu
-              ? 'Stuknij wewnątrz obszaru warstwy (obrys przerywany).'
-              : 'Farba nie ma granic – obrysuj miejsce linią albo stuknij wewnątrz obszaru PZT.',
-          ),
-        } : undefined}
-      />
+      <View style={{ position: 'relative' }}>
+        <PztArkuszPodglad
+          arkusz={arkuszSzkicu}
+          theme={theme}
+          wysokosc={szkic ? Math.max(420, wysOkna - 230) : 420}
+          blokadaPodgladu={blokadaPodgladu}
+          onBlokadaPodgladu={onBlokadaPodgladu}
+          onDotykZmiana={onDotykZmiana}
+          podzialkaM={projekt.podzialkaKilometrazuM ?? 50}
+          onTloZmiana={(patch) => {
+            if (!arkuszSzkicu.tlo) return;
+            onZmien(ustawTloArkusza(projekt, arkuszSzkicu.id, { ...arkuszSzkicu.tlo, ...patch }));
+          }}
+          liniowka={{
+            odcinki: odcinkiPodgladu,
+            szkice: szkicePodgladu,
+            podswietlonyId: wybranyId,
+            onPressOdcinek: szkic ? undefined : wybierzOdcinek,
+            podswietlonySzkicId: wybranySzkicId,
+            onPressSzkic: szkic ? undefined : wybierzSzkic,
+          }}
+          rysowanie={szkic ? {
+            narzedzie,
+            kolor: kolorPiora,
+            gruboscPx: grubosc,
+            elementy: szkic.elementy,
+            onZmien: zmienElementySzkicu,
+            klip: szkic.wskazObszar
+              ? obszaryDoWyboru.map((o) => o.wierzcholkiPdf)
+              : (klipSzkicu?.map((o) => o.wierzcholkiPdf) ?? null),
+            onWiadroBezGranic: () => pokazKomunikat(
+              'Wiaderko',
+              klipSzkicu
+                ? 'Stuknij wewnątrz obszaru (obrys przerywany).'
+                : 'Farba nie ma granic – obrysuj miejsce linią albo stuknij wewnątrz obszaru PZT.',
+            ),
+            lamana: narzedzie === 'lamana' ? lamana : undefined,
+            onLamana: setLamana,
+            onWskazObszar: szkic.wskazObszar ? wskazObszar : undefined,
+          } : undefined}
+        />
+        {pasekSzkicu ? <View style={styles.pasekNaMapie}>{pasekSzkicu}</View> : null}
+      </View>
 
       {wybranySzkic && !szkic ? (
         <View accessibilityLabel="Informacja o szkicu">
@@ -444,10 +580,11 @@ export function SekcjaLiniowka({ projekt, budowaId, theme, onZmien, blokadaPodgl
             tekst="Dodaj ręcznie"
             ikona="plus"
             wariant="drugi"
+            maly
             onPress={() => router.push(`/budowa/liniowka-reczna?budowaId=${budowaId}` as never)}
             style={{ flex: 1 }}
           />
-          <Przycisk tekst="Szkicuj" ikona="edytuj" wariant="drugi" onPress={() => setWyborWarstwy(true)} style={{ flex: 1 }} />
+          <Przycisk tekst="Szkicuj" ikona="edytuj" wariant="drugi" maly onPress={() => setWyborWarstwy(true)} style={{ flex: 1 }} />
         </View>
       ) : null}
 
@@ -517,8 +654,10 @@ export function SekcjaLiniowka({ projekt, budowaId, theme, onZmien, blokadaPodgl
         widoczne={wyborWarstwy}
         theme={theme}
         warstwy={warstwy}
+        projekt={projekt}
+        arkusz={aktywny}
         onClose={() => setWyborWarstwy(false)}
-        onWybierz={(w) => zacznijSzkic(undefined, w)}
+        onWybierz={(w, o) => zacznijSzkic(undefined, w, o)}
       />
 
       {szkic && wynikSzkicu ? (
@@ -539,7 +678,7 @@ export function SekcjaLiniowka({ projekt, budowaId, theme, onZmien, blokadaPodgl
               p = nowa.projekt;
               klucz = nowa.klucz;
             }
-            const dane = { powierzchniaM2: wynikSzkicu.razemM2, powierzchnie: wynikSzkicu.powierzchnie, raportId };
+            const dane = { powierzchniaM2: wynikSzkicu.razemM2, powierzchnie: wynikSzkicu.powierzchnie, raportId, obszarId: szkic.obszarId };
             const istniejacy = szkice.find((s) => s.id === szkic.id);
             const zapis = istniejacy
               ? { ...istniejacy, ...dane, elementy: szkic.elementy, warstwaKlucz: klucz, updatedAt: new Date().toISOString() }
@@ -650,37 +789,50 @@ function OknoWyszukaj({ widoczne, theme, segmenty, warstwaPoKluczu, onClose, onP
   );
 }
 
-function OknoWarstwySzkicu({ widoczne, theme, warstwy, onClose, onWybierz }: {
+function OknoWarstwySzkicu({ widoczne, theme, warstwy, projekt, arkusz, onClose, onWybierz }: {
   widoczne: boolean;
   theme: AppTheme;
   warstwy: WarstwaLiniowki[];
+  projekt: ProjektBudowy;
+  arkusz: ArkuszPzt;
   onClose: () => void;
-  onWybierz: (w: WyborWarstwy) => void;
+  onWybierz: (w: WyborWarstwy, obszar: WyborObszaru) => void;
 }) {
   const [klucz, setKlucz] = useState<string | undefined>();
   const [nowa, setNowa] = useState(false);
   const [nazwa, setNazwa] = useState('');
   const [opis, setOpis] = useState('');
+  const [obszar, setObszar] = useState<WyborObszaru>('mapa');
   const nowaWarstwa = nowa || warstwy.length === 0;
+  const obszary = useMemo(() => {
+    if (nowaWarstwa) return arkusz.obszary;
+    if (!klucz) return [];
+    return obszaryWarstwy(projekt, arkusz, klucz) ?? arkusz.obszary;
+  }, [nowaWarstwa, klucz, projekt, arkusz]);
 
   const dalej = () => {
+    let wybor: WyborWarstwy;
     if (nowaWarstwa) {
       if (!nazwa.trim()) {
         pokazKomunikat('Warstwa', 'Podaj nazwę nowej warstwy.');
         return;
       }
-      onWybierz({ nazwa: nazwa.trim(), opis: opis.trim() || undefined });
+      wybor = { nazwa: nazwa.trim(), opis: opis.trim() || undefined };
     } else if (klucz) {
-      onWybierz({ klucz });
+      wybor = { klucz };
     } else {
       pokazKomunikat('Warstwa', 'Wybierz warstwę albo dodaj nową.');
       return;
     }
+    onWybierz(wybor, obszar === 'arkusz' && !nowaWarstwa ? 'mapa' : obszar);
     setKlucz(undefined);
     setNowa(false);
     setNazwa('');
     setOpis('');
+    setObszar('mapa');
   };
+
+  const zaznaczonyObszar = (id: string) => typeof obszar === 'object' && obszar.obszarId === id;
 
   return (
     <SafeModal
@@ -693,7 +845,7 @@ function OknoWarstwySzkicu({ widoczne, theme, warstwy, onClose, onWybierz }: {
       <ScrollView contentContainerStyle={{ padding: ODSTEP.l, gap: ODSTEP.m }} keyboardShouldPersistTaps="handled">
         <Sekcja
           tytul="Warstwa"
-          info="Istniejąca warstwa: malujesz tylko po jej obszarze na PZT, a po zatwierdzeniu dostajesz zamalowaną powierzchnię. Nowa warstwa: rysujesz po całym arkuszu."
+          info="Istniejąca warstwa: malujesz tylko po wybranym obszarze tej warstwy, a po zatwierdzeniu dostajesz zamalowaną powierzchnię. Nowa warstwa: możesz rysować po całym arkuszu albo w jednym obszarze."
         >
           <View style={stylFormularza.chipy}>
             {warstwy.map((w) => (
@@ -702,10 +854,10 @@ function OknoWarstwySzkicu({ widoczne, theme, warstwy, onClose, onWybierz }: {
                 zaznaczony={!nowaWarstwa && klucz === w.klucz}
                 etykieta={w.nazwa}
                 accessibilityLabel={`Przypisz do ${w.nazwa}`}
-                onPress={() => { setNowa(false); setKlucz(w.klucz); }}
+                onPress={() => { setNowa(false); setKlucz(w.klucz); setObszar('mapa'); }}
               />
             ))}
-            <Wybor zaznaczony={nowaWarstwa} etykieta="+ Nowa warstwa" onPress={() => setNowa(true)} />
+            <Wybor zaznaczony={nowaWarstwa} etykieta="+ Nowa warstwa" onPress={() => { setNowa(true); setObszar('mapa'); }} />
           </View>
         </Sekcja>
         {nowaWarstwa ? (
@@ -713,6 +865,28 @@ function OknoWarstwySzkicu({ widoczne, theme, warstwy, onClose, onWybierz }: {
             <View style={{ gap: ODSTEP.m }}>
               <Pole etykieta="Nazwa" value={nazwa} onChangeText={setNazwa} accessibilityLabel="Nazwa nowej warstwy" wymagane />
               <Pole etykieta="Opis" value={opis} onChangeText={setOpis} accessibilityLabel="Opis nowej warstwy" multiline />
+            </View>
+          </Sekcja>
+        ) : null}
+        {nowaWarstwa || klucz ? (
+          <Sekcja
+            tytul="Obszar"
+            info="Rysujesz w jednym obszarze naraz – pióro, wiaderko i łamana nie wychodzą poza jego krawędź. Obszar możesz też wskazać stuknięciem na mapie i zmienić w trakcie rysowania."
+          >
+            <View style={stylFormularza.chipy}>
+              <Wybor zaznaczony={obszar === 'mapa'} etykieta="Wskaż na mapie" accessibilityLabel="Wskaż obszar na mapie" onPress={() => setObszar('mapa')} />
+              {nowaWarstwa ? (
+                <Wybor zaznaczony={obszar === 'arkusz'} etykieta="Cały arkusz" accessibilityLabel="Rysuj po całym arkuszu" onPress={() => setObszar('arkusz')} />
+              ) : null}
+              {obszary.map((o) => (
+                <Wybor
+                  key={o.id}
+                  zaznaczony={zaznaczonyObszar(o.id)}
+                  etykieta={`${nazwaObszaru(projekt, o)} · ${m2(o.powierzchniaM2)}`}
+                  accessibilityLabel={`Obszar ${nazwaObszaru(projekt, o)}`}
+                  onPress={() => setObszar({ obszarId: o.id })}
+                />
+              ))}
             </View>
           </Sekcja>
         ) : null}
@@ -787,7 +961,10 @@ const styles = StyleSheet.create({
   chip: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1.5, borderRadius: PROMIEN.pigulka, paddingHorizontal: 10, paddingVertical: 7 },
   kropka: { width: 14, height: 14, borderRadius: 4 },
   tab: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, maxWidth: 200 },
-  pasek: { borderWidth: 1.5, borderRadius: 12, padding: 10, gap: 10 },
+  pasek: {
+    borderWidth: 1.5, borderRadius: 12, padding: 8, gap: 8, shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 6,
+  },
+  pasekNaMapie: { position: 'absolute', top: 6, left: 6, right: 6, zIndex: 30 },
   probka: { width: 28, height: 28, borderRadius: 14 },
   grubosc: { width: 40, height: 32, borderRadius: 8, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
   okno: { borderWidth: 1, borderRadius: 12, padding: 10 },

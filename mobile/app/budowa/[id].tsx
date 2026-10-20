@@ -2,7 +2,7 @@
 // SZABLON BUDOWY – PROJEKT + WYKONANIE
 // ============================================================
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, useColorScheme } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -42,6 +42,7 @@ const WYKONANIE = [
 ] as const;
 
 const NAZWY: Record<string, string> = Object.fromEntries([...PROJEKT, ...WYKONANIE].map((p) => [p.id, p.nazwa]));
+const grupaZakladki = (id: string) => (PROJEKT.some((p) => p.id === id) ? 'Projekt' : 'Wykonanie');
 
 export default function BudowaSzablonScreen() {
   const { id, zakladka } = useLocalSearchParams<{ id: string; zakladka?: string }>();
@@ -54,6 +55,20 @@ export default function BudowaSzablonScreen() {
   const [blokadaPodgladu, setBlokadaPodgladu] = useState(false);
   const [edycja, setEdycja] = useState(false);
   const [aktywna, setAktywna] = useState<string>(() => (zakladka && NAZWY[zakladka] ? zakladka : 'pzt'));
+  const [menuOtwarte, setMenuOtwarte] = useState(false);
+  const [skupienie, setSkupienie] = useState(false);
+  const scrollRef = useRef<ScrollView>(null);
+  const naSkupienie = useCallback((v: boolean) => {
+    setSkupienie(v);
+    if (v) {
+      setMenuOtwarte(false);
+      scrollRef.current?.scrollTo({ y: 0, animated: true });
+    }
+  }, []);
+  const wybierzZakladke = (id: string) => {
+    setAktywna(id);
+    setMenuOtwarte(false);
+  };
 
   useEffect(() => {
     if (budowa && !budowa.projekt) {
@@ -110,13 +125,31 @@ export default function BudowaSzablonScreen() {
         prawy={{ tekst: 'Edytuj', onPress: () => setEdycja(true) }}
       />
       <FormularzBudowy widoczny={edycja} budowa={budowa} onZamknij={() => setEdycja(false)} onZapisano={() => setEdycja(false)} />
-      <View style={[styles.menu, { backgroundColor: theme.colors.background, borderBottomColor: theme.colors.border }]}>
-        <Text style={[styles.grupa, { color: theme.colors.textSecondary }]}>Projekt</Text>
-        <RzadPrzyciskow pozycje={PROJEKT} aktywna={aktywna} theme={theme} onPress={setAktywna} />
-        <Text style={[styles.grupa, { color: theme.colors.textSecondary }]}>Wykonanie</Text>
-        <RzadPrzyciskow pozycje={WYKONANIE} aktywna={aktywna} theme={theme} onPress={setAktywna} />
-      </View>
+      {!skupienie ? (
+        <View style={[styles.menu, { backgroundColor: theme.colors.background, borderBottomColor: theme.colors.border }]}>
+          <Naciskany
+            onPress={() => setMenuOtwarte((v) => !v)}
+            accessibilityRole="button"
+            accessibilityLabel="Zakładki budowy"
+            accessibilityState={{ expanded: menuOtwarte }}
+            style={[styles.zwiniete, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}
+          >
+            <Text style={[styles.grupa, { color: theme.colors.textSecondary }]}>{grupaZakladki(aktywna)}</Text>
+            <Text style={{ color: theme.colors.text, fontWeight: '800', fontSize: 15, flex: 1 }} numberOfLines={1}>{NAZWY[aktywna]}</Text>
+            <Text style={{ color: theme.colors.primary, fontWeight: '800', fontSize: 13 }}>{menuOtwarte ? 'Zwiń ▴' : 'Zakładki ▾'}</Text>
+          </Naciskany>
+          {menuOtwarte ? (
+            <>
+              <Text style={[styles.grupa, { color: theme.colors.textSecondary }]}>Projekt</Text>
+              <RzadPrzyciskow pozycje={PROJEKT} aktywna={aktywna} theme={theme} onPress={wybierzZakladke} />
+              <Text style={[styles.grupa, { color: theme.colors.textSecondary }]}>Wykonanie</Text>
+              <RzadPrzyciskow pozycje={WYKONANIE} aktywna={aktywna} theme={theme} onPress={wybierzZakladke} />
+            </>
+          ) : null}
+        </View>
+      ) : null}
       <ScrollView
+        ref={scrollRef}
         contentContainerStyle={{ padding: 14, paddingBottom: insets.bottom + 24 }}
         keyboardShouldPersistTaps="handled"
         nestedScrollEnabled
@@ -148,6 +181,7 @@ export default function BudowaSzablonScreen() {
                 blokadaPodgladu={blokadaPodgladu}
                 onBlokadaPodgladu={setBlokadaPodgladu}
                 onDotykZmiana={setMapaAktywna}
+                onSkupienie={naSkupienie}
               />
             ) : null}
             {aktywna === 'zaawansowanie' ? (
@@ -203,13 +237,22 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   menu: {
     paddingHorizontal: 12,
-    paddingTop: 8,
-    paddingBottom: 10,
+    paddingTop: 6,
+    paddingBottom: 6,
     borderBottomWidth: 1,
     gap: 6,
     zIndex: 10,
   },
   grupa: { fontSize: 11, fontWeight: '800', letterSpacing: 0.4, textTransform: 'uppercase', marginTop: 2 },
+  zwiniete: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
   rzad: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   guzik: {
     flexGrow: 1,
