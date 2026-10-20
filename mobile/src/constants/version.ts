@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.47';
+export const WERSJA_APLIKACJI = '1.8.48';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,22 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.48',
+    data: '2026-10-20',
+    tytul: 'Liniówka na budowie',
+    zmiany: [
+      'Budowa → Liniówka: arkusze PZT z tłem, Ramką i przybliżaniem (te same co w zakładce PZT); obszary z raportów dziennych zakryte kolorem warstwy w podanym kilometrażu',
+      'Każda działka robocza ma zieloną kreskę startu ze strzałką kierunku układania i czerwoną kreskę końca ze strzałką w stronę startu',
+      'Znaki „i” co ok. 200 m (krótszy odcinek – jeden znak): stuknięcie podświetla cały obszar i pokazuje datę, powierzchnię, kilometraż, receptę, wytwórnię i link do raportu',
+      'Filtr warstw nad mapą; kolejność nakładania wg konstrukcji, ścieralna zawsze na wierzchu',
+      'Wyszukaj: po kilometrażu (kiedy i jakie warstwy) albo po dacie (co ułożono tego dnia) z odsyłaczem do raportu',
+      'Dodaj ręcznie: formularz jak w harmonogramie zaawansowanym + komentarz; obszar ma przerywany obrys w kolorze warstwy',
+      'Szkicuj: pióro z kolorem i grubością, wiaderko do wypełniania obrysów, gumka, Cofnij; po OK szkic przypisany do warstwy (albo nowej z opisem) trafia na liniówkę i do filtra, można go później edytować',
+      'Legenda: okno „Kolory warstw liniówki” – kolor i krycie każdej warstwy (domyślnie ścieralna 90%, wiążąca 70%, podbudowa 50%, KŁSM 30%, inne 20%)',
+      'Szkice i rysunki na PZT zapisują się jako SVG we współrzędnych PDF – ostre i proporcjonalne przy każdym przybliżeniu',
+    ],
+  },
   {
     wersja: '1.8.47',
     data: '2026-10-19',
