@@ -95,7 +95,7 @@ export default function SzkicGeodezyjnyScreen() {
       setWidok({ s: 40, tx: w / 2 - p.x * 40, ty: h / 2 - p.y * 40 });
       return;
     }
-    setWidok(dopasujWidok(zakresPunktow(pts), w, h - 120, 70, 40));
+    setWidok(dopasujWidok(zakresPunktow(pts), w, h - 120, 95, 40));
     setWidok((v) => ({ ...v, ty: v.ty + 80 }));
   };
 
@@ -306,14 +306,11 @@ export default function SzkicGeodezyjnyScreen() {
               accessibilityLabel="Filtr warstw"
             />
             <PrzyciskPaska
-              tekst={`Siatka ${rozwiniety === 'siatka' ? '▴' : '▾'}`}
+              tekst={`# ${rozwiniety === 'siatka' ? '▴' : '▾'}`}
               aktywny={rozwiniety === 'siatka'}
               onPress={() => setRozwiniety(rozwiniety === 'siatka' ? null : 'siatka')}
               accessibilityLabel="Ustawienia siatki"
             />
-            <PrzyciskPaska tekst="−" onPress={() => zoom(1 / 1.5)} accessibilityLabel="Oddal" />
-            <PrzyciskPaska tekst="+" onPress={() => zoom(1.5)} accessibilityLabel="Przybliż" />
-            <PrzyciskPaska tekst="Dopasuj" onPress={() => dopasuj()} accessibilityLabel="Dopasuj widok" />
           </View>
 
           {rozwiniety === 'analiza' ? (
@@ -368,6 +365,16 @@ export default function SzkicGeodezyjnyScreen() {
             </View>
           ) : null}
         </PasekPlywajacy>
+
+        {!zazn ? (
+          <PasekPlywajacy style={[styles.lupka, { bottom: insets.bottom + 8 }]}>
+            <View style={styles.rzad}>
+              <PrzyciskPaska tekst="−" onPress={() => zoom(1 / 1.5)} accessibilityLabel="Oddal" />
+              <PrzyciskPaska tekst="+" onPress={() => zoom(1.5)} accessibilityLabel="Przybliż" />
+              <PrzyciskPaska tekst="⤢" onPress={() => dopasuj()} accessibilityLabel="Dopasuj widok" />
+            </View>
+          </PasekPlywajacy>
+        ) : null}
 
         {zazn ? (
           <PasekPlywajacy style={[styles.panelDol, { bottom: insets.bottom + 8 }]}>
@@ -905,6 +912,7 @@ const styles = StyleSheet.create({
   pusto: { padding: 24, textAlign: 'center' },
   pasekGora: { position: 'absolute', top: 8, left: 8, right: 8 },
   panelDol: { position: 'absolute', left: 8, right: 8 },
+  lupka: { position: 'absolute', right: 8, padding: 6 },
   rzad: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, alignItems: 'center' },
   trybTekst: { fontWeight: '700', flexShrink: 1 },
 });

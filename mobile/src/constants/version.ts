@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.50';
+export const WERSJA_APLIKACJI = '1.8.51';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,21 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.51',
+    data: '2026-10-20',
+    tytul: 'Geodezja: szkic geodezyjny i przekrój poprzeczny',
+    zmiany: [
+      'Szkic geodezyjny – rzut z góry: kartka z siatką (bok 1 m, zmienny), przybliżanie, oddalanie i przesuwanie; stuknięcie dodaje punkt z numerem, nazwą, warstwą, odczytem łaty [mm], rzędną [m] i komentarzem',
+      'Odczyt przelicza się na rzędną z horyzontu instrumentu (punkt z odczytem i rzędną)',
+      'Analiza → Połącz punkty: odległość i spadek z kierunkiem nad linią, zmiana odległości przesuwa punkt w skali; pod linią zielony cel (spadek i kierunek) – pod punktem docelowy odczyt, rzędna i różnica',
+      'Przeciąganie punktów z odległością na żywo i blokadą odległości (punkt trzyma zadaną odległość, kierunek wybierasz palcem); środek linii wygina ją w łuk',
+      'Analiza → Punkty pośrednie: punkt w zadanej odległości od punktu 1 z wyliczonym odczytem, rzędną i celem linii (cel można zmienić)',
+      'Filtr warstw, zapis szkiców z nazwą i opisem, archiwum, eksport SVG i PDF',
+      'Przekrój poprzeczny: kreator od lewej do prawej – krawężniki, obrzeża, opornik, korytka, kostka betonowa i kamienna, jezdnia; wymiary, skoki wysokości i spadki; rysunek SVG w proporcjach',
+      'Szablon przekroju do pomiarów: trójkąty miejsc przyłożenia łaty, jeden odczyt przelicza odczyty i rzędne pozostałych punktów',
+    ],
+  },
   {
     wersja: '1.8.50',
     data: '2026-10-20',

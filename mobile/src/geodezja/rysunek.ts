@@ -1,7 +1,7 @@
 // Rysunek szkicu i przekroju jako lista prymitywów w pikselach ekranu – ten sam opis rysuje ekran
 // (react-native-svg) i plik SVG/PDF do udostępnienia.
 
-import { fm, naEkran, odl, zeZnakiem, type Pkt, type Widok } from './geometria';
+import { fm, naEkran, odl, punktKrzywej, zeZnakiem, type Pkt, type Widok } from './geometria';
 import {
   analizaLinii, celeDlaPunktu, geometriaLinii, horyzontInstrumentu, liniaWidoczna, polaWyliczone, pozycjaPunktu,
   punktWidoczny, sciezkaLinii, warstwySzkicu, wysokoscPunktu, type SzkicGeodezyjny,
@@ -155,7 +155,7 @@ export function rysunekSzkicu(s: SzkicGeodezyjny, w: Widok, o: OpcjeRysunkuSzkic
     if (l.cel) {
       const [z, ku] = l.cel.od === 'a' ? [a, b] : [b, a];
       wynik.push({
-        t: 'tekst', x: m.x - gora.x * 17, y: m.y - gora.y * 17, tekst: `cel ${fm(l.cel.spadek, 2)}% ${strzalka(kat, z, ku)}`,
+        t: 'tekst', x: m.x - gora.x * 21, y: m.y - gora.y * 21, tekst: `cel ${fm(l.cel.spadek, 2)}% ${strzalka(kat, z, ku)}`,
         kolor: PAPIER.cel, rozmiar: 12, pogrubiony: true, kotwica: 'middle', obrot: kat, halo: true,
       });
     }
@@ -375,28 +375,40 @@ export function rysunekPrzekroju(p: PrzekrojPoprzeczny, w: Widok, o: OpcjePrzekr
   if (o.bezOpisow) return elementy;
   wynik.push(...elementy, ...opisy);
 
-  // Trójkąty miejsc przyłożenia łaty + opisy pionowe nad nimi.
-  for (const u of ulozone) {
-    for (const pp of u.punkty) {
-      const r = pomiar.find((q) => q.klucz === pp.klucz);
-      const rx = u.rx0 + ((pp.x - u.x0) / Math.max(u.x1 - u.x0, 1e-9)) * (u.rx1 - u.rx0);
-      const g = E(rx, pp.h);
-      const zazn = o.zaznaczonyPunkt === pp.klucz;
-      const kolor = r?.wpisany ? PAPIER.cel : zazn ? PAPIER.zaznaczenie : PAPIER.tusz;
-      const t = 7;
-      wynik.push({ t: 'sciezka', d: `M${g.x} ${g.y - 1}L${g.x - t * 0.75} ${g.y - 1 - t * 1.3}L${g.x + t * 0.75} ${g.y - 1 - t * 1.3}Z`, wypelnienie: kolor, kolor });
-      const czesci = [pp.klucz === zero ? '0' : zeZnakiem(r?.wzgledem0 ?? 0, 0)];
-      if (o.pomiar && r?.odczyt != null) czesci.push(`${r.odczyt} mm`);
-      if (o.pomiar && r?.rzedna != null) czesci.push(`H ${fm(r.rzedna, 3)}`);
-      wynik.push({
-        t: 'tekst', x: g.x + 4, y: g.y - 14, tekst: czesci.join('  '), kolor: r?.wpisany ? PAPIER.cel : PAPIER.tusz,
-        rozmiar: 11, pogrubiony: true, obrot: -90, halo: true,
-      });
-    }
+  // Trójkąty miejsc przyłożenia łaty + opisy pionowe nad nimi (rozsunięte, gdy punkty są blisko – z odnośnikiem).
+  const ODSTEP_OPISOW = 15;
+  const znaczniki = ulozone.flatMap((u) => u.punkty.map((pp) => {
+    const rx = u.rx0 + ((pp.x - u.x0) / Math.max(u.x1 - u.x0, 1e-9)) * (u.rx1 - u.rx0);
+    return { pp, g: E(rx, pp.h), lx: E(rx, pp.h).x };
+  }));
+  for (let i = 1; i < znaczniki.length; i++) {
+    znaczniki[i].lx = Math.max(znaczniki[i].lx, znaczniki[i - 1].lx + ODSTEP_OPISOW);
+  }
+  for (let i = znaczniki.length - 2; i >= 0; i--) {
+    const przesuniecie = znaczniki[i].lx - znaczniki[i].g.x;
+    const nastepny = znaczniki[i + 1].lx - ODSTEP_OPISOW;
+    if (przesuniecie > 0) znaczniki[i].lx = Math.max(znaczniki[i].g.x, Math.min(znaczniki[i].lx, nastepny));
+  }
+  for (const { pp, g, lx } of znaczniki) {
+    const r = pomiar.find((q) => q.klucz === pp.klucz);
+    const zazn = o.zaznaczonyPunkt === pp.klucz;
+    const kolor = r?.wpisany ? PAPIER.cel : zazn ? PAPIER.zaznaczenie : PAPIER.tusz;
+    const t = 7;
+    const szczyt = g.y - 1 - t * 1.3;
+    wynik.push({ t: 'sciezka', d: `M${g.x} ${g.y - 1}L${g.x - t * 0.75} ${szczyt}L${g.x + t * 0.75} ${szczyt}Z`, wypelnienie: kolor, kolor });
+    const podstawa = szczyt - (Math.abs(lx - g.x) > 1 ? 16 : 4);
+    if (Math.abs(lx - g.x) > 1) wynik.push({ t: 'sciezka', d: `M${g.x} ${szczyt}L${lx} ${podstawa + 2}`, kolor, grubosc: 0.8 });
+    const czesci = [pp.klucz === zero ? '0' : zeZnakiem(r?.wzgledem0 ?? 0, 0)];
+    if (o.pomiar && r?.odczyt != null) czesci.push(`${r.odczyt} mm`);
+    if (o.pomiar && r?.rzedna != null) czesci.push(`H ${fm(r.rzedna, 3)}`);
+    wynik.push({
+      t: 'tekst', x: lx + 4, y: podstawa, tekst: czesci.join('  '), kolor: r?.wpisany ? PAPIER.cel : PAPIER.tusz,
+      rozmiar: 11, pogrubiony: true, obrot: -90, halo: true,
+    });
   }
 
   // Wymiary nad rysunkiem: szerokości elementów i całkowita.
-  const yWym = najwyzej - 120;
+  const yWym = najwyzej - (o.pomiar ? 180 : 72);
   const kreska = (x: number, y: number) => `M${x} ${y - 5}L${x} ${y + 5}M${x - 3} ${y + 3}L${x + 3} ${y - 3}`;
   let dWym = `M${E(ulozone[0].rx0, 0).x} ${yWym}H${E(ulozone[ulozone.length - 1].rx1, 0).x}`;
   for (const u of ulozone) {
@@ -478,15 +490,22 @@ function podzialka(w: Widok, x: number, y: number): Prymityw[] {
 }
 
 export function svgSzkicu(s: SzkicGeodezyjny, szer = 1200): { svg: string; szer: number; wys: number } {
-  const pts = s.punkty.map((p) => pozycjaPunktu(s, p.id)).filter((p): p is Pkt => !!p);
+  const pts: Pkt[] = s.punkty.map((p) => pozycjaPunktu(s, p.id)).filter((p): p is Pkt => !!p);
+  for (const l of s.linie) {
+    const g = geometriaLinii(s, l);
+    if (g) for (let i = 1; i < 16; i++) pts.push(punktKrzywej(g.a, g.c, g.b, i / 16));
+  }
   const minX = Math.min(...pts.map((p) => p.x), 0);
   const maxX = Math.max(...pts.map((p) => p.x), 1);
   const minY = Math.min(...pts.map((p) => p.y), 0);
   const maxY = Math.max(...pts.map((p) => p.y), 1);
-  const margines = 90;
-  const sk = Math.min((szer - 2 * margines) / Math.max(maxX - minX, 0.5), 400);
-  const wys = Math.max(360, Math.round((maxY - minY) * sk + 2 * margines + 40));
-  const w: Widok = { s: sk, tx: margines - minX * sk, ty: margines + 40 - minY * sk };
+  const lewy = 70;
+  const prawy = 180;
+  const gora = 110;
+  const dol = 110;
+  const sk = Math.min((szer - lewy - prawy) / Math.max(maxX - minX, 0.5), 400);
+  const wys = Math.max(360, Math.round((maxY - minY) * sk + gora + dol));
+  const w: Widok = { s: sk, tx: lewy - minX * sk, ty: gora - minY * sk };
   const prym = rysunekSzkicu(s, w, { szer, wys });
   prym.push(...podzialka(w, 16, wys - 18));
   const hi = horyzontInstrumentu(s);
@@ -501,7 +520,7 @@ export function svgSzkicu(s: SzkicGeodezyjny, szer = 1200): { svg: string; szer:
 export function svgPrzekroju(p: PrzekrojPoprzeczny, szer = 1200, pomiar = true): { svg: string; szer: number; wys: number } {
   const z = zakresPrzekroju(p);
   if (!z) return { svg: svgZPrymitywow([], szer, 200, { tytul: p.nazwa }), szer, wys: 200 };
-  const gora = 230;
+  const gora = 280;
   const sk = Math.min((szer - 60) / Math.max(z.maxX - z.minX, 0.05), 2500);
   const wys = Math.round((z.maxY - z.minY) * sk + gora + 50);
   const w = widokPrzekroju(p, szer, wys, gora, 30);

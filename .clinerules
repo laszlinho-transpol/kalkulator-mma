@@ -106,6 +106,10 @@ Ilość aut       = ceil(Masa_Mg / Tonaz_auta)   [domyślnie 25.5t, edytowalne]
      kreski start/koniec, podświetlenie, „linia obszaru” szkicu); szkic rysujemy w jednej warstwie i jednym
      obszarze naraz i przycinamy do niego; linia łamana: węzły stuknięciem, przeciągane do granicy obszaru,
      środek krawędzi wygina łuk; logika w `src/liniowka/liniowka.ts` i `src/liniowka/rasterSzkicu.ts`,
+   - Geodezja: szkic geodezyjny (rzut z góry) i przekrój poprzeczny rysujemy na „kartce” (`Kartka`, siatka,
+     przesuwanie i zoom) jako SVG w metrach; logika w `src/geodezja/` (szkic, przekrój, `rysunek.ts` – ten sam opis
+     rysuje ekran i eksport SVG/PDF), wysokości: odczyt łaty [mm] ↔ rzędna [m] przez horyzont instrumentu,
+     wartości docelowe („cel”) zawsze na zielono (`PAPIER.cel`),
    - wspólną zmianę wyglądu robimy w klocku, nie na pojedynczym ekranie.
 
 ## TRZY ŻELAZNE ZASADY (OBOWIĄZKOWE)

@@ -25,6 +25,10 @@ Pełny opis: `mobile/STYL.md` (przeczytaj przed pracą nad UI). Skrót:
   ekranie mają tylko linie (obrysy, kreski start/koniec, podświetlenie, „linia obszaru” szkicu). Szkic rysujemy
   w jednej warstwie i jednym obszarze naraz i przycinamy do niego; linia łamana: węzły stuknięciem, przeciągane
   do granicy obszaru, środek krawędzi wygina łuk. Logika: `src/liniowka/liniowka.ts`, `src/liniowka/rasterSzkicu.ts`.
+- Geodezja (szkic – rzut z góry, przekrój poprzeczny): rysunek na „kartce” `Kartka` (siatka, przesuwanie, zoom)
+  jako SVG w metrach; logika w `src/geodezja/` – `rysunek.ts` daje prymitywy dla ekranu i eksportu SVG/PDF.
+  Odczyt łaty [mm] ↔ rzędna [m] przez horyzont instrumentu; „cel” zawsze na zielono. Szablony przekroju i szkice
+  mają nazwę, opis, archiwum, „Zapisz jako SVG” i PDF w `AppHeader`.
 - Listy obiektów = `PozycjaListy` (przycisk do karty obiektu), nie rozwijane sekcje. Karta obiektu ma `Zakladki`.
 - Pola parami (`Wiersz`, dwie kolumny); etykieta i jednostka nie mogą się zawijać.
 - Bez opisów na ekranie – wyjaśnienia tylko w „i” (`info` w `Pole`/`Etykieta`/`Sekcja`).

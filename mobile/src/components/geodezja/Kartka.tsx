@@ -8,6 +8,7 @@ import { odl, zoomWokol, type Pkt, type Widok } from '../../geodezja/geometria';
 import { PAPIER, type Prymityw } from '../../geodezja/rysunek';
 
 const PROG_RUCHU = 8;
+const CZCIONKA = Platform.select({ ios: 'Helvetica', android: 'sans-serif', default: 'Arial, Helvetica, sans-serif' });
 
 interface Props {
   widok: Widok;
@@ -60,6 +61,7 @@ export function RysunekSvg({ prymitywy }: { prymitywy: Prymityw[] }) {
           x: p.x,
           y: p.y,
           fontSize: p.rozmiar,
+          fontFamily: CZCIONKA,
           fontWeight: p.pogrubiony ? ('700' as const) : ('400' as const),
           fontStyle: p.kursywa ? ('italic' as const) : ('normal' as const),
           textAnchor: p.kotwica ?? ('start' as const),
@@ -191,7 +193,7 @@ export function Kartka({
     <View
       ref={ref}
       accessibilityLabel={accessibilityLabel}
-      style={[styles.kartka, Platform.OS === 'web' ? ({ touchAction: 'none', cursor: 'crosshair' } as object) : null, style]}
+      style={[styles.kartka, Platform.OS === 'web' ? ({ touchAction: 'none', cursor: 'crosshair', userSelect: 'none' } as object) : null, style]}
       onLayout={(e) => {
         const { width, height } = e.nativeEvent.layout;
         zmierzOkno();

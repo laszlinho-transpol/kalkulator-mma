@@ -74,13 +74,13 @@ export default function PrzekrojScreen() {
   const liczbaElementow = przekroj?.elementy.length ?? 0;
 
   const dopasuj = () => {
-    if (przekroj && rozmiar.w > 0) setWidok(widokPrzekroju(przekroj, rozmiar.w, rozmiar.h));
+    if (przekroj && rozmiar.w > 0) setWidok(widokPrzekroju(przekroj, rozmiar.w, rozmiar.h - 44, zakladka === 'pomiar' ? 225 : 115));
   };
 
   useEffect(() => {
     dopasuj();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rozmiar.w, rozmiar.h, liczbaElementow, przekroj?.skrocone]);
+  }, [rozmiar.w, rozmiar.h, liczbaElementow, przekroj?.skrocone, zakladka]);
 
   const prymitywy = useMemo(
     () => (przekroj ? rysunekPrzekroju(przekroj, widok, {
@@ -147,7 +147,7 @@ export default function PrzekrojScreen() {
           <View style={styles.rzad}>
             <PrzyciskPaska tekst="−" onPress={() => setWidok((w) => zoomWokol(w, w.s / 1.5, { x: rozmiar.w / 2, y: rozmiar.h / 2 }))} accessibilityLabel="Oddal" />
             <PrzyciskPaska tekst="+" onPress={() => setWidok((w) => zoomWokol(w, w.s * 1.5, { x: rozmiar.w / 2, y: rozmiar.h / 2 }))} accessibilityLabel="Przybliż" />
-            <PrzyciskPaska tekst="Dopasuj" onPress={dopasuj} accessibilityLabel="Dopasuj widok" />
+            <PrzyciskPaska tekst="⤢" onPress={dopasuj} accessibilityLabel="Dopasuj widok" />
           </View>
         </PasekPlywajacy>
         {przekroj.elementy.length === 0 ? (
@@ -490,7 +490,7 @@ const styles = StyleSheet.create({
   ekran: { flex: 1 },
   pusto: { padding: 24, textAlign: 'center' },
   ramkaKartki: { marginHorizontal: 14, marginTop: 10, borderWidth: 1, borderRadius: PROMIEN.l, overflow: 'hidden' },
-  lupka: { position: 'absolute', top: 6, right: 6, padding: 6 },
+  lupka: { position: 'absolute', bottom: 6, right: 6, padding: 6 },
   pustaKartka: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
   rzad: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, alignItems: 'center' },
   karta: { borderWidth: 1, borderRadius: PROMIEN.l, padding: 12 },

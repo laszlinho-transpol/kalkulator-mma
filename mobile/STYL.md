@@ -102,6 +102,16 @@ opisanych niżej** – bez własnych kolorów, odstępów i nagłówków. Zmiana
     chowa zakładki, a narzędzia szkicu są pływającym okienkiem przypiętym u góry mapy (zwijany kolor/grubość),
     które znika po „OK” albo „Anuluj”. Pasek `AppHeader` zostaje zawsze (rule 5).
 
+18. **Geodezja – szkic i przekrój jak rysunek na kartce.** Szkic geodezyjny (rzut z góry) i przekrój poprzeczny
+    rysujemy na `Kartka` (`src/components/geodezja/Kartka.tsx`): tło papieru, siatka kwadratów (bok domyślnie 1 m,
+    zmienny), przesuwanie palcem, zoom dwoma palcami / kółkiem myszy, stuknięcia i przeciąganie obiektów.
+    Geometria w metrach (rysunek w skali), a cały rysunek opisuje `src/geodezja/rysunek.ts` jako prymitywy –
+    ten sam opis rysuje ekran (`RysunekSvg`) i plik SVG/PDF (`svgSzkicu`, `svgPrzekroju`, blok `svg` w `DokumentPdf`).
+    Wysokości: odczyt łaty [mm] ↔ rzędna [m] przez horyzont instrumentu (pierwszy punkt z odczytem i rzędną);
+    wyliczone wartości kursywą na szaro, wartości docelowe („cel”) zawsze na zielono (`PAPIER.cel`).
+    Narzędzia szkicu to pływający pasek u góry kartki (Punkty, Analiza ▾, Filtr ▾, Siatka ▾), dane zaznaczenia –
+    pływający panel na dole. Logika: `src/geodezja/szkic.ts`, `src/geodezja/przekroj.ts`.
+
 ## 2. Klocki (`src/components/ui`)
 
 | Klocek | Kiedy |
