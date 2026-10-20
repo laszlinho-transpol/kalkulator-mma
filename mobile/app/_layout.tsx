@@ -19,6 +19,7 @@ import { useGrupyPracownikowStore } from '../src/stores/grupyPracownikowStore';
 import { useSprzetStore } from '../src/stores/sprzetStore';
 import { useRaportyBudowyStore } from '../src/stores/raportyBudowyStore';
 import { useHarmonogramStore } from '../src/stores/harmonogramStore';
+import { useGeodezjaStore } from '../src/stores/geodezjaStore';
 import { lightTheme, darkTheme } from '../src/constants/theme';
 import { LoadingScreen } from '../src/components/common/LoadingScreen';
 import { ErrorBoundary } from '../src/components/common/ErrorBoundary';
@@ -45,6 +46,7 @@ export default function RootLayout() {
   const zaladujSprzet = useSprzetStore((s) => s.zaladuj);
   const zaladujRaportyBudowy = useRaportyBudowyStore((s) => s.zaladuj);
   const zaladujHarmonogram = useHarmonogramStore((s) => s.zaladuj);
+  const zaladujGeodezje = useGeodezjaStore((s) => s.zaladuj);
 
   const [ladowanie, setLadowanie] = useState(true);
   const [loadingWidoczny, setLoadingWidoczny] = useState(true);
@@ -69,6 +71,7 @@ export default function RootLayout() {
           zaladujSprzet(),
           zaladujRaportyBudowy(),
           zaladujHarmonogram(),
+          zaladujGeodezje(),
         ]);
         const onboardingComplete = await AsyncStorage.getItem(KLUCZ_ONBOARDING);
         if (!onboardingComplete) {
@@ -181,6 +184,10 @@ export default function RootLayout() {
         <Stack.Screen name="niezbednik/geodezja/spadki" options={{ headerShown: false }} />
         <Stack.Screen name="niezbednik/geodezja/luki" options={{ headerShown: false }} />
         <Stack.Screen name="niezbednik/geodezja/kat-prosty" options={{ headerShown: false }} />
+        <Stack.Screen name="niezbednik/geodezja/szkice" options={{ headerShown: false }} />
+        <Stack.Screen name="niezbednik/geodezja/szkic/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="niezbednik/geodezja/przekroje" options={{ headerShown: false }} />
+        <Stack.Screen name="niezbednik/geodezja/przekroj/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="niezbednik/notatnik/index" options={{ headerShown: false }} />
         <Stack.Screen name="budzet/index" options={{ headerShown: false }} />
         <Stack.Screen name="budzet/sprzet/index" options={{ headerShown: false }} />

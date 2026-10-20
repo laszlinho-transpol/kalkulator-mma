@@ -39,6 +39,8 @@ const ETYKIETY: Array<[string, string]> = [
   ['pracownicy', 'Pracownicy'],
   ['grupy_pracownikow', 'Grupy pracowników'],
   ['pracownicy_raporty', 'Raporty pracowników'],
+  ['geodezja_szkice', 'Szkice geodezyjne'],
+  ['geodezja_przekroje', 'Przekroje poprzeczne'],
 ];
 
 export function utworzKopie(

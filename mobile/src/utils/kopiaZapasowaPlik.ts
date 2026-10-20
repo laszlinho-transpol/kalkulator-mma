@@ -24,6 +24,7 @@ import { useFirmyStore } from '../stores/firmyStore';
 import { usePracownicyStore } from '../stores/pracownicyStore';
 import { useGrupyPracownikowStore } from '../stores/grupyPracownikowStore';
 import { useSprzetStore } from '../stores/sprzetStore';
+import { useGeodezjaStore } from '../stores/geodezjaStore';
 
 async function kluczeAplikacji(): Promise<string[]> {
   const wszystkie = await AsyncStorage.getAllKeys();
@@ -99,5 +100,6 @@ export async function przywrocKopie(kopia: KopiaZapasowa): Promise<void> {
     usePracownicyStore.getState().zaladuj(),
     useGrupyPracownikowStore.getState().zaladuj(),
     useSprzetStore.getState().zaladuj(),
+    useGeodezjaStore.getState().zaladuj(),
   ]);
 }

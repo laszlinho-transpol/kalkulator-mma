@@ -17,6 +17,12 @@ import { formatujKmM, obliczPrzedmiar, sumyMieszanek } from '../utils/projektBud
 import type { Budowa, Mieszanka, ProjektBudowy, WarstwaKonstrukcji } from '../types';
 import { opisStatusu } from '../utils/statusBudowy';
 import { dane, tekst, type DokumentPdf, type SekcjaPdf } from './dokumentPdf';
+import { fm, zeZnakiem } from '../geodezja/geometria';
+import {
+  analizaLinii, celeDlaPunktu, horyzontInstrumentu, nazwaPunktu, wysokoscPunktu, type SzkicGeodezyjny,
+} from '../geodezja/szkic';
+import { przeliczPomiar, type PrzekrojPoprzeczny } from '../geodezja/przekroj';
+import { svgPrzekroju, svgSzkicu } from '../geodezja/rysunek';
 
 const zl = (n: number) => `${formatLiczby(n)} zł`;
 const h = (n: number) => `${formatLiczby(n)} h`;
@@ -464,5 +470,88 @@ export function dokumentMiesiacaBudowy({ miesiac, budowa, raporty, mieszanki, ra
         ] : undefined,
       }],
     }],
+  };
+}
+
+// --- Geodezja ---
+
+export function dokumentSzkicuGeodezyjnego(s: SzkicGeodezyjny): DokumentPdf {
+  const hi = horyzontInstrumentu(s);
+  const wiersze = [...s.punkty].sort((a, b) => a.nr - b.nr).map((p) => {
+    const w = wysokoscPunktu(s, p.id);
+    const cel = celeDlaPunktu(s, p.id)[0];
+    return [
+      p.nazwa,
+      p.warstwa ?? '',
+      w?.odczyt != null ? String(w.odczyt) : '',
+      w?.rzedna != null ? fm(w.rzedna, 3) : '',
+      cel ? [cel.odczyt != null ? `${cel.odczyt} mm` : '', cel.rzedna != null ? fm(cel.rzedna, 3) : ''].filter(Boolean).join(' · ') : '',
+      cel?.roznica != null ? `${zeZnakiem(cel.roznica * 1000, 0)} mm` : '',
+      [p.naLinii ? 'pośredni' : '', p.komentarz ?? ''].filter(Boolean).join(' · '),
+    ];
+  });
+  const linie = s.linie.map((l) => {
+    const an = analizaLinii(s, l);
+    const a = nazwaPunktu(s, l.a);
+    const b = nazwaPunktu(s, l.b);
+    const kier = an?.wDol ? (an.wDol === 'b' ? `${a} → ${b}` : `${b} → ${a}`) : '';
+    const cel = l.cel ? `${fm(l.cel.spadek, 2)}% ${l.cel.od === 'a' ? `${a} → ${b}` : `${b} → ${a}`}` : '';
+    return [`${a} – ${b}`, an ? fm(an.dlugosc, 2) : '', an?.spadek != null ? `${fm(an.spadek, 2)}%` : '', kier, cel];
+  });
+  return {
+    tytul: s.nazwa,
+    podtytul: ['Szkic geodezyjny – rzut z góry', s.opis].filter(Boolean).join(' · '),
+    sekcje: [
+      { tytul: 'Szkic', bloki: [{ typ: 'svg', svg: svgSzkicu(s).svg }] },
+      {
+        tytul: 'Punkty',
+        bloki: [
+          dane([hi != null ? { etykieta: 'Horyzont instrumentu', wartosc: `${fm(hi, 3)} m` } : null, { etykieta: 'Siatka', wartosc: `${fm(s.bokSiatki, 2)} m` }]),
+          { typ: 'tabela', naglowki: ['Punkt', 'Warstwa', 'Odczyt [mm]', 'Rzędna [m]', 'Cel', 'Δh', 'Uwagi'], wiersze, liczbowe: [2, 3, 5] },
+        ],
+      },
+      { tytul: 'Połączenia', bloki: [{ typ: 'tabela', naglowki: ['Linia', 'Długość [m]', 'Spadek', 'Kierunek spadku', 'Cel'], wiersze: linie, liczbowe: [1, 2] }] },
+    ],
+  };
+}
+
+export function dokumentPrzekroju(p: PrzekrojPoprzeczny): DokumentPdf {
+  const wyniki = przeliczPomiar(p);
+  return {
+    tytul: p.nazwa,
+    podtytul: ['Przekrój poprzeczny', p.opis].filter(Boolean).join(' · '),
+    sekcje: [
+      { tytul: 'Przekrój', bloki: [{ typ: 'svg', svg: svgPrzekroju(p).svg }] },
+      {
+        tytul: 'Elementy (od lewej)',
+        bloki: [{
+          typ: 'tabela',
+          naglowki: ['Nr', 'Element', 'Szerokość', 'Wysokość [cm]', 'Skok [cm]', 'Spadek'],
+          wiersze: p.elementy.map((e, i) => [
+            String(i + 1),
+            e.nazwa,
+            e.typ === 'pas' ? `${fm(e.szer / 100, 2)} m` : `${fm(e.szer, 0)} cm`,
+            fm(e.wys, 0),
+            i === 0 ? '' : zeZnakiem(e.skok, 0),
+            e.typ === 'pas' && e.spadek ? `${fm(Math.abs(e.spadek), 1)}% ${e.spadek > 0 ? '→' : '←'}` : '',
+          ]),
+          liczbowe: [2, 3, 4],
+        }],
+      },
+      {
+        tytul: 'Pomiar',
+        bloki: [{
+          typ: 'tabela',
+          naglowki: ['Punkt', 'Wysokość wzgl. 0 [cm]', 'Odczyt [mm]', 'Rzędna [m]'],
+          wiersze: wyniki.map((w) => [
+            `${w.nazwa}${w.wpisany ? ' (pomiar)' : ''}`,
+            zeZnakiem(w.wzgledem0, 1),
+            w.odczyt != null ? String(w.odczyt) : '',
+            w.rzedna != null ? fm(w.rzedna, 3) : '',
+          ]),
+          liczbowe: [1, 2, 3],
+        }],
+      },
+    ],
   };
 }

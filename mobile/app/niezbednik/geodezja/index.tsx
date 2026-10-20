@@ -7,6 +7,8 @@ import { AppHeader } from '../../../src/components/common/AppHeader';
 import { PozycjaListy } from '../../../src/components/ui/Karta';
 
 const KALKULATORY = [
+  { tytul: 'Szkic geodezyjny – rzut z góry', sciezka: '/niezbednik/geodezja/szkice' },
+  { tytul: 'Przekrój poprzeczny', sciezka: '/niezbednik/geodezja/przekroje' },
   { tytul: 'Kalkulator spadków', sciezka: '/niezbednik/geodezja/spadki' },
   { tytul: 'Tyczenie łuków', sciezka: '/niezbednik/geodezja/luki' },
   { tytul: 'Tyczenie kąta prostego', sciezka: '/niezbednik/geodezja/kat-prosty' },

@@ -8,7 +8,9 @@ export interface PozycjaDanychPdf {
 export type BlokPdf =
   | { typ: 'dane'; pozycje: PozycjaDanychPdf[] }
   | { typ: 'tabela'; naglowki: string[]; wiersze: string[][]; suma?: string[]; /** Kolumny wyrównane do prawej (liczby). */ liczbowe?: number[] }
-  | { typ: 'tekst'; linie: string[] };
+  | { typ: 'tekst'; linie: string[] }
+  /** Rysunek wektorowy (szkic, przekrój) – wstawiany bez zmian, skalowany do szerokości strony. */
+  | { typ: 'svg'; svg: string };
 
 export interface SekcjaPdf {
   tytul: string;
@@ -58,6 +60,8 @@ const STYL = `
   td.l, th.l { text-align: right; white-space: nowrap; }
   tr.suma td { font-weight: bold; border-top: 2px solid #1a1a1a; background: #fff; }
   p { margin: 3px 0; line-height: 1.45; }
+  .rysunek { border: 1px solid #E5E7EB; border-radius: 6px; overflow: hidden; }
+  .rysunek svg { display: block; width: 100%; height: auto; }
   .stopka { color: #9CA3AF; font-size: 9px; margin-top: 18px; border-top: 1px solid #E5E7EB; padding-top: 6px; }
 `;
 
@@ -71,6 +75,7 @@ function htmlBloku(blok: BlokPdf): string {
   if (blok.typ === 'tekst') {
     return blok.linie.map((l) => `<p>${escapeHtml(l)}</p>`).join('');
   }
+  if (blok.typ === 'svg') return `<div class="rysunek">${blok.svg}</div>`;
   const kl = (i: number) => (blok.liczbowe?.includes(i) ? ' class="l"' : '');
   const wiersz = (komorki: string[], klasa = '') => `<tr${klasa}>${komorki.map((k, i) => `<td${kl(i)}>${escapeHtml(k)}</td>`).join('')}</tr>`;
   if (blok.wiersze.length === 0) return '<p style="color:#6B7280;font-style:italic">Brak pozycji.</p>';
