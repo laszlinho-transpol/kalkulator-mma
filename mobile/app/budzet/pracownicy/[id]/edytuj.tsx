@@ -3,6 +3,7 @@ import { Text, useColorScheme, View } from 'react-native';
 import { router } from 'expo-router';
 import { FormularzPracownika } from '../../../../src/components/budzet/FormularzPracownika';
 import { lightTheme, darkTheme } from '../../../../src/constants/theme';
+import { AppHeader } from '../../../../src/components/common/AppHeader';
 import { wstecz } from '../../../../src/budzet/nawigacja';
 import { useRouteId } from '../../../../src/hooks/useRouteId';
 import { useGrupyPracownikowStore } from '../../../../src/stores/grupyPracownikowStore';
@@ -19,10 +20,9 @@ export default function EdytujPracownikaScreen() {
 
   if (!pracownik) {
     return (
-      <View style={{ flex: 1, backgroundColor: theme.colors.background, padding: 24 }}>
-        <Text style={{ color: theme.colors.textSecondary }} onPress={() => wstecz('/budzet/pracownicy')}>
-          Nie znaleziono pracownika.
-        </Text>
+      <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
+        <AppHeader tytul="Edytuj pracownika" lewy={{ tekst: '‹ Wstecz', onPress: () => wstecz('/budzet/pracownicy') }} />
+        <Text style={{ padding: 24, color: theme.colors.textSecondary }}>Nie znaleziono pracownika.</Text>
       </View>
     );
   }

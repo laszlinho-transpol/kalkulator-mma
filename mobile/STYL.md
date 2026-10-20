@@ -28,6 +28,9 @@ opisanych niżej** – bez własnych kolorów, odstępów i nagłówków. Zmiana
 5. **Nagłówek = `AppHeader`.** Zawsze `lewy={{ tekst: '‹ Wstecz', onPress: () => wstecz('/rodzic') }}` – rysuje strzałkę
    wstecz **i domek** do menu głównego. Okna modalne: `lewy` „Anuluj”/„Zamknij” (bez domku). Pełnoekranowe formularze
    z „Anuluj” dostają `menu`, żeby domek też był. Akcje ekranu → `przyciski` (drugi rząd) albo `prawy` („Edytuj”).
+   **Pasek `AppHeader` (wstecz + domek) jest zawsze widoczny na każdym ekranie oprócz menu głównego** – stoi poza
+   `ScrollView` (nie przewija się z treścią), nie chowamy go w trybach pełnoekranowych (mapa, szkic, Live) ani
+   w ekranach pomocniczych („nie znaleziono”, ładowanie). Chowają się tylko panele pod nim (rule 17).
 6. **Porządek jak w planie dnia „Wbudowywania”.** Treść dzielimy na osobne karty: `Sekcja` (tytuł wersalikami + „i” +
    akcja po prawej) i `Karta` (tytuł, plakietka, podsumowanie, akcje pod kreską). Jedna karta = jeden temat.
    Dłuższe treści rozkładamy na `Zakladki` (np. Info | Mieszanki, Dane | Historia | Raporty), żeby nie było jednej
@@ -84,10 +87,20 @@ opisanych niżej** – bez własnych kolorów, odstępów i nagłówków. Zmiana
     kierunku układania i znak „i” liczymy z szerokości pasa (jednostki PDF), więc rosną i maleją z planem.
     Stałą grubość na ekranie (`vectorEffect="non-scaling-stroke"`) mają tylko linie: obrysy obszarów,
     kreski start/koniec, oś, podświetlenie LED i najcieńsza linia szkicu („linia obszaru”, `gruboscPdf: 0`).
-    Szkic na istniejącej warstwie jest przycinany (`ClipPath`) do jej obszarów – farba poza nimi nie trafia
-    na liniówkę ani do powierzchni; wiaderko zalewa do linii szkicu i krawędzi obszarów, a wynik zapisuje
+    Szkic rysujemy zawsze w jednej warstwie i jednym obszarze naraz (wybór w oknie „Warstwa szkicu” albo stuknięciem
+    na mapie; nowa warstwa może też dostać „Cały arkusz”). Szkic jest przycinany (`ClipPath`) do tego obszaru
+    (`klipSzkicu`, pole `obszarId`) – farba poza nim nie trafia na liniówkę ani do powierzchni. Linia łamana
+    (narzędzie „Łamana”): węzły stawiamy stuknięciem, przeciągamy je (zatrzymują się na granicy obszaru –
+    `dociagnijDoObszaru`), a uchwyt w środku krawędzi wygina ją w łuk (krzywa kwadratowa); zamknięta łamana to
+    wypełniony wielokąt z zapisanymi węzłami (`lamana`) do dalszej edycji. Wiaderko zalewa do linii szkicu i krawędzi obszarów, a wynik zapisuje
     jako wielokąt SVG (`plama`). Rysujemy w `PztArkuszPodglad` (props `liniowka`, `rysowanie`), logika
     liniówki i szkicu w `src/liniowka/liniowka.ts` i `src/liniowka/rasterSzkicu.ts`.
+
+17. **Panele chowane, widok dla treści.** Przyciski, które nie są potrzebne cały czas (zakładki strony Budowy,
+    narzędzia szkicu), nie zajmują stale ekranu: zakładki Budowy są zwinięte do jednego paska „Projekt · PZT –
+    Zakładki ▾” i rozwijają się po stuknięciu (wybór zakładki zwija je z powrotem). W trybie rysowania strona
+    chowa zakładki, a narzędzia szkicu są pływającym okienkiem przypiętym u góry mapy (zwijany kolor/grubość),
+    które znika po „OK” albo „Anuluj”. Pasek `AppHeader` zostaje zawsze (rule 5).
 
 ## 2. Klocki (`src/components/ui`)
 

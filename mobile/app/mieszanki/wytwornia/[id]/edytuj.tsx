@@ -1,8 +1,10 @@
 import React from 'react';
-import { Text, useColorScheme } from 'react-native';
+import { Text, useColorScheme, View } from 'react-native';
 import { router } from 'expo-router';
 import { FormularzWytworni } from '../../../../src/components/mieszanki/FormularzWytworni';
 import { lightTheme, darkTheme } from '../../../../src/constants/theme';
+import { AppHeader } from '../../../../src/components/common/AppHeader';
+import { wstecz } from '../../../../src/budzet/nawigacja';
 import { useRouteId } from '../../../../src/hooks/useRouteId';
 import { useMieszankiStore } from '../../../../src/stores/mieszankiStore';
 import { useWytwornieStore } from '../../../../src/stores/wytwornieStore';
@@ -15,7 +17,14 @@ export default function EdycjaWytworniScreen() {
   const mieszanki = useMieszankiStore((s) => s.mieszanki);
   const edytujMieszanke = useMieszankiStore((s) => s.edytujMieszanke);
 
-  if (!wytwornia) return <Text style={{ padding: 24, color: theme.colors.textSecondary }}>Nie znaleziono wytwórni.</Text>;
+  if (!wytwornia) {
+    return (
+      <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
+        <AppHeader tytul="Edytuj wytwórnię" lewy={{ tekst: '‹ Wstecz', onPress: () => wstecz('/mieszanki') }} />
+        <Text style={{ padding: 24, color: theme.colors.textSecondary }}>Nie znaleziono wytwórni.</Text>
+      </View>
+    );
+  }
 
   return (
     <FormularzWytworni

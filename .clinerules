@@ -91,8 +91,11 @@ Ilość aut       = ceil(Masa_Mg / Tonaz_auta)   [domyślnie 25.5t, edytowalne]
    - dane zawsze edytowalne; przyciski interaktywne z płynnym przejściem na nową stronę,
    - pola parami w dwóch kolumnach, etykieta/jednostka nie przeskakuje do nowej linii,
    - opisy tylko pod przyciskiem „i”,
-   - nagłówek `AppHeader`: wstecz + domek do menu głównego; na stronach z danymi użytkownika po prawej
-     przycisk udostępniania → PDF (`udostepnij`, treść w `src/eksport/dokumenty.ts`),
+   - nagłówek `AppHeader`: wstecz + domek do menu głównego – **zawsze widoczny na każdym ekranie oprócz menu
+     głównego** (poza `ScrollView`, także w trybach pełnoekranowych i na ekranach „nie znaleziono”); na stronach
+     z danymi użytkownika po prawej przycisk udostępniania → PDF (`udostepnij`, treść w `src/eksport/dokumenty.ts`),
+   - panele, które nie są potrzebne cały czas (zakładki Budowy, narzędzia szkicu), są zwijane i wysuwają się
+     na żądanie; narzędzia szkicu to pływające okienko u góry mapy, znika po zakończeniu,
    - treść w osobnych kartach jak plan dnia na „Wbudowywaniu”, długie strony dzielone zakładkami,
    - jeden kalendarz dla wszystkich dat (soboty, niedziele i święta we własnych kolorach),
    - budowę dodajemy/edytujemy tylko `FormularzBudowy` (status z `src/utils/statusBudowy.ts`),
@@ -100,8 +103,9 @@ Ilość aut       = ceil(Masa_Mg / Tonaz_auta)   [domyślnie 25.5t, edytowalne]
    - szkice i wszystkie działania na plikach PZT zapisujemy jako SVG (we współrzędnych PDF arkusza), żeby były
      ostre i wyraźne; są proporcjonalne do pliku i przy przybliżaniu/oddalaniu nie zmieniają wielkości względem
      planu – dotyczy też strzałek i znaku „i” liniówki (stałą grubość na ekranie mają tylko linie: obrysy,
-     kreski start/koniec, podświetlenie, „linia obszaru” szkicu); szkic na istniejącej warstwie przycinamy
-     do jej obszarów; logika w `src/liniowka/liniowka.ts` i `src/liniowka/rasterSzkicu.ts`,
+     kreski start/koniec, podświetlenie, „linia obszaru” szkicu); szkic rysujemy w jednej warstwie i jednym
+     obszarze naraz i przycinamy do niego; linia łamana: węzły stuknięciem, przeciągane do granicy obszaru,
+     środek krawędzi wygina łuk; logika w `src/liniowka/liniowka.ts` i `src/liniowka/rasterSzkicu.ts`,
    - wspólną zmianę wyglądu robimy w klocku, nie na pojedynczym ekranie.
 
 ## TRZY ŻELAZNE ZASADY (OBOWIĄZKOWE)

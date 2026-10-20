@@ -3,12 +3,13 @@
 // ============================================================
 
 import React from 'react';
-import { Text, SafeAreaView, useColorScheme } from 'react-native';
+import { Text, View, useColorScheme } from 'react-native';
 import { router } from 'expo-router';
 import { usePlanyStore } from '../../../src/stores/planyStore';
 import { useRouteId } from '../../../src/hooks/useRouteId';
 import { usePlanPoId } from '../../../src/hooks/usePlanPoId';
 import { lightTheme, darkTheme } from '../../../src/constants/theme';
+import { AppHeader } from '../../../src/components/common/AppHeader';
 import { PlanForm } from '../../../src/components/plan/PlanForm';
 import { PlanZBudowyForm } from '../../../src/components/plan/PlanZBudowyForm';
 import type { Plan } from '../../../src/types';
@@ -23,9 +24,10 @@ export default function EdytujPlanScreen() {
 
   if (!id || !plan) {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background, alignItems: 'center', justifyContent: 'center' }}>
-        <Text style={{ color: theme.colors.danger, fontSize: 16 }}>Plan nie znaleziony.</Text>
-      </SafeAreaView>
+      <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
+        <AppHeader tytul="Edytuj plan" lewy={{ tekst: '‹ Wstecz', onPress: () => router.back() }} />
+        <Text style={{ color: theme.colors.danger, fontSize: 16, padding: 16, textAlign: 'center' }}>Plan nie znaleziony.</Text>
+      </View>
     );
   }
 

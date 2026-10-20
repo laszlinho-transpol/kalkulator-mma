@@ -3,6 +3,7 @@ import { Text, useColorScheme, View } from 'react-native';
 import { router } from 'expo-router';
 import { FormularzSprzetu } from '../../../../src/components/budzet/FormularzSprzetu';
 import { lightTheme, darkTheme } from '../../../../src/constants/theme';
+import { AppHeader } from '../../../../src/components/common/AppHeader';
 import { wstecz } from '../../../../src/budzet/nawigacja';
 import { useRouteId } from '../../../../src/hooks/useRouteId';
 import { useFirmyStore } from '../../../../src/stores/firmyStore';
@@ -20,10 +21,9 @@ export default function EdytujSprzetScreen() {
 
   if (!maszyna) {
     return (
-      <View style={{ flex: 1, backgroundColor: theme.colors.background, padding: 24 }}>
-        <Text style={{ color: theme.colors.textSecondary }} onPress={() => wstecz('/budzet/sprzet')}>
-          Nie znaleziono sprzętu.
-        </Text>
+      <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
+        <AppHeader tytul="Edytuj sprzęt" lewy={{ tekst: '‹ Wstecz', onPress: () => wstecz('/budzet/sprzet') }} />
+        <Text style={{ padding: 24, color: theme.colors.textSecondary }}>Nie znaleziono sprzętu.</Text>
       </View>
     );
   }
