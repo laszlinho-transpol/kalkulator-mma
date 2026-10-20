@@ -15,6 +15,9 @@ Pełny opis: `mobile/STYL.md` (przeczytaj przed pracą nad UI). Skrót:
 - Dane edytowalne: „Edytuj” w nagłówku karty + ekran `edytuj` z tym samym formularzem; usuwanie z `potwierdzAkcje`.
 - Strony z danymi użytkownika: `AppHeader udostepnij={…}` (ikona udostępniania → PDF); treść z `src/eksport/dokumenty.ts`.
 - Budowa: formularz tylko `FormularzBudowy`, status z `src/utils/statusBudowy.ts`; Harmonogram: logika w `src/harmonogram/harmonogram.ts`.
+- Szkice i wszystkie działania na plikach PZT zapisujemy jako SVG we współrzędnych PDF arkusza (ostre przy każdym
+  przybliżeniu); grubość szkicu w jednostkach PDF – proporcjonalna do pliku, nie zmienia się względem planu przy
+  zoomie. Znaczniki interfejsu na mapie mają stały rozmiar na ekranie. Logika liniówki: `src/liniowka/liniowka.ts`.
 - Listy obiektów = `PozycjaListy` (przycisk do karty obiektu), nie rozwijane sekcje. Karta obiektu ma `Zakladki`.
 - Pola parami (`Wiersz`, dwie kolumny); etykieta i jednostka nie mogą się zawijać.
 - Bez opisów na ekranie – wyjaśnienia tylko w „i” (`info` w `Pole`/`Etykieta`/`Sekcja`).

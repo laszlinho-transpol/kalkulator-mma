@@ -75,6 +75,15 @@ opisanych niżej** – bez własnych kolorów, odstępów i nagłówków. Zmiana
     budowy, „Dodaj plan”). Harmonogram łączy wpisy proste (`harmonogramStore`) i plany z „Zaplanuj masę”
     w `src/harmonogram/harmonogram.ts` (tygodnie pn–nd, numer TK wg ISO, eksport PDF z wyborem kolumn).
     W `SiatkaKalendarza` minione dni bez danych to `nieaktywny`, dni z planem `zaplanowany`.
+16. **Szkice i działania na PZT = SVG, proporcjonalnie do pliku.** Wszystko, co rysujemy lub zaznaczamy na
+    arkuszach PZT (szkice, wypełnienia, obszary liniówki, pomiary), zapisujemy i wyświetlamy jako wektor SVG –
+    nigdy jako obraz rastrowy – żeby przy każdym przybliżeniu było ostre i wyraźne. Geometria zawsze we
+    współrzędnych PDF arkusza (jak `wierzcholkiPdf` z XFDF), grubość kreski szkicu w jednostkach PDF
+    (`gruboscPdf`) – rysunek jest proporcjonalny do pliku i przy przybliżaniu/oddalaniu skaluje się razem
+    z planem, nie „pływa” i nie zmienia wielkości względem niego. Znaczniki interfejsu na mapie (znak „i”,
+    strzałki, kreski start/koniec, napisy) mają stały rozmiar na ekranie: rozmiar dzielony przez skalę
+    widoku albo `vectorEffect="non-scaling-stroke"`. Rysujemy w `PztArkuszPodglad` (props `liniowka`,
+    `rysowanie`), logika liniówki i szkicu w `src/liniowka/liniowka.ts`.
 
 ## 2. Klocki (`src/components/ui`)
 
@@ -142,5 +151,6 @@ export default function KartaXScreen() {
 - [ ] opisy tylko w „i”
 - [ ] treść w osobnych `Sekcja`/`Karta`, długie strony podzielone `Zakladki`
 - [ ] daty przez wspólny kalendarz
+- [ ] rysunki na PZT jako SVG we współrzędnych PDF, ostre i proporcjonalne przy każdym przybliżeniu
 - [ ] każdy naciskany element ma `accessibilityLabel` (testy Puppeteer klikają po etykietach)
 - [ ] tryb ciemny wygląda poprawnie (kolory tylko z motywu)
