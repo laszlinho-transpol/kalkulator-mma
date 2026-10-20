@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.49';
+export const WERSJA_APLIKACJI = '1.8.50';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,19 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.50',
+    data: '2026-10-20',
+    tytul: 'Budowa: zwijane zakładki, szkic w obszarze i linia łamana',
+    zmiany: [
+      'Zakładki budowy zwinięte do jednego paska („Zakładki ▾”) – rozwijają się po stuknięciu i chowają po wyborze',
+      'Szkicuj: oprócz warstwy wybierasz obszar (z listy albo stuknięciem na mapie) – rysujesz tylko w nim; nowa warstwa może też rysować po całym arkuszu',
+      'Narzędzia szkicu jako pływające okienko u góry mapy; podczas rysowania zakładki znikają, a mapa jest większa',
+      'Nowe narzędzie „Łamana”: stuknięcia stawiają węzły, węzły można przeciągać (zatrzymują się na granicy obszaru), środek krawędzi wygina łuk wklęsły lub wypukły; „OK obszaru” zamyka obszar',
+      'Legenda: kolory dla każdej warstwy z konstrukcji – ścieralna to SMA, AC8S, AC11S; wiążąca to AC11W i AC16W (KR1-2, KR3-4); MCE ma własną warstwę; pod nazwą widać skład',
+      'Pasek z przyciskiem wstecz i domkiem jest zawsze widoczny (także na ekranach „nie znaleziono”)',
+    ],
+  },
   {
     wersja: '1.8.49',
     data: '2026-10-20',
