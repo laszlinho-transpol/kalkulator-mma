@@ -8,9 +8,11 @@ import {
   PinchGestureHandler,
   State,
 } from 'react-native-gesture-handler';
-import Svg, { Circle, G, Image as SvgImage, Line, Polygon, Polyline, Rect, Text as SvgText } from 'react-native-svg';
+import Svg, { Circle, G, Image as SvgImage, Line, Path, Polygon, Polyline, Rect, Text as SvgText } from 'react-native-svg';
 import { InfoTooltip } from '../common/InfoTooltip';
-import type { ArkuszPzt, Punkt2D, TloArkuszaPzt } from '../../types';
+import type { ArkuszPzt, ElementSzkicu, Punkt2D, TloArkuszaPzt } from '../../types';
+import { dodajPunktKreski, punktWWielokacie, stacjeZnakowInfo, wymazGumka, wypelnijWiadrem } from '../../liniowka/liniowka';
+import { kluczLegendy } from '../../utils/projektBudowy';
 import { bboxWielokata } from '../../utils/obmiarGeometry';
 import {
   czoloObmiaruPdf,
@@ -117,6 +119,66 @@ interface LiveAutoPzt {
   numer: number;
 }
 
+/** Ułożony odcinek na liniówce – kolejność tablicy = kolejność zakrywania (ostatni na wierzchu). */
+export interface OdcinekLiniowkiPodgladu {
+  id: string;
+  /** Klucz legendy obszaru, np. "obszar|#FFEE58". */
+  kluczObszaru: string;
+  kmOdM: number;
+  kmDoM: number;
+  kolor: string;
+  krycie: number;
+  reczny?: boolean;
+}
+
+export interface SzkicPodgladu {
+  id: string;
+  elementy: ElementSzkicu[];
+  krycie: number;
+  /** Ile odcinków liniówki leży pod szkicem. Brak = na wierzchu. */
+  poIndeksie?: number;
+}
+
+export interface LiniowkaPodgladu {
+  odcinki: OdcinekLiniowkiPodgladu[];
+  szkice?: SzkicPodgladu[];
+  podswietlonyId?: string;
+  onPressOdcinek?: (id: string) => void;
+}
+
+export type NarzedzieSzkicu = 'pioro' | 'wiadro' | 'gumka';
+
+export interface RysowaniePodgladu {
+  narzedzie: NarzedzieSzkicu;
+  kolor: string;
+  /** Grubość na ekranie przy obecnym przybliżeniu – zapisywana w jednostkach PDF. */
+  gruboscPx: number;
+  elementy: ElementSzkicu[];
+  onZmien: (elementy: ElementSzkicu[]) => void;
+}
+
+const PROMIEN_GUMKI_PX = 12;
+const PROMIEN_ZNAKU_PX = 9;
+
+function sciezkaSvg(pts: Punkt2D[], zamknij: boolean): string {
+  if (pts.length === 0) return '';
+  const [p0, ...reszta] = pts;
+  return `M${p0.x.toFixed(2)},${p0.y.toFixed(2)}${reszta.map((p) => `L${p.x.toFixed(2)},${p.y.toFixed(2)}`).join('')}${zamknij ? 'Z' : ''}`;
+}
+
+function strzalka(mx: number, my: number, ux: number, uy: number, s: number): string {
+  const dl = 14 / s;
+  const pol = 6 / s;
+  const odstep = 3 / s;
+  const bx = mx + ux * odstep;
+  const by = my + uy * odstep;
+  const tx = bx + ux * dl;
+  const ty = by + uy * dl;
+  const nx = -uy;
+  const ny = ux;
+  return `${tx},${ty} ${bx + nx * pol},${by + ny * pol} ${bx - nx * pol},${by - ny * pol}`;
+}
+
 interface Props {
   arkusz: ArkuszPzt;
   theme: AppTheme;
@@ -136,6 +198,9 @@ interface Props {
   zakresKoniecM?: number;
   /** Stuknięcie w podgląd zwraca punkt PDF (wybór kilometrażu na mapie). */
   onWskazPdf?: (p: Punkt2D) => void;
+  liniowka?: LiniowkaPodgladu;
+  /** Tryb szkicu: jeden palec rysuje, dwa przybliżają. */
+  rysowanie?: RysowaniePodgladu;
 }
 
 export function PztArkuszPodglad({
@@ -153,6 +218,8 @@ export function PztArkuszPodglad({
   zakresStartM,
   zakresKoniecM,
   onWskazPdf,
+  liniowka,
+  rysowanie,
 }: Props) {
   const [rozmiar, setRozmiar] = useState({ w: 320, h: wysokosc });
   const [skalaPct, setSkalaPct] = useState(100);
@@ -420,6 +487,101 @@ export function PztArkuszPodglad({
     };
   }, [arkusz, geometria, rozmiar.w, rozmiar.h, liveStacjaM, liveAuta, podzialkaM, zakresStartM, zakresKoniecM]);
 
+  const odcinkiLiniowki = liniowka?.odcinki;
+  const liniowkaSvg = useMemo(() => {
+    const osPdf = mapa?.osPdf;
+    if (!mapa || !odcinkiLiniowki?.length || !osPdf || osPdf.length < 2) return [];
+    const toSvg = (p: Punkt2D) => pdfDoSvgPodgladu(p, mapa.mapaSvg);
+    const odKm = arkusz.kilometrazPoczatkowyM;
+    const doKm = arkusz.kilometrazKoncowyM;
+    const spanKm = Math.max(0.01, doKm - odKm);
+    const dlPdf = dlugoscPolilinii(osPdf);
+    const sZKm = (km: number) => Math.max(0, Math.min(dlPdf, ((km - odKm) / spanKm) * dlPdf));
+    const naArkuszu = (km: number) => km >= odKm - 0.6 && km <= doKm + 0.6;
+    const out: Array<OdcinekLiniowkiPodgladu & {
+      idx: number;
+      wielokaty: Array<{ pts: Punkt2D[]; punkty: string }>;
+      kreski: Array<{ rola: 'start' | 'koniec'; x1: number; y1: number; x2: number; y2: number; mx: number; my: number; ux: number; uy: number }>;
+      znaki: Punkt2D[];
+    }> = [];
+    for (const [idx, o] of odcinkiLiniowki.entries()) {
+      const lo = Math.min(o.kmOdM, o.kmDoM);
+      const hi = Math.max(o.kmOdM, o.kmDoM);
+      if (hi < odKm - 0.05 || lo > doKm + 0.05) continue;
+      const obszary = arkusz.obszary.filter((ob) => kluczLegendy('obszar', ob.kolorWypelnienia) === o.kluczObszaru);
+      if (obszary.length === 0) continue;
+      const sA = sZKm(o.kmOdM);
+      const sB = sZKm(o.kmDoM);
+      if (Math.abs(sB - sA) < 0.05) continue;
+      const wielokaty = obszary
+        .map((ob) => wycinekWielokataPoOsi(ob.wierzcholkiPdf, osPdf, sA, sB))
+        .filter((c) => c.length >= 3)
+        .map((c) => {
+          const pts = c.map(toSvg);
+          return { pts, punkty: pts.map((p) => `${p.x},${p.y}`).join(' ') };
+        });
+      if (wielokaty.length === 0) continue;
+      const rosnie = o.kmDoM >= o.kmOdM;
+      const kreski: (typeof out)[number]['kreski'] = [];
+      for (const [rola, km] of [['start', o.kmOdM], ['koniec', o.kmDoM]] as const) {
+        if (!naArkuszu(km)) continue;
+        const s = sZKm(km);
+        const cz = czoloObmiaruPdf(obszary, osPdf, s);
+        const t = stycznyNaOsi(osPdf, s);
+        if (!cz || !t) continue;
+        const a = toSvg(cz.a);
+        const b = toSvg(cz.b);
+        const m = toSvg(cz.srodek);
+        const l = Math.hypot(t.dx, t.dy) || 1;
+        const kier = (rosnie ? 1 : -1) * (rola === 'start' ? 1 : -1);
+        kreski.push({ rola, x1: a.x, y1: a.y, x2: b.x, y2: b.y, mx: m.x, my: m.y, ux: (t.dx / l) * kier, uy: (-t.dy / l) * kier });
+      }
+      const znaki = stacjeZnakowInfo(o.kmOdM, o.kmDoM)
+        .filter((km) => km >= odKm && km <= doKm)
+        .map((km) => {
+          const s = sZKm(km);
+          const p = pasUkladaniaPdf(obszary, osPdf, s)?.srodek ?? punktNaOsi(osPdf, s);
+          return p ? toSvg(p) : null;
+        })
+        .filter((p): p is Punkt2D => !!p);
+      out.push({ ...o, idx, wielokaty, kreski, znaki });
+    }
+    return out;
+  }, [mapa, odcinkiLiniowki, arkusz]);
+
+  const [kreska, setKreska] = useState<Punkt2D[]>([]);
+  const kreskaRef = useRef<Punkt2D[]>([]);
+  const rysowanieRef = useRef(rysowanie);
+  rysowanieRef.current = rysowanie;
+  const elementyRef = useRef<ElementSzkicu[]>(rysowanie?.elementy ?? []);
+  elementyRef.current = rysowanie?.elementy ?? [];
+  const liniowkaSvgRef = useRef(liniowkaSvg);
+  liniowkaSvgRef.current = liniowkaSvg;
+  const onPressOdcinekRef = useRef(liniowka?.onPressOdcinek);
+  onPressOdcinekRef.current = liniowka?.onPressOdcinek;
+  const ostatniPanMs = useRef(0);
+
+  const szkiceSvg = useMemo(() => {
+    if (!mapa) return [];
+    const toSvg = (p: Punkt2D) => pdfDoSvgPodgladu(p, mapa.mapaSvg);
+    const lista: SzkicPodgladu[] = [
+      ...(liniowka?.szkice ?? []),
+      ...(rysowanie ? [{ id: 'rysowany', krycie: 0.5, elementy: rysowanie.elementy }] : []),
+    ];
+    return lista.map((sz) => ({
+      id: sz.id,
+      krycie: sz.krycie,
+      poIndeksie: sz.poIndeksie ?? Infinity,
+      elementy: sz.elementy.map((e) => ({
+        id: e.id,
+        d: sciezkaSvg(e.punktyPdf.map(toSvg), !!e.wypelnienie),
+        kolor: e.kolor,
+        szer: Math.max(0.2, e.gruboscPdf * mapa.skalaFit),
+        wypelnienie: e.wypelnienie,
+      })),
+    }));
+  }, [mapa, liniowka?.szkice, rysowanie]);
+
   const mapaRef = useRef(mapa);
   mapaRef.current = mapa;
   const zmierzRef = useRef(zmierz);
@@ -446,10 +608,93 @@ export function PztArkuszPodglad({
     return svgDoPdfPodgladu(svg, m.mapaSvg);
   };
 
+  const tapRef = useRef<(x: number, y: number) => void>(() => undefined);
+  const pdfNaEkranPx = () => (mapaRef.current?.skalaFit ?? 1) * bazaSkali.current;
+
+  const zmienElementy = (elementy: ElementSzkicu[]) => {
+    elementyRef.current = elementy;
+    rysowanieRef.current?.onZmien(elementy);
+  };
+
+  const gumkaW = (ekranX: number, ekranY: number) => {
+    const pdf = pdfZEkranu(ekranX, ekranY);
+    if (!pdf) return;
+    const po = wymazGumka(elementyRef.current, pdf, PROMIEN_GUMKI_PX / pdfNaEkranPx());
+    if (po !== elementyRef.current && (po.length !== elementyRef.current.length || po.some((e, i) => e !== elementyRef.current[i]))) {
+      zmienElementy(po);
+    }
+  };
+
+  const rysujPunkt = (ekranX: number, ekranY: number) => {
+    const r = rysowanieRef.current;
+    if (!r) return;
+    if (r.narzedzie === 'gumka') {
+      gumkaW(ekranX, ekranY);
+      return;
+    }
+    if (r.narzedzie !== 'pioro') return;
+    const pdf = pdfZEkranu(ekranX, ekranY);
+    if (!pdf) return;
+    const next = dodajPunktKreski(kreskaRef.current, pdf, 2 / pdfNaEkranPx());
+    if (next !== kreskaRef.current) {
+      kreskaRef.current = next;
+      setKreska(next);
+    }
+  };
+
+  const zakonczKreske = () => {
+    const r = rysowanieRef.current;
+    const pts = kreskaRef.current;
+    kreskaRef.current = [];
+    setKreska([]);
+    if (!r || r.narzedzie !== 'pioro' || pts.length < 2) return;
+    zmienElementy([
+      ...elementyRef.current,
+      {
+        id: `k${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+        punktyPdf: pts,
+        kolor: r.kolor,
+        gruboscPdf: r.gruboscPx / pdfNaEkranPx(),
+      },
+    ]);
+  };
+
   const obsluzTapMapy = (ekranX: number, ekranY: number) => {
     if (zmierzRef.current) {
       dodajPunktPomiaru(ekranX, ekranY);
       return;
+    }
+    const r = rysowanieRef.current;
+    if (r) {
+      if (r.narzedzie === 'gumka') gumkaW(ekranX, ekranY);
+      if (r.narzedzie === 'wiadro') {
+        const pdf = pdfZEkranu(ekranX, ekranY);
+        const po = pdf ? wypelnijWiadrem(elementyRef.current, pdf, r.kolor) : null;
+        if (po) zmienElementy(po);
+      }
+      return;
+    }
+    const lin = liniowkaSvgRef.current;
+    const cbOdcinek = onPressOdcinekRef.current;
+    if (lin.length > 0 && cbOdcinek) {
+      const svg = punktSvgZEkranu({
+        ekranX,
+        ekranY,
+        szer: rozmiarRef.current.w,
+        wys: rozmiarRef.current.h,
+        tx: bazaX.current,
+        ty: bazaY.current,
+        rot: 0,
+        skala: bazaSkali.current,
+      });
+      const zasieg = (PROMIEN_ZNAKU_PX + 5) / bazaSkali.current;
+      const odGory = [...lin].reverse();
+      const zeZnakiem = odGory.find((o) => o.znaki.some((z) => Math.hypot(z.x - svg.x, z.y - svg.y) <= zasieg));
+      const trafiony = zeZnakiem ?? odGory.find((o) => o.wielokaty.some((w) => punktWWielokacie(svg, w.pts)));
+      if (trafiony) {
+        cbOdcinek(trafiony.id);
+        return;
+      }
     }
     const m = mapaRef.current;
     if (m?.maszyny && onPressAutoRef.current) {
@@ -471,6 +716,8 @@ export function PztArkuszPodglad({
     }
     wskazNaMapie(ekranX, ekranY);
   };
+
+  tapRef.current = obsluzTapMapy;
 
   const dodajPunktPomiaru = (ekranX: number, ekranY: number) => {
     const m = mapaRef.current;
@@ -594,9 +841,15 @@ export function PztArkuszPodglad({
     };
     el.addEventListener('wheel', handler, { passive: false });
     const onClick = (e: MouseEvent) => {
-      if (!zmierzRef.current) return;
       const rect = el.getBoundingClientRect();
-      dodajPunktPomiaru(e.clientX - rect.left, e.clientY - rect.top);
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      if (zmierzRef.current) {
+        dodajPunktPomiaru(x, y);
+        return;
+      }
+      if (Date.now() - ostatniPanMs.current < 350) return;
+      tapRef.current(x, y);
     };
     el.addEventListener('click', onClick);
     odpinWheel.current = () => {
@@ -679,6 +932,12 @@ export function PztArkuszPodglad({
 
   const onPan = (e: any) => {
     if (e.nativeEvent.numberOfPointers > 1) return;
+    if (rysowanieRef.current) {
+      const x = e.nativeEvent.x as number | undefined;
+      const y = e.nativeEvent.y as number | undefined;
+      if (x != null && y != null) rysujPunkt(x, y);
+      return;
+    }
     const t = clampTrans(
       bazaX.current + e.nativeEvent.translationX * PAN_CZYNNIK,
       bazaY.current + e.nativeEvent.translationY * PAN_CZYNNIK,
@@ -692,6 +951,26 @@ export function PztArkuszPodglad({
     const dy = e.nativeEvent.translationY ?? 0;
     const tap = Math.hypot(dx, dy) < TAP_MAX;
     if (st === State.ACTIVE) onDotykZmiana?.(true);
+    if (rysowanieRef.current) {
+      const x = e.nativeEvent.x as number | undefined;
+      const y = e.nativeEvent.y as number | undefined;
+      if (st === State.BEGAN) {
+        kreskaRef.current = [];
+        // Gumka dopiero przy ruchu: usunięcie ścieżki pod kursorem w pointerdown psuje przechwycenie wskaźnika na webie.
+        if (x != null && y != null && rysowanieRef.current.narzedzie === 'pioro') rysujPunkt(x, y);
+      }
+      if (st === State.FAILED || st === State.CANCELLED || st === State.END) {
+        if (tap && kreskaRef.current.length < 2) {
+          kreskaRef.current = [];
+          if (x != null && y != null) obsluzTapMapy(x, y);
+        }
+        zakonczKreske();
+        ostatniPanMs.current = Date.now();
+        onDotykZmiana?.(false);
+      }
+      return;
+    }
+    if (e.nativeEvent.oldState === State.ACTIVE && !tap) ostatniPanMs.current = Date.now();
     if (e.nativeEvent.oldState !== State.ACTIVE) {
       if (st === State.FAILED || st === State.CANCELLED || st === State.END) {
         if (tap) {
@@ -734,7 +1013,7 @@ export function PztArkuszPodglad({
     );
   }
 
-  const panOffset = blokadaPodgladu ? 2 : 14;
+  const panOffset = rysowanie ? 1 : (blokadaPodgladu ? 2 : 14);
   const gXform = `translate(${rozmiar.w / 2 + xform.tx},${rozmiar.h / 2 + xform.ty}) scale(${xform.s}) translate(${-rozmiar.w / 2},${-rozmiar.h / 2})`;
   const swEkran = 1.25;
   const dash = 5 / Math.max(xform.s, 0.12);
@@ -744,6 +1023,32 @@ export function PztArkuszPodglad({
   const buforTla = tloMeta && tickTla >= 0
     ? (buforTlaArkusza(arkusz.id) ?? podlaczBuforDoArkusza(arkusz.id, tloMeta.nazwa) ?? null)
     : null;
+  const sZnak = Math.max(xform.s, 0.08);
+  const rZnakInfo = PROMIEN_ZNAKU_PX / sZnak;
+  const podswietlony = liniowka?.podswietlonyId
+    ? liniowkaSvg.find((o) => o.id === liniowka.podswietlonyId)
+    : undefined;
+  const kreskaSvg = kreska.length >= 2 && mapa
+    ? sciezkaSvg(kreska.map((p) => pdfDoSvgPodgladu(p, mapa.mapaSvg)), false)
+    : '';
+  const szkiceMiedzy = (lo: number, hi: number) => szkiceSvg
+    .filter((sz) => sz.poIndeksie > lo && sz.poIndeksie <= hi)
+    .map((sz) => (
+      <G key={`sz-${sz.id}`}>
+        {sz.elementy.map((e) => (
+          <Path
+            key={e.id}
+            d={e.d}
+            stroke={e.kolor}
+            strokeWidth={e.szer}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            fill={e.wypelnienie ?? 'none'}
+            fillOpacity={e.wypelnienie ? sz.krycie : 0}
+          />
+        ))}
+      </G>
+    ));
 
   return (
     <View>
@@ -868,10 +1173,11 @@ export function PztArkuszPodglad({
                       width={rozmiar.w}
                       height={rozmiar.h}
                       style={{ backgroundColor: 'transparent' }}
-                      onPress={(e) => {
+                      onPress={Platform.OS === 'web' ? undefined : (e) => {
                         const ne = e.nativeEvent as { locationX?: number; x?: number; locationY?: number; y?: number };
                         const x = ne.locationX ?? ne.x;
                         const y = ne.locationY ?? ne.y;
+                        if (Date.now() - ostatniPanMs.current < 350) return;
                         if (x != null && y != null) obsluzTapMapy(x, y);
                       }}
                     >
@@ -914,6 +1220,26 @@ export function PztArkuszPodglad({
                         {mapa.ulozone.map((pts, i) => (
                           <Polygon key={`ulo-${i}`} points={pts} fill={FILL_ULOZONE} />
                         ))}
+                        {liniowkaSvg.map((o, i) => (
+                          <G key={`lin-${o.id}`}>
+                            {szkiceMiedzy(i === 0 ? -1 : liniowkaSvg[i - 1].idx, o.idx)}
+                            {o.wielokaty.map((w, j) => (
+                              <Polygon
+                                key={j}
+                                points={w.punkty}
+                                fill={o.kolor}
+                                fillOpacity={o.krycie}
+                                stroke={o.reczny ? o.kolor : 'none'}
+                                strokeOpacity={1}
+                                strokeWidth={o.reczny ? swEkran * 1.6 : 0}
+                                strokeDasharray={o.reczny ? `${dash * 1.4} ${dash}` : undefined}
+                                strokeLinejoin="round"
+                                vectorEffect="non-scaling-stroke"
+                              />
+                            ))}
+                          </G>
+                        ))}
+                        {szkiceMiedzy(liniowkaSvg.length ? liniowkaSvg[liniowkaSvg.length - 1].idx : -1, Infinity)}
                         {mapa.obszary.flatMap((o) =>
                           o.krawedzniki.map((k) => (
                             <Polyline
@@ -1006,6 +1332,83 @@ export function PztArkuszPodglad({
                             </G>
                           );
                         })}
+                        {liniowkaSvg.flatMap((o) => o.kreski.map((k) => {
+                          const kolor = k.rola === 'start' ? '#16A34A' : '#DC2626';
+                          return (
+                            <G key={`lk-${o.id}-${k.rola}`}>
+                              <Line
+                                x1={k.x1}
+                                y1={k.y1}
+                                x2={k.x2}
+                                y2={k.y2}
+                                stroke={kolor}
+                                strokeWidth={swEkran * 1.8}
+                                strokeLinecap="butt"
+                                vectorEffect="non-scaling-stroke"
+                              />
+                              <Polygon
+                                points={strzalka(k.mx, k.my, k.ux, k.uy, sZnak)}
+                                fill={kolor}
+                                stroke="#FFFFFF"
+                                strokeWidth={1}
+                                vectorEffect="non-scaling-stroke"
+                              />
+                            </G>
+                          );
+                        }))}
+                        {podswietlony ? (
+                          <G>
+                            {podswietlony.wielokaty.map((w, j) => (
+                              <Polygon
+                                key={`ps-${j}`}
+                                points={w.punkty}
+                                fill={podswietlony.kolor}
+                                fillOpacity={Math.min(1, podswietlony.krycie + 0.2)}
+                                stroke="#F59E0B"
+                                strokeWidth={4}
+                                strokeLinejoin="round"
+                                vectorEffect="non-scaling-stroke"
+                              />
+                            ))}
+                          </G>
+                        ) : null}
+                        {liniowkaSvg.flatMap((o) => o.znaki.map((z, j) => {
+                          const on = o.id === liniowka?.podswietlonyId;
+                          return (
+                            <G key={`li-${o.id}-${j}`}>
+                              <Circle
+                                cx={z.x}
+                                cy={z.y}
+                                r={rZnakInfo}
+                                fill={on ? '#F59E0B' : '#1D4ED8'}
+                                stroke="#FFFFFF"
+                                strokeWidth={1.5}
+                                vectorEffect="non-scaling-stroke"
+                              />
+                              <SvgText
+                                x={z.x}
+                                y={z.y + rZnakInfo * 0.42}
+                                fontSize={rZnakInfo * 1.25}
+                                fontWeight="800"
+                                fontStyle="italic"
+                                fill="#FFFFFF"
+                                textAnchor="middle"
+                              >
+                                i
+                              </SvgText>
+                            </G>
+                          );
+                        }))}
+                        {kreskaSvg && rysowanie ? (
+                          <Path
+                            d={kreskaSvg}
+                            stroke={rysowanie.kolor}
+                            strokeWidth={rysowanie.gruboscPx / sZnak}
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            fill="none"
+                          />
+                        ) : null}
                         {mapa.maszyny.map((m) => (
                           <G key={m.id} onPress={m.rodzaj === 'auto' ? () => onPressAuto?.(m.id) : undefined}>
                             <MaszynaObmiaru
