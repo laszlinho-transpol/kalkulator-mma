@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.48';
+export const WERSJA_APLIKACJI = '1.8.49';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,21 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.49',
+    data: '2026-10-20',
+    tytul: 'Liniówka: podświetlenie LED i szkic po warstwie',
+    zmiany: [
+      'Obszar wybrany znakiem „i” świeci jak ramka LED (jasny obrys z poświatą)',
+      'Zielona strzałka startu jest przy każdej działce – także gdy dzień zaczyna się na krawędzi arkusza; strzałki leżą na wierzchu swojej warstwy',
+      'Strzałki i znaki „i” mają wielkość dopasowaną do pliku – rosną i maleją razem z planem',
+      'Szkicuj: najpierw wybór warstwy. Istniejąca warstwa – malujesz tylko po jej obszarze (obrys przerywany); nowa warstwa z nazwą i opisem – po całym arkuszu',
+      'Wiaderko wypełnia powierzchnię do linii szkicu i krawędzi obszaru',
+      'Po OK program liczy zamalowaną powierzchnię (razem i na obszar); szkic można podłączyć do raportu dziennego – widać go w raporcie',
+      'Stuknięcie w szkic na liniówce pokazuje jego powierzchnię, raport i opis',
+      'Najcieńsza linia szkicu ma grubość linii obszaru – precyzyjna przy dużym przybliżeniu',
+    ],
+  },
   {
     wersja: '1.8.48',
     data: '2026-10-20',
