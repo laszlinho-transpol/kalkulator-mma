@@ -615,14 +615,27 @@ export interface WpisRecznyLiniowki {
   updatedAt: string;
 }
 
-/** Kreska szkicu. Punkty we współrzędnych PDF arkusza, grubość w jednostkach PDF. */
+/**
+ * Kreska szkicu. Punkty we współrzędnych PDF arkusza, grubość w jednostkach PDF.
+ * Grubość 0 = linia obszaru (cienka jak obrys XFDF przy każdym przybliżeniu).
+ */
 export interface ElementSzkicu {
   id: string;
   punktyPdf: Punkt2D[];
   kolor: string;
   gruboscPdf: number;
-  /** Kolor wypełnienia z wiaderka – tylko dla zamkniętego obrysu. */
+  /** Kolor wypełnienia z wiaderka. */
   wypelnienie?: string;
+  /** Plama z wiaderka – wielokąt wypełnienia bez obrysu. */
+  plama?: boolean;
+  /** Niezamalowane wyspy wewnątrz plamy. */
+  otwory?: Punkt2D[][];
+}
+
+export interface PowierzchniaSzkicuObszaru {
+  obszarId: string;
+  obszarNazwa: string;
+  m2: number;
 }
 
 export interface SzkicLiniowki {
@@ -632,6 +645,11 @@ export interface SzkicLiniowki {
   /** Klucz warstwy liniówki: kategoria, `inna|nazwa` albo `wlasna|id`. */
   warstwaKlucz: string;
   opis?: string;
+  /** Zamalowana powierzchnia z dnia zapisu [m²]. */
+  powierzchniaM2?: number;
+  powierzchnie?: PowierzchniaSzkicuObszaru[];
+  /** Raport dzienny, do którego podłączono szkic. */
+  raportId?: string;
   createdAt: string;
   updatedAt: string;
 }

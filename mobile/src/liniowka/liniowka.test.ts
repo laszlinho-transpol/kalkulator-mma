@@ -1,10 +1,14 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import type { ElementSzkicu, ProjektBudowy, WarstwaKonstrukcji } from '../types';
+import type { ArkuszPzt, ElementSzkicu, ProjektBudowy, Punkt2D, WarstwaKonstrukcji } from '../types';
 import type { RaportDzienny } from '../raportyBudowy/typy';
+import { poleZamalowaniaPdf, wypelnijDoKrawedzi } from './rasterSzkicu';
 import {
   dodajWarstweWlasna,
+  elementPodPunktem,
   kluczWarstwyLiniowki,
+  obszaryWarstwy,
+  powierzchnieSzkicu,
   posortujDoRysowania,
   przywrocKoloryDomyslne,
   segmentyLiniowki,
@@ -14,7 +18,6 @@ import {
   ustawKolorWarstwy,
   warstwyLiniowki,
   wymazGumka,
-  wypelnijWiadrem,
   zapiszWpisReczny,
 } from './liniowka';
 
@@ -140,10 +143,56 @@ describe('liniówka – szkic', () => {
     punktyPdf: [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }, { x: 0, y: 10 }, { x: 0, y: 0.5 }],
   };
 
-  it('wiaderko wypełnia obrys zawierający punkt', () => {
-    const w = wypelnijWiadrem([kwadrat], { x: 5, y: 5 }, '#0f0');
-    assert.equal(w?.[0].wypelnienie, '#0f0');
-    assert.equal(wypelnijWiadrem([kwadrat], { x: 50, y: 5 }, '#0f0'), null);
+  const zakres = { minX: -20, minY: -20, maxX: 40, maxY: 40 };
+  const pas: Punkt2D[] = [{ x: -10, y: 0 }, { x: 30, y: 0 }, { x: 30, y: 10 }, { x: -10, y: 10 }];
+
+  it('wiaderko wypełnia narysowany obrys jako plamę SVG', () => {
+    const w = wypelnijDoKrawedzi({ elementy: [kwadrat], punkt: { x: 5, y: 5 }, kolor: '#0f0', krawedzie: [], zakres, liniaObszaruPdf: 0.1, maxBoku: 300 });
+    const plama = w?.[1];
+    assert.equal(plama?.plama, true);
+    assert.equal(plama?.wypelnienie, '#0f0');
+    const pole = poleZamalowaniaPdf([plama!]);
+    // wnętrze kwadratu 10×10 bez połowy grubości kreski: ok. 9×9
+    assert.ok(pole > 78 && pole < 100, `pole ${pole}`);
+    assert.equal(wypelnijDoKrawedzi({ elementy: [kwadrat], punkt: { x: 25, y: 25 }, kolor: '#0f0', krawedzie: [], zakres, liniaObszaruPdf: 0.1 }), null);
+  });
+
+  it('wiaderko zatrzymuje się na liniach szkicu i krawędziach obszaru', () => {
+    const kreska = (x: number): ElementSzkicu => ({ id: `k${x}`, kolor: '#f00', gruboscPdf: 0.4, punktyPdf: [{ x, y: -5 }, { x, y: 15 }] });
+    const w = wypelnijDoKrawedzi({
+      elementy: [kreska(0), kreska(20)], punkt: { x: 10, y: 5 }, kolor: '#00f', krawedzie: [pas], dozwolone: [pas], zakres, liniaObszaruPdf: 0.1, maxBoku: 400,
+    });
+    const plama = w!.find((e) => e.plama)!;
+    const pole = poleZamalowaniaPdf([plama]);
+    assert.ok(pole > 180 && pole < 225, `pole ${pole}`);
+    assert.equal(wypelnijDoKrawedzi({
+      elementy: [], punkt: { x: 10, y: 25 }, kolor: '#00f', krawedzie: [pas], dozwolone: [pas], zakres, liniaObszaruPdf: 0.1,
+    }), null);
+  });
+
+  it('pole kreski przycięte do obszaru warstwy i przeliczone na m²', () => {
+    const arkusz = {
+      id: 'a1', nazwa: 'A', zrodloNazwa: '', kolejnosc: 1, kontynuacjaPoprzedniego: false, kilometrazPoczatkowyM: 0, kilometrazKoncowyM: 100,
+      obszary: [{ id: 'o1', nazwa: 'Trasa P', kolejnosc: 1, wierzcholkiPdf: pas, wierzcholkiM: [], powierzchniaM2: 1600, obwodM: 0, zrodloNazwa: '', kolorWypelnienia: '#FFEE58' }],
+    } as ArkuszPzt;
+    const p = { ...projekt, arkusze: [arkusz] };
+    const klip = obszaryWarstwy(p, arkusz, 'wiazaca');
+    assert.deepEqual(klip?.map((o) => o.id), ['o1']);
+    assert.equal(obszaryWarstwy(p, arkusz, 'wlasna|x'), null);
+    const kreska: ElementSzkicu = { id: 'k', kolor: '#f00', gruboscPdf: 2, punktyPdf: [{ x: 0, y: -10 }, { x: 0, y: 20 }] };
+    const { razemM2, powierzchnie } = powierzchnieSzkicu([kreska], arkusz, klip);
+    // 2 × 10 jednostek PDF w obszarze, skala 1600 m² / 400 PDF² = 4 m²/PDF²
+    assert.ok(Math.abs(razemM2 - 80) < 6, `m² ${razemM2}`);
+    assert.equal(powierzchnie[0].obszarNazwa, 'Trasa P');
+    const bezKlipu = powierzchnieSzkicu([kreska], arkusz, null);
+    assert.ok(bezKlipu.razemM2 > razemM2 * 2.5);
+  });
+
+  it('element pod punktem: plama i kreska', () => {
+    const plama: ElementSzkicu = { id: 'p', kolor: '#0f0', gruboscPdf: 0, plama: true, wypelnienie: '#0f0', punktyPdf: pas };
+    assert.equal(elementPodPunktem([kwadrat, plama], { x: 20, y: 5 }, 0.5)?.id, 'p');
+    assert.equal(elementPodPunktem([kwadrat], { x: 10.2, y: 5 }, 0.5)?.id, 'e1');
+    assert.equal(elementPodPunktem([kwadrat], { x: 50, y: 50 }, 0.5), undefined);
   });
 
   it('gumka dzieli kreskę i usuwa wymazany fragment', () => {

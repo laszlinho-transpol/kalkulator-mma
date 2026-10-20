@@ -3,18 +3,22 @@
 // ============================================================
 
 import type {
+  ArkuszPzt,
   ElementSzkicu,
   KategoriaWarstwy,
   KolorWarstwyLiniowki,
   LiniowkaProjektu,
+  ObszarObmiaru,
+  PowierzchniaSzkicuObszaru,
   ProjektBudowy,
   Punkt2D,
   SzkicLiniowki,
   WpisRecznyLiniowki,
 } from '../types';
 import type { RaportDzienny } from '../raportyBudowy/typy';
-import { segmentyKonstrukcji } from '../utils/projektBudowy';
+import { kluczLegendy, segmentyKonstrukcji } from '../utils/projektBudowy';
 import { pasujeWarstwa } from '../utils/planZBudowy';
+import { poleZamalowaniaPdf } from './rasterSzkicu';
 
 export const KOLORY_DOMYSLNE: Record<Exclude<KategoriaWarstwy, 'inna'>, KolorWarstwyLiniowki> = {
   sma: { kolor: '#16A34A', krycie: 0.9 },
@@ -333,17 +337,67 @@ export function wymazGumka(elementy: ElementSzkicu[], p: Punkt2D, promien: numbe
   return out;
 }
 
-/** Wiaderko: wypełnia najmniejszy obrys zawierający punkt. Null, gdy punkt jest poza obrysami. */
-export function wypelnijWiadrem(elementy: ElementSzkicu[], p: Punkt2D, kolor: string): ElementSzkicu[] | null {
-  let best: { i: number; pole: number } | null = null;
-  elementy.forEach((e, i) => {
-    if (e.punktyPdf.length < 3 || !punktWWielokacie(p, e.punktyPdf)) return;
-    const pole = poleWielokata(e.punktyPdf);
-    if (!best || pole < best.pole) best = { i, pole };
-  });
-  if (!best) return null;
-  const idx = (best as { i: number }).i;
-  return elementy.map((e, i) => (i === idx ? { ...e, wypelnienie: kolor } : e));
+/** Element szkicu pod punktem: wnętrze plamy/wypełnienia albo blisko kreski. */
+export function elementPodPunktem(elementy: ElementSzkicu[], p: Punkt2D, tolerancja: number): ElementSzkicu | undefined {
+  for (let i = elementy.length - 1; i >= 0; i--) {
+    const e = elementy[i];
+    if (e.wypelnienie && e.punktyPdf.length >= 3 && punktWWielokacie(p, e.punktyPdf)
+      && !(e.otwory ?? []).some((o) => punktWWielokacie(p, o))) return e;
+    const pol = tolerancja + e.gruboscPdf / 2;
+    if (!e.plama && e.punktyPdf.some((q, k) => k > 0 && odlOdOdcinka(p, e.punktyPdf[k - 1], q) <= pol)) return e;
+  }
+  return undefined;
+}
+
+/**
+ * Obszary arkusza, po których wolno malować warstwą: te, których konstrukcja ma tę warstwę.
+ * Null dla warstwy własnej (rysunek po całym arkuszu). Brak dopasowania = wszystkie obszary arkusza.
+ */
+export function obszaryWarstwy(projekt: ProjektBudowy, arkusz: ArkuszPzt, klucz: string): ObszarObmiaru[] | null {
+  if (klucz.startsWith('wlasna|')) return null;
+  const kluczeLegendy = new Set<string>();
+  for (const k of projekt.konstrukcje) {
+    const warstwy = [...k.warstwy, ...k.wyjatki.flatMap((w) => w.warstwy)];
+    if (!warstwy.some((w) => kluczWarstwyLiniowki(w.kategoria, w.nazwa) === klucz)) continue;
+    const wpis = projekt.legenda.find((l) => l.id === k.legendaId && l.typ === 'obszar');
+    if (wpis) kluczeLegendy.add(wpis.klucz);
+  }
+  const pasujace = arkusz.obszary.filter((o) => kluczeLegendy.has(kluczLegendy('obszar', o.kolorWypelnienia)));
+  return pasujace.length > 0 ? pasujace : arkusz.obszary;
+}
+
+/** m² terenu na jednostkę² PDF – z powierzchni obszaru XFDF. */
+export function skalaM2Obszaru(o: ObszarObmiaru): number | null {
+  const pdf = poleWielokata(o.wierzcholkiPdf);
+  return pdf > 1e-9 && o.powierzchniaM2 > 0 ? o.powierzchniaM2 / pdf : null;
+}
+
+function skalaM2Arkusza(arkusz: ArkuszPzt): number {
+  const skale = arkusz.obszary.map(skalaM2Obszaru).filter((x): x is number => x != null).sort((a, b) => a - b);
+  return skale.length > 0 ? skale[Math.floor(skale.length / 2)] : 1;
+}
+
+/**
+ * Powierzchnia zamalowana szkicem [m²]. Z klipem warstwy liczy tylko wnętrze jej obszarów;
+ * bez klipu – całość, z rozbiciem na obszary arkusza, które szkic zachodzi.
+ */
+export function powierzchnieSzkicu(
+  elementy: ElementSzkicu[],
+  arkusz: ArkuszPzt,
+  klip: ObszarObmiaru[] | null,
+): { razemM2: number; powierzchnie: PowierzchniaSzkicuObszaru[] } {
+  const zaokr = (x: number) => Math.round(x * 100) / 100;
+  const powierzchnie = (klip ?? arkusz.obszary)
+    .map((o) => ({
+      obszarId: o.id,
+      obszarNazwa: o.nazwa,
+      m2: zaokr(poleZamalowaniaPdf(elementy, o.wierzcholkiPdf) * (skalaM2Obszaru(o) ?? skalaM2Arkusza(arkusz))),
+    }))
+    .filter((p) => p.m2 > 0);
+  const razemM2 = klip
+    ? zaokr(powierzchnie.reduce((s, p) => s + p.m2, 0))
+    : zaokr(poleZamalowaniaPdf(elementy) * skalaM2Arkusza(arkusz));
+  return { razemM2, powierzchnie };
 }
 
 /** Upraszcza kreskę – pomija punkty bliżej niż minOdl od poprzedniego. */
@@ -353,9 +407,19 @@ export function dodajPunktKreski(pts: Punkt2D[], p: Punkt2D, minOdl: number): Pu
   return [...pts, p];
 }
 
-export function nowySzkic(arkuszId: string, elementy: ElementSzkicu[], warstwaKlucz: string, opis?: string): SzkicLiniowki {
+export function nowySzkic(
+  arkuszId: string,
+  elementy: ElementSzkicu[],
+  warstwaKlucz: string,
+  dodatki: Partial<Pick<SzkicLiniowki, 'opis' | 'powierzchniaM2' | 'powierzchnie' | 'raportId'>> = {},
+): SzkicLiniowki {
   const teraz = new Date().toISOString();
-  return { id: noweId(), arkuszId, elementy, warstwaKlucz, opis, createdAt: teraz, updatedAt: teraz };
+  return { id: noweId(), arkuszId, elementy, warstwaKlucz, ...dodatki, createdAt: teraz, updatedAt: teraz };
+}
+
+/** Szkice podłączone do raportu dziennego. */
+export function szkiceRaportu(projekt: ProjektBudowy | undefined, raportId: string): SzkicLiniowki[] {
+  return (projekt?.liniowka?.szkice ?? []).filter((s) => s.raportId === raportId);
 }
 
 export function zapiszSzkic(projekt: ProjektBudowy, szkic: SzkicLiniowki): ProjektBudowy {
