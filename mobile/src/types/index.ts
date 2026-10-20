@@ -589,7 +589,63 @@ export interface WierszPrzedmiaruScalony {
   nazwa?: string;
 }
 
+export interface KolorWarstwyLiniowki {
+  kolor: string;
+  /** 0–1 */
+  krycie: number;
+}
+
+/** Warstwa dodana ze szkicu – trafia na liniówkę i do filtra. */
+export interface WarstwaWlasnaLiniowki {
+  id: string;
+  nazwa: string;
+  opis?: string;
+}
+
+/** Obszar ułożony poza raportem (np. przez inną firmę). */
+export interface WpisRecznyLiniowki {
+  id: string;
+  /** YYYY-MM-DD */
+  data: string;
+  zakladki: ZakladkaPlanuBudowy[];
+  /** Powierzchnia każdej zakładki [m²] w dniu zapisu. */
+  powierzchnieM2: number[];
+  komentarz?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Kreska szkicu. Punkty we współrzędnych PDF arkusza, grubość w jednostkach PDF. */
+export interface ElementSzkicu {
+  id: string;
+  punktyPdf: Punkt2D[];
+  kolor: string;
+  gruboscPdf: number;
+  /** Kolor wypełnienia z wiaderka – tylko dla zamkniętego obrysu. */
+  wypelnienie?: string;
+}
+
+export interface SzkicLiniowki {
+  id: string;
+  arkuszId: string;
+  elementy: ElementSzkicu[];
+  /** Klucz warstwy liniówki: kategoria, `inna|nazwa` albo `wlasna|id`. */
+  warstwaKlucz: string;
+  opis?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LiniowkaProjektu {
+  /** Klucz warstwy liniówki → kolor i krycie. Brak = domyślne. */
+  kolory?: Record<string, KolorWarstwyLiniowki>;
+  warstwyWlasne?: WarstwaWlasnaLiniowki[];
+  reczne?: WpisRecznyLiniowki[];
+  szkice?: SzkicLiniowki[];
+}
+
 export interface ProjektBudowy {
+  liniowka?: LiniowkaProjektu;
   kilometrazPoczatkowyM: number;
   /** Co ile metrów rysować podziałkę na osi PZT (0 = wyłącz). Domyślnie 50. */
   podzialkaKilometrazuM?: number;
