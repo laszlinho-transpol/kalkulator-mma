@@ -1,10 +1,20 @@
 import React from 'react';
-import { View, Text, StyleSheet, TextInput } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
 import type { AppTheme } from '../../constants/theme';
 import type { ProjektBudowy } from '../../types';
 import { karta } from '../../constants/layout';
 import { InfoTooltip } from '../common/InfoTooltip';
-import { uzupelnijKonstrukcjeDlaLegendy } from '../../utils/projektBudowy';
+import { normalizujKolorHex, uzupelnijKonstrukcjeDlaLegendy } from '../../utils/projektBudowy';
+import {
+  KOLORY_DOMYSLNE, PALETA_INNYCH, przywrocKoloryDomyslne, ustawKolorWarstwy, warstwyLiniowki, type WarstwaLiniowki,
+} from '../../liniowka/liniowka';
+import { Przycisk, Sekcja } from '../ui';
+
+const PALETA_LINIOWKI = [
+  ...Object.values(KOLORY_DOMYSLNE).map((k) => k.kolor),
+  ...PALETA_INNYCH,
+  '#111827',
+];
 
 interface Props {
   projekt: ProjektBudowy;
@@ -74,15 +84,21 @@ export function SekcjaLegenda({ projekt, theme, onZmien }: Props) {
     </View>
   );
 
+  const kolory = <KoloryLiniowki projekt={projekt} theme={theme} onZmien={onZmien} />;
+
   if (projekt.legenda.length === 0) {
     return (
-      <Text style={{ color: theme.colors.textSecondary, fontSize: 13 }}>
-        Najpierw wgraj arkusze PZT — program zbierze kolory obszarów, linii i osi do legendy.
-      </Text>
+      <View style={{ gap: 14 }}>
+        <Text style={{ color: theme.colors.textSecondary, fontSize: 13 }}>
+          Najpierw wgraj arkusze PZT — program zbierze kolory obszarów, linii i osi do legendy.
+        </Text>
+        {kolory}
+      </View>
     );
   }
 
   return (
+    <View style={{ gap: 14 }}>
     <View style={{ gap: 10 }}>
       <View style={styles.nag}>
         <Text style={{ color: theme.colors.text, fontWeight: '800' }}>Kolory z PZT</Text>
@@ -101,6 +117,70 @@ export function SekcjaLegenda({ projekt, theme, onZmien }: Props) {
       )}
       {osie.map(wiersz('oś'))}
     </View>
+    {kolory}
+    </View>
+  );
+}
+
+function KoloryLiniowki({ projekt, theme, onZmien }: Props) {
+  const warstwy = warstwyLiniowki(projekt, [], { wszystkieGlowne: true });
+  const ustaw = (w: WarstwaLiniowki, patch: Partial<{ kolor: string; krycie: number }>) => {
+    onZmien(ustawKolorWarstwy(projekt, w.klucz, { kolor: patch.kolor ?? w.kolor, krycie: patch.krycie ?? w.krycie }));
+  };
+  return (
+    <Sekcja
+      tytul="Kolory warstw liniówki"
+      info="Kolor i krycie każdej warstwy na liniówce. Ścieralna zawsze leży na wierzchu i zakrywa niższe warstwy."
+    >
+      <View style={{ gap: 12 }}>
+        {warstwy.map((w) => (
+          <View
+            key={w.klucz}
+            accessibilityLabel={`Kolor liniówki ${w.nazwa}`}
+            style={[styles.warstwa, { borderColor: theme.colors.border, backgroundColor: theme.colors.inputBackground }]}
+          >
+            <View style={styles.nag}>
+              <View style={[styles.probka, { borderColor: w.kolor }]}>
+                <View style={[StyleSheet.absoluteFill, { backgroundColor: w.kolor, opacity: w.krycie, borderRadius: 5 }]} />
+              </View>
+              <Text style={{ color: theme.colors.text, fontWeight: '800', flex: 1 }} numberOfLines={1}>{w.nazwa}</Text>
+              <TouchableOpacity
+                accessibilityLabel={`Mniejsze krycie ${w.nazwa}`}
+                onPress={() => ustaw(w, { krycie: Math.max(0.1, Math.round((w.krycie - 0.1) * 10) / 10) })}
+                style={[styles.krok, { borderColor: theme.colors.border }]}
+              >
+                <Text style={{ color: theme.colors.text, fontWeight: '800', fontSize: 16 }}>−</Text>
+              </TouchableOpacity>
+              <Text style={{ color: theme.colors.text, fontWeight: '800', minWidth: 44, textAlign: 'center' }} accessibilityLabel={`Krycie ${w.nazwa}`}>
+                {Math.round(w.krycie * 100)}%
+              </Text>
+              <TouchableOpacity
+                accessibilityLabel={`Większe krycie ${w.nazwa}`}
+                onPress={() => ustaw(w, { krycie: Math.min(1, Math.round((w.krycie + 0.1) * 10) / 10) })}
+                style={[styles.krok, { borderColor: theme.colors.border }]}
+              >
+                <Text style={{ color: theme.colors.text, fontWeight: '800', fontSize: 16 }}>+</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.paleta}>
+              {PALETA_LINIOWKI.map((k) => {
+                const on = normalizujKolorHex(k) === normalizujKolorHex(w.kolor);
+                return (
+                  <TouchableOpacity
+                    key={k}
+                    accessibilityLabel={`${w.nazwa} kolor ${k}`}
+                    accessibilityState={{ selected: on }}
+                    onPress={() => ustaw(w, { kolor: k })}
+                    style={[styles.kolor, { backgroundColor: k, borderColor: on ? theme.colors.text : 'transparent' }]}
+                  />
+                );
+              })}
+            </View>
+          </View>
+        ))}
+        <Przycisk tekst="Przywróć domyślne" wariant="tekst" maly onPress={() => onZmien(przywrocKoloryDomyslne(projekt))} />
+      </View>
+    </Sekcja>
   );
 }
 
@@ -108,5 +188,9 @@ const styles = StyleSheet.create({
   nag: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   probka: { width: 28, height: 28, borderRadius: 6, borderWidth: 1 },
   input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15 },
+  warstwa: { borderWidth: 1, borderRadius: 12, padding: 10, gap: 10 },
+  krok: { width: 32, height: 32, borderRadius: 8, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  paleta: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  kolor: { width: 26, height: 26, borderRadius: 13, borderWidth: 3 },
   sek: { fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.4, marginTop: 4 },
 });
