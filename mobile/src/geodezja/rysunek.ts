@@ -143,15 +143,20 @@ export function rysunekSzkicu(s: SzkicGeodezyjny, w: Widok, o: OpcjeRysunkuSzkic
     const r = (kat * Math.PI) / 180;
     const gora = { x: Math.sin(r), y: -Math.cos(r) };
     const an = analizaLinii(s, l);
-    let napis = `${fm(an?.dlugosc ?? g.dlugosc, 2)} m`;
-    if (an?.spadek != null && an.wDol) {
-      const [z, ku] = an.wDol === 'b' ? [a, b] : [b, a];
-      napis += `  ${fm(an.spadek, 2)}% ${strzalka(kat, z, ku)}`;
-    }
+    const spadek = an?.spadek != null && an.wDol
+      ? `(${fm(an.spadek, 2)}% ${an.wDol === 'b' ? strzalka(kat, a, b) : strzalka(kat, b, a)})`
+      : null;
+    const odsuniecie = spadek ? 20 : 7;
     wynik.push({
-      t: 'tekst', x: m.x + gora.x * 7, y: m.y + gora.y * 7, tekst: napis, kolor: PAPIER.tusz, rozmiar: 12,
-      pogrubiony: true, kotwica: 'middle', obrot: kat, halo: true,
+      t: 'tekst', x: m.x + gora.x * odsuniecie, y: m.y + gora.y * odsuniecie, tekst: `${fm(an?.dlugosc ?? g.dlugosc, 2)} m`,
+      kolor: PAPIER.tusz, rozmiar: 12, pogrubiony: true, kotwica: 'middle', obrot: kat, halo: true,
     });
+    if (spadek) {
+      wynik.push({
+        t: 'tekst', x: m.x + gora.x * 7, y: m.y + gora.y * 7, tekst: spadek, kolor: PAPIER.tusz, rozmiar: 11,
+        pogrubiony: true, kotwica: 'middle', obrot: kat, halo: true,
+      });
+    }
     if (l.cel) {
       const [z, ku] = l.cel.od === 'a' ? [a, b] : [b, a];
       wynik.push({

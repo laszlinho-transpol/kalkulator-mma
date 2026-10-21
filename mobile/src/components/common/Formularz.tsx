@@ -2,7 +2,7 @@
 
 import React from 'react';
 import {
-  StyleSheet, Text, TextInput, TouchableOpacity, useColorScheme, View, type StyleProp, type ViewStyle,
+  Platform, StyleSheet, Text, TextInput, TouchableOpacity, useColorScheme, View, type StyleProp, type ViewStyle,
 } from 'react-native';
 import { lightTheme, darkTheme } from '../../constants/theme';
 import { InfoTooltip } from './InfoTooltip';
@@ -47,6 +47,7 @@ export function Etykieta({ tekst, info, wymagane, prawy }: {
 
 export function Pole({
   etykieta, value, onChangeText, placeholder, accessibilityLabel, liczba, info, jednostka, wymagane, multiline, klawiatura,
+  onFocus, bezKlawiatury, aktywne,
 }: {
   etykieta?: string;
   value: string;
@@ -59,15 +60,27 @@ export function Pole({
   wymagane?: boolean;
   multiline?: boolean;
   klawiatura?: 'url' | 'phone-pad' | 'email-address' | 'numbers-and-punctuation';
+  onFocus?: () => void;
+  /** Bez klawiatury systemowej – wartość wpisuje klawiatura w aplikacji. */
+  bezKlawiatury?: boolean;
+  aktywne?: boolean;
 }) {
   const theme = useMotyw();
   return (
     <View style={styles.pole}>
       {etykieta ? <Etykieta tekst={etykieta} info={info} wymagane={wymagane} /> : null}
-      <View style={[styles.ramka, { borderColor: theme.colors.border, backgroundColor: theme.colors.inputBackground }]}>
+      <View style={[styles.ramka, {
+        borderColor: aktywne ? theme.colors.primary : theme.colors.border,
+        borderWidth: aktywne ? 2 : 1,
+        paddingHorizontal: aktywne ? 11 : 12,
+        backgroundColor: theme.colors.inputBackground,
+      }]}>
         <TextInput
           value={value}
           onChangeText={onChangeText}
+          onFocus={onFocus}
+          showSoftInputOnFocus={bezKlawiatury ? false : undefined}
+          inputMode={bezKlawiatury && Platform.OS === 'web' ? 'none' : undefined}
           placeholder={placeholder}
           placeholderTextColor={theme.colors.textSecondary}
           accessibilityLabel={accessibilityLabel ?? etykieta}
@@ -75,7 +88,10 @@ export function Pole({
           autoCapitalize={klawiatura === 'url' || klawiatura === 'email-address' ? 'none' : undefined}
           autoCorrect={klawiatura ? false : undefined}
           multiline={multiline}
-          style={[styles.input, multiline && styles.inputWiele, { color: theme.colors.text }]}
+          style={[
+            styles.input, multiline && styles.inputWiele, { color: theme.colors.text },
+            bezKlawiatury && Platform.OS === 'web' ? ({ outlineWidth: 0 } as object) : null,
+          ]}
         />
         {jednostka ? <Text style={[styles.jednostka, { color: theme.colors.textSecondary }]}>{jednostka}</Text> : null}
       </View>

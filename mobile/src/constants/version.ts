@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.53';
+export const WERSJA_APLIKACJI = '1.8.54';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,18 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.54',
+    data: '2026-10-21',
+    tytul: 'Szkic geodezyjny: mała klawiatura, panele bez suwaka, punkt zostający przy celu',
+    zmiany: [
+      'Mała klawiatura liczbowa w aplikacji (cyfry, przecinek, ±, cofnij, wyczyść, OK) zamiast systemowej – nie zasłania pół ekranu i nie przesuwa widoku; przy nowym punkcie otwiera się od razu na odczycie',
+      'Okienka punktu, punktu pośredniego i danych stoją przy górnej krawędzi; klawiatura jest pod nimi i niczego nie zasłania',
+      'Panel punktu i połączenia mieści się bez przewijania: dane w zwartych linijkach, pola obok etykiet',
+      'Cel spadku: osobno kierunek spadku i punkt, który zostaje z odczytem z łaty – drugi dostaje odczyt zgodny z celem; wynik celu widać od razu w panelu połączenia (także dla własnego celu punktu pośredniego)',
+      'Nad linią odległość, a pod nią w nawiasie spadek z kierunkiem, np. (1,40% →)',
+    ],
+  },
   {
     wersja: '1.8.53',
     data: '2026-10-21',

@@ -1,11 +1,14 @@
 // Małe okienko nad kartką (dane punktu, odległość, cel) i przyciski pływającego paska narzędzi.
+// Okienko stoi przy górnej krawędzi – klawiatura (systemowa lub liczbowa w okienku) jest pod nim i go nie zasłania.
 
 import React from 'react';
 import { KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMotyw } from '../../hooks/useMotyw';
 import { PROMIEN, TYPOGRAFIA, cien } from '../../constants/styl';
 import { Naciskany } from '../ui/Naciskany';
 import { Przycisk } from '../ui/Przycisk';
+import { KlawiaturaLiczb, StrefaKlawiatury } from './KlawiaturaLiczb';
 
 export function Okienko({ widoczne, tytul, onAnuluj, onZapisz, tekstZapisz = 'Zapisz', children, dodatkowe }: {
   widoczne: boolean;
@@ -18,22 +21,26 @@ export function Okienko({ widoczne, tytul, onAnuluj, onZapisz, tekstZapisz = 'Za
   dodatkowe?: React.ReactNode;
 }) {
   const theme = useMotyw();
+  const insets = useSafeAreaInsets();
   if (!widoczne) return null;
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onAnuluj}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.tlo}>
-        <View accessibilityLabel={`Okno ${tytul}`} style={[styles.okno, cien(theme), { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-          <Text style={[TYPOGRAFIA.tytulKarty, { color: theme.colors.text }]} numberOfLines={1}>{tytul}</Text>
-          <ScrollView style={{ maxHeight: 460 }} contentContainerStyle={{ gap: 10, paddingVertical: 10 }} keyboardShouldPersistTaps="handled">
-            {children}
-          </ScrollView>
-          <View style={styles.stopka}>
-            {dodatkowe}
-            <View style={{ flex: 1 }} />
-            <Przycisk wariant="drugi" maly tekst={onZapisz ? 'Anuluj' : 'Zamknij'} onPress={onAnuluj} />
-            {onZapisz ? <Przycisk maly tekst={tekstZapisz} onPress={onZapisz} /> : null}
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[styles.tlo, { paddingTop: insets.top + 10 }]}>
+        <StrefaKlawiatury>
+          <View accessibilityLabel={`Okno ${tytul}`} style={[styles.okno, cien(theme), { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+            <Text style={[TYPOGRAFIA.tytulKarty, { color: theme.colors.text }]} numberOfLines={1}>{tytul}</Text>
+            <ScrollView style={styles.tresc} contentContainerStyle={{ gap: 8, paddingVertical: 8 }} keyboardShouldPersistTaps="handled">
+              {children}
+            </ScrollView>
+            <KlawiaturaLiczb />
+            <View style={styles.stopka}>
+              {dodatkowe}
+              <View style={{ flex: 1 }} />
+              <Przycisk wariant="drugi" maly tekst={onZapisz ? 'Anuluj' : 'Zamknij'} onPress={onAnuluj} />
+              {onZapisz ? <Przycisk maly tekst={tekstZapisz} onPress={onZapisz} /> : null}
+            </View>
           </View>
-        </View>
+        </StrefaKlawiatury>
       </KeyboardAvoidingView>
     </Modal>
   );
@@ -77,9 +84,11 @@ export function PasekPlywajacy({ children, style }: { children: React.ReactNode;
 }
 
 const styles = StyleSheet.create({
-  tlo: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', alignItems: 'center', justifyContent: 'center', padding: 16 },
-  okno: { width: '100%', maxWidth: 440, borderRadius: PROMIEN.l, borderWidth: 1, padding: 16 },
-  stopka: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
+  tlo: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: 12, paddingBottom: 12 },
+  okno: { width: '100%', maxWidth: 440, maxHeight: '100%', borderRadius: PROMIEN.l, borderWidth: 1, padding: 14, gap: 6 },
+  // Przewija się tylko wtedy, gdy treść naprawdę nie mieści się nad klawiaturą.
+  tresc: { flexGrow: 0, flexShrink: 1 },
+  stopka: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 },
   pigulka: { borderWidth: 1, borderRadius: PROMIEN.pigulka, paddingHorizontal: 11, paddingVertical: 7 },
   pasek: { borderWidth: 1, borderRadius: PROMIEN.l, padding: 8, gap: 8 },
 });

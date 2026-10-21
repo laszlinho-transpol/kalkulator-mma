@@ -19,7 +19,7 @@ import { opisStatusu } from '../utils/statusBudowy';
 import { dane, tekst, type DokumentPdf, type SekcjaPdf } from './dokumentPdf';
 import { fm, zeZnakiem } from '../geodezja/geometria';
 import {
-  analizaLinii, celeDlaPunktu, horyzontInstrumentu, nazwaPunktu, wysokoscPunktu, type SzkicGeodezyjny,
+  analizaLinii, celeDlaPunktu, horyzontInstrumentu, kotwicaCelu, nazwaPunktu, wysokoscPunktu, type SzkicGeodezyjny,
 } from '../geodezja/szkic';
 import { przeliczPomiar, type PrzekrojPoprzeczny } from '../geodezja/przekroj';
 import { svgPrzekroju, svgSzkicu } from '../geodezja/rysunek';
@@ -499,7 +499,9 @@ export function dokumentSzkicuGeodezyjnego(s: SzkicGeodezyjny): DokumentPdf {
     const a = nazwaPunktu(s, l.a);
     const b = nazwaPunktu(s, l.b);
     const kier = an?.wDol ? (an.wDol === 'b' ? `${a} → ${b}` : `${b} → ${a}`) : '';
-    const cel = l.cel ? `${fm(l.cel.spadek, 2)}% ${l.cel.od === 'a' ? `${a} → ${b}` : `${b} → ${a}`}` : '';
+    const cel = l.cel
+      ? `${fm(l.cel.spadek, 2)}% ${l.cel.od === 'a' ? `${a} → ${b}` : `${b} → ${a}`} · zostaje ${kotwicaCelu(l.cel) === 'a' ? a : b}`
+      : '';
     return [`${a} – ${b}`, an ? fm(an.dlugosc, 2) : '', an?.spadek != null ? `${fm(an.spadek, 2)}%` : '', kier, cel];
   });
   return {

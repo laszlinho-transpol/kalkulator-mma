@@ -10,6 +10,12 @@ import {
 export interface CelSpadku {
   spadek: number;
   od: 'a' | 'b';
+  /** Koniec, który zostaje z odczytem z łaty (domyślnie `od`); drugi dostaje odczyt zgodny z celem. */
+  kotwica?: 'a' | 'b';
+}
+
+export function kotwicaCelu(cel: CelSpadku): 'a' | 'b' {
+  return cel.kotwica ?? cel.od;
 }
 
 export interface PunktGeodezyjny {
@@ -363,13 +369,15 @@ export interface WartoscCelu {
   roznica?: number;
 }
 
-/** Wysokość docelowa w odległości `x` (wzdłuż linii od A) przy zadanym spadku liczonym od kotwicy. */
+/** Wysokość docelowa w odległości `x` (wzdłuż linii od A): przez kotwicę, opadająca od końca `od`. */
 function hCelu(s: SzkicGeodezyjny, l: LiniaGeodezyjna, cel: CelSpadku, x: number): { h: number; uklad: Uklad } | null {
   const g = geometriaLinii(s, l);
-  const kotwica = wysokoscPunktu(s, cel.od === 'a' ? l.a : l.b);
+  const k = kotwicaCelu(cel);
+  const kotwica = wysokoscPunktu(s, k === 'a' ? l.a : l.b);
   if (!g || !kotwica) return null;
-  const odKotwicy = cel.od === 'a' ? x : g.dlugosc - x;
-  return { h: kotwica.h - (odKotwicy * cel.spadek) / 100, uklad: kotwica.uklad };
+  const xK = k === 'a' ? 0 : g.dlugosc;
+  const znak = cel.od === 'a' ? 1 : -1;
+  return { h: kotwica.h - (znak * (x - xK) * cel.spadek) / 100, uklad: kotwica.uklad };
 }
 
 function wartoscCelu(s: SzkicGeodezyjny, l: LiniaGeodezyjna, cel: CelSpadku, punktId: string, x: number): WartoscCelu | null {
@@ -397,10 +405,11 @@ export function celeDlaPunktu(s: SzkicGeodezyjny, id: string): WartoscCelu[] {
     if (!l.cel) continue;
     const g = geometriaLinii(s, l);
     if (!g) continue;
-    if (l.cel.od === 'a' && l.b === id) {
+    const k = kotwicaCelu(l.cel);
+    if (k === 'a' && l.b === id) {
       const w = wartoscCelu(s, l, l.cel, id, g.dlugosc);
       if (w) wynik.push(w);
-    } else if (l.cel.od === 'b' && l.a === id) {
+    } else if (k === 'b' && l.a === id) {
       const w = wartoscCelu(s, l, l.cel, id, 0);
       if (w) wynik.push(w);
     }

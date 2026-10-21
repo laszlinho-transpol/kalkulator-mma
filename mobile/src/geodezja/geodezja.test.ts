@@ -85,6 +85,17 @@ describe('szkic geodezyjny – linie, spadki, cel', () => {
     assert.equal(celeDlaPunktu(odwrotny, 'p1')[0].odczyt, 1400);
   });
 
+  it('cel 2% z 1 do 2, ale zostaje punkt 2: ustawiany jest punkt 1 (1200 mm, +30 mm)', () => {
+    const { s, l } = dwaPunkty();
+    const z = edytujLinie(s, l, { cel: { spadek: 2, od: 'a', kotwica: 'b' } });
+    assert.equal(celeDlaPunktu(z, 'p2').length, 0);
+    const [c] = celeDlaPunktu(z, 'p1');
+    assert.equal(c.odczyt, 1200);
+    blisko(c.roznica!, 0.03);
+    const { szkic, punkt } = dodajPunktPosredni(z, 'p1', 'p2', 2);
+    assert.equal(celeDlaPunktu(szkic, punkt!.id)[0].odczyt, 1240);
+  });
+
   it('ustawienie długości przesuwa punkt 2 wzdłuż linii (proporcje szkicu)', () => {
     const { s, l } = dwaPunkty();
     const z = ustawDlugoscLinii(s, l, 10);
@@ -214,7 +225,8 @@ describe('rysunek i SVG', () => {
     const z = edytujLinie(s, l, { cel: { spadek: 2, od: 'a' } });
     const pr = rysunekSzkicu(z, { s: 40, tx: 100, ty: 100 }, { szer: 400, wys: 400 });
     const teksty = pr.filter((p) => p.t === 'tekst').map((p) => (p as { tekst: string }).tekst);
-    assert.ok(teksty.includes('5,00 m  1,40% →'), teksty.join(' | '));
+    assert.ok(teksty.includes('5,00 m'), teksty.join(' | '));
+    assert.ok(teksty.includes('(1,40% →)'), teksty.join(' | '));
     assert.ok(teksty.includes('cel 2,00% →'));
     assert.ok(teksty.includes('cel 1330 mm'));
     assert.ok(teksty.includes('Δh -30 mm'));

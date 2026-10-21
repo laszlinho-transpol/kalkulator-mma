@@ -1,10 +1,11 @@
 // Szkic geodezyjny – rzut z góry: kartka z siatką, punkty z odczytami, analiza (połączenia, punkty pośrednie).
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { AppHeader, Pole, Przycisk, Wiersz, WierszDanych, Wybor, useMotyw, TYPOGRAFIA } from '../../../../src/components/ui';
+import { AppHeader, Pole, Przycisk, Wiersz, WierszDanych, useMotyw, TYPOGRAFIA } from '../../../../src/components/ui';
+import { KlawiaturaLiczb, PoleLiczby, StrefaKlawiatury, zamknijKlawiature } from '../../../../src/components/geodezja/KlawiaturaLiczb';
 import { Kartka } from '../../../../src/components/geodezja/Kartka';
 import { Okienko, PasekPlywajacy, PrzyciskPaska } from '../../../../src/components/geodezja/Okienko';
 import { useRouteId } from '../../../../src/hooks/useRouteId';
@@ -15,7 +16,7 @@ import {
 } from '../../../../src/geodezja/geometria';
 import {
   BEZ_WARSTWY, analizaLinii, celeDlaPunktu, dodajPunkt, dodajPunktPosredni, edytujLinie, edytujPunkt, geometriaLinii,
-  horyzontInstrumentu, liniaMiedzy, liniaWidoczna, nazwaPunktu, odlegloscPosredniegoOd, polacz, polaWyliczone,
+  horyzontInstrumentu, kotwicaCelu, liniaMiedzy, liniaWidoczna, nazwaPunktu, odlegloscPosredniegoOd, polacz, polaWyliczone,
   pozycjaPunktu, przelaczWarstwe, przesunPunkt, punktWidoczny, usunLinie, usunPunkt, ustawDlugoscLinii, warstwySzkicu,
   wygnijLinie, wysokoscPunktu, zakresSzkicu, type CelSpadku, type DanePunktu, type LiniaGeodezyjna, type PunktGeodezyjny,
   type SzkicGeodezyjny,
@@ -290,6 +291,7 @@ export default function SzkicGeodezyjnyScreen() {
           onPusc={onPusc}
         />
 
+        <StrefaKlawiatury>
         <PasekPlywajacy style={styles.pasekGora}>
           <View style={styles.rzad}>
             <PrzyciskPaska tekst="Punkty" aktywny={tryb === 'punkty'} onPress={() => zmienTryb('punkty')} accessibilityLabel="Tryb punktów" />
@@ -364,7 +366,9 @@ export default function SzkicGeodezyjnyScreen() {
               <PrzyciskPaska tekst="Zakończ" onPress={() => zmienTryb('punkty')} accessibilityLabel="Zakończ analizę" kolor={theme.colors.success} aktywny />
             </View>
           ) : null}
+          <KlawiaturaLiczb />
         </PasekPlywajacy>
+        </StrefaKlawiatury>
 
         {!zazn ? (
           <PasekPlywajacy style={[styles.lupka, { bottom: insets.bottom + 8 }]}>
@@ -377,8 +381,8 @@ export default function SzkicGeodezyjnyScreen() {
         ) : null}
 
         {zazn ? (
+          <StrefaKlawiatury>
           <PasekPlywajacy style={[styles.panelDol, { bottom: insets.bottom + 8 }]}>
-            <ScrollView style={{ maxHeight: Math.max(180, rozmiar.h * 0.46) }} contentContainerStyle={{ gap: 8 }} keyboardShouldPersistTaps="handled">
               {zazn.typ === 'punkt' ? (
                 <PanelPunktu
                   szkic={szkic}
@@ -412,8 +416,9 @@ export default function SzkicGeodezyjnyScreen() {
                   onZamknij={() => setZazn(null)}
                 />
               )}
-            </ScrollView>
+              <KlawiaturaLiczb />
           </PasekPlywajacy>
+          </StrefaKlawiatury>
         ) : null}
       </View>
 
@@ -499,14 +504,13 @@ function PoleBoku({ wartosc, onZmien }: { wartosc: number; onZmien: (b: number) 
   const [t, setT] = useState(fm(wartosc, 2));
   useEffect(() => setT(fm(wartosc, 2)), [wartosc]);
   return (
-    <Pole
+    <PoleLiczby
       value={t}
       onChangeText={(v) => {
         setT(v);
         const n = liczbaZTekstu(v);
         if (n != null && n > 0.01) onZmien(n);
       }}
-      liczba
       jednostka="m"
       accessibilityLabel="Bok siatki [m]"
     />
@@ -521,19 +525,55 @@ function tekstCelu(c: ReturnType<typeof celeDlaPunktu>[number]): string {
   ].filter(Boolean).join(' · ');
 }
 
-function WyborKierunku({ szkic, linia, od, onZmien }: {
+/** Jedna linijka danych panelu: „Etykieta wartość · Etykieta wartość”. */
+function Linijka({ czesci, kolor }: { czesci: Array<[string, string] | null>; kolor?: string }) {
+  const theme = useMotyw();
+  const k = kolor ?? theme.colors.text;
+  return (
+    <Text style={{ color: k, fontSize: 14 }}>
+      {czesci.filter((c): c is [string, string] => !!c).map(([e, w], i) => (
+        <Text key={i}>
+          {i > 0 ? <Text style={{ color: theme.colors.textSecondary }}>{'  ·  '}</Text> : null}
+          <Text style={{ color: kolor ?? theme.colors.textSecondary }}>{e} </Text>
+          <Text style={{ fontWeight: '800' }}>{w}</Text>
+        </Text>
+      ))}
+    </Text>
+  );
+}
+
+function Opis({ tekst }: { tekst: string }) {
+  const theme = useMotyw();
+  return <Text style={{ color: theme.colors.textSecondary, fontSize: 13, fontWeight: '700' }}>{tekst}</Text>;
+}
+
+/** Kierunek spadku celu i punkt, który zostaje z odczytem z łaty (drugi koniec dostaje odczyt zgodny z celem). */
+function UstawieniaCelu({ szkic, linia, od, kotwica, onKierunek, onKotwica, posredni }: {
   szkic: SzkicGeodezyjny;
   linia: LiniaGeodezyjna;
   od: 'a' | 'b';
-  onZmien: (od: 'a' | 'b') => void;
+  kotwica: 'a' | 'b';
+  onKierunek: (od: 'a' | 'b') => void;
+  onKotwica: (k: 'a' | 'b') => void;
+  /** Nazwa punktu pośredniego – wtedy ustawiany jest on, a nie drugi koniec linii. */
+  posredni?: string;
 }) {
   const a = nazwaPunktu(szkic, linia.a);
   const b = nazwaPunktu(szkic, linia.b);
   return (
-    <View style={styles.rzad}>
-      <Wybor zaznaczony={od === 'a'} etykieta={`${a} → ${b}`} accessibilityLabel={`Spadek z ${a} do ${b}`} onPress={() => onZmien('a')} />
-      <Wybor zaznaczony={od === 'b'} etykieta={`${b} → ${a}`} accessibilityLabel={`Spadek z ${b} do ${a}`} onPress={() => onZmien('b')} />
-    </View>
+    <>
+      <View style={styles.rzad}>
+        <Opis tekst="Spadek" />
+        <PrzyciskPaska tekst={`${a} → ${b}`} aktywny={od === 'a'} onPress={() => onKierunek('a')} accessibilityLabel={`Spadek z ${a} do ${b}`} />
+        <PrzyciskPaska tekst={`${b} → ${a}`} aktywny={od === 'b'} onPress={() => onKierunek('b')} accessibilityLabel={`Spadek z ${b} do ${a}`} />
+      </View>
+      <View style={styles.rzad}>
+        <Opis tekst="Zostaje z łaty" />
+        <PrzyciskPaska tekst={a} aktywny={kotwica === 'a'} onPress={() => onKotwica('a')} accessibilityLabel={`Zostaje ${a}`} kolor={PAPIER.cel} />
+        <PrzyciskPaska tekst={b} aktywny={kotwica === 'b'} onPress={() => onKotwica('b')} accessibilityLabel={`Zostaje ${b}`} kolor={PAPIER.cel} />
+        <Opis tekst={`→ ustawiany ${posredni ?? (kotwica === 'a' ? b : a)}`} />
+      </View>
+    </>
   );
 }
 
@@ -576,55 +616,64 @@ function PanelPunktu({ szkic, punktId, blokada, onBlokada, onZmien, onEdytuj, on
         <PrzyciskPaska tekst="Usuń" onPress={onUsun} accessibilityLabel="Usuń punkt" kolor={theme.colors.danger} />
         <PrzyciskPaska tekst="✕" onPress={onZamknij} accessibilityLabel="Zamknij panel" />
       </View>
-      <WierszDanych etykieta={`Odczyt${wyl.odczyt ? ' (wyliczony)' : ''}`} wartosc={h?.odczyt != null ? `${h.odczyt} mm` : '—'} />
-      <WierszDanych etykieta={`Rzędna${wyl.rzedna ? ' (wyliczona)' : ''}`} wartosc={h?.rzedna != null ? `${fm(h.rzedna, 3)} m` : '—'} />
+      <Linijka czesci={[
+        [`Odczyt${wyl.odczyt ? ' (wyl.)' : ''}`, h?.odczyt != null ? `${h.odczyt} mm` : '—'],
+        [`Rzędna${wyl.rzedna ? ' (wyl.)' : ''}`, h?.rzedna != null ? `${fm(h.rzedna, 3)} m` : '—'],
+        liniaPosr ? [`Od ${nazwaPunktu(szkic, liniaPosr.a)}`, `${fm(odlegloscPosredniegoOd(szkic, p.id, liniaPosr.a) ?? 0, 2)} m`] : null,
+      ]} />
       {cele.map((c) => {
         const l = szkic.linie.find((q) => q.id === c.liniaId);
         return (
-          <WierszDanych
+          <Linijka
             key={c.liniaId}
-            etykieta={`Cel ${l ? `${nazwaPunktu(szkic, l.a)}–${nazwaPunktu(szkic, l.b)}` : ''}`}
-            wartosc={tekstCelu(c)}
             kolor={PAPIER.cel}
+            czesci={[[`Cel ${l ? `${nazwaPunktu(szkic, l.a)}–${nazwaPunktu(szkic, l.b)}` : ''}`, tekstCelu(c)]]}
           />
         );
       })}
-      {p.komentarz ? <Text style={{ color: theme.colors.textSecondary, fontStyle: 'italic' }}>{p.komentarz}</Text> : null}
+      {p.komentarz ? <Text style={{ color: theme.colors.textSecondary, fontStyle: 'italic' }} numberOfLines={2}>{p.komentarz}</Text> : null}
 
       {liniaPosr ? (
         <>
-          <WierszDanych
-            etykieta={`Od punktu ${nazwaPunktu(szkic, liniaPosr.a)}`}
-            wartosc={`${fm(odlegloscPosredniegoOd(szkic, p.id, liniaPosr.a) ?? 0, 2)} m`}
-          />
-          <Text style={[TYPOGRAFIA.sekcja, { color: theme.colors.textSecondary }]}>Cel punktu</Text>
           <View style={styles.rzad}>
-            <Wybor zaznaczony={!p.cel} etykieta="Z linii" onPress={() => ustawCelWlasny(undefined)} accessibilityLabel="Cel z linii" />
-            <Wybor
-              zaznaczony={!!p.cel}
-              etykieta="Własny"
+            <Opis tekst="Cel punktu" />
+            <PrzyciskPaska tekst="Z linii" aktywny={!p.cel} onPress={() => ustawCelWlasny(undefined)} accessibilityLabel="Cel z linii" kolor={PAPIER.cel} />
+            <PrzyciskPaska
+              tekst="Własny"
+              aktywny={!!p.cel}
+              kolor={PAPIER.cel}
               accessibilityLabel="Własny cel punktu"
-              onPress={() => ustawCelWlasny(p.cel ?? liniaPosr.cel ?? { spadek: 2, od: 'a' })}
+              onPress={() => {
+                const c = p.cel ?? liniaPosr.cel ?? { spadek: 2, od: 'a' as const };
+                setCelSpadek(fm(c.spadek, 2));
+                ustawCelWlasny(c);
+              }}
             />
-          </View>
-          {p.cel ? (
-            <>
-              <Wiersz>
-                <Pole
-                  etykieta="Spadek"
+            {p.cel ? (
+              <View style={{ width: 110 }}>
+                <PoleLiczby
                   value={celSpadek}
                   onChangeText={(v) => {
                     setCelSpadek(v);
                     const n = liczbaZTekstu(v);
                     if (n != null && p.cel) ustawCelWlasny({ ...p.cel, spadek: n });
                   }}
-                  liczba
                   jednostka="%"
                   accessibilityLabel="Spadek celu punktu [%]"
                 />
-              </Wiersz>
-              <WyborKierunku szkic={szkic} linia={liniaPosr} od={p.cel.od} onZmien={(od) => ustawCelWlasny({ ...p.cel!, od })} />
-            </>
+              </View>
+            ) : null}
+          </View>
+          {p.cel ? (
+            <UstawieniaCelu
+              szkic={szkic}
+              linia={liniaPosr}
+              od={p.cel.od}
+              kotwica={kotwicaCelu(p.cel)}
+              posredni={p.nazwa}
+              onKierunek={(od) => ustawCelWlasny({ ...p.cel!, od })}
+              onKotwica={(kotwica) => ustawCelWlasny({ ...p.cel!, kotwica })}
+            />
           ) : null}
         </>
       ) : null}
@@ -634,6 +683,10 @@ function PanelPunktu({ szkic, punktId, blokada, onBlokada, onZmien, onEdytuj, on
         const an = analizaLinii(szkic, l);
         const zablokowana = blokada?.liniaId === l.id;
         const tekst = dlugosci[l.id] ?? '';
+        const zablokuj = () => {
+          const n = liczbaZTekstu(tekst) ?? an?.dlugosc;
+          if (n && n > 0) onBlokada({ punktId: p.id, liniaId: l.id, dlugosc: n });
+        };
         return (
           <View key={l.id} style={styles.rzad}>
             <Text style={{ color: theme.colors.text, fontWeight: '700', minWidth: 120 }} numberOfLines={1}>
@@ -643,24 +696,17 @@ function PanelPunktu({ szkic, punktId, blokada, onBlokada, onZmien, onEdytuj, on
               <PrzyciskPaska tekst="Odblokuj" onPress={() => onBlokada(null)} accessibilityLabel={`Odblokuj odległość do ${nazwaPunktu(szkic, drugi)}`} />
             ) : (
               <>
-                <View style={{ width: 96 }}>
-                  <Pole
+                <View style={{ width: 110 }}>
+                  <PoleLiczby
                     value={tekst}
                     onChangeText={(v) => setDlugosci((d) => ({ ...d, [l.id]: v }))}
                     placeholder={fm(an?.dlugosc ?? 0, 2)}
-                    liczba
                     jednostka="m"
                     accessibilityLabel={`Odległość do ${nazwaPunktu(szkic, drugi)} [m]`}
+                    onGotowe={zablokuj}
                   />
                 </View>
-                <PrzyciskPaska
-                  tekst="Zablokuj"
-                  accessibilityLabel={`Zablokuj odległość do ${nazwaPunktu(szkic, drugi)}`}
-                  onPress={() => {
-                    const n = liczbaZTekstu(tekst) ?? an?.dlugosc;
-                    if (n && n > 0) onBlokada({ punktId: p.id, liniaId: l.id, dlugosc: n });
-                  }}
-                />
+                <PrzyciskPaska tekst="Zablokuj" accessibilityLabel={`Zablokuj odległość do ${nazwaPunktu(szkic, drugi)}`} onPress={zablokuj} />
               </>
             )}
           </View>
@@ -684,10 +730,13 @@ function PanelLinii({ szkic, liniaId, onZmien, onPosredni, onUsun, onZamknij }: 
   const [dl, setDl] = useState('');
   const [cel, setCel] = useState('');
   const [celOd, setCelOd] = useState<'a' | 'b'>('a');
+  const [kotwica, setKotwica] = useState<'a' | 'b'>('a');
   useEffect(() => {
+    const od = l?.cel?.od ?? (an?.wDol === 'a' ? 'b' : 'a');
     setDl(an ? fm(an.dlugosc, 2) : '');
     setCel(l?.cel ? fm(l.cel.spadek, 2) : '');
-    setCelOd(l?.cel?.od ?? (an?.wDol === 'a' ? 'b' : 'a'));
+    setCelOd(od);
+    setKotwica(l?.cel ? kotwicaCelu(l.cel) : od);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [liniaId]);
   if (!l || !an) return null;
@@ -696,14 +745,16 @@ function PanelLinii({ szkic, liniaId, onZmien, onPosredni, onUsun, onZamknij }: 
   const pa = szkic.punkty.find((q) => q.id === l.a);
   const pb = szkic.punkty.find((q) => q.id === l.b);
   const moznaDlugosc = !(pa?.naLinii && pb?.naLinii);
-  const spadekTekst = an.spadek != null
-    ? `${fm(an.spadek, 2)}%${an.wDol ? ` · w stronę ${an.wDol === 'b' ? b : a}` : ''}`
-    : 'brak wysokości';
+  const wynikCelu = l.cel ? celeDlaPunktu(szkic, kotwicaCelu(l.cel) === 'a' ? l.b : l.a).find((c) => c.liniaId === l.id) : undefined;
 
-  const ustawCel = (od = celOd, tekst = cel) => {
+  const ustawCel = (od = celOd, k = kotwica, tekst = cel) => {
     const n = liczbaZTekstu(tekst);
     if (n == null) return;
-    onZmien((s) => edytujLinie(s, l.id, { cel: { spadek: n, od } }));
+    onZmien((s) => edytujLinie(s, l.id, { cel: { spadek: n, od, kotwica: k } }));
+  };
+  const ustawDlugosc = () => {
+    const n = liczbaZTekstu(dl);
+    if (n && n > 0) onZmien((s) => ustawDlugoscLinii(s, l.id, n));
   };
 
   return (
@@ -713,43 +764,47 @@ function PanelLinii({ szkic, liniaId, onZmien, onPosredni, onUsun, onZamknij }: 
         <View style={{ flex: 1 }} />
         <PrzyciskPaska tekst="✕" onPress={onZamknij} accessibilityLabel="Zamknij panel" />
       </View>
-      <WierszDanych etykieta="Spadek" wartosc={spadekTekst} kolor={PAPIER.spadek} />
-      {an.roznica != null ? <WierszDanych etykieta={`Różnica wysokości ${a}→${b}`} wartosc={`${zeZnakiem(an.roznica * 1000, 0)} mm`} /> : null}
+      <Linijka
+        kolor={PAPIER.spadek}
+        czesci={[
+          ['Spadek', an.spadek != null ? `${fm(an.spadek, 2)}%${an.wDol ? ` w stronę ${an.wDol === 'b' ? b : a}` : ''}` : 'brak wysokości'],
+          an.roznica != null ? [`Δh ${a}→${b}`, `${zeZnakiem(an.roznica * 1000, 0)} mm`] : null,
+        ]}
+      />
       {moznaDlugosc ? (
         <View style={styles.rzad}>
-          <View style={{ flex: 1 }}>
-            <Pole etykieta="Odległość" value={dl} onChangeText={setDl} liczba jednostka="m" accessibilityLabel="Odległość linii [m]" />
+          <Opis tekst="Odległość" />
+          <View style={{ flex: 1, minWidth: 100 }}>
+            <PoleLiczby value={dl} onChangeText={setDl} jednostka="m" accessibilityLabel="Odległość linii [m]" onGotowe={ustawDlugosc} />
           </View>
-          <Przycisk
-            maly
-            wariant="drugi"
-            tekst="Ustaw"
-            accessibilityLabel="Ustaw odległość"
-            style={{ alignSelf: 'flex-end' }}
-            onPress={() => {
-              const n = liczbaZTekstu(dl);
-              if (n && n > 0) onZmien((s) => ustawDlugoscLinii(s, l.id, n));
-            }}
-          />
+          <PrzyciskPaska tekst="Ustaw" accessibilityLabel="Ustaw odległość" onPress={ustawDlugosc} />
         </View>
       ) : null}
-      <Text style={[TYPOGRAFIA.sekcja, { color: PAPIER.cel }]}>Cel</Text>
       <View style={styles.rzad}>
-        <View style={{ flex: 1 }}>
-          <Pole value={cel} onChangeText={setCel} placeholder="np. 2" liczba jednostka="%" accessibilityLabel="Spadek celu [%]" />
+        <Opis tekst="Cel" />
+        <View style={{ flex: 1, minWidth: 100 }}>
+          <PoleLiczby value={cel} onChangeText={setCel} placeholder="np. 2" jednostka="%" accessibilityLabel="Spadek celu [%]" onGotowe={() => ustawCel()} />
         </View>
-        <Przycisk maly tekst="Ustaw cel" accessibilityLabel="Ustaw cel" onPress={() => ustawCel()} />
+        <PrzyciskPaska tekst="Ustaw cel" accessibilityLabel="Ustaw cel" onPress={() => ustawCel()} kolor={PAPIER.cel} aktywny />
       </View>
-      <WyborKierunku
+      <UstawieniaCelu
         szkic={szkic}
         linia={l}
         od={celOd}
-        onZmien={(od) => {
+        kotwica={kotwica}
+        onKierunek={(od) => {
           setCelOd(od);
-          if (l.cel) ustawCel(od, cel || fm(l.cel.spadek, 2));
+          if (l.cel) ustawCel(od, kotwica, cel || fm(l.cel.spadek, 2));
+        }}
+        onKotwica={(k) => {
+          setKotwica(k);
+          if (l.cel) ustawCel(celOd, k, cel || fm(l.cel.spadek, 2));
         }}
       />
-      <View style={[styles.rzad, { marginTop: 4 }]}>
+      {wynikCelu ? (
+        <Linijka kolor={PAPIER.cel} czesci={[[`Cel ${nazwaPunktu(szkic, wynikCelu.punktId)}`, tekstCelu(wynikCelu)]]} />
+      ) : null}
+      <View style={styles.rzad}>
         <PrzyciskPaska tekst="Punkt pośredni" onPress={() => onPosredni(l)} />
         {l.cel ? <PrzyciskPaska tekst="Usuń cel" onPress={() => onZmien((s) => edytujLinie(s, l.id, { cel: undefined }))} /> : null}
         {l.wygiecie ? <PrzyciskPaska tekst="Wyprostuj" onPress={() => onZmien((s) => edytujLinie(s, l.id, { wygiecie: 0 }))} /> : null}
@@ -795,50 +850,48 @@ function OknoPunktu({ szkic, punkt, nowy, onAnuluj, onZapisz }: {
       }}
     >
       <Wiersz>
-        <Pole etykieta="Nazwa" value={nazwa} onChangeText={setNazwa} placeholder={String(punkt.nr)} accessibilityLabel="Nazwa punktu" />
-        <Pole etykieta="Warstwa" value={warstwa} onChangeText={setWarstwa} placeholder="np. lewa krawędź" accessibilityLabel="Warstwa punktu" />
-      </Wiersz>
-      {warstwy.length > 0 ? (
-        <View style={styles.rzad}>
-          {warstwy.map((w) => (
-            <Wybor key={w} zaznaczony={warstwa.trim() === w} etykieta={w} accessibilityLabel={`Wybierz warstwę ${w}`} onPress={() => setWarstwa(w)} />
-          ))}
-          <Wybor zaznaczony={!warstwa.trim()} etykieta="Bez warstwy" onPress={() => setWarstwa('')} />
-        </View>
-      ) : null}
-      <Wiersz>
-        <Pole
+        <PoleLiczby
           etykieta="Odczyt"
           value={odczyt}
           onChangeText={setOdczyt}
           placeholder={podpowiedzOdczytu ?? (wyliczony?.odczyt != null ? String(wyliczony.odczyt) : undefined)}
-          liczba
           jednostka="mm"
+          autoAktywne={nowy}
           accessibilityLabel="Odczyt z łaty [mm]"
           info="Wynik pomiaru z łaty w milimetrach. Gdy w szkicu jest punkt z odczytem i rzędną (reper), odczyt przelicza się na rzędną."
         />
-        <Pole
+        <PoleLiczby
           etykieta="Rzędna"
           value={rzedna}
           onChangeText={setRzedna}
           placeholder={podpowiedzRzednej ?? (wyliczony?.rzedna != null ? fm(wyliczony.rzedna, 3) : undefined)}
-          liczba
           jednostka="m"
           accessibilityLabel="Rzędna [m]"
           info="Wpisz, jeśli znasz rzędną. Pierwszy punkt z odczytem i rzędną wyznacza horyzont instrumentu dla całego szkicu."
         />
       </Wiersz>
       {linia ? (
-        <Pole
+        <PoleLiczby
           etykieta={`Odległość od punktu ${nazwaPunktu(szkic, linia.a)}`}
           value={odleglosc}
           onChangeText={setOdleglosc}
-          liczba
           jednostka="m"
           accessibilityLabel="Odległość punktu pośredniego [m]"
         />
       ) : null}
-      <Pole etykieta="Komentarz" value={komentarz} onChangeText={setKomentarz} multiline accessibilityLabel="Komentarz punktu" />
+      <Wiersz>
+        <Pole etykieta="Nazwa" value={nazwa} onChangeText={setNazwa} onFocus={zamknijKlawiature} placeholder={String(punkt.nr)} accessibilityLabel="Nazwa punktu" />
+        <Pole etykieta="Warstwa" value={warstwa} onChangeText={setWarstwa} onFocus={zamknijKlawiature} placeholder="np. lewa krawędź" accessibilityLabel="Warstwa punktu" />
+      </Wiersz>
+      {warstwy.length > 0 ? (
+        <View style={styles.rzad}>
+          {warstwy.map((w) => (
+            <PrzyciskPaska key={w} aktywny={warstwa.trim() === w} tekst={w} accessibilityLabel={`Wybierz warstwę ${w}`} onPress={() => setWarstwa(w)} />
+          ))}
+          <PrzyciskPaska aktywny={!warstwa.trim()} tekst="Bez warstwy" onPress={() => setWarstwa('')} />
+        </View>
+      ) : null}
+      <Pole etykieta="Komentarz" value={komentarz} onChangeText={setKomentarz} onFocus={zamknijKlawiature} accessibilityLabel="Komentarz punktu" />
     </Okienko>
   );
 }
@@ -867,11 +920,10 @@ function OknoPosredni({ szkic, od, doPunktu, onAnuluj, onZapisz }: {
       }}
     >
       <WierszDanych etykieta="Długość linii" wartosc={`${fm(dlugosc, 2)} m`} />
-      <Pole
+      <PoleLiczby
         etykieta={`Odległość od punktu ${nazwaPunktu(szkic, od)}`}
         value={t}
         onChangeText={setT}
-        liczba
         jednostka="m"
         accessibilityLabel="Odległość od punktu 1 [m]"
       />
