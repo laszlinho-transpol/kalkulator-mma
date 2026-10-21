@@ -7,8 +7,8 @@ import {
   punktWidoczny, sciezkaLinii, warstwySzkicu, wysokoscPunktu, type SzkicGeodezyjny,
 } from './szkic';
 import {
-  GRUBOSC_LAWY, geometriaWarstw, kluczZera, maZaglebienie, modulKostki, obrysElementu, przeliczPomiar, szerokoscPrzekroju,
-  ulozPrzekroj, zaglebienieElementu, type Komenda, type PrzekrojPoprzeczny, type UlozonyElement,
+  geometriaWarstw, gruboscLawy, kluczZera, maZaglebienie, modulKostki, obrysElementu, oporElementu, przeliczPomiar, szerokoscPrzekroju,
+  ulozPrzekroj, zaglebienieElementu, type Komenda, type PrzekrojPoprzeczny, type UlozonyElement, type WypelnienieWarstwy,
 } from './przekroj';
 
 export type Prymityw =
@@ -46,7 +46,6 @@ export const PAPIER = {
   kostka: '#D9D2C3',
   kamien: '#BDB6A8',
   podbudowa: '#EDE6D6',
-  warstwyAsfaltu: ['#3F4652', '#5A6270', '#747C88', '#4B5260'],
 } as const;
 
 const KOLORY_WARSTW = ['#C2410C', '#1D4ED8', '#7C3AED', '#0F766E', '#B91C1C', '#A16207', '#BE185D', '#0369A1'];
@@ -226,6 +225,8 @@ export interface OpcjePrzekroju {
   rzedne?: boolean;
   /** Sam rysunek elementów – bez trójkątów, wymiarów i numerów (podgląd w katalogu). */
   bezOpisow?: boolean;
+  /** Rozmiar kartki [px] – wzory wypełnień tylko w widocznej części. */
+  obszar?: { szer: number; wys: number };
 }
 
 /** Świat przekroju w metrach: x = rysunkowe cm / 100, y = −h / 100 (wyżej = mniejsze y). */
@@ -246,19 +247,181 @@ function sciezkaKomend(komendy: Komenda[], f: (u: number, v: number) => Pkt): st
     .join('');
 }
 
-/** Ukośne kreskowanie równoległoboku o pionowych bokach (warstwa pod pasem, ława). */
-function kreskowanie(lg: Pkt, pg: Pkt, wysPx: number, krokPx = 7): string {
-  let d = '';
-  const szer = pg.x - lg.x;
-  if (szer <= 0 || wysPx <= 0) return d;
-  const nach = (pg.y - lg.y) / szer;
-  for (let x = lg.x + krokPx / 2; x < pg.x; x += krokPx) {
-    const x2 = Math.min(pg.x, x + wysPx * 0.6);
-    const y1 = lg.y + (x - lg.x) * nach;
-    const y2 = lg.y + (x2 - lg.x) * nach + wysPx;
-    d += `M${x} ${y1}L${x2} ${y2}`;
+// ------------------------------------------------------------
+// Wypełnienia warstw (wzór przycięty do wielokąta wypukłego, siatka zaczepiona w początku świata)
+// ------------------------------------------------------------
+
+export const WYPELNIENIA: { id: WypelnienieWarstwy; nazwa: string }[] = [
+  { id: 'asfalt', nazwa: 'Asfalt ciemny' },
+  { id: 'asfalt_jasny', nazwa: 'Asfalt jasny' },
+  { id: 'kruszywo', nazwa: 'Kruszywo' },
+  { id: 'kropki', nazwa: 'Kropki' },
+  { id: 'kreski', nazwa: 'Kreski' },
+  { id: 'ukosne', nazwa: 'Ukośne /' },
+  { id: 'ukosne_odwrotne', nazwa: 'Ukośne \\' },
+  { id: 'kratka', nazwa: 'Kratka' },
+  { id: 'kratka_ukosna', nazwa: 'Kratka ukośna' },
+  { id: 'beton', nazwa: 'Beton' },
+  { id: 'grunt', nazwa: 'Grunt' },
+  { id: 'biale', nazwa: 'Białe' },
+];
+
+const TLO_WYPELNIENIA: Record<WypelnienieWarstwy, string> = {
+  asfalt: '#3F4652',
+  asfalt_jasny: '#6B7280',
+  kruszywo: '#EDE6D6',
+  kropki: '#F3F0E6',
+  kreski: '#F3F0E6',
+  ukosne: '#F3F0E6',
+  ukosne_odwrotne: '#F3F0E6',
+  kratka: '#F3F0E6',
+  kratka_ukosna: '#F3F0E6',
+  beton: '#C9CBCF',
+  grunt: '#E5D3B3',
+  biale: '#FFFFFF',
+};
+
+/** Ciemne tło – opis warstwy białym tekstem. */
+export const ciemneWypelnienie = (w: WypelnienieWarstwy) => w === 'asfalt' || w === 'asfalt_jasny';
+
+export function tloWypelnienia(w: WypelnienieWarstwy): string {
+  return TLO_WYPELNIENIA[w];
+}
+
+const krzyz = (a: Pkt, b: Pkt) => a.x * b.y - a.y * b.x;
+
+function wPolygonie(wiel: Pkt[], p: Pkt): boolean {
+  let znak = 0;
+  for (let i = 0; i < wiel.length; i++) {
+    const a = wiel[i];
+    const b = wiel[(i + 1) % wiel.length];
+    const c = krzyz({ x: b.x - a.x, y: b.y - a.y }, { x: p.x - a.x, y: p.y - a.y });
+    if (Math.abs(c) < 1e-9) continue;
+    const s = c > 0 ? 1 : -1;
+    if (znak === 0) znak = s;
+    else if (s !== znak) return false;
   }
-  return d;
+  return true;
+}
+
+interface Prostokat { x0: number; y0: number; x1: number; y1: number }
+
+function ramkaWielokata(wiel: Pkt[], obszar?: Prostokat): Prostokat | null {
+  let r: Prostokat = {
+    x0: Math.min(...wiel.map((p) => p.x)), y0: Math.min(...wiel.map((p) => p.y)),
+    x1: Math.max(...wiel.map((p) => p.x)), y1: Math.max(...wiel.map((p) => p.y)),
+  };
+  if (obszar) r = { x0: Math.max(r.x0, obszar.x0), y0: Math.max(r.y0, obszar.y0), x1: Math.min(r.x1, obszar.x1), y1: Math.min(r.y1, obszar.y1) };
+  return r.x1 > r.x0 && r.y1 > r.y0 ? r : null;
+}
+
+/** Rodzina równoległych linii co `krok` px pod kątem `kat` (stopnie ekranu), przycięta do wielokąta wypukłego. */
+function linieWzoru(wiel: Pkt[], kat: number, krok: number, kotwica: Pkt, ramka: Prostokat): string {
+  const r = (kat * Math.PI) / 180;
+  const d = { x: Math.cos(r), y: Math.sin(r) };
+  const nrm = { x: -d.y, y: d.x };
+  const rzut = (p: Pkt) => (p.x - kotwica.x) * nrm.x + (p.y - kotwica.y) * nrm.y;
+  const rogi = [{ x: ramka.x0, y: ramka.y0 }, { x: ramka.x1, y: ramka.y0 }, { x: ramka.x1, y: ramka.y1 }, { x: ramka.x0, y: ramka.y1 }];
+  const cMin = Math.max(Math.min(...wiel.map(rzut)), Math.min(...rogi.map(rzut)));
+  const cMax = Math.min(Math.max(...wiel.map(rzut)), Math.max(...rogi.map(rzut)));
+  if (!(cMax > cMin) || (cMax - cMin) / krok > 4000) return '';
+  let wynik = '';
+  for (let j = Math.ceil(cMin / krok); j * krok <= cMax; j++) {
+    const q = { x: kotwica.x + nrm.x * j * krok, y: kotwica.y + nrm.y * j * krok };
+    let tMin = Infinity;
+    let tMax = -Infinity;
+    for (let i = 0; i < wiel.length; i++) {
+      const a = wiel[i];
+      const ab = { x: wiel[(i + 1) % wiel.length].x - a.x, y: wiel[(i + 1) % wiel.length].y - a.y };
+      const mian = krzyz(d, ab);
+      if (Math.abs(mian) < 1e-9) continue;
+      const aq = { x: a.x - q.x, y: a.y - q.y };
+      const s = krzyz(aq, d) / mian;
+      if (s < -1e-6 || s > 1 + 1e-6) continue;
+      const t = krzyz(aq, ab) / mian;
+      tMin = Math.min(tMin, t);
+      tMax = Math.max(tMax, t);
+    }
+    if (tMax - tMin < 0.5) continue;
+    const f = (t: number) => `${Math.round((q.x + d.x * t) * 10) / 10} ${Math.round((q.y + d.y * t) * 10) / 10}`;
+    wynik += `M${f(tMin)}L${f(tMax)}`;
+  }
+  return wynik;
+}
+
+/** Kropki na siatce (co drugi rząd przesunięty); `rozrzut` > 0 – nieregularne ziarna kruszywa. */
+function kropkiWzoru(wiel: Pkt[], krok: number, kotwica: Pkt, ramka: Prostokat, rozrzut = 0): { male: string; duze: string } {
+  let male = '';
+  let duze = '';
+  if (((ramka.x1 - ramka.x0) * (ramka.y1 - ramka.y0)) / (krok * krok) > 20000) return { male, duze };
+  const j0 = Math.floor((ramka.y0 - kotwica.y) / krok) - 1;
+  const j1 = Math.ceil((ramka.y1 - kotwica.y) / krok) + 1;
+  for (let j = j0; j <= j1; j++) {
+    const przes = j % 2 ? krok / 2 : 0;
+    const i0 = Math.floor((ramka.x0 - kotwica.x - przes) / krok) - 1;
+    const i1 = Math.ceil((ramka.x1 - kotwica.x - przes) / krok) + 1;
+    for (let i = i0; i <= i1; i++) {
+      const h = Math.sin(i * 12.9898 + j * 78.233) * 43758.5453;
+      const los = h - Math.floor(h);
+      const p = {
+        x: kotwica.x + i * krok + przes + (rozrzut ? (los - 0.5) * krok * rozrzut : 0),
+        y: kotwica.y + j * krok + (rozrzut ? (((los * 7) % 1) - 0.5) * krok * rozrzut : 0),
+      };
+      if (p.x < ramka.x0 || p.x > ramka.x1 || p.y < ramka.y0 || p.y > ramka.y1 || !wPolygonie(wiel, p)) continue;
+      const seg = `M${Math.round(p.x * 10) / 10} ${Math.round(p.y * 10) / 10}h0.01`;
+      if (rozrzut && los > 0.6) duze += seg;
+      else male += seg;
+    }
+  }
+  return { male, duze };
+}
+
+export interface OpcjeWypelnienia {
+  /** Obrys wielokąta. */
+  kolor?: string;
+  grubosc?: number;
+  /** Zaczepienie wzoru (początek świata) – wzór nie „pływa” przy przesuwaniu widoku. */
+  kotwica?: Pkt;
+  /** Widoczna część kartki – wzór tylko tam (duże przybliżenia). */
+  obszar?: { szer: number; wys: number };
+}
+
+/** Wielokąt wypukły (px ekranu) z tłem, wzorem i obrysem. */
+export function wypelnionyWielokat(wiel: Pkt[], wyp: WypelnienieWarstwy, o: OpcjeWypelnienia = {}): Prymityw[] {
+  const d = `M${wiel.map((p) => `${p.x} ${p.y}`).join('L')}Z`;
+  const wynik: Prymityw[] = [{ t: 'sciezka', d, wypelnienie: TLO_WYPELNIENIA[wyp] }];
+  const kotwica = o.kotwica ?? { x: 0, y: 0 };
+  const ramka = ramkaWielokata(wiel, o.obszar ? { x0: -20, y0: -20, x1: o.obszar.szer + 20, y1: o.obszar.wys + 20 } : undefined);
+  if (ramka) {
+    const linie = (katy: number[], krok: number, kolor: string, kreska?: string, grubosc = 0.7) => {
+      const s = katy.map((k) => linieWzoru(wiel, k, krok, kotwica, ramka)).join('');
+      if (s) wynik.push({ t: 'sciezka', d: s, kolor, grubosc, kreska });
+    };
+    const kropki = (krok: number, kolor: string, r: number, rozrzut = 0) => {
+      const k = kropkiWzoru(wiel, krok, kotwica, ramka, rozrzut);
+      if (k.male) wynik.push({ t: 'sciezka', d: k.male, kolor, grubosc: r });
+      if (k.duze) wynik.push({ t: 'sciezka', d: k.duze, kolor, grubosc: r * 1.8 });
+    };
+    switch (wyp) {
+      case 'kruszywo': kropki(7, '#8B7E66', 1.3, 0.8); break;
+      case 'kropki': kropki(6, PAPIER.olowek, 1.6); break;
+      case 'kreski': linie([0], 6, PAPIER.olowek, '5 4'); break;
+      case 'ukosne': linie([-45], 6, PAPIER.olowek); break;
+      case 'ukosne_odwrotne': linie([45], 6, PAPIER.olowek); break;
+      case 'kratka': linie([0, 90], 7, PAPIER.olowek, undefined, 0.6); break;
+      case 'kratka_ukosna': linie([45, -45], 7, PAPIER.olowek, undefined, 0.6); break;
+      case 'beton': kropki(8, PAPIER.betonCiemny, 1.4, 0.7); linie([-45], 14, PAPIER.betonCiemny, '3 9', 0.7); break;
+      case 'grunt': linie([0], 7, '#9A7B4F', '3 5', 0.9); break;
+      default: break;
+    }
+  }
+  wynik.push({ t: 'sciezka', d, kolor: o.kolor ?? PAPIER.olowek, grubosc: o.grubosc ?? 0.8 });
+  return wynik;
+}
+
+/** Próbka wypełnienia (wybór w kreatorze). */
+export function probkaWypelnienia(wyp: WypelnienieWarstwy, szer: number, wys: number): Prymityw[] {
+  return wypelnionyWielokat([{ x: 0.5, y: 0.5 }, { x: szer - 0.5, y: 0.5 }, { x: szer - 0.5, y: wys - 0.5 }, { x: 0.5, y: wys - 0.5 }], wyp, { kolor: PAPIER.tusz });
 }
 
 export interface ZakresRysunku {
@@ -277,16 +440,26 @@ export function zakresPrzekroju(p: PrzekrojPoprzeczny): ZakresRysunku | null {
   let minX = Infinity;
   let maxX = -Infinity;
   for (const e of u) {
-    minH = Math.min(minH, Math.min(e.hL, e.hP) - e.element.wys - (e.element.podbudowa ?? 0) - (e.element.lawa ? GRUBOSC_LAWY : 0));
+    minH = Math.min(minH, spodElementu(e));
     maxH = Math.max(maxH, e.hL, e.hP);
     const gw = geometriaWarstw(e.element);
-    const wysL = Math.max(0, ...gw.map((g) => Math.max(g.lGora, g.lDol)));
-    const wysP = Math.max(0, ...gw.map((g) => Math.max(g.pGora, g.pDol)));
-    minX = Math.min(minX, e.rx0 - wysL - e.lawaL);
-    maxX = Math.max(maxX, e.rx1 + wysP + e.lawaP);
+    const opor = oporElementu(e.element);
+    const wysL = Math.max(0, ...gw.map((g) => Math.max(g.lGora, g.lDol)), opor?.strona === 'l' ? opor.szer : 0);
+    const wysP = Math.max(0, ...gw.map((g) => Math.max(g.pGora, g.pDol)), opor?.strona === 'p' ? opor.szer : 0);
+    minX = Math.min(minX, e.rx0 - Math.max(wysL, e.lawaL));
+    maxX = Math.max(maxX, e.rx1 + Math.max(wysP, e.lawaP));
   }
   return { minX: minX / 100, maxX: maxX / 100, minY: -maxH / 100, maxY: -minH / 100 };
 }
+
+/** Najniższy punkt elementu z podbudową i ławą [cm]. */
+function spodElementu(u: UlozonyElement): number {
+  const e = u.element;
+  return Math.min(u.hL, u.hP) - e.wys - (e.typ === 'pas' ? e.podbudowa ?? 0 : gruboscLawy(e));
+}
+
+/** Miejsce z lewej strony rysunku na łańcuch wymiarów wysokości [px]. */
+export const LEWY_PRZEKROJU = 44;
 
 /** Odstęp linii wymiarowej od najwyższego punktu [px]: mieści pionowy opis „+12 (1230)” nad trójkątem. */
 const ODSUNIECIE_WYMIAROW = 105;
@@ -295,11 +468,12 @@ const ODSUNIECIE_WYMIAROW_Z_RZEDNYMI = 175;
 export const GORA_PRZEKROJU = ODSUNIECIE_WYMIAROW + 45;
 
 /** Widok mieszczący przekrój w ramce; `gora` px nad rysunkiem zostaje na trójkąty, opisy i wymiary. */
-export function widokPrzekroju(p: PrzekrojPoprzeczny, szer: number, wys: number, gora = GORA_PRZEKROJU, margines = 24): Widok {
+export function widokPrzekroju(p: PrzekrojPoprzeczny, szer: number, wys: number, gora = GORA_PRZEKROJU, margines = 24, lewy = LEWY_PRZEKROJU): Widok {
   const z = zakresPrzekroju(p);
   if (!z) return { s: 100, tx: szer / 2, ty: wys / 2 };
-  const s = Math.max(5, Math.min((szer - 2 * margines) / Math.max(z.maxX - z.minX, 0.05), (wys - gora - 30) / Math.max(z.maxY - z.minY, 0.05), 2500));
-  const tx = (szer - (z.maxX - z.minX) * s) / 2 - z.minX * s;
+  const dostepna = szer - 2 * margines - lewy;
+  const s = Math.max(5, Math.min(dostepna / Math.max(z.maxX - z.minX, 0.05), (wys - gora - 30) / Math.max(z.maxY - z.minY, 0.05), 2500));
+  const tx = margines + lewy + (dostepna - (z.maxX - z.minX) * s) / 2 - z.minX * s;
   return { s, tx, ty: gora - z.minY * s };
 }
 
@@ -309,6 +483,7 @@ export function rysunekPrzekroju(p: PrzekrojPoprzeczny, w: Widok, o: OpcjePrzekr
   if (ulozone.length === 0) return wynik;
   const E = (xcm: number, hcm: number) => naEkran(w, swiatPrzekroju(xcm, hcm));
   const px = w.s / 100;
+  const kotwica = { x: w.tx, y: w.ty };
   const pomiar = przeliczPomiar(p);
   const zero = kluczZera(p);
 
@@ -316,7 +491,8 @@ export function rysunekPrzekroju(p: PrzekrojPoprzeczny, w: Widok, o: OpcjePrzekr
   const opisy: Prymityw[] = [];
   let najwyzej = Infinity;
 
-  for (const u of ulozone) {
+  // Najpierw pasy (warstwy jezdni pod sąsiadami), potem elementy blokowe z ławami – ława leży na podbudowie.
+  for (const u of [...ulozone].sort((a, b) => (a.element.typ === b.element.typ ? a.indeks - b.indeks : a.element.typ === 'pas' ? -1 : 1))) {
     const e = u.element;
     const rw = u.rx1 - u.rx0;
     const zazn = o.zaznaczonyElement === e.id;
@@ -336,28 +512,27 @@ export function rysunekPrzekroju(p: PrzekrojPoprzeczny, w: Widok, o: OpcjePrzekr
       const pd = E(u.rx1 + pDol, hAt(u.rx1 + pDol) - e.wys);
       if (e.podbudowa) {
         const wysPb = e.podbudowa * px;
-        const d = `M${ld.x} ${ld.y}L${pd.x} ${pd.y}L${pd.x} ${pd.y + wysPb}L${ld.x} ${ld.y + wysPb}Z`;
-        elementy.push({ t: 'sciezka', d, wypelnienie: PAPIER.podbudowa, kolor: PAPIER.olowek, grubosc: 0.8 });
-        elementy.push({ t: 'sciezka', d: kreskowanie(ld, pd, wysPb), kolor: PAPIER.betonCiemny, grubosc: 0.7 });
+        elementy.push(...wypelnionyWielokat(
+          [ld, pd, { x: pd.x, y: pd.y + wysPb }, { x: ld.x, y: ld.y + wysPb }], 'kruszywo', { kotwica, obszar: o.obszar },
+        ));
       }
       if (warstwy.length) {
         const xOpisu = u.rx0 + rw * (u.skrocony ? 0.75 : 0.5);
-        warstwy.forEach((g, i) => {
+        warstwy.forEach((g) => {
           const gr = g.warstwa.grubosc;
           const a = E(u.rx0 - g.lGora, hAt(u.rx0 - g.lGora) - g.gora);
           const b = E(u.rx1 + g.pGora, hAt(u.rx1 + g.pGora) - g.gora);
           const c = E(u.rx1 + g.pDol, hAt(u.rx1 + g.pDol) - g.gora - gr);
           const d = E(u.rx0 - g.lDol, hAt(u.rx0 - g.lDol) - g.gora - gr);
-          elementy.push({
-            t: 'sciezka', d: `M${a.x} ${a.y}L${b.x} ${b.y}L${c.x} ${c.y}L${d.x} ${d.y}Z`,
-            wypelnienie: PAPIER.warstwyAsfaltu[i % PAPIER.warstwyAsfaltu.length], kolor: obrys, grubosc,
-          });
+          elementy.push(...wypelnionyWielokat([a, b, c, d], g.wypelnienie, { kolor: obrys, grubosc, kotwica, obszar: o.obszar }));
           const wysPx = gr * px;
           if (g.warstwa.nazwa && wysPx >= 8) {
             const s = E(xOpisu, hAt(xOpisu) - g.gora - gr / 2);
+            const ciemne = ciemneWypelnienie(g.wypelnienie);
             opisy.push({
               t: 'tekst', x: s.x, y: s.y + Math.min(10, wysPx - 2) * 0.35, tekst: `${g.warstwa.nazwa} ${fm(gr, gr % 1 ? 1 : 0)} cm`,
-              kolor: '#FFFFFF', rozmiar: Math.min(10, wysPx - 2), pogrubiony: true, kotwica: 'middle', obrot: katNapisu(lg, pg),
+              kolor: ciemne ? '#FFFFFF' : PAPIER.tusz, rozmiar: Math.min(10, wysPx - 2), pogrubiony: true, kotwica: 'middle',
+              obrot: katNapisu(lg, pg), halo: !ciemne,
             });
           }
         });
@@ -403,9 +578,22 @@ export function rysunekPrzekroju(p: PrzekrojPoprzeczny, w: Widok, o: OpcjePrzekr
       if (e.lawa) {
         const l = E(u.rx0 - u.lawaL, u.hL - e.wys);
         const pr = E(u.rx1 + u.lawaP, u.hL - e.wys);
-        const wysL = GRUBOSC_LAWY * px;
-        elementy.push({ t: 'sciezka', d: `M${l.x} ${l.y}L${pr.x} ${pr.y}L${pr.x} ${pr.y + wysL}L${l.x} ${l.y + wysL}Z`, wypelnienie: PAPIER.beton, kolor: PAPIER.olowek, grubosc: 0.8 });
-        elementy.push({ t: 'sciezka', d: kreskowanie(l, pr, wysL, 5), kolor: PAPIER.betonCiemny, grubosc: 0.7 });
+        const wysL = gruboscLawy(e) * px;
+        elementy.push(...wypelnionyWielokat(
+          [l, pr, { x: pr.x, y: pr.y + wysL }, { x: l.x, y: l.y + wysL }], 'beton', { kotwica, obszar: o.obszar },
+        ));
+      }
+      const opor = oporElementu(e);
+      if (opor) {
+        // Opór: trapez na ławie przy boku elementu, u góry połowa szerokości podstawy.
+        const zn = opor.strona === 'l' ? -1 : 1;
+        const x = opor.strona === 'l' ? u.rx0 : u.rx1;
+        const dol = u.hL - e.wys;
+        const gora = u.hL - Math.min(Math.max(0, opor.odGory), e.wys);
+        elementy.push(...wypelnionyWielokat(
+          [E(x, dol), E(x + zn * opor.szer, dol), E(x + (zn * opor.szer) / 2, gora), E(x, gora)],
+          'beton', { kotwica, obszar: o.obszar },
+        ));
       }
       elementy.push({ t: 'sciezka', d: sciezkaKomend(obrysElementu(e), f), wypelnienie: PAPIER.beton, kolor: obrys, grubosc });
       if (maZaglebienie(e)) {
@@ -426,7 +614,7 @@ export function rysunekPrzekroju(p: PrzekrojPoprzeczny, w: Widok, o: OpcjePrzekr
     }
 
     const srodekX = E((u.rx0 + u.rx1) / 2, 0).x;
-    const dolY = E(0, Math.min(u.hL, u.hP) - e.wys - (e.podbudowa ?? 0) - (e.lawa ? GRUBOSC_LAWY : 0)).y;
+    const dolY = E(0, spodElementu(u)).y;
     opisy.push({ t: 'tekst', x: srodekX, y: dolY + 14, tekst: String(u.indeks + 1), kolor: PAPIER.olowek, rozmiar: 11, pogrubiony: true, kotwica: 'middle' });
   }
   if (o.bezOpisow) return elementy;
@@ -482,6 +670,47 @@ export function rysunekPrzekroju(p: PrzekrojPoprzeczny, w: Widok, o: OpcjePrzekr
   dWym += `M${xs} ${yCal}H${xk}${kreska(xs, yCal)}${kreska(xk, yCal)}`;
   wynik.push({ t: 'sciezka', d: dWym, kolor: PAPIER.tusz, grubosc: 0.9 });
   wynik.push({ t: 'tekst', x: (xs + xk) / 2, y: yCal - 4, tekst: `${fm(szerokoscPrzekroju(p) / 100, 2)} m`, kolor: PAPIER.tusz, rozmiar: 11, pogrubiony: true, kotwica: 'middle', halo: true });
+  wynik.push(...wymiaryWysokosci(p, ulozone, znaczniki.map((z) => ({ h: z.pp.h, x: z.g.x })), E));
+  return wynik;
+}
+
+/** Łańcuch wymiarów wysokości z lewej strony: punkty pomiarowe i spód konstrukcji, różnice w cm. */
+function wymiaryWysokosci(
+  p: PrzekrojPoprzeczny,
+  ulozone: UlozonyElement[],
+  punkty: { h: number; x: number }[],
+  E: (xcm: number, hcm: number) => Pkt,
+): Prymityw[] {
+  const z = zakresPrzekroju(p);
+  if (!z || punkty.length === 0) return [];
+  const spod = ulozone.reduce((m, u) => (spodElementu(u) < m.h ? { h: spodElementu(u), x: E(u.rx0, 0).x } : m), { h: Infinity, x: 0 });
+  const poziomy: { h: number; x: number }[] = [];
+  for (const q of [...punkty, spod].sort((a, b) => b.h - a.h)) {
+    const ost = poziomy[poziomy.length - 1];
+    if (ost && Math.abs(ost.h - q.h) < 0.5) ost.x = Math.min(ost.x, q.x);
+    else poziomy.push({ ...q });
+  }
+  if (poziomy.length < 2) return [];
+  const xl = E(z.minX * 100, 0).x - 22;
+  const y = (h: number) => E(0, h).y;
+  const wynik: Prymityw[] = [];
+  let pomocnicze = '';
+  let d = `M${xl} ${y(poziomy[0].h)}V${y(poziomy[poziomy.length - 1].h)}`;
+  for (const q of poziomy) {
+    const yy = y(q.h);
+    if (q.x - 4 > xl + 4) pomocnicze += `M${xl + 4} ${yy}H${q.x - 4}`;
+    d += `M${xl - 5} ${yy}H${xl + 5}M${xl - 3} ${yy + 3}L${xl + 3} ${yy - 3}`;
+  }
+  if (pomocnicze) wynik.push({ t: 'sciezka', d: pomocnicze, kolor: PAPIER.olowek, grubosc: 0.7, kreska: '2 3', krycie: 0.45 });
+  wynik.push({ t: 'sciezka', d, kolor: PAPIER.tusz, grubosc: 0.9 });
+  for (let i = 1; i < poziomy.length; i++) {
+    const dh = poziomy[i - 1].h - poziomy[i].h;
+    const tekst = fm(dh, dh % 1 ? 1 : 0);
+    const y0 = y(poziomy[i - 1].h);
+    const y1 = y(poziomy[i].h);
+    if (y1 - y0 < tekst.length * 6 + 4) continue;
+    wynik.push({ t: 'tekst', x: xl - 4, y: (y0 + y1) / 2, tekst, kolor: PAPIER.tusz, rozmiar: 10, pogrubiony: true, kotwica: 'middle', obrot: -90, halo: true });
+  }
   return wynik;
 }
 
@@ -578,7 +807,7 @@ export function svgPrzekroju(p: PrzekrojPoprzeczny, szer = 1200, pomiar = true):
   const z = zakresPrzekroju(p);
   if (!z) return { svg: svgZPrymitywow([], szer, 200, { tytul: p.nazwa }), szer, wys: 200 };
   const gora = 280;
-  const sk = Math.min((szer - 60) / Math.max(z.maxX - z.minX, 0.05), 2500);
+  const sk = Math.min((szer - 60 - LEWY_PRZEKROJU) / Math.max(z.maxX - z.minX, 0.05), 2500);
   const wys = Math.round((z.maxY - z.minY) * sk + gora + 50);
   const w = widokPrzekroju(p, szer, wys, gora, 30);
   const prym = rysunekPrzekroju(p, w, { pomiar, rzedne: pomiar });

@@ -7,10 +7,15 @@ import {
   usunPunkt, ustawDlugoscLinii, warstwySzkicu, wygnijLinie, wysokoscPunktu, type SzkicGeodezyjny,
 } from './szkic';
 import {
-  KATALOG_ELEMENTOW, dodajElement, edytujElement, geometriaWarstw, nowyPrzekroj, przeliczPomiar, przesunElement,
-  punktyPomiarowe, szerokoscPrzekroju, ulozPrzekroj, usunElement, zWarstwami, zaglebienieElementu,
+  KATALOG_ELEMENTOW, dodajElement, domyslnyOpor, edytujElement, geometriaWarstw, kopiaPrzekroju, normalizujPrzekroj, nowaWarstwa,
+  nowyPrzekroj, przeliczPomiar, przesunElement, przesunWarstwe, punktyPomiarowe, szerokoscPrzekroju, ulozPrzekroj, usunElement,
+  wypelnienieWarstwy, zWarstwami, zaglebienieElementu, type ElementPrzekroju,
 } from './przekroj';
-import { rysunekPrzekroju, rysunekSzkicu, svgPrzekroju, svgSzkicu } from './rysunek';
+import {
+  PAPIER, probkaWypelnienia, rysunekPrzekroju, rysunekSzkicu, svgPrzekroju, svgSzkicu, widokPrzekroju, wypelnionyWielokat, zakresPrzekroju,
+} from './rysunek';
+import { dodajSzczegolBudowy, usunSzczegolBudowy, zapiszSzczegolBudowy } from './szczegolyBudowy';
+import { pustyProjektBudowy } from '../utils/projektBudowy';
 
 const T = new Date('2026-10-20T10:00:00Z');
 const blisko = (a: number, b: number, eps = 1e-6) => assert.ok(Math.abs(a - b) < eps, `${a} ≉ ${b}`);
@@ -242,23 +247,106 @@ describe('rysunek i SVG', () => {
     assert.ok(svgPrzekroju(p).svg.includes('H 120,400'));
   });
 
-  it('nawierzchnia bitumiczna: warstwy, szerokości i skos krawędzi', () => {
+  it('jezdnia – konstrukcja: podbudowa jako warstwa, odsadzki, skosy, strony i kolejność', () => {
     let p = nowyPrzekroj('KR2', T, 'pr');
     p = dodajElement(p, KATALOG_ELEMENTOW.find((w) => w.id === 'asfalt')!);
     const e = p.elementy[0];
-    assert.deepEqual(e.warstwy!.map((w) => [w.nazwa, w.grubosc]), [['Warstwa ścieralna', 4], ['Warstwa wiążąca', 5]]);
-    assert.equal(e.wys, 9);
-    const warstwy = [...e.warstwy!, { id: 'w3', nazwa: 'Podbudowa bitumiczna', grubosc: 8 }];
-    p = edytujElement(p, e.id, { ...zWarstwami(warstwy), krawedzL: 1, krawedzP: 1 });
-    const g = geometriaWarstw(p.elementy[0]);
-    assert.equal(p.elementy[0].wys, 17);
-    assert.deepEqual(g.map((x) => [x.gora, x.szerGora, x.szerDol]), [[0, 300, 308], [4, 308, 318], [9, 318, 334]]);
-    p = edytujElement(p, e.id, { krawedzL: 0 });
-    assert.deepEqual(geometriaWarstw(p.elementy[0]).map((x) => [x.lDol, x.pDol, x.szerDol]), [[0, 4, 304], [0, 9, 309], [0, 17, 317]]);
-    p = edytujElement(p, e.id, { warstwy: warstwy.map((w, i) => (i === 1 ? { ...w, szer: 350 } : w)), krawedzP: 0 });
-    assert.deepEqual(geometriaWarstw(p.elementy[0]).map((x) => x.szerGora), [300, 350, 350]);
-    const teksty = rysunekPrzekroju(p, { s: 400, tx: 20, ty: 300 }, {}).filter((q) => q.t === 'tekst').map((q) => (q as { tekst: string }).tekst);
-    assert.ok(teksty.includes('Warstwa ścieralna 4 cm'), teksty.join(' | '));
+    assert.equal(e.nazwa, 'Jezdnia – konstrukcja');
+    assert.deepEqual(e.warstwy!.map((w) => [w.nazwa, w.grubosc, w.wypelnienie]), [
+      ['Warstwa ścieralna', 4, 'asfalt'], ['Warstwa wiążąca', 5, 'asfalt_jasny'], ['Podbudowa', 20, 'kruszywo'],
+    ]);
+    assert.equal(e.wys, 29);
+    assert.equal(e.podbudowa, undefined);
+    const skos = e.warstwy!.map((w, i) => ({ ...w, skos: 1, odsadzka: i === 2 ? 5 : undefined }));
+    p = edytujElement(p, e.id, zWarstwami(skos));
+    assert.deepEqual(geometriaWarstw(p.elementy[0]).map((x) => [x.gora, x.szerGora, x.szerDol]), [[0, 300, 308], [4, 308, 318], [9, 328, 368]]);
+    p = edytujElement(p, e.id, { strony: 'prawa' });
+    assert.deepEqual(geometriaWarstw(p.elementy[0]).map((x) => [x.lDol, x.pDol, x.szerDol]), [[0, 4, 304], [0, 9, 309], [0, 34, 334]]);
+    p = edytujElement(p, e.id, { strony: 'brak' });
+    assert.deepEqual(geometriaWarstw(p.elementy[0]).map((x) => x.szerDol), [300, 300, 300]);
+    const odwrocone = przesunWarstwe(p.elementy[0].warstwy!, skos[2].id, -1);
+    assert.deepEqual(odwrocone.map((w) => w.nazwa), ['Warstwa ścieralna', 'Podbudowa', 'Warstwa wiążąca']);
+    assert.equal(przesunWarstwe(odwrocone, skos[0].id, -1), odwrocone);
+    const nowa = nowaWarstwa(skos, 'n');
+    assert.equal(nowa.nazwa, 'Podbudowa zasadnicza');
+    assert.equal(wypelnienieWarstwy({ id: 'x', nazwa: 'Warstwa mrozoochronna', grubosc: 20 }, 3), 'grunt');
+    const teksty = rysunekPrzekroju(p, { s: 400, tx: 20, ty: 300 }, {}).filter((q) => q.t === 'tekst');
+    const scieralna = teksty.find((q) => (q as { tekst: string }).tekst === 'Warstwa ścieralna 4 cm') as { kolor: string } | undefined;
+    const podbudowa = teksty.find((q) => (q as { tekst: string }).tekst === 'Podbudowa 20 cm') as { kolor: string } | undefined;
+    assert.equal(scieralna?.kolor, '#FFFFFF');
+    assert.equal(podbudowa?.kolor, PAPIER.tusz);
+  });
+
+  it('zapis 1.8.52 (podbudowa, skos krawędzi, szerokość warstwy) jest ujednolicany', () => {
+    const stary: ElementPrzekroju = {
+      id: 'j', wzor: 'asfalt', nazwa: 'Jezdnia – nawierzchnia bitumiczna', ksztalt: 'asfalt', typ: 'pas', szer: 300, wys: 9, skok: 0,
+      spadek: 2, podbudowa: 20, krawedzL: 1, krawedzP: 0,
+      warstwy: [{ id: 'a', nazwa: 'Warstwa ścieralna', grubosc: 4, szer: 320 }, { id: 'b', nazwa: 'Warstwa wiążąca', grubosc: 5 }],
+    };
+    const p = normalizujPrzekroj({ ...nowyPrzekroj('S', T, 's'), elementy: [stary] });
+    const e = p.elementy[0];
+    assert.equal(e.nazwa, 'Jezdnia – konstrukcja');
+    assert.equal(e.wys, 29);
+    assert.equal(e.podbudowa, undefined);
+    assert.equal(e.strony, 'lewa');
+    assert.equal(e.krawedzL, undefined);
+    assert.deepEqual(e.warstwy!.map((w) => [w.nazwa, w.grubosc, w.skos ?? 0, w.szer]), [
+      ['Warstwa ścieralna', 4, 1, undefined], ['Warstwa wiążąca', 5, 1, undefined], ['Podbudowa', 20, 0, undefined],
+    ]);
+    assert.equal(normalizujPrzekroj(p), p);
+    assert.equal(ulozPrzekroj({ ...nowyPrzekroj('S', T, 's'), elementy: [stary] })[0].element.wys, 29);
+  });
+
+  it('wzory wypełnień przycięte do warstwy, kropki w środku', () => {
+    const wiel = [{ x: 10, y: 10 }, { x: 110, y: 10 }, { x: 130, y: 60 }, { x: -10, y: 60 }];
+    const wewnatrz = (x: number, y: number) => y >= 9.8 && y <= 60.2 && x >= -10.2 + ((60 - y) / 50) * 20 - 0.2 && x <= 130.2 - ((60 - y) / 50) * 20 + 0.2;
+    const punkty = (d: string) => [...d.matchAll(/[ML](-?[\d.]+) (-?[\d.]+)/g)].map((m) => [Number(m[1]), Number(m[2])]);
+    for (const wyp of ['ukosne', 'ukosne_odwrotne', 'kratka', 'kratka_ukosna', 'kreski', 'kropki', 'kruszywo', 'beton', 'grunt'] as const) {
+      const pr = wypelnionyWielokat(wiel, wyp, { kotwica: { x: 3, y: 7 } });
+      const wzor = pr.slice(1, -1).filter((q) => q.t === 'sciezka') as { d: string }[];
+      assert.ok(wzor.length > 0, wyp);
+      for (const q of wzor) for (const [x, y] of punkty(q.d)) assert.ok(wewnatrz(x, y), `${wyp}: ${x} ${y}`);
+    }
+    const kratka = wypelnionyWielokat(wiel, 'kratka');
+    assert.ok((kratka[1] as { d: string }).d.split('M').length > 20);
+    assert.equal(wypelnionyWielokat(wiel, 'asfalt').length, 2);
+    const daleko = wypelnionyWielokat(wiel, 'kropki', { obszar: { szer: 20, wys: 20 } });
+    for (const [x, y] of punkty((daleko[1] as { d: string }).d)) assert.ok(x <= 40 && y <= 40);
+    assert.equal(probkaWypelnienia('kratka', 30, 20).length, 3);
+  });
+
+  it('ława: grubość, szerokość i opór z wysokością od góry', () => {
+    let p = nowyPrzekroj('K', T, 'pr');
+    p = dodajElement(p, KATALOG_ELEMENTOW[0]);
+    const id = p.elementy[0].id;
+    const dol = () => zakresPrzekroju(p)!.maxY;
+    blisko(dol(), 0.45);
+    p = edytujElement(p, id, { lawaGrubosc: 25 });
+    blisko(dol(), 0.55);
+    p = edytujElement(p, id, { lawaSzer: 40 });
+    let u = ulozPrzekroj(p)[0];
+    assert.deepEqual([u.lawaL, u.lawaP], [10, 10]);
+    p = edytujElement(p, id, { opor: { strona: 'l', szer: 12, odGory: 10 } });
+    u = ulozPrzekroj(p)[0];
+    assert.deepEqual([u.lawaL, u.lawaP], [16, 4]);
+    blisko(zakresPrzekroju(p)!.minX, -0.16);
+    const opor = rysunekPrzekroju(p, { s: 100, tx: 100, ty: 100 }, { bezOpisow: true });
+    const bez = rysunekPrzekroju(edytujElement(p, id, { lawa: false }), { s: 100, tx: 100, ty: 100 }, { bezOpisow: true });
+    assert.ok(opor.length > bez.length + 3);
+    assert.ok(opor.some((q) => q.t === 'sciezka' && q.d === 'M100 130L88 130L94 110L100 110Z'), JSON.stringify(opor.slice(0, 12)));
+    assert.equal(domyslnyOpor({ wys: 30, odwroc: true }).strona, 'p');
+  });
+
+  it('wymiary wysokości z lewej: punkty łaty i spód konstrukcji', () => {
+    let p = nowyPrzekroj('KR2', T, 'pr');
+    p = dodajElement(p, KATALOG_ELEMENTOW[0]);
+    p = dodajElement(p, KATALOG_ELEMENTOW.find((w) => w.id === 'asfalt')!);
+    const w = widokPrzekroju(p, 800, 600);
+    const pr = rysunekPrzekroju(p, w, {});
+    const pionowe = pr.filter((q) => q.t === 'tekst' && q.obrot === -90 && q.rozmiar === 10).map((q) => (q as { tekst: string; x: number }));
+    assert.deepEqual(pionowe.map((q) => q.tekst), ['12', '6', '29']);
+    const lewaKrawedz = zakresPrzekroju(p)!.minX * w.s + w.tx;
+    assert.ok(pionowe.every((q) => q.x < lewaKrawedz - 15 && q.x > 0), `${pionowe.map((q) => q.x)} ${lewaKrawedz}`);
   });
 
   it('korytko: zagłębienie wymiarowane i zmienne, łata w dnie', () => {
@@ -281,7 +369,30 @@ describe('rysunek i SVG', () => {
     assert.equal(u[1].lawaL, 0);
     assert.equal(u[1].lawaP, 0);
     assert.equal(u[2].lawaL, 0);
-    assert.equal(u[2].lawaP, 5);
+    assert.equal(u[2].lawaP, 0);
+    p = edytujElement(p, p.elementy[2].id, { lawaSzer: 30 });
+    const u2 = ulozPrzekroj(p)[2];
+    assert.deepEqual([u2.lawaL, u2.lawaP], [0, 10]);
+  });
+
+  it('szczegół budowy to niezależna kopia szablonu', () => {
+    let szablon = nowyPrzekroj('KR2', T, 'sz');
+    szablon = dodajElement(szablon, KATALOG_ELEMENTOW.find((w) => w.id === 'asfalt')!);
+    szablon = { ...szablon, opis: 'Jezdnia główna', pomiar: { klucz: `${szablon.elementy[0].id}:l`, odczyt: 1200 }, archiwum: true };
+    let projekt = dodajSzczegolBudowy(pustyProjektBudowy(), szablon, T);
+    const s = projekt.szczegoly![0];
+    assert.notEqual(s.id, szablon.id);
+    assert.equal(s.szablonId, szablon.id);
+    assert.equal(s.opis, 'Jezdnia główna');
+    assert.equal(s.pomiar, undefined);
+    assert.equal(s.archiwum, undefined);
+    projekt = zapiszSzczegolBudowy(projekt, edytujElement(s, s.elementy[0].id, { szer: 500 }), T);
+    assert.equal(projekt.szczegoly![0].elementy[0].szer, 500);
+    assert.equal(szablon.elementy[0].szer, 300);
+    projekt = dodajSzczegolBudowy(projekt, undefined, T);
+    assert.equal(projekt.szczegoly![1].nazwa, 'Szczegół 2');
+    assert.equal(usunSzczegolBudowy(projekt, s.id).szczegoly!.length, 1);
+    assert.notEqual(kopiaPrzekroju(szablon, T).elementy[0], szablon.elementy[0]);
   });
 
   it('liczba ujemna z minusem typograficznym', () => {

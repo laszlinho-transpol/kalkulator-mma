@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.52';
+export const WERSJA_APLIKACJI = '1.8.53';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,20 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.53',
+    data: '2026-10-21',
+    tytul: 'Przekrój: konstrukcja jezdni, ława z oporem, szczegóły w budowie',
+    zmiany: [
+      '„Jezdnia – konstrukcja” zamiast nawierzchni bitumicznej; podbudowa jest osobną warstwą (dotychczasowe przekroje przeliczają się same)',
+      'Każda warstwa: nazwa, grubość, odsadzka, skos 1:n, kolejność ▲▼ i wypełnienie do wyboru (asfalt, kruszywo, kropki, kreski, ukośne, kratka, kratka ukośna, beton, grunt, białe); odsadzki i skosy po obu stronach, z lewej, z prawej albo wcale',
+      'Ława betonowa pod krawężnikiem, obrzeżem, opornikiem i korytkiem: grubość i szerokość (domyślnie szerokość elementu)',
+      'Opór betonowy na ławie z lewej albo z prawej: szerokość i wysokość od góry elementu',
+      'Z lewej strony rysunku łańcuch wymiarów wysokości: punkty łaty i spód konstrukcji, różnice w cm',
+      'Szablon przekroju można przypisać do budowy: Edytuj › Przypisz do budowy',
+      'Budowa › Konstrukcje: przełącznik Odcinki | Szczegóły; szczegóły w oknach z podglądem i opisem, po otwarciu edycja i pomiar na kopii – szablon w geodezji się nie zmienia; szczegóły trafiają też do PDF budowy',
+    ],
+  },
   {
     wersja: '1.8.52',
     data: '2026-10-20',

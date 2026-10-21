@@ -7,12 +7,13 @@ import { View, Text, StyleSheet, ScrollView, useColorScheme } from 'react-native
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppHeader } from '../../src/components/common/AppHeader';
-import { Naciskany, Sekcja } from '../../src/components/ui';
+import { Naciskany, Sekcja, Zakladki } from '../../src/components/ui';
 import { lightTheme, darkTheme, type AppTheme } from '../../src/constants/theme';
 import { useBudowyStore } from '../../src/stores/budowyStore';
 import { SekcjaPzt } from '../../src/components/budowa/SekcjaPzt';
 import { SekcjaLegenda } from '../../src/components/budowa/SekcjaLegenda';
 import { SekcjaKonstrukcje } from '../../src/components/budowa/SekcjaKonstrukcje';
+import { SekcjaSzczegolow } from '../../src/components/budowa/SekcjaSzczegolow';
 import { SekcjaPrzedmiar } from '../../src/components/budowa/SekcjaPrzedmiar';
 import { SekcjaRaporty } from '../../src/components/budowa/SekcjaRaporty';
 import { SekcjaLiniowka } from '../../src/components/budowa/SekcjaLiniowka';
@@ -42,10 +43,13 @@ const WYKONANIE = [
 ] as const;
 
 const NAZWY: Record<string, string> = Object.fromEntries([...PROJEKT, ...WYKONANIE].map((p) => [p.id, p.nazwa]));
+/** Ostatnio otwarta zakładka budowy – powrót ze szczegółu (także po ponownym zamontowaniu ekranu na webie). */
+const ostatnieZakladki = new Map<string, { aktywna: string; widok: 'odcinki' | 'szczegoly' }>();
+
 const grupaZakladki = (id: string) => (PROJEKT.some((p) => p.id === id) ? 'Projekt' : 'Wykonanie');
 
 export default function BudowaSzablonScreen() {
-  const { id, zakladka } = useLocalSearchParams<{ id: string; zakladka?: string }>();
+  const { id, zakladka, widok } = useLocalSearchParams<{ id: string; zakladka?: string; widok?: string }>();
   const colorScheme = useColorScheme();
   const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
   const insets = useSafeAreaInsets();
@@ -54,8 +58,14 @@ export default function BudowaSzablonScreen() {
   const [mapaAktywna, setMapaAktywna] = useState(false);
   const [blokadaPodgladu, setBlokadaPodgladu] = useState(false);
   const [edycja, setEdycja] = useState(false);
-  const [aktywna, setAktywna] = useState<string>(() => (zakladka && NAZWY[zakladka] ? zakladka : 'pzt'));
+  const [aktywna, setAktywna] = useState<string>(() => (zakladka && NAZWY[zakladka] ? zakladka : ostatnieZakladki.get(id)?.aktywna ?? 'pzt'));
   const [menuOtwarte, setMenuOtwarte] = useState(false);
+  const [widokKonstrukcji, setWidokKonstrukcji] = useState<'odcinki' | 'szczegoly'>(
+    () => (widok === 'szczegoly' || widok === 'odcinki' ? widok : ostatnieZakladki.get(id)?.widok ?? 'odcinki'),
+  );
+  useEffect(() => {
+    ostatnieZakladki.set(id, { aktywna, widok: widokKonstrukcji });
+  }, [id, aktywna, widokKonstrukcji]);
   const [skupienie, setSkupienie] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
   const naSkupienie = useCallback((v: boolean) => {
@@ -168,7 +178,19 @@ export default function BudowaSzablonScreen() {
               />
             ) : null}
             {aktywna === 'legenda' ? <SekcjaLegenda projekt={projekt} theme={theme} onZmien={onZmien} /> : null}
-            {aktywna === 'konstrukcje' ? <SekcjaKonstrukcje projekt={projekt} theme={theme} onZmien={onZmien} /> : null}
+            {aktywna === 'konstrukcje' ? (
+              <View style={{ gap: 12 }}>
+                <Zakladki
+                  theme={theme}
+                  aktywna={widokKonstrukcji}
+                  onZmien={setWidokKonstrukcji}
+                  zakladki={[['odcinki', 'Odcinki'], ['szczegoly', `Szczegóły · ${projekt.szczegoly?.length ?? 0}`]]}
+                />
+                {widokKonstrukcji === 'odcinki'
+                  ? <SekcjaKonstrukcje projekt={projekt} theme={theme} onZmien={onZmien} />
+                  : <SekcjaSzczegolow budowaId={budowa.id} projekt={projekt} onZmien={onZmien} />}
+              </View>
+            ) : null}
             {aktywna === 'przedmiar' ? (
               <SekcjaPrzedmiar projekt={projekt} theme={theme} kodBudowy={budowa.kodBudowy} onZmien={onZmien} />
             ) : null}

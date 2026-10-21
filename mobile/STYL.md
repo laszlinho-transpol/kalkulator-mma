@@ -111,6 +111,10 @@ opisanych niżej** – bez własnych kolorów, odstępów i nagłówków. Zmiana
     wyliczone wartości kursywą na szaro, wartości docelowe („cel”) zawsze na zielono (`PAPIER.cel`).
     Narzędzia szkicu to pływający pasek u góry kartki (Punkty, Analiza ▾, Filtr ▾, Siatka ▾), dane zaznaczenia –
     pływający panel na dole. Logika: `src/geodezja/szkic.ts`, `src/geodezja/przekroj.ts`.
+    Wypełnienia warstw i betonu rysuje `wypelnionyWielokat` (wzór przycięty do wielokąta wypukłego, siatka wzoru
+    zaczepiona w początku świata, z `obszar` tylko w widocznej części kartki); próbki w kreatorze – `probkaWypelnienia`.
+    Edytor przekroju (`src/components/geodezja/EdytorPrzekroju.tsx`) jest wspólny dla szablonów w geodezji
+    i szczegółów budowy (`ProjektBudowy.szczegoly`, kopie szablonów – edycja szczegółu nie zmienia szablonu).
 
 ## 2. Klocki (`src/components/ui`)
 

@@ -172,6 +172,7 @@ export default function RootLayout() {
         <Stack.Screen name="budowa/index" options={{ headerShown: false }} />
         <Stack.Screen name="budowa/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="budowa/liniowka-reczna" options={{ headerShown: false, animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="budowa/szczegol/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="raport-budowy/miesiac" options={{ headerShown: false }} />
         <Stack.Screen name="raport-budowy/formularz" options={{ headerShown: false }} />
         <Stack.Screen name="raport-budowy/[id]" options={{ headerShown: false }} />

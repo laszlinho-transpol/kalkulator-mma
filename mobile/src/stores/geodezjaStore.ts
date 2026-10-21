@@ -5,7 +5,7 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { SzkicGeodezyjny } from '../geodezja/szkic';
-import type { PrzekrojPoprzeczny } from '../geodezja/przekroj';
+import { normalizujPrzekroj, type PrzekrojPoprzeczny } from '../geodezja/przekroj';
 
 const KLUCZ_SZKICE = '@mma:geodezja_szkice';
 const KLUCZ_PRZEKROJE = '@mma:geodezja_przekroje';
@@ -44,7 +44,7 @@ export const useGeodezjaStore = create<GeodezjaStore>((set, get) => ({
       czytaj<SzkicGeodezyjny>(KLUCZ_SZKICE),
       czytaj<PrzekrojPoprzeczny>(KLUCZ_PRZEKROJE),
     ]);
-    set({ szkice, przekroje });
+    set({ szkice, przekroje: przekroje.map(normalizujPrzekroj) });
   },
 
   zapiszSzkic: async (s) => {

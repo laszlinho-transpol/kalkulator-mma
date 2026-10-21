@@ -298,6 +298,10 @@ export function dokumentBudowy({ budowa, projekt, mieszanki, nazwaWytworni, rapo
         ])],
       },
       ...konstrukcje,
+      ...(projekt.szczegoly ?? []).map((s, i) => ({
+        tytul: `Szczegół ${i + 1} – ${s.nazwa}`,
+        bloki: [tekst(s.opis), { typ: 'svg' as const, svg: svgPrzekroju(s, 1200, !!s.pomiar).svg }],
+      })),
       {
         tytul: 'Przedmiar – suma mieszanek',
         bloki: [{

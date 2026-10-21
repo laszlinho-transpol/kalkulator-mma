@@ -46,7 +46,7 @@ export const KATALOG_ELEMENTOW: WzorElementu[] = [
   { id: 'kb-6', nazwa: 'Kostka betonowa 6 cm', ksztalt: 'kostka_betonowa', typ: 'pas', szer: 150, wys: 6, spadek: 2, podbudowa: 15 },
   { id: 'kk-8-11', nazwa: 'Kostka kamienna 8/11', ksztalt: 'kostka_kamienna', typ: 'pas', szer: 150, wys: 11, spadek: 2, podbudowa: 15 },
   { id: 'kk-15-17', nazwa: 'Kostka kamienna 15/17', ksztalt: 'kostka_kamienna', typ: 'pas', szer: 300, wys: 17, spadek: 2, podbudowa: 20 },
-  { id: 'asfalt', nazwa: 'Jezdnia – nawierzchnia bitumiczna', ksztalt: 'asfalt', typ: 'pas', szer: 300, wys: 9, spadek: 2, podbudowa: 20 },
+  { id: 'asfalt', nazwa: 'Jezdnia – konstrukcja', ksztalt: 'asfalt', typ: 'pas', szer: 300, wys: 29, spadek: 2 },
 ];
 
 export interface ElementPrzekroju {
@@ -62,36 +62,82 @@ export interface ElementPrzekroju {
   spadek?: number;
   podbudowa?: number;
   lawa?: boolean;
+  /** Grubość ławy [cm] (domyślnie 15). */
+  lawaGrubosc?: number;
+  /** Szerokość ławy [cm] (domyślnie szerokość elementu). */
+  lawaSzer?: number;
+  /** Opór betonowy na ławie z boku elementu. */
+  opor?: OporElementu;
   /** Lustrzane odbicie (np. skos krawężnika w lewo). */
   odwroc?: boolean;
-  /** Warstwy nawierzchni bitumicznej od góry; suma grubości = `wys`. */
+  /** Warstwy konstrukcji jezdni od góry (z podbudową); suma grubości = `wys`. */
   warstwy?: WarstwaNawierzchni[];
-  /** Lewa / prawa krawędź warstw: 0 = pionowo, n = skos 1:n (n cm w poziomie na 1 cm grubości). */
-  krawedzL?: number;
-  krawedzP?: number;
+  /** Strony, po których działają odsadzki i skosy warstw. */
+  strony?: StronyWarstw;
   /** Zagłębienie korytka / muldy względem krawędzi [cm]. */
   zaglebienie?: number;
+  /** Zapis 1.8.52 – zamieniane przez `normalizujElement`. */
+  krawedzL?: number;
+  krawedzP?: number;
 }
+
+export interface OporElementu {
+  strona: 'l' | 'p';
+  /** Szerokość u podstawy [cm]. */
+  szer: number;
+  /** Odległość góry oporu od góry elementu [cm]. */
+  odGory: number;
+}
+
+export type StronyWarstw = 'obie' | 'lewa' | 'prawa' | 'brak';
+
+export type WypelnienieWarstwy =
+  | 'asfalt' | 'asfalt_jasny' | 'kruszywo' | 'kropki' | 'kreski' | 'ukosne' | 'ukosne_odwrotne'
+  | 'kratka' | 'kratka_ukosna' | 'beton' | 'grunt' | 'biale';
 
 export interface WarstwaNawierzchni {
   id: string;
   nazwa: string;
   /** Grubość [cm]. */
   grubosc: number;
-  /** Szerokość górnej krawędzi warstwy [cm]; brak = szerokość elementu (pierwsza) albo dół warstwy wyżej. */
+  /** Dodatkowa szerokość za skosem warstwy wyżej [cm] (po każdej stronie z `strony`). */
+  odsadzka?: number;
+  /** Skos krawędzi 1:n (n cm w poziomie na 1 cm grubości); 0 = pionowo. */
+  skos?: number;
+  wypelnienie?: WypelnienieWarstwy;
+  /** Zapis 1.8.52 – pomijany. */
   szer?: number;
 }
 
-export const NAZWY_WARSTW_BITUMICZNYCH = ['Warstwa ścieralna', 'Warstwa wiążąca', 'Podbudowa bitumiczna'];
+export const NAZWY_WARSTW_KONSTRUKCJI = [
+  'Warstwa ścieralna', 'Warstwa wiążąca', 'Podbudowa zasadnicza', 'Podbudowa pomocnicza', 'Warstwa mrozoochronna', 'Warstwa odsączająca',
+];
+
+/** Nowa warstwa pod istniejącymi – pierwsza nieużyta typowa nazwa, wypełnienie dobierane z nazwy. */
+export function nowaWarstwa(warstwy: WarstwaNawierzchni[], id = generujIdGeo()): WarstwaNawierzchni {
+  const nazwa = NAZWY_WARSTW_KONSTRUKCJI.find((n) => !warstwy.some((w) => w.nazwa === n)) ?? `Warstwa ${warstwy.length + 1}`;
+  return { id, nazwa, grubosc: warstwy.length >= 2 ? 15 : 5 };
+}
 
 export function domyslneWarstwy(): WarstwaNawierzchni[] {
   return [
-    { id: generujIdGeo(), nazwa: NAZWY_WARSTW_BITUMICZNYCH[0], grubosc: 4 },
-    { id: generujIdGeo(), nazwa: NAZWY_WARSTW_BITUMICZNYCH[1], grubosc: 5 },
+    { id: generujIdGeo(), nazwa: 'Warstwa ścieralna', grubosc: 4, wypelnienie: 'asfalt' },
+    { id: generujIdGeo(), nazwa: 'Warstwa wiążąca', grubosc: 5, wypelnienie: 'asfalt_jasny' },
+    { id: generujIdGeo(), nazwa: 'Podbudowa', grubosc: 20, wypelnienie: 'kruszywo' },
   ];
 }
 
-/** Warstwy elementu z nawierzchnią bitumiczną (stary zapis bez warstw = jedna warstwa o grubości elementu). */
+/** Wypełnienie warstwy: wybrane albo domyślne z nazwy (bitumiczne ciemne, podbudowa z kruszywa w kropki). */
+export function wypelnienieWarstwy(w: WarstwaNawierzchni, indeks: number): WypelnienieWarstwy {
+  if (w.wypelnienie) return w.wypelnienie;
+  if (/bitum|asfalt|ście|wiąż|sma|ac\d/i.test(w.nazwa)) return indeks % 2 ? 'asfalt_jasny' : 'asfalt';
+  if (/podbud|kruszyw|tłucz|stabiliz/i.test(w.nazwa)) return 'kruszywo';
+  if (/grunt|piasek|mrozo|odsącz/i.test(w.nazwa)) return 'grunt';
+  if (/beton/i.test(w.nazwa)) return 'beton';
+  return indeks % 2 ? 'asfalt_jasny' : 'asfalt';
+}
+
+/** Warstwy jezdni (stary zapis bez warstw = jedna warstwa o grubości elementu). */
 export function warstwyElementu(e: Pick<ElementPrzekroju, 'ksztalt' | 'wys' | 'warstwy'>): WarstwaNawierzchni[] {
   if (e.ksztalt !== 'asfalt') return [];
   return e.warstwy?.length ? e.warstwy : [{ id: 'calosc', nazwa: '', grubosc: e.wys }];
@@ -102,8 +148,18 @@ export function zWarstwami(warstwy: WarstwaNawierzchni[]): Pick<ElementPrzekroju
   return { warstwy, wys: Math.max(0.1, warstwy.reduce((s, w) => s + (w.grubosc > 0 ? w.grubosc : 0), 0)) };
 }
 
+export function przesunWarstwe(warstwy: WarstwaNawierzchni[], id: string, o: -1 | 1): WarstwaNawierzchni[] {
+  const i = warstwy.findIndex((w) => w.id === id);
+  const j = i + o;
+  if (i < 0 || j < 0 || j >= warstwy.length) return warstwy;
+  const nowe = [...warstwy];
+  [nowe[i], nowe[j]] = [nowe[j], nowe[i]];
+  return nowe;
+}
+
 export interface GeometriaWarstwy {
   warstwa: WarstwaNawierzchni;
+  wypelnienie: WypelnienieWarstwy;
   /** Głębokość górnej krawędzi pod powierzchnią [cm]. */
   gora: number;
   /** Wysunięcie poza lewą / prawą krawędź elementu u góry i u dołu warstwy [cm]. */
@@ -116,30 +172,81 @@ export interface GeometriaWarstwy {
   szerDol: number;
 }
 
+/** Każda warstwa zaczyna się od dołu warstwy wyżej + odsadzka, a jej krawędź schodzi skosem 1:n. */
 export function geometriaWarstw(e: ElementPrzekroju): GeometriaWarstwy[] {
-  const nL = Math.max(0, e.krawedzL ?? 0);
-  const nP = Math.max(0, e.krawedzP ?? 0);
-  // Szerokość wpisana ręcznie poszerza warstwę po stronie ze skosem (po obu, gdy obie krawędzie są takie same).
-  const udzialL = (nL > 0) === (nP > 0) ? 0.5 : nL > 0 ? 1 : 0;
+  const strony = e.strony ?? 'obie';
+  const naL = strony === 'obie' || strony === 'lewa' ? 1 : 0;
+  const naP = strony === 'obie' || strony === 'prawa' ? 1 : 0;
   const wynik: GeometriaWarstwy[] = [];
   let gora = 0;
   let l = 0;
   let p = 0;
-  warstwyElementu(e).forEach((w) => {
+  warstwyElementu(e).forEach((w, i) => {
     const g = Math.max(0, w.grubosc);
-    if (w.szer && w.szer > 0) {
-      const nadmiar = w.szer - e.szer;
-      l = nadmiar * udzialL;
-      p = nadmiar - l;
-    }
-    const lDol = l + nL * g;
-    const pDol = p + nP * g;
-    wynik.push({ warstwa: w, gora, lGora: l, pGora: p, lDol, pDol, szerGora: e.szer + l + p, szerDol: e.szer + lDol + pDol });
+    const ods = Math.max(0, w.odsadzka ?? 0);
+    const n = Math.max(0, w.skos ?? 0);
+    const lGora = l + ods * naL;
+    const pGora = p + ods * naP;
+    const lDol = lGora + n * g * naL;
+    const pDol = pGora + n * g * naP;
+    wynik.push({
+      warstwa: w, wypelnienie: wypelnienieWarstwy(w, i), gora, lGora, pGora, lDol, pDol,
+      szerGora: e.szer + lGora + pGora, szerDol: e.szer + lDol + pDol,
+    });
     gora += g;
     l = lDol;
     p = pDol;
   });
   return wynik;
+}
+
+export const NAZWA_JEZDNI = 'Jezdnia – konstrukcja';
+
+/** Ujednolicenie starszych zapisów (1.8.51–1.8.52): podbudowa jezdni jako warstwa, skos krawędzi w warstwach. */
+export function normalizujElement(e: ElementPrzekroju): ElementPrzekroju {
+  if (e.ksztalt !== 'asfalt') return e;
+  let n: ElementPrzekroju = { ...e };
+  if (n.nazwa === 'Jezdnia – nawierzchnia bitumiczna') n.nazwa = NAZWA_JEZDNI;
+  let warstwy = (n.warstwy?.length ? n.warstwy : [{ id: generujIdGeo(), nazwa: 'Nawierzchnia', grubosc: n.wys, wypelnienie: 'asfalt' as const }])
+    .map(({ szer: _szer, ...w }) => w);
+  if (n.krawedzL != null || n.krawedzP != null) {
+    const kL = n.krawedzL ?? 0;
+    const kP = n.krawedzP ?? 0;
+    const skos = Math.max(kL, kP);
+    if (skos > 0) warstwy = warstwy.map((w) => ({ ...w, skos: w.skos ?? skos }));
+    n.strony = kL > 0 && kP > 0 ? 'obie' : kL > 0 ? 'lewa' : kP > 0 ? 'prawa' : n.strony;
+    delete n.krawedzL;
+    delete n.krawedzP;
+  }
+  if (n.podbudowa && n.podbudowa > 0) {
+    warstwy = [...warstwy, { id: generujIdGeo(), nazwa: 'Podbudowa', grubosc: n.podbudowa, wypelnienie: 'kruszywo' }];
+    n.podbudowa = undefined;
+  }
+  n = { ...n, ...zWarstwami(warstwy) };
+  return n;
+}
+
+export function normalizujPrzekroj(p: PrzekrojPoprzeczny): PrzekrojPoprzeczny {
+  const potrzeba = p.elementy.some((e) => e.ksztalt === 'asfalt'
+    && (!e.warstwy?.length || e.podbudowa || e.krawedzL != null || e.krawedzP != null || e.nazwa === 'Jezdnia – nawierzchnia bitumiczna'
+      || e.warstwy.some((w) => w.szer != null)));
+  return potrzeba ? { ...p, elementy: p.elementy.map(normalizujElement) } : p;
+}
+
+export const GRUBOSC_LAWY = 15;
+
+export function gruboscLawy(e: Pick<ElementPrzekroju, 'lawa' | 'lawaGrubosc'>): number {
+  return e.lawa ? (e.lawaGrubosc && e.lawaGrubosc > 0 ? e.lawaGrubosc : GRUBOSC_LAWY) : 0;
+}
+
+/** Opór stoi na ławie – bez ławy nie jest rysowany. */
+export function oporElementu(e: Pick<ElementPrzekroju, 'typ' | 'lawa' | 'opor'>): OporElementu | undefined {
+  return e.typ === 'blok' && e.lawa && e.opor && e.opor.szer > 0 ? e.opor : undefined;
+}
+
+/** Domyślny opór: po stronie tylnej elementu (krawężnik ma zaokrąglenie od strony jezdni – z prawej). */
+export function domyslnyOpor(e: Pick<ElementPrzekroju, 'odwroc' | 'wys'>, strona?: 'l' | 'p'): OporElementu {
+  return { strona: strona ?? (e.odwroc ? 'p' : 'l'), szer: 10, odGory: Math.min(10, Math.round(e.wys / 3)) };
 }
 
 const ZAGLEBIENIE_KORYTKA: Partial<Record<KsztaltElementu, number>> = { korytko_sciekowe: 0.2, korytko_muldowe: 0.3 };
@@ -194,6 +301,15 @@ export interface PrzekrojPoprzeczny {
 export function nowyPrzekroj(nazwa: string, teraz = new Date(), id = generujIdGeo()): PrzekrojPoprzeczny {
   const iso = teraz.toISOString();
   return { id, nazwa, elementy: [], skrocone: true, createdAt: iso, updatedAt: iso };
+}
+
+/** Niezależna kopia szablonu (np. szczegół budowy) – bez pomiaru i archiwum. */
+export function kopiaPrzekroju(p: PrzekrojPoprzeczny, teraz = new Date(), id = generujIdGeo()): PrzekrojPoprzeczny {
+  const iso = teraz.toISOString();
+  const kopia: PrzekrojPoprzeczny = JSON.parse(JSON.stringify(normalizujPrzekroj(p)));
+  delete kopia.pomiar;
+  delete kopia.archiwum;
+  return { ...kopia, id, createdAt: iso, updatedAt: iso };
 }
 
 // ------------------------------------------------------------
@@ -275,7 +391,7 @@ export function elementZWzoru(wzor: WzorElementu, poprzedni?: ElementPrzekroju, 
     podbudowa: wzor.podbudowa,
     lawa: wzor.lawa,
   };
-  return wzor.ksztalt === 'asfalt' ? { ...e, ...zWarstwami(domyslneWarstwy()), krawedzL: 0, krawedzP: 0 } : e;
+  return wzor.ksztalt === 'asfalt' ? { ...e, ...zWarstwami(domyslneWarstwy()), strony: 'obie' } : e;
 }
 
 export function dodajElement(p: PrzekrojPoprzeczny, wzor: WzorElementu, poIndeksie = p.elementy.length - 1): PrzekrojPoprzeczny {
@@ -333,23 +449,22 @@ export interface UlozonyElement {
   rx1: number;
   skrocony: boolean;
   punkty: PunktPomiarowy[];
-  /** Wysunięcie ławy poza element w lewo / w prawo [cm] (0, gdy zaszłaby pod sąsiada). */
+  /** Wysunięcie ławy poza element w lewo / w prawo [cm]. */
   lawaL: number;
   lawaP: number;
 }
 
 export const SZEROKOSC_SKROCONA = 120;
-export const GRUBOSC_LAWY = 15;
-export const WYSUNIECIE_LAWY = 5;
 
 /** Najniższy punkt elementu przy jego lewej / prawej krawędzi [cm]. */
 function spodPrzyKrawedzi(u: UlozonyElement, strona: 'l' | 'p'): number {
   const e = u.element;
   if (e.typ === 'pas') return (strona === 'l' ? u.hL : u.hP) - e.wys - (e.podbudowa ?? 0);
-  return u.hL - e.wys - (e.lawa ? GRUBOSC_LAWY : 0);
+  return u.hL - e.wys - gruboscLawy(e);
 }
 
-export function ulozPrzekroj(p: PrzekrojPoprzeczny): UlozonyElement[] {
+export function ulozPrzekroj(przekroj: PrzekrojPoprzeczny): UlozonyElement[] {
+  const p = normalizujPrzekroj(przekroj);
   const wynik: UlozonyElement[] = [];
   let x = 0;
   let rx = 0;
@@ -374,14 +489,24 @@ export function ulozPrzekroj(p: PrzekrojPoprzeczny): UlozonyElement[] {
     rx += rw;
     h = hP;
   });
-  // Ława wystaje poza element tylko tam, gdzie sąsiad kończy się nad nią – nie wchodzi pod poprzedni ani następny obiekt.
+  // Ława: pod oporem zawsze, nadmiar szerokości tylko tam, gdzie sąsiad kończy się nad nią (nie wchodzi pod poprzedni ani następny obiekt).
   wynik.forEach((u, i) => {
-    if (u.element.typ !== 'blok' || !u.element.lawa) return;
-    const gora = u.hL - u.element.wys;
+    const e = u.element;
+    if (e.typ !== 'blok' || !e.lawa) return;
+    const gora = u.hL - e.wys;
     const lewy = wynik[i - 1];
     const prawy = wynik[i + 1];
-    u.lawaL = !lewy || spodPrzyKrawedzi(lewy, 'p') >= gora ? WYSUNIECIE_LAWY : 0;
-    u.lawaP = !prawy || spodPrzyKrawedzi(prawy, 'l') >= gora ? WYSUNIECIE_LAWY : 0;
+    const oporL = oporElementu(e)?.strona === 'l' ? Math.max(0, e.opor!.szer) : 0;
+    const oporP = oporElementu(e)?.strona === 'p' ? Math.max(0, e.opor!.szer) : 0;
+    const wolnyL = !lewy || spodPrzyKrawedzi(lewy, 'p') >= gora;
+    const wolnyP = !prawy || spodPrzyKrawedzi(prawy, 'l') >= gora;
+    const nadmiar = Math.max(0, (e.lawaSzer ?? e.szer) - e.szer - oporL - oporP);
+    let naL = wolnyL || oporL > 0;
+    let naP = wolnyP || oporP > 0;
+    if (!naL && !naP) { naL = true; naP = true; }
+    const czesc = nadmiar / ((naL ? 1 : 0) + (naP ? 1 : 0));
+    u.lawaL = oporL + (naL ? czesc : 0);
+    u.lawaP = oporP + (naP ? czesc : 0);
   });
   return wynik;
 }

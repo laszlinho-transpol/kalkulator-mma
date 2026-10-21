@@ -5,6 +5,7 @@
 // --- Wytwórnia (zakład produkcyjny) ---
 
 import type { OkresStawek } from '../budzet/typy';
+import type { PrzekrojPoprzeczny } from '../geodezja/przekroj';
 
 export interface KontaktWytworni {
   id: string;
@@ -676,4 +677,11 @@ export interface ProjektBudowy {
   legenda: WpisLegendy[];
   konstrukcje: KonstrukcjaObszaru[];
   scaloneWiersze: WierszPrzedmiaruScalony[];
+  /** Szczegóły konstrukcyjne (przekroje poprzeczne) – kopie szablonów z geodezji, edytowane niezależnie. */
+  szczegoly?: SzczegolBudowy[];
 }
+
+export type SzczegolBudowy = PrzekrojPoprzeczny & {
+  /** Szablon z geodezji, z którego powstała kopia. */
+  szablonId?: string;
+};
