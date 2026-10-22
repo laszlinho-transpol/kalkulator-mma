@@ -16,6 +16,7 @@ import {
 } from './rysunek';
 import { dodajSzczegolBudowy, usunSzczegolBudowy, zapiszSzczegolBudowy } from './szczegolyBudowy';
 import { pustyProjektBudowy } from '../utils/projektBudowy';
+import { wierzcholekLuku } from './luk';
 
 const T = new Date('2026-10-20T10:00:00Z');
 const blisko = (a: number, b: number, eps = 1e-6) => assert.ok(Math.abs(a - b) < eps, `${a} ≉ ${b}`);
@@ -415,5 +416,21 @@ describe('rysunek i SVG', () => {
   it('zoom wokół punktu trzyma punkt pod kursorem', () => {
     const w = zoomWokol({ s: 10, tx: 5, ty: 5 }, 40, { x: 100, y: 50 });
     blisko((100 - w.tx) / w.s, (100 - 5) / 10);
+  });
+});
+
+describe('wierzchołek łuku', () => {
+  it('X = R − √(R² − (c/2)²): c 20 m, R 100 m → 0,501 m', () => {
+    const w = wierzcholekLuku(20, 100)!;
+    blisko(w.x, 0.50126, 1e-4);
+    blisko(w.polowa, 10);
+    blisko(w.dlugoscLuku, 20.0335, 1e-4);
+    blisko(w.kat, 11.4783, 1e-4);
+  });
+
+  it('półokrąg i cięciwa dłuższa niż średnica', () => {
+    blisko(wierzcholekLuku(30, 15)!.x, 15);
+    assert.equal(wierzcholekLuku(31, 15), null);
+    assert.equal(wierzcholekLuku(0, 15), null);
   });
 });

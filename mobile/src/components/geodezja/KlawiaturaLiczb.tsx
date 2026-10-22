@@ -28,6 +28,11 @@ const subskrybuj = (f: () => void) => {
 };
 const stan = () => aktywne;
 
+/** Czy klawiatura liczbowa jest otwarta (np. żeby przewinąć do niej ekran). */
+export function useKlawiaturaOtwarta(): boolean {
+  return !!useSyncExternalStore(subskrybuj, stan, stan);
+}
+
 export function zamknijKlawiature() {
   if (!aktywne) return;
   aktywne = null;

@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.54';
+export const WERSJA_APLIKACJI = '1.8.55';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,16 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.55',
+    data: '2026-10-22',
+    tytul: 'Geodezja: wierzchołek łuku i kafelki kalkulatorów',
+    zmiany: [
+      'Nowy kalkulator „Wierzchołek łuku”: cięciwa c między skrajnymi szpilkami i promień R → strzałka X = R − √(R² − (c/2)²) w metrach, do tego c/2, długość łuku i kąt środkowy',
+      'Nad formularzem schemat: szpilki, cięciwa, łuk, promień i odcinek X z wpisanymi wartościami; liczby wpisuje mała klawiatura w aplikacji',
+      'Geodezja i pomiary: kafelki jak w menu głównym, każdy z rysunkiem kalkulatora',
+    ],
+  },
   {
     wersja: '1.8.54',
     data: '2026-10-21',

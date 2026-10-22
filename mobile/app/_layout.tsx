@@ -185,6 +185,7 @@ export default function RootLayout() {
         <Stack.Screen name="niezbednik/geodezja/spadki" options={{ headerShown: false }} />
         <Stack.Screen name="niezbednik/geodezja/luki" options={{ headerShown: false }} />
         <Stack.Screen name="niezbednik/geodezja/kat-prosty" options={{ headerShown: false }} />
+        <Stack.Screen name="niezbednik/geodezja/wierzcholek-luku" options={{ headerShown: false }} />
         <Stack.Screen name="niezbednik/geodezja/szkice" options={{ headerShown: false }} />
         <Stack.Screen name="niezbednik/geodezja/szkic/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="niezbednik/geodezja/przekroje" options={{ headerShown: false }} />

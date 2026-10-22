@@ -7,7 +7,9 @@ import { Naciskany } from './Naciskany';
 interface Props {
   tytul: string;
   podtytul: string;
-  ikona: string;
+  ikona?: string;
+  /** Rysunek zamiast ikony (np. schemat kalkulatora). */
+  rysunek?: React.ReactNode;
   kolor: string;
   onPress: () => void;
   /** Opóźnienie wjazdu kafelka [ms] – kafelki pojawiają się kolejno. */
@@ -16,7 +18,7 @@ interface Props {
 }
 
 /** Kafelek menu (ekran główny, Budżet): ikona, tytul, podpis w kolorze działu, pasek na dole. */
-export function KafelekMenu({ tytul, podtytul, ikona, kolor, onPress, opoznienie = 0, szerokosc = '47.5%' }: Props) {
+export function KafelekMenu({ tytul, podtytul, ikona, rysunek, kolor, onPress, opoznienie = 0, szerokosc = '47.5%' }: Props) {
   const theme = useMotyw();
   const wejscie = useRef(new Animated.Value(0)).current;
 
@@ -43,9 +45,13 @@ export function KafelekMenu({ tytul, podtytul, ikona, kolor, onPress, opoznienie
         onPress={onPress}
         style={[styles.kafelek, cien(theme), { backgroundColor: theme.colors.tileBackground, borderColor: theme.colors.border }]}
       >
-        <View style={[styles.ikonaTlo, { backgroundColor: `${kolor}20` }]}>
-          <Text style={styles.ikona}>{ikona}</Text>
-        </View>
+        {rysunek ? (
+          <View style={[styles.rysunekTlo, { backgroundColor: `${kolor}14` }]}>{rysunek}</View>
+        ) : (
+          <View style={[styles.ikonaTlo, { backgroundColor: `${kolor}20` }]}>
+            <Text style={styles.ikona}>{ikona}</Text>
+          </View>
+        )}
         <Text style={[styles.tytul, { color: theme.colors.text }]} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.7}>
           {tytul}
         </Text>
@@ -67,6 +73,7 @@ const styles = StyleSheet.create({
   },
   ikonaTlo: { width: 48, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
   ikona: { fontSize: 26 },
+  rysunekTlo: { borderRadius: 12, paddingVertical: 6, paddingHorizontal: 4, marginBottom: 10 },
   tytul: { fontSize: 16, fontWeight: '800', lineHeight: 20, flex: 1 },
   podtytul: { fontSize: 12, fontWeight: '600', marginTop: 4, marginBottom: 10 },
   pasek: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 4 },
