@@ -153,6 +153,15 @@ export function tyczenieKataProstego(skala: number) {
   return { bokA: 3 * s, bokB: 4 * s, przeciwprostokatna: 5 * s };
 }
 
+export type BokTrojkata345 = 'a' | 'b' | 'c';
+
+/** Trójkąt 3-4-5 z dowolnego boku: a = 3×, b = 4×, przekątna c = 5× mnożnika. */
+export function trojkat345(dlugosc: number, bok: BokTrojkata345) {
+  const dzielnik = bok === 'a' ? 3 : bok === 'b' ? 4 : 5;
+  const mnoznik = dlugosc > 0 ? dlugosc / dzielnik : 1;
+  return { mnoznik, ...tyczenieKataProstego(mnoznik) };
+}
+
 export function logistykaTransportu(params: {
   czasPrzejazduMin: number;
   mnoznikCiezarowki: number;

@@ -1,16 +1,16 @@
-// Tyczenie kąta prostego metodą 3-4-5 (trójkąt egipski) z mnożnikiem długości boków.
+// Tyczenie kąta prostego metodą 3-4-5 (trójkąt egipski) – wpisany dowolny bok przelicza pozostałe dwa.
 
 import React, { useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-  AppHeader, Przycisk, RamkaWyniku, Sekcja, SiatkaDanych, WycinekPola, WycinekWyniku, ZasadaDzialania, useMotyw,
+  AppHeader, Przycisk, RamkaWyniku, Sekcja, SiatkaDanych, Wiersz, WycinekPola, WycinekWiersz, WycinekWyniku, ZasadaDzialania, useMotyw,
 } from '../../../src/components/ui';
 import { KlawiaturaLiczb, PoleLiczby, StrefaKlawiatury, usePrzewijanieDoDanych } from '../../../src/components/geodezja/KlawiaturaLiczb';
 import { RysTrojkat345, RysTyczenie345 } from '../../../src/components/geodezja/ZasadyGeodezji';
 import { fm, liczbaZTekstu } from '../../../src/geodezja/geometria';
-import { tyczenieKataProstego } from '../../../src/utils/kalkulatoryMasiarza';
+import { trojkat345, type BokTrojkata345 } from '../../../src/utils/kalkulatoryMasiarza';
 import { useNotatnikStore } from '../../../src/stores/notatnikStore';
 
 const ZASADA = 'geodezja/kat-prosty';
@@ -20,10 +20,14 @@ export default function KatProstyScreen() {
   const insets = useSafeAreaInsets();
   const { dodaj } = useNotatnikStore();
   const { przewijanie, dane } = usePrzewijanieDoDanych();
-  const [skala, setSkala] = useState('1');
-  const s = liczbaZTekstu(skala);
-  const w = tyczenieKataProstego(s != null && s > 0 ? s : 1);
+  const [zrodlo, setZrodlo] = useState<{ bok: BokTrojkata345; tekst: string }>({ bok: 'a', tekst: '3' });
+  const d = liczbaZTekstu(zrodlo.tekst);
+  const w = trojkat345(d != null && d > 0 ? d : 0, zrodlo.bok);
   const m = (v: number) => `${fm(v, 2)} m`;
+  const pole = (bok: BokTrojkata345, wartosc: number) => ({
+    value: zrodlo.bok === bok ? zrodlo.tekst : fm(wartosc, 2),
+    onChangeText: (tekst: string) => setZrodlo({ bok, tekst }),
+  });
 
   return (
     <View style={[styles.ekran, { backgroundColor: theme.colors.background }]}>
@@ -38,14 +42,17 @@ export default function KatProstyScreen() {
               opis: 'Trójkąt o bokach w proporcji **3 : 4 : 5** zawsze ma kąt prosty między krótszymi bokami. Wystarczą dwie taśmy – bez kątownika i instrumentu.',
             },
             {
-              tytul: 'Wpisz mnożnik',
+              tytul: 'Wpisz dowolny bok',
               rysunek: (
                 <>
-                  <WycinekPola etykieta="Mnożnik boków" wartosc="2" aktywne />
-                  <WycinekWyniku etykieta="Boki a · b · c" wartosc="6 · 8 · 10 m" />
+                  <WycinekWiersz>
+                    <WycinekPola etykieta="Bok a (3×)" wartosc="6,00" jednostka="m" />
+                    <WycinekPola etykieta="Bok b (4×)" wartosc="8" jednostka="m" aktywne />
+                  </WycinekWiersz>
+                  <WycinekWyniku etykieta="Przekątna c (5×)" wartosc="10,00 m" />
                 </>
               ),
-              opis: 'Mnożnik wydłuża boki: 1 → 3, 4 i 5 m; 2 → 6, 8 i 10 m. **Im dłuższe boki, tym dokładniejszy kąt** – dobierz je do miejsca na budowie. Pole wypełniasz klawiaturą liczbową pod danymi.',
+              opis: 'Stuknij pole boku, który znasz albo który mieści się na budowie – **Bok a**, **Bok b** albo **Przekątna c** – i wpisz długość klawiaturą pod danymi. Pozostałe dwa boki i **mnożnik** przeliczą się same (np. b = 8 m → a = 6 m, c = 10 m). **Im dłuższe boki, tym dokładniejszy kąt.**',
             },
             {
               tytul: 'Wytycz w terenie',
@@ -58,12 +65,20 @@ export default function KatProstyScreen() {
         <StrefaKlawiatury>
           <View ref={dane}>
             <Sekcja tytul="Dane">
-              <PoleLiczby etykieta="Mnożnik boków" value={skala} onChangeText={setSkala} accessibilityLabel="Mnożnik boków" />
-              <RamkaWyniku etykieta="Przekątna c (5×)" accessibilityLabel="Wynik przekątna" wartosc={m(w.przeciwprostokatna)} />
+              <Wiersz>
+                <PoleLiczby etykieta="Bok a (3×)" jednostka="m" accessibilityLabel="Bok a" {...pole('a', w.bokA)} />
+                <PoleLiczby etykieta="Bok b (4×)" jednostka="m" accessibilityLabel="Bok b" {...pole('b', w.bokB)} />
+              </Wiersz>
+              <PoleLiczby etykieta="Przekątna c (5×)" jednostka="m" accessibilityLabel="Przekątna c" {...pole('c', w.przeciwprostokatna)} />
+              <RamkaWyniku
+                etykieta="Boki a · b · c"
+                accessibilityLabel="Wynik boki"
+                wartosc={`${fm(w.bokA, 2)} · ${fm(w.bokB, 2)} · ${m(w.przeciwprostokatna)}`}
+              />
               <SiatkaDanych
                 pozycje={[
-                  { etykieta: 'Bok a (3×)', wartosc: m(w.bokA) },
-                  { etykieta: 'Bok b (4×)', wartosc: m(w.bokB) },
+                  { etykieta: 'Mnożnik', wartosc: `${fm(w.mnoznik, 3).replace(/,?0+$/, '')}×` },
+                  { etykieta: 'Taśma a + b + c', wartosc: m(w.bokA + w.bokB + w.przeciwprostokatna) },
                 ]}
               />
               <KlawiaturaLiczb />
@@ -74,7 +89,7 @@ export default function KatProstyScreen() {
         <Przycisk
           wariant="drugi"
           tekst="Zapisz do Notatnika"
-          onPress={() => dodaj(`Kąt prosty 3-4-5: a = ${m(w.bokA)}, b = ${m(w.bokB)}, przekątna c = ${m(w.przeciwprostokatna)}`, 'Geodezja')}
+          onPress={() => dodaj(`Kąt prosty 3-4-5 (mnożnik ${fm(w.mnoznik, 3).replace(/,?0+$/, '')}): a = ${m(w.bokA)}, b = ${m(w.bokB)}, przekątna c = ${m(w.przeciwprostokatna)}`, 'Geodezja')}
         />
       </ScrollView>
     </View>

@@ -2,6 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   sumaPoszerzen,
+  trojkat345,
   konfiguracjaStolu,
   obliczWskaznikRozkladarki,
 } from './kalkulatoryMasiarza';
@@ -82,5 +83,16 @@ describe('obliczWskaznikRozkladarki', () => {
     const max = obliczWskaznikRozkladarki({ ...baza, wDocelowa: 6.5 });
     assert.equal(min.ok, true);
     assert.equal(max.ok, true);
+  });
+});
+
+describe('trojkat345', () => {
+  it('liczy pozostałe boki z dowolnego boku', () => {
+    assert.deepEqual(trojkat345(6, 'a'), { mnoznik: 2, bokA: 6, bokB: 8, przeciwprostokatna: 10 });
+    assert.deepEqual(trojkat345(10, 'b'), { mnoznik: 2.5, bokA: 7.5, bokB: 10, przeciwprostokatna: 12.5 });
+    assert.deepEqual(trojkat345(15, 'c'), { mnoznik: 3, bokA: 9, bokB: 12, przeciwprostokatna: 15 });
+  });
+  it('przy zerze lub braku wartości wraca do 3-4-5 m', () => {
+    assert.deepEqual(trojkat345(0, 'c'), { mnoznik: 1, bokA: 3, bokB: 4, przeciwprostokatna: 5 });
   });
 });
