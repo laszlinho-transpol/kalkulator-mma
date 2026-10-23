@@ -5,9 +5,9 @@ import Svg, { Circle, G, Line, Path, Polygon, Rect, Text as SvgText } from 'reac
 import { useMotyw } from '../../hooks/useMotyw';
 import { CZCIONKA } from './RysunkiGeodezji';
 
-type Kolory = { tusz: string; drugi: string; akcent: string; cel: string; tlo: string };
+export type Kolory = { tusz: string; drugi: string; akcent: string; cel: string; tlo: string };
 
-function Rys({ opis, wys = 150, children }: { opis: string; wys?: number; children: (k: Kolory) => ReactNode }) {
+export function Rys({ opis, wys = 150, children }: { opis: string; wys?: number; children: (k: Kolory) => ReactNode }) {
   const theme = useMotyw();
   const k = { tusz: theme.colors.text, drugi: theme.colors.textSecondary, akcent: theme.colors.primary, cel: theme.colors.success, tlo: theme.colors.card };
   return (

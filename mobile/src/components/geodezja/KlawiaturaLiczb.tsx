@@ -47,6 +47,22 @@ export function usePrzewijanieDoDanych() {
   return { przewijanie, dane };
 }
 
+/** Strona z kilkoma strefami klawiatury: po otwarciu przewija do widoku strefy, w której jest aktywne pole. */
+export function usePrzewijanieDoStref() {
+  const przewijanie = useRef<ScrollView>(null);
+  const widoki = useRef<Record<string, View | null>>({});
+  const strefa = useSyncExternalStore(subskrybuj, stan, stan)?.strefa;
+  useEffect(() => {
+    const sv = przewijanie.current;
+    const wnetrze = sv?.getInnerViewNode?.();
+    const widok = strefa ? widoki.current[strefa] : null;
+    if (!sv || !widok || !wnetrze) return;
+    widok.measureLayout(wnetrze, (_x, y) => sv.scrollTo({ y: Math.max(0, y - 8), animated: true }), () => {});
+  }, [strefa]);
+  const widokStrefy = (nazwa: string) => (v: View | null) => { widoki.current[nazwa] = v; };
+  return { przewijanie, widokStrefy };
+}
+
 export function zamknijKlawiature() {
   if (!aktywne) return;
   aktywne = null;
@@ -56,9 +72,9 @@ export function zamknijKlawiature() {
 const StrefaKontekst = createContext('');
 
 /** Obszar z własną klawiaturą – pola liczb w środku pokazują ją w miejscu `<KlawiaturaLiczb />`. */
-export function StrefaKlawiatury({ children }: { children: React.ReactNode }) {
+export function StrefaKlawiatury({ children, nazwa }: { children: React.ReactNode; nazwa?: string }) {
   const id = useId();
-  return <StrefaKontekst.Provider value={id}>{children}</StrefaKontekst.Provider>;
+  return <StrefaKontekst.Provider value={nazwa ?? id}>{children}</StrefaKontekst.Provider>;
 }
 
 export function PoleLiczby({ etykieta, value, onChangeText, placeholder, accessibilityLabel, info, jednostka, onGotowe, autoAktywne }: {

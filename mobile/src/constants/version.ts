@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.57';
+export const WERSJA_APLIKACJI = '1.8.58';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,16 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.58',
+    data: '2026-10-23',
+    tytul: 'Masa i sprzęt w nowym wyglądzie',
+    zmiany: [
+      'Lista „Masa i sprzęt” jako kafelki z rysunkami: Wydajność powierzchniowa, Wydajność grubościowa i Ustawianie wskaźnika rozkładarki',
+      'Metry z tony i Średnia grubość jak Wierzchołek łuku: okienko „Zasada działania”, sekcja Dane z klawiaturą liczbową w aplikacji, wynik w ramce i dodatkowe dane (powierzchnia, masa na 1 m²)',
+      'Wskaźnik rozkładarki w sekcjach: parametry stołu, schemat, poszerzenia (wpisywane klawiaturą aplikacji, z usuwaniem i dodawaniem), układanie ze stroną lewa/prawa; wynik od osi w ramce, od gąsienicy i płozy w metrach i cm',
+    ],
+  },
   {
     wersja: '1.8.57',
     data: '2026-10-23',
