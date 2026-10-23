@@ -4,7 +4,7 @@ import React from 'react';
 import { Platform } from 'react-native';
 import Svg, { Circle, G, Line, Path, Polyline, Rect, Text as SvgText } from 'react-native-svg';
 
-const CZCIONKA = Platform.select({ ios: 'Helvetica', android: 'sans-serif', default: 'Arial, Helvetica, sans-serif' });
+export const CZCIONKA = Platform.select({ ios: 'Helvetica', android: 'sans-serif', default: 'Arial, Helvetica, sans-serif' });
 
 export type RodzajRysunku = 'szkic' | 'przekroj' | 'spadki' | 'luki' | 'wierzcholek' | 'katProsty';
 

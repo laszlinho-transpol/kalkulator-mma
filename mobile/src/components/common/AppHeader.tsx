@@ -13,6 +13,7 @@ import { doMenuGlownego } from '../../budzet/nawigacja';
 import { Naciskany } from '../ui/Naciskany';
 import { PrzyciskIkony } from '../ui/Przycisk';
 import { pokazKomunikat } from '../../utils/dialog';
+import { useZasadaWidoczna } from '../../stores/zasadyStore';
 
 interface Przycisk {
   tekst: string;
@@ -34,16 +35,20 @@ interface AppHeaderProps {
   menu?: boolean;
   /** Ikona udostępniania po prawej: eksport strony do PDF (strony z danymi użytkownika). */
   udostepnij?: () => void | Promise<void>;
+  /** Klucz okienka „Zasada działania” – przycisk „i” obok domku chowa je i pokazuje. */
+  zasada?: string;
 }
 
 const czyWstecz = (p?: Przycisk) => !!p && /wstecz/i.test(p.tekst);
 
-export function AppHeader({ tytul, podtytul, przyciski, lewy, prawy, menu, udostepnij }: AppHeaderProps) {
+export function AppHeader({ tytul, podtytul, przyciski, lewy, prawy, menu, udostepnij, zasada }: AppHeaderProps) {
   const theme = useMotyw();
   const insets = useSafeAreaInsets();
   const [eksport, setEksport] = useState(false);
   const szeroki = !!udostepnij && !!prawy;
   const bok = [styles.bok, szeroki && styles.bokSzeroki];
+  const bokLewy = [...bok, zasada && styles.bokSzeroki];
+  const bokPrawy = [...bok, zasada && !szeroki && !udostepnij && !prawy && styles.bokWaski, styles.bokPrawy];
 
   const naUdostepnij = async () => {
     if (!udostepnij || eksport) return;
@@ -68,7 +73,7 @@ export function AppHeader({ tytul, podtytul, przyciski, lewy, prawy, menu, udost
       ]}
     >
       <View style={styles.rzadTytul}>
-        <View style={bok}>
+        <View style={bokLewy}>
           {lewy && czyWstecz(lewy) ? (
             <PrzyciskIkony ikona="wstecz" accessibilityLabel="Wstecz" onPress={lewy.onPress} kolor={lewy.kolor ?? theme.colors.primary} />
           ) : lewy ? (
@@ -79,6 +84,7 @@ export function AppHeader({ tytul, podtytul, przyciski, lewy, prawy, menu, udost
           {pokazMenu ? (
             <PrzyciskIkony ikona="dom" accessibilityLabel="Menu główne" onPress={doMenuGlownego} kolor={theme.colors.textSecondary} tlo={`${theme.colors.textSecondary}14`} />
           ) : null}
+          {zasada ? <PrzyciskZasady klucz={zasada} /> : null}
         </View>
 
         <View style={styles.tytulWrap}>
@@ -88,7 +94,7 @@ export function AppHeader({ tytul, podtytul, przyciski, lewy, prawy, menu, udost
           {podtytul ? <Text style={[styles.podtytul, { color: theme.colors.textSecondary }]} numberOfLines={1}>{podtytul}</Text> : null}
         </View>
 
-        <View style={[bok, styles.bokPrawy]}>
+        <View style={bokPrawy}>
           {udostepnij ? (
             eksport ? (
               <View style={styles.ladowanie}><ActivityIndicator size="small" color={theme.colors.primary} /></View>
@@ -136,6 +142,20 @@ export function AppHeader({ tytul, podtytul, przyciski, lewy, prawy, menu, udost
   );
 }
 
+function PrzyciskZasady({ klucz }: { klucz: string }) {
+  const theme = useMotyw();
+  const { widoczna, przelacz } = useZasadaWidoczna(klucz);
+  return (
+    <PrzyciskIkony
+      ikona="info"
+      accessibilityLabel={widoczna ? 'Schowaj zasadę działania' : 'Pokaż zasadę działania'}
+      onPress={przelacz}
+      kolor={widoczna ? '#1A1A1A' : theme.colors.textSecondary}
+      tlo={widoczna ? theme.colors.primary : `${theme.colors.textSecondary}14`}
+    />
+  );
+}
+
 const styles = StyleSheet.create({
   container: {
     borderBottomWidth: 1,
@@ -149,6 +169,7 @@ const styles = StyleSheet.create({
   },
   bok: { width: 84, flexDirection: 'row', alignItems: 'center', gap: 8 },
   bokSzeroki: { width: 124 },
+  bokWaski: { width: 36 },
   bokPrawy: { justifyContent: 'flex-end' },
   pigulka: { borderRadius: 18, paddingHorizontal: 12, minHeight: 36, justifyContent: 'center' },
   ladowanie: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },

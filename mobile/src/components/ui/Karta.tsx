@@ -168,7 +168,21 @@ export function SiatkaDanych({ pozycje }: { pozycje: Array<{ etykieta: string; w
   );
 }
 
+/** Główny wynik kalkulatora: duża liczba w ramce w kolorze akcentu. */
+export function RamkaWyniku({ etykieta, wartosc, kolor, accessibilityLabel }: { etykieta: string; wartosc: string; kolor?: string; accessibilityLabel?: string }) {
+  const theme = useMotyw();
+  const k = kolor ?? theme.colors.primary;
+  return (
+    <View accessibilityLabel={accessibilityLabel ?? etykieta} style={[styles.wynik, { borderColor: k, backgroundColor: `${k}18` }]}>
+      <Text style={{ color: theme.colors.textSecondary, fontWeight: '700', textAlign: 'center' }}>{etykieta}</Text>
+      <Text style={[styles.wynikLiczba, { color: theme.colors.text }]}>{wartosc}</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  wynik: { borderWidth: 1.5, borderRadius: 12, padding: 14, alignItems: 'center', gap: 2 },
+  wynikLiczba: { fontSize: 30, fontWeight: '800' },
   karta: { borderWidth: 1, borderRadius: PROMIEN.l, padding: ODSTEP.m + 2 },
   wnetrze: { gap: ODSTEP.s },
   naglowek: { flexDirection: 'row', alignItems: 'center', gap: ODSTEP.s },

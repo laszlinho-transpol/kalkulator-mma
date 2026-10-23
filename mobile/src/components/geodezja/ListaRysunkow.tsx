@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { AppHeader, Karta, Przycisk, Zakladki, useMotyw } from '../ui';
+import { AppHeader, Karta, Przycisk, Zakladki, ZasadaDzialania, useMotyw, type SlajdZasady } from '../ui';
 import { EmptyState } from '../common/EmptyState';
 
 export interface PozycjaRysunku {
@@ -16,8 +16,9 @@ export interface PozycjaRysunku {
   updatedAt: string;
 }
 
-export function ListaRysunkow({ tytul, pozycje, tekstNowy, onNowy, onOtworz, pusteTytul }: {
+export function ListaRysunkow({ tytul, pozycje, tekstNowy, onNowy, onOtworz, pusteTytul, zasada }: {
   tytul: string;
+  zasada?: { klucz: string; slajdy: SlajdZasady[] };
   pozycje: PozycjaRysunku[];
   tekstNowy: string;
   onNowy: () => void;
@@ -34,8 +35,9 @@ export function ListaRysunkow({ tytul, pozycje, tekstNowy, onNowy, onOtworz, pus
 
   return (
     <View style={[styles.ekran, { backgroundColor: theme.colors.background }]}>
-      <AppHeader tytul={tytul} lewy={{ tekst: '‹ Wstecz', onPress: () => router.back() }} />
+      <AppHeader tytul={tytul} lewy={{ tekst: '‹ Wstecz', onPress: () => router.back() }} zasada={zasada?.klucz} />
       <ScrollView contentContainerStyle={{ padding: 14, gap: 12, paddingBottom: insets.bottom + 16 }}>
+        {zasada ? <ZasadaDzialania klucz={zasada.klucz} slajdy={zasada.slajdy} /> : null}
         <Zakladki
           theme={theme}
           aktywna={zakladka}

@@ -2,7 +2,7 @@
 // Pole liczby rejestruje się jako aktywne, a klawiatura rysuje się w swojej strefie (okienko, panel).
 
 import React, { createContext, useContext, useEffect, useId, useRef, useSyncExternalStore } from 'react';
-import { Keyboard, StyleSheet, Text, View } from 'react-native';
+import { Keyboard, StyleSheet, Text, View, type ScrollView } from 'react-native';
 import { useMotyw } from '../../hooks/useMotyw';
 import { PROMIEN } from '../../constants/styl';
 import { Pole } from '../common/Formularz';
@@ -31,6 +31,20 @@ const stan = () => aktywne;
 /** Czy klawiatura liczbowa jest otwarta (np. żeby przewinąć do niej ekran). */
 export function useKlawiaturaOtwarta(): boolean {
   return !!useSyncExternalStore(subskrybuj, stan, stan);
+}
+
+/** Strona z formularzem: po otwarciu klawiatury przewija ScrollView do widoku `dane` (mierzonego w tej chwili). */
+export function usePrzewijanieDoDanych() {
+  const przewijanie = useRef<ScrollView>(null);
+  const dane = useRef<View>(null);
+  const otwarta = useKlawiaturaOtwarta();
+  useEffect(() => {
+    const sv = przewijanie.current;
+    const wnetrze = sv?.getInnerViewNode?.();
+    if (!otwarta || !sv || !dane.current || !wnetrze) return;
+    dane.current.measureLayout(wnetrze, (_x, y) => sv.scrollTo({ y: Math.max(0, y - 8), animated: true }), () => {});
+  }, [otwarta]);
+  return { przewijanie, dane };
 }
 
 export function zamknijKlawiature() {

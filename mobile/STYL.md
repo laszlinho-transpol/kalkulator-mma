@@ -118,12 +118,22 @@ opisanych niżej** – bez własnych kolorów, odstępów i nagłówków. Zmiana
     Liczby nad kartką wpisuje mała klawiatura w aplikacji (`PoleLiczby` + `KlawiaturaLiczb` w `StrefaKlawiatury`,
     `src/components/geodezja/KlawiaturaLiczb.tsx`) – systemowa zasłania kartkę i przesuwa widok. `Okienko` stoi
     przy górnej krawędzi (klawiatura pod nim), panele zaznaczenia mieszczą się bez przewijania.
+19. **Zasada działania na pierwszej stronie działu.** Na górze strony (kalkulator albo pierwsza lista działu)
+    stoi `ZasadaDzialania` – slajdy krok po kroku przesuwane palcem: rysunek SVG albo wycinek formularza
+    (`WycinekPola`, `WycinekPrzycisku`, `WycinekWyniku`, `WycinekZakladek`) i opis z **pogrubionymi** nazwami pól
+    i przycisków. Opis mówi nowemu użytkownikowi, co wpisać i co dostanie. Ten sam `klucz` dostaje
+    `AppHeader zasada=…` – przycisk „i” obok domku chowa/pokazuje okienko (podświetlony = pokazane), stan
+    zapamiętuje `zasadyStore`. Kalkulatory jak „Wierzchołek łuku”: `Sekcja „Dane”` z `PoleLiczby` i
+    `KlawiaturaLiczb` w `StrefaKlawiatury`, wynik w `RamkaWyniku`, reszta w `SiatkaDanych`,
+    `usePrzewijanieDoDanych` przewija do danych po otwarciu klawiatury.
 
 ## 2. Klocki (`src/components/ui`)
 
 | Klocek | Kiedy |
 |---|---|
-| `AppHeader` | nagłówek każdego ekranu (wstecz + domek, tytuł, podtytuł, `prawy`, `przyciski`) |
+| `AppHeader` | nagłówek każdego ekranu (wstecz + domek, tytuł, podtytuł, `prawy`, `przyciski`, `zasada` – przycisk „i”) |
+| `ZasadaDzialania` | okienko z samouczkiem na górze strony, slajdy z rysunkami / wycinkami formularza |
+| `RamkaWyniku` | główny wynik kalkulatora – duża liczba w ramce |
 | `Zakladki<T>` | zakładki karty obiektu: `zakladki={[['info','Info'],['mieszanki',`Mieszanki · ${n}`]]}` |
 | `Sekcja` | blok treści z tytułem wersalikami, `info`, elementem `prawy` (np. `PrzyciskIkony ikona="plus"`) |
 | `Karta` | element listy z podsumowaniem i akcjami (wzór: karta planu dnia) |

@@ -2,7 +2,7 @@ import React from 'react';
 import Svg, { Circle, Path, Polyline, Rect } from 'react-native-svg';
 
 export type NazwaIkony =
-  | 'wstecz' | 'dom' | 'dalej' | 'telefon' | 'kopiuj' | 'udostepnij' | 'plus' | 'edytuj' | 'usun' | 'mapa' | 'ustawienia';
+  | 'wstecz' | 'dom' | 'dalej' | 'telefon' | 'kopiuj' | 'udostepnij' | 'plus' | 'edytuj' | 'usun' | 'mapa' | 'ustawienia' | 'info';
 
 interface Props {
   nazwa: NazwaIkony;
@@ -48,6 +48,12 @@ export function Ikona({ nazwa, kolor, rozmiar = 20, grubosc = 2.2 }: Props) {
         <>
           <Path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z" {...wspolne} />
           <Circle cx="12" cy="10" r="3" {...wspolne} />
+        </>
+      ) : null}
+      {nazwa === 'info' ? (
+        <>
+          <Path d="M12 10.5V17" {...wspolne} strokeWidth={grubosc + 0.6} />
+          <Circle cx="12" cy="6.5" r="1.6" fill={kolor} />
         </>
       ) : null}
       {nazwa === 'ustawienia' ? (

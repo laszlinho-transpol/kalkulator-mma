@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.55';
+export const WERSJA_APLIKACJI = '1.8.56';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,17 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.56',
+    data: '2026-10-23',
+    tytul: 'Geodezja: okienka „Zasada działania”',
+    zmiany: [
+      'Na górze stron Tyczenie kąta prostego, Tyczenie łuków, Kalkulator spadków, Wierzchołek łuku, Szkice geodezyjne i Przekroje poprzeczne okienko „Zasada działania”: slajdy krok po kroku przesuwane palcem (albo strzałkami), z rysunkami i wycinkami formularza oraz opisem, co wpisać i co się dostanie',
+      'Przycisk „i” w nagłówku obok domku chowa i pokazuje okienko (podświetlony – pokazane); aplikacja pamięta wybór osobno dla każdej strony',
+      'Kąt prosty, łuki i spadki w nowym wyglądzie jak Wierzchołek łuku: sekcja Dane, mała klawiatura liczbowa w aplikacji, duży wynik w ramce i kafelki z dodatkowymi danymi',
+      'Spadki: znak (minus – opada, plus – wznosi się), promile, różnica wysokości w cm i kierunek; łuki: tabela x / y w metrach z ostrzeżeniem przy zbyt małym kroku',
+    ],
+  },
   {
     wersja: '1.8.55',
     data: '2026-10-22',
