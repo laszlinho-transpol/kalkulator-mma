@@ -89,7 +89,7 @@ export function obliczWskaznikRozkladarki(params: {
   if (wDocelowa + 1e-9 < konfiguracja.szerMin || wDocelowa - 1e-9 > konfiguracja.szerMax) {
     return {
       ok: false,
-      blad: `Stół układa od ${konfiguracja.szerMin.toFixed(2)} m do ${konfiguracja.szerMax.toFixed(2)} m`,
+      blad: `Stół układa od ${konfiguracja.szerMin.toFixed(2).replace('.', ',')} m do ${konfiguracja.szerMax.toFixed(2).replace('.', ',')} m – zmień poszerzenia albo docelową szerokość`,
       konfiguracja,
     };
   }
@@ -151,6 +151,15 @@ export function interpolacjaPikietażu(
 export function tyczenieKataProstego(skala: number) {
   const s = skala > 0 ? skala : 1;
   return { bokA: 3 * s, bokB: 4 * s, przeciwprostokatna: 5 * s };
+}
+
+export type BokTrojkata345 = 'a' | 'b' | 'c';
+
+/** Trójkąt 3-4-5 z dowolnego boku: a = 3×, b = 4×, przekątna c = 5× mnożnika. */
+export function trojkat345(dlugosc: number, bok: BokTrojkata345) {
+  const dzielnik = bok === 'a' ? 3 : bok === 'b' ? 4 : 5;
+  const mnoznik = dlugosc > 0 ? dlugosc / dzielnik : 1;
+  return { mnoznik, ...tyczenieKataProstego(mnoznik) };
 }
 
 export function logistykaTransportu(params: {

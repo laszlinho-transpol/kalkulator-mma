@@ -2,19 +2,32 @@
 // SZABLON BUDOWY – PROJEKT + WYKONANIE
 // ============================================================
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, useColorScheme } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, useColorScheme } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppHeader } from '../../src/components/common/AppHeader';
+import { Naciskany, Sekcja, Zakladki } from '../../src/components/ui';
 import { lightTheme, darkTheme, type AppTheme } from '../../src/constants/theme';
 import { useBudowyStore } from '../../src/stores/budowyStore';
 import { SekcjaPzt } from '../../src/components/budowa/SekcjaPzt';
 import { SekcjaLegenda } from '../../src/components/budowa/SekcjaLegenda';
 import { SekcjaKonstrukcje } from '../../src/components/budowa/SekcjaKonstrukcje';
+import { SekcjaSzczegolow } from '../../src/components/budowa/SekcjaSzczegolow';
 import { SekcjaPrzedmiar } from '../../src/components/budowa/SekcjaPrzedmiar';
+import { SekcjaRaporty } from '../../src/components/budowa/SekcjaRaporty';
+import { SekcjaLiniowka } from '../../src/components/budowa/SekcjaLiniowka';
 import { pustyProjektBudowy, zsynchronizujLegendeProjektu } from '../../src/utils/projektBudowy';
 import type { ProjektBudowy } from '../../src/types';
+import { useMieszankiStore } from '../../src/stores/mieszankiStore';
+import { useWytwornieStore } from '../../src/stores/wytwornieStore';
+import { useRaportyBudowyStore } from '../../src/stores/raportyBudowyStore';
+import { usePracownicyStore } from '../../src/stores/pracownicyStore';
+import { useSprzetStore } from '../../src/stores/sprzetStore';
+import { dokumentBudowy } from '../../src/eksport/dokumenty';
+import { udostepnijDokumentPdf } from '../../src/eksport/udostepnijPdf';
+import { FormularzBudowy } from '../../src/components/budowa/FormularzBudowy';
+import { opisStatusu, statusBudowy } from '../../src/utils/statusBudowy';
 
 const PROJEKT = [
   { id: 'pzt', nazwa: 'PZT' },
@@ -29,10 +42,14 @@ const WYKONANIE = [
   { id: 'zaawansowanie', nazwa: 'Zaawansowanie' },
 ] as const;
 
-const KOLEJNOSC = [...PROJEKT, ...WYKONANIE].map((p) => p.id);
+const NAZWY: Record<string, string> = Object.fromEntries([...PROJEKT, ...WYKONANIE].map((p) => [p.id, p.nazwa]));
+/** Ostatnio otwarta zakładka budowy – powrót ze szczegółu (także po ponownym zamontowaniu ekranu na webie). */
+const ostatnieZakladki = new Map<string, { aktywna: string; widok: 'odcinki' | 'szczegoly' }>();
+
+const grupaZakladki = (id: string) => (PROJEKT.some((p) => p.id === id) ? 'Projekt' : 'Wykonanie');
 
 export default function BudowaSzablonScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, zakladka, widok } = useLocalSearchParams<{ id: string; zakladka?: string; widok?: string }>();
   const colorScheme = useColorScheme();
   const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
   const insets = useSafeAreaInsets();
@@ -40,10 +57,28 @@ export default function BudowaSzablonScreen() {
   const zapiszProjekt = useBudowyStore((s) => s.zapiszProjekt);
   const [mapaAktywna, setMapaAktywna] = useState(false);
   const [blokadaPodgladu, setBlokadaPodgladu] = useState(false);
-  const [aktywna, setAktywna] = useState<string>('pzt');
+  const [edycja, setEdycja] = useState(false);
+  const [aktywna, setAktywna] = useState<string>(() => (zakladka && NAZWY[zakladka] ? zakladka : ostatnieZakladki.get(id)?.aktywna ?? 'pzt'));
+  const [menuOtwarte, setMenuOtwarte] = useState(false);
+  const [widokKonstrukcji, setWidokKonstrukcji] = useState<'odcinki' | 'szczegoly'>(
+    () => (widok === 'szczegoly' || widok === 'odcinki' ? widok : ostatnieZakladki.get(id)?.widok ?? 'odcinki'),
+  );
+  useEffect(() => {
+    ostatnieZakladki.set(id, { aktywna, widok: widokKonstrukcji });
+  }, [id, aktywna, widokKonstrukcji]);
+  const [skupienie, setSkupienie] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
-  const pozycje = useRef<Record<string, number>>({});
-  const przewija = useRef(false);
+  const naSkupienie = useCallback((v: boolean) => {
+    setSkupienie(v);
+    if (v) {
+      setMenuOtwarte(false);
+      scrollRef.current?.scrollTo({ y: 0, animated: true });
+    }
+  }, []);
+  const wybierzZakladke = (id: string) => {
+    setAktywna(id);
+    setMenuOtwarte(false);
+  };
 
   useEffect(() => {
     if (budowa && !budowa.projekt) {
@@ -64,18 +99,6 @@ export default function BudowaSzablonScreen() {
     [budowa?.projekt],
   );
 
-  const idz = (sekcja: string) => {
-    setAktywna(sekcja);
-    przewija.current = true;
-    const y = Math.max(0, (pozycje.current[sekcja] ?? 0) - 8);
-    scrollRef.current?.scrollTo({ y, animated: true });
-    setTimeout(() => { przewija.current = false; }, 450);
-  };
-
-  const zapamietaj = (sekcja: string, y: number) => {
-    pozycje.current[sekcja] = y;
-  };
-
   if (!budowa) {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -85,6 +108,19 @@ export default function BudowaSzablonScreen() {
     );
   }
 
+  const udostepnij = () => {
+    const { wytwornie } = useWytwornieStore.getState();
+    return udostepnijDokumentPdf(dokumentBudowy({
+      budowa,
+      projekt,
+      mieszanki: useMieszankiStore.getState().mieszanki,
+      nazwaWytworni: (wid) => wytwornie.find((w) => w.id === wid)?.nazwa,
+      raporty: useRaportyBudowyStore.getState().raporty,
+      raportyPracownikow: usePracownicyStore.getState().raporty,
+      raportySprzetu: useSprzetStore.getState().raporty,
+    }));
+  };
+
   const onZmien = (p: ProjektBudowy) => {
     void zapiszProjekt(budowa.id, zsynchronizujLegendeProjektu(p));
   };
@@ -93,65 +129,88 @@ export default function BudowaSzablonScreen() {
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <AppHeader
         tytul={budowa.kodBudowy}
-        podtytul={budowa.nazwaInwestycji}
+        podtytul={statusBudowy(budowa) === 'aktywna' ? budowa.nazwaInwestycji : `${budowa.nazwaInwestycji} · ${opisStatusu(budowa)}`}
         lewy={{ tekst: '‹ Wstecz', onPress: () => router.back() }}
+        udostepnij={udostepnij}
+        prawy={{ tekst: 'Edytuj', onPress: () => setEdycja(true) }}
       />
-      <View style={[styles.menu, { backgroundColor: theme.colors.background, borderBottomColor: theme.colors.border }]}>
-        <Text style={[styles.grupa, { color: theme.colors.textSecondary }]}>Projekt</Text>
-        <RzadPrzyciskow pozycje={PROJEKT} aktywna={aktywna} theme={theme} onPress={idz} />
-        <Text style={[styles.grupa, { color: theme.colors.textSecondary }]}>Wykonanie</Text>
-        <RzadPrzyciskow pozycje={WYKONANIE} aktywna={aktywna} theme={theme} onPress={idz} />
-      </View>
+      <FormularzBudowy widoczny={edycja} budowa={budowa} onZamknij={() => setEdycja(false)} onZapisano={() => setEdycja(false)} />
+      {!skupienie ? (
+        <View style={[styles.menu, { backgroundColor: theme.colors.background, borderBottomColor: theme.colors.border }]}>
+          <Naciskany
+            onPress={() => setMenuOtwarte((v) => !v)}
+            accessibilityRole="button"
+            accessibilityLabel="Zakładki budowy"
+            accessibilityState={{ expanded: menuOtwarte }}
+            style={[styles.zwiniete, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}
+          >
+            <Text style={[styles.grupa, { color: theme.colors.textSecondary }]}>{grupaZakladki(aktywna)}</Text>
+            <Text style={{ color: theme.colors.text, fontWeight: '800', fontSize: 15, flex: 1 }} numberOfLines={1}>{NAZWY[aktywna]}</Text>
+            <Text style={{ color: theme.colors.primary, fontWeight: '800', fontSize: 13 }}>{menuOtwarte ? 'Zwiń ▴' : 'Zakładki ▾'}</Text>
+          </Naciskany>
+          {menuOtwarte ? (
+            <>
+              <Text style={[styles.grupa, { color: theme.colors.textSecondary }]}>Projekt</Text>
+              <RzadPrzyciskow pozycje={PROJEKT} aktywna={aktywna} theme={theme} onPress={wybierzZakladke} />
+              <Text style={[styles.grupa, { color: theme.colors.textSecondary }]}>Wykonanie</Text>
+              <RzadPrzyciskow pozycje={WYKONANIE} aktywna={aktywna} theme={theme} onPress={wybierzZakladke} />
+            </>
+          ) : null}
+        </View>
+      ) : null}
       <ScrollView
         ref={scrollRef}
         contentContainerStyle={{ padding: 14, paddingBottom: insets.bottom + 24 }}
         keyboardShouldPersistTaps="handled"
         nestedScrollEnabled
         scrollEnabled={!blokadaPodgladu && !mapaAktywna}
-        scrollEventThrottle={32}
-        onScroll={(e) => {
-          if (przewija.current) return;
-          const y = e.nativeEvent.contentOffset.y + 28;
-          let biezaca = KOLEJNOSC[0];
-          for (const sekcja of KOLEJNOSC) {
-            if ((pozycje.current[sekcja] ?? 0) <= y) biezaca = sekcja;
-          }
-          setAktywna((prev) => (prev === biezaca ? prev : biezaca));
-        }}
       >
-        <SekcjaEkranu idSekcji="pzt" tytul="PZT" theme={theme} onLayout={zapamietaj}>
-          <SekcjaPzt
-            projekt={projekt}
-            theme={theme}
-            onZmien={onZmien}
-            blokadaPodgladu={blokadaPodgladu}
-            onBlokadaPodgladu={setBlokadaPodgladu}
-            onDotykZmiana={setMapaAktywna}
-          />
-        </SekcjaEkranu>
-        <SekcjaEkranu idSekcji="legenda" tytul="Legenda" theme={theme} onLayout={zapamietaj}>
-          <SekcjaLegenda projekt={projekt} theme={theme} onZmien={onZmien} />
-        </SekcjaEkranu>
-        <SekcjaEkranu idSekcji="konstrukcje" tytul="Konstrukcje" theme={theme} onLayout={zapamietaj}>
-          <SekcjaKonstrukcje projekt={projekt} theme={theme} onZmien={onZmien} />
-        </SekcjaEkranu>
-        <SekcjaEkranu idSekcji="przedmiar" tytul="Przedmiar" theme={theme} onLayout={zapamietaj}>
-          <SekcjaPrzedmiar
-            projekt={projekt}
-            theme={theme}
-            kodBudowy={budowa.kodBudowy}
-            onZmien={onZmien}
-          />
-        </SekcjaEkranu>
-        <SekcjaEkranu idSekcji="raporty" tytul="Raporty" theme={theme} onLayout={zapamietaj}>
-          <Placeholder />
-        </SekcjaEkranu>
-        <SekcjaEkranu idSekcji="liniowka" tytul="Liniówka" theme={theme} onLayout={zapamietaj}>
-          <Placeholder />
-        </SekcjaEkranu>
-        <SekcjaEkranu idSekcji="zaawansowanie" tytul="Zaawansowanie" theme={theme} onLayout={zapamietaj}>
-          <Placeholder />
-        </SekcjaEkranu>
+        {aktywna === 'raporty' ? <SekcjaRaporty budowaId={budowa.id} /> : (
+          <Sekcja tytul={NAZWY[aktywna] ?? ''}>
+            {aktywna === 'pzt' ? (
+              <SekcjaPzt
+                projekt={projekt}
+                theme={theme}
+                onZmien={onZmien}
+                blokadaPodgladu={blokadaPodgladu}
+                onBlokadaPodgladu={setBlokadaPodgladu}
+                onDotykZmiana={setMapaAktywna}
+              />
+            ) : null}
+            {aktywna === 'legenda' ? <SekcjaLegenda projekt={projekt} theme={theme} onZmien={onZmien} /> : null}
+            {aktywna === 'konstrukcje' ? (
+              <View style={{ gap: 12 }}>
+                <Zakladki
+                  theme={theme}
+                  aktywna={widokKonstrukcji}
+                  onZmien={setWidokKonstrukcji}
+                  zakladki={[['odcinki', 'Odcinki'], ['szczegoly', `Szczegóły · ${projekt.szczegoly?.length ?? 0}`]]}
+                />
+                {widokKonstrukcji === 'odcinki'
+                  ? <SekcjaKonstrukcje projekt={projekt} theme={theme} onZmien={onZmien} />
+                  : <SekcjaSzczegolow budowaId={budowa.id} projekt={projekt} onZmien={onZmien} />}
+              </View>
+            ) : null}
+            {aktywna === 'przedmiar' ? (
+              <SekcjaPrzedmiar projekt={projekt} theme={theme} kodBudowy={budowa.kodBudowy} onZmien={onZmien} />
+            ) : null}
+            {aktywna === 'liniowka' ? (
+              <SekcjaLiniowka
+                projekt={projekt}
+                budowaId={budowa.id}
+                theme={theme}
+                onZmien={onZmien}
+                blokadaPodgladu={blokadaPodgladu}
+                onBlokadaPodgladu={setBlokadaPodgladu}
+                onDotykZmiana={setMapaAktywna}
+                onSkupienie={naSkupienie}
+              />
+            ) : null}
+            {aktywna === 'zaawansowanie' ? (
+              <Text style={{ color: theme.colors.textSecondary, fontSize: 13 }}>W przygotowaniu.</Text>
+            ) : null}
+          </Sekcja>
+        )}
       </ScrollView>
     </View>
   );
@@ -173,10 +232,11 @@ function RzadPrzyciskow({
       {pozycje.map((p) => {
         const on = aktywna === p.id;
         return (
-          <TouchableOpacity
+          <Naciskany
             key={p.id}
             onPress={() => onPress(p.id)}
-            accessibilityLabel={p.nazwa}
+            accessibilityRole="button"
+            accessibilityLabel={`Zakładka ${p.nazwa}`}
             style={[
               styles.guzik,
               {
@@ -188,43 +248,9 @@ function RzadPrzyciskow({
             <Text style={{ color: on ? '#1A1A1A' : theme.colors.text, fontWeight: '800', textAlign: 'center' }}>
               {p.nazwa}
             </Text>
-          </TouchableOpacity>
+          </Naciskany>
         );
       })}
-    </View>
-  );
-}
-
-function SekcjaEkranu({
-  idSekcji,
-  tytul,
-  theme,
-  onLayout,
-  children,
-}: {
-  idSekcji: string;
-  tytul: string;
-  theme: AppTheme;
-  onLayout: (id: string, y: number) => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <View
-      onLayout={(e) => onLayout(idSekcji, e.nativeEvent.layout.y)}
-      style={styles.sekcja}
-    >
-      <Text style={[styles.sekcjaTytul, { color: theme.colors.text }]}>{tytul}</Text>
-      {children}
-    </View>
-  );
-}
-
-function Placeholder() {
-  const colorScheme = useColorScheme();
-  const t = colorScheme === 'dark' ? darkTheme : lightTheme;
-  return (
-    <View style={[styles.placeholder, { borderColor: t.colors.border, backgroundColor: t.colors.card }]}>
-      <Text style={{ color: t.colors.textSecondary, fontSize: 13 }}>W przygotowaniu.</Text>
     </View>
   );
 }
@@ -233,30 +259,32 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   menu: {
     paddingHorizontal: 12,
-    paddingTop: 8,
-    paddingBottom: 10,
+    paddingTop: 6,
+    paddingBottom: 6,
     borderBottomWidth: 1,
     gap: 6,
     zIndex: 10,
   },
   grupa: { fontSize: 11, fontWeight: '800', letterSpacing: 0.4, textTransform: 'uppercase', marginTop: 2 },
+  zwiniete: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
   rzad: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   guzik: {
     flexGrow: 1,
     flexBasis: '22%',
     minWidth: 96,
     borderWidth: 1,
-    borderRadius: 10,
+    borderRadius: 12,
     paddingVertical: 10,
     paddingHorizontal: 8,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  sekcja: { marginBottom: 22 },
-  sekcjaTytul: { fontSize: 18, fontWeight: '800', marginBottom: 8 },
-  placeholder: {
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 14,
   },
 });

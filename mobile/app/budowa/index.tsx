@@ -3,73 +3,61 @@
 // ============================================================
 
 import React, { useState } from 'react';
-import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, useColorScheme,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppHeader } from '../../src/components/common/AppHeader';
 import { EmptyState } from '../../src/components/common/EmptyState';
-import { SafeModal } from '../../src/components/common/SafeModal';
-import { lightTheme, darkTheme } from '../../src/constants/theme';
-import { karta, tekstTytul, tekstPodtytul } from '../../src/constants/layout';
+import { FormularzBudowy } from '../../src/components/budowa/FormularzBudowy';
+import { Karta, TYPOGRAFIA, ZasadaDzialania, useMotyw } from '../../src/components/ui';
+import { ZASADA_BUDOWY } from '../../src/components/ZasadyDzialow';
+import { potwierdzAkcje } from '../../src/utils/dialog';
 import { useBudowyStore } from '../../src/stores/budowyStore';
-import { pustyProjektBudowy } from '../../src/utils/projektBudowy';
+import { grupyBudow, opisStatusu, statusBudowy } from '../../src/utils/statusBudowy';
 import type { Budowa } from '../../src/types';
 
+const ZASADA = 'budowa';
+
 export default function BudowaListaScreen() {
-  const colorScheme = useColorScheme();
-  const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
+  const theme = useMotyw();
   const insets = useSafeAreaInsets();
-  const { budowy, dodajBudowe, usunBudowe, przywrocBudowe } = useBudowyStore();
-  const aktywne = budowy.filter((b) => b.status !== 'archiwalna');
-  const archiwalne = budowy.filter((b) => b.status === 'archiwalna');
-
+  const { budowy, usunBudowe, edytujBudowe } = useBudowyStore();
+  const grupy = grupyBudow(budowy);
   const [modal, setModal] = useState(false);
-  const [nazwa, setNazwa] = useState('');
-  const [kod, setKod] = useState('');
+  const [edytowana, setEdytowana] = useState<Budowa | undefined>();
 
-  const utworz = async () => {
-    if (!nazwa.trim()) { Alert.alert('Budowa', 'Podaj nazwę inwestycji.'); return; }
-    if (!kod.trim()) { Alert.alert('Budowa', 'Podaj kod budowy (np. B128).'); return; }
-    const id = await dodajBudowe({
-      nazwaInwestycji: nazwa.trim(),
-      kodBudowy: kod.trim().toUpperCase(),
-      projekt: pustyProjektBudowy(),
-    });
-    setModal(false);
-    setNazwa('');
-    setKod('');
-    router.push(`/budowa/${id}` as any);
-  };
+  const nowa = () => { setEdytowana(undefined); setModal(true); };
+  const edytuj = (b: Budowa) => { setEdytowana(b); setModal(true); };
 
-  const potwierdzUsun = (b: Budowa) => Alert.alert(
+  const potwierdzUsun = (b: Budowa) => potwierdzAkcje(
     'Usuń budowę',
     `Usunąć „${b.kodBudowy} – ${b.nazwaInwestycji}”?`,
-    [
-      { text: 'Anuluj', style: 'cancel' },
-      { text: 'Usuń', style: 'destructive', onPress: () => usunBudowe(b.id) },
-    ],
+    () => { void usunBudowe(b.id); },
   );
 
   const kartaBudowy = (b: Budowa) => {
     const ark = b.projekt?.arkusze.length ?? 0;
+    const status = statusBudowy(b);
     return (
-      <TouchableOpacity
+      <Karta
         key={b.id}
-        style={[karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}
-        onPress={() => router.push(`/budowa/${b.id}` as any)}
-        onLongPress={() => potwierdzUsun(b)}
-      >
-        <Text style={[tekstTytul, { color: theme.colors.text }]}>{b.kodBudowy}</Text>
-        <Text style={[tekstPodtytul, { color: theme.colors.textSecondary }]} numberOfLines={2}>
-          {b.nazwaInwestycji}
-        </Text>
-        <Text style={{ color: theme.colors.textSecondary, fontSize: 12, marginTop: 6 }}>
-          {ark} arkusz(y) PZT
-          {b.status === 'archiwalna' ? ' · archiwum' : ''}
-        </Text>
-      </TouchableOpacity>
+        tytul={b.kodBudowy}
+        podtytul={b.nazwaInwestycji}
+        znaczek={status === 'aktywna' ? undefined : {
+          tekst: opisStatusu(b),
+          kolor: status === 'gwarancja' ? theme.colors.warning : theme.colors.textSecondary,
+        }}
+        podsumowanie={`Arkusze PZT: ${ark}`}
+        accessibilityLabel={`Budowa ${b.kodBudowy}`}
+        onPress={() => router.push(`/budowa/${b.id}` as never)}
+        akcje={[
+          status === 'zakonczona'
+            ? { tekst: 'Przywróć', rodzaj: 'glowna', onPress: () => { void edytujBudowe(b.id, { status: 'aktywna', gwarancjaDo: undefined }); } }
+            : { tekst: 'Otwórz', rodzaj: 'glowna', onPress: () => router.push(`/budowa/${b.id}` as never) },
+          { tekst: 'Edytuj', accessibilityLabel: `Edytuj budowę ${b.kodBudowy}`, onPress: () => edytuj(b) },
+          { tekst: 'Usuń', rodzaj: 'niebezpieczna', accessibilityLabel: `Usuń budowę ${b.kodBudowy}`, onPress: () => potwierdzUsun(b) },
+        ]}
+      />
     );
   };
 
@@ -78,66 +66,41 @@ export default function BudowaListaScreen() {
       <AppHeader
         tytul="Budowa"
         lewy={{ tekst: '‹ Wstecz', onPress: () => router.back() }}
-        prawy={{ tekst: '+ Nowa', onPress: () => setModal(true), kolor: theme.colors.primary }}
+        prawy={{ tekst: '+ Nowa', onPress: nowa, kolor: theme.colors.primary }}
+        zasada={ZASADA}
       />
-      {aktywne.length === 0 && archiwalne.length === 0 ? (
-        <EmptyState
-          ikona="🏗️"
-          tytul="Brak budów"
-          opis="Załóż budowę (nazwa + kod, np. B128). Powstanie szablon: PZT, legenda, konstrukcje, przedmiar."
-          przyciskTekst="+ Nowa budowa"
-          onPrzycisk={() => setModal(true)}
-        />
-      ) : (
-        <ScrollView contentContainerStyle={[styles.lista, { paddingBottom: insets.bottom + 16 }]}>
-          {aktywne.map(kartaBudowy)}
-          {archiwalne.length > 0 ? (
-            <Text style={{ color: theme.colors.textSecondary, fontWeight: '800', marginTop: 8 }}>ARCHIWUM</Text>
-          ) : null}
-          {archiwalne.map((b) => (
-            <View key={b.id} style={{ gap: 6 }}>
-              {kartaBudowy(b)}
-              <TouchableOpacity onPress={() => przywrocBudowe(b.id)}>
-                <Text style={{ color: theme.colors.info, fontWeight: '700' }}>Przywróć</Text>
-              </TouchableOpacity>
-            </View>
-          ))}
-        </ScrollView>
-      )}
+      <ScrollView contentContainerStyle={[styles.lista, { paddingBottom: insets.bottom + 16 }]}>
+        <ZasadaDzialania klucz={ZASADA} slajdy={ZASADA_BUDOWY} />
+        {budowy.length === 0 ? (
+          <EmptyState
+            ikona="🏗️"
+            tytul="Brak budów"
+            opis="Załóż budowę (nazwa + kod, np. B128). Powstanie szablon: PZT, legenda, konstrukcje, przedmiar."
+            przyciskTekst="+ Nowa budowa"
+            onPrzycisk={nowa}
+          />
+        ) : grupy.filter((g) => g.budowy.length > 0).map((g) => (
+          <React.Fragment key={g.status}>
+            <Text style={[TYPOGRAFIA.sekcja, { color: theme.colors.textSecondary, marginTop: 8 }]}>{g.nazwa} · {g.budowy.length}</Text>
+            {g.budowy.map(kartaBudowy)}
+          </React.Fragment>
+        ))}
+      </ScrollView>
 
-      <SafeModal
-        visible={modal}
-        tytul="Nowa budowa"
-        theme={theme}
-        onClose={() => setModal(false)}
-        prawy={{ tekst: 'Utwórz', onPress: utworz, kolor: theme.colors.primary }}
-      >
-        <View style={{ padding: 16, gap: 12 }}>
-          <Text style={{ color: theme.colors.textSecondary }}>Nazwa inwestycji</Text>
-          <TextInput
-            value={nazwa}
-            onChangeText={setNazwa}
-            placeholder="np. DK25 Mąkowarsko"
-            placeholderTextColor={theme.colors.textSecondary}
-            style={[styles.input, { color: theme.colors.text, borderColor: theme.colors.border, backgroundColor: theme.colors.inputBackground }]}
-          />
-          <Text style={{ color: theme.colors.textSecondary }}>Kod budowy</Text>
-          <TextInput
-            value={kod}
-            onChangeText={setKod}
-            autoCapitalize="characters"
-            placeholder="np. B128"
-            placeholderTextColor={theme.colors.textSecondary}
-            style={[styles.input, { color: theme.colors.text, borderColor: theme.colors.border, backgroundColor: theme.colors.inputBackground }]}
-          />
-        </View>
-      </SafeModal>
+      <FormularzBudowy
+        widoczny={modal}
+        budowa={edytowana}
+        onZamknij={() => setModal(false)}
+        onZapisano={(id) => {
+          setModal(false);
+          if (!edytowana) router.push(`/budowa/${id}` as never);
+        }}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  lista: { padding: 14, gap: 10 },
-  input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 12, fontSize: 16 },
+  lista: { flexGrow: 1, padding: 14, gap: 10 },
 });

@@ -3,8 +3,9 @@
 // ============================================================
 
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, useColorScheme } from 'react-native';
-import { lightTheme, darkTheme } from '../../constants/theme';
+import { View, Text, StyleSheet } from 'react-native';
+import { useMotyw } from '../../hooks/useMotyw';
+import { Przycisk } from '../ui/Przycisk';
 
 interface EmptyStateProps {
   ikona: string;
@@ -19,8 +20,7 @@ interface EmptyStateProps {
 export function EmptyState({
   ikona, tytul, opis, przyciskTekst, onPrzycisk, drugPrzyciskTekst, onDrugPrzycisk,
 }: EmptyStateProps) {
-  const colorScheme = useColorScheme();
-  const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
+  const theme = useMotyw();
 
   return (
     <View style={styles.wrapper}>
@@ -31,25 +31,12 @@ export function EmptyState({
         <Text style={[styles.tytul, { color: theme.colors.text }]}>{tytul}</Text>
         <Text style={[styles.opis, { color: theme.colors.textSecondary }]}>{opis}</Text>
 
-        {przyciskTekst && onPrzycisk && (
-          <TouchableOpacity
-            style={[styles.przycisk, { backgroundColor: theme.colors.primary }]}
-            onPress={onPrzycisk}
-          >
-            <Text style={styles.przyciskTekst}>{przyciskTekst}</Text>
-          </TouchableOpacity>
-        )}
-
-        {drugPrzyciskTekst && onDrugPrzycisk && (
-          <TouchableOpacity
-            style={[styles.drugPrzycisk, { borderColor: theme.colors.border }]}
-            onPress={onDrugPrzycisk}
-          >
-            <Text style={[styles.drugPrzyciskTekst, { color: theme.colors.textSecondary }]}>
-              {drugPrzyciskTekst}
-            </Text>
-          </TouchableOpacity>
-        )}
+        {przyciskTekst && onPrzycisk ? (
+          <Przycisk tekst={przyciskTekst} onPress={onPrzycisk} style={styles.przycisk} />
+        ) : null}
+        {drugPrzyciskTekst && onDrugPrzycisk ? (
+          <Przycisk wariant="drugi" tekst={drugPrzyciskTekst} onPress={onDrugPrzycisk} style={styles.przycisk} />
+        ) : null}
       </View>
     </View>
   );
@@ -76,21 +63,5 @@ const styles = StyleSheet.create({
   ikona: { fontSize: 46 },
   tytul: { fontSize: 20, fontWeight: '700', textAlign: 'center' },
   opis: { fontSize: 15, lineHeight: 22, textAlign: 'center', marginBottom: 8 },
-  przycisk: {
-    paddingHorizontal: 28,
-    paddingVertical: 14,
-    borderRadius: 14,
-    marginTop: 4,
-    minWidth: 200,
-    alignItems: 'center',
-  },
-  przyciskTekst: { color: '#fff', fontSize: 16, fontWeight: '700' },
-  drugPrzycisk: {
-    paddingHorizontal: 24,
-    paddingVertical: 11,
-    borderRadius: 12,
-    borderWidth: 1,
-    marginTop: 4,
-  },
-  drugPrzyciskTekst: { fontSize: 14, fontWeight: '600' },
+  przycisk: { minWidth: 220, alignSelf: 'center' },
 });

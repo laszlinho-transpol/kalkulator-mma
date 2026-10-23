@@ -1,15 +1,19 @@
 // ============================================================
 // APP HEADER – nagłówek z bezpiecznym marginesem od status bar
-// Tytuł w pierwszym wierszu, przyciski akcji w drugim
+// Wiersz 1: wstecz + domek | tytuł | akcja; wiersz 2: przyciski akcji
 // ============================================================
 
-import React from 'react';
-import {
-  View, Text, StyleSheet, TouchableOpacity, useColorScheme,
-} from 'react-native';
+import React, { useState } from 'react';
+import { ActivityIndicator, View, Text, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { lightTheme, darkTheme, type AppTheme } from '../../constants/theme';
 import { tekstPrzycisk, tekstPrzyciskNaglowkaWrap } from '../../constants/layout';
+import { cien } from '../../constants/styl';
+import { useMotyw } from '../../hooks/useMotyw';
+import { doMenuGlownego } from '../../budzet/nawigacja';
+import { Naciskany } from '../ui/Naciskany';
+import { PrzyciskIkony } from '../ui/Przycisk';
+import { pokazKomunikat } from '../../utils/dialog';
+import { useZasadaWidoczna } from '../../stores/zasadyStore';
 
 interface Przycisk {
   tekst: string;
@@ -23,33 +27,65 @@ interface AppHeaderProps {
   tytul: string;
   podtytul?: string;
   przyciski?: Przycisk[];
-  /** Przycisk w lewym górnym rogu (zazwyczaj Wstecz/Anuluj) */
+  /** Lewy górny róg. „‹ Wstecz” rysuje się jako strzałka obok domku; inny tekst (Anuluj/Zamknij) – jako napis. */
   lewy?: Przycisk;
   /** Przycisk w prawym górnym rogu (jeden, opcjonalny) */
   prawy?: Przycisk;
+  /** Domek do menu głównego – domyślnie przy przycisku Wstecz. */
+  menu?: boolean;
+  /** Ikona udostępniania po prawej: eksport strony do PDF (strony z danymi użytkownika). */
+  udostepnij?: () => void | Promise<void>;
+  /** Klucz okienka „Zasada działania” – przycisk „i” obok domku chowa je i pokazuje. */
+  zasada?: string;
 }
 
-export function AppHeader({ tytul, podtytul, przyciski, lewy, prawy }: AppHeaderProps) {
-  const colorScheme = useColorScheme();
-  const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
-  const insets = useSafeAreaInsets();
+const czyWstecz = (p?: Przycisk) => !!p && /wstecz/i.test(p.tekst);
 
+export function AppHeader({ tytul, podtytul, przyciski, lewy, prawy, menu, udostepnij, zasada }: AppHeaderProps) {
+  const theme = useMotyw();
+  const insets = useSafeAreaInsets();
+  const [eksport, setEksport] = useState(false);
+  const szeroki = !!udostepnij && !!prawy;
+  const bok = [styles.bok, szeroki && styles.bokSzeroki];
+  const bokLewy = [...bok, zasada && styles.bokSzeroki];
+  const bokPrawy = [...bok, zasada && !szeroki && !udostepnij && !prawy && styles.bokWaski, styles.bokPrawy];
+
+  const naUdostepnij = async () => {
+    if (!udostepnij || eksport) return;
+    setEksport(true);
+    try {
+      await udostepnij();
+    } catch {
+      pokazKomunikat('Nie udało się udostępnić', 'Nie udało się przygotować pliku PDF. Spróbuj ponownie.');
+    } finally {
+      setEksport(false);
+    }
+  };
+  const pokazMenu = menu ?? czyWstecz(lewy);
   const hasPrzyciski = przyciski && przyciski.length > 0;
 
   return (
     <View
       style={[
         styles.container,
+        cien(theme),
         { backgroundColor: theme.colors.card, borderBottomColor: theme.colors.border, paddingTop: insets.top + 6, zIndex: 20 },
       ]}
     >
-      {/* Wiersz 1: nawigacja lewo + tytuł + prawo */}
       <View style={styles.rzadTytul}>
-        {lewy ? (
-          <TouchableOpacity onPress={lewy.onPress} style={styles.przyciskLewy} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-            <Text style={[tekstPrzyciskNaglowkaWrap, { color: lewy.kolor ?? theme.colors.primary }]} numberOfLines={2}>{lewy.tekst}</Text>
-          </TouchableOpacity>
-        ) : <View style={styles.przyciskLewy} />}
+        <View style={bokLewy}>
+          {lewy && czyWstecz(lewy) ? (
+            <PrzyciskIkony ikona="wstecz" accessibilityLabel="Wstecz" onPress={lewy.onPress} kolor={lewy.kolor ?? theme.colors.primary} />
+          ) : lewy ? (
+            <Naciskany accessibilityRole="button" accessibilityLabel={lewy.tekst} onPress={lewy.onPress} hitSlop={10}>
+              <Text style={[tekstPrzyciskNaglowkaWrap, { color: lewy.kolor ?? theme.colors.primary }]} numberOfLines={2}>{lewy.tekst}</Text>
+            </Naciskany>
+          ) : null}
+          {pokazMenu ? (
+            <PrzyciskIkony ikona="dom" accessibilityLabel="Menu główne" onPress={doMenuGlownego} kolor={theme.colors.textSecondary} tlo={`${theme.colors.textSecondary}14`} />
+          ) : null}
+          {zasada ? <PrzyciskZasady klucz={zasada} /> : null}
+        </View>
 
         <View style={styles.tytulWrap}>
           <Text style={[styles.tytul, { color: theme.colors.text }]} numberOfLines={1} adjustsFontSizeToFit>
@@ -58,23 +94,39 @@ export function AppHeader({ tytul, podtytul, przyciski, lewy, prawy }: AppHeader
           {podtytul ? <Text style={[styles.podtytul, { color: theme.colors.textSecondary }]} numberOfLines={1}>{podtytul}</Text> : null}
         </View>
 
-        {prawy ? (
-          <TouchableOpacity onPress={prawy.onPress} style={styles.przyciskPrawy} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-            <Text style={[tekstPrzyciskNaglowkaWrap, { color: prawy.kolor ?? theme.colors.primary }]} numberOfLines={2}>{prawy.tekst}</Text>
-          </TouchableOpacity>
-        ) : <View style={styles.przyciskPrawy} />}
+        <View style={bokPrawy}>
+          {udostepnij ? (
+            eksport ? (
+              <View style={styles.ladowanie}><ActivityIndicator size="small" color={theme.colors.primary} /></View>
+            ) : (
+              <PrzyciskIkony ikona="udostepnij" accessibilityLabel="Udostępnij PDF" onPress={() => { void naUdostepnij(); }} kolor={theme.colors.primary} tlo={`${theme.colors.primary}18`} />
+            )
+          ) : null}
+          {prawy ? (
+            <Naciskany
+              accessibilityRole="button"
+              accessibilityLabel={prawy.tekst}
+              onPress={prawy.onPress}
+              disabled={prawy.disabled}
+              hitSlop={10}
+              style={prawy.tlo ? [styles.pigulka, { backgroundColor: prawy.tlo }] : undefined}
+            >
+              <Text style={[tekstPrzyciskNaglowkaWrap, { color: prawy.kolor ?? theme.colors.primary }]} numberOfLines={2}>{prawy.tekst}</Text>
+            </Naciskany>
+          ) : null}
+        </View>
       </View>
 
-      {/* Wiersz 2: przyciski akcji (jeśli są) */}
       {hasPrzyciski && (
         <View style={styles.rzadPrzyciskow}>
-          {przyciski!.map((p, i) => (
-            <TouchableOpacity
-              key={i}
+          {przyciski!.map((p) => (
+            <Naciskany
+              key={p.tekst}
+              accessibilityRole="button"
+              accessibilityLabel={p.tekst}
               style={[
                 styles.btnAkcji,
                 { backgroundColor: p.tlo ?? `${theme.colors.primary}15`, borderColor: p.tlo ? 'transparent' : theme.colors.border },
-                p.disabled && { opacity: 0.4 },
               ]}
               onPress={p.onPress}
               disabled={p.disabled}
@@ -82,11 +134,25 @@ export function AppHeader({ tytul, podtytul, przyciski, lewy, prawy }: AppHeader
               <Text style={[tekstPrzycisk, { color: p.kolor ?? theme.colors.primary }]} numberOfLines={2}>
                 {p.tekst}
               </Text>
-            </TouchableOpacity>
+            </Naciskany>
           ))}
         </View>
       )}
     </View>
+  );
+}
+
+function PrzyciskZasady({ klucz }: { klucz: string }) {
+  const theme = useMotyw();
+  const { widoczna, przelacz } = useZasadaWidoczna(klucz);
+  return (
+    <PrzyciskIkony
+      ikona="info"
+      accessibilityLabel={widoczna ? 'Schowaj zasadę działania' : 'Pokaż zasadę działania'}
+      onPress={przelacz}
+      kolor={widoczna ? '#1A1A1A' : theme.colors.textSecondary}
+      tlo={widoczna ? theme.colors.primary : `${theme.colors.textSecondary}14`}
+    />
   );
 }
 
@@ -101,11 +167,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     minHeight: 44,
   },
-  przyciskLewy: { width: 72, justifyContent: 'center' },
-  przyciskPrawy: { width: 72, justifyContent: 'center', alignItems: 'flex-end' },
-  przyciskTekst: { fontSize: 16, fontWeight: '600' },
+  bok: { width: 84, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  bokSzeroki: { width: 124 },
+  bokWaski: { width: 36 },
+  bokPrawy: { justifyContent: 'flex-end' },
+  pigulka: { borderRadius: 18, paddingHorizontal: 12, minHeight: 36, justifyContent: 'center' },
+  ladowanie: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
   tytulWrap: { flex: 1, alignItems: 'center' },
-  tytul: { fontSize: 17, fontWeight: '700', textAlign: 'center' },
+  tytul: { fontSize: 17, fontWeight: '800', textAlign: 'center' },
   podtytul: { fontSize: 11, marginTop: 1 },
   rzadPrzyciskow: {
     flexDirection: 'row',

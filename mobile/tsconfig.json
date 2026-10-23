@@ -10,9 +10,7 @@
     "**/*.ts",
     "**/*.tsx",
     ".expo/types/**/*.d.ts",
-    "expo-env.d.ts"
-  ],
-  "exclude": [
-    "**/*.test.ts"
+    "expo-env.d.ts",
+    ".expo/types/**/*.ts"
   ]
 }

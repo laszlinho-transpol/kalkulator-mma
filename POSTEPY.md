@@ -785,3 +785,46 @@ Użytkownik wpisuje **auto + metry**, a program:
 3. LIVE: metry + tony → postęp %, zakryte m², pozostało m/m²/Mg, zielone zamalowanie od START
 
 ---
+
+## ETAP 22 – Wspólny styl aplikacji, karta wytwórni, telefon pracownika (1.8.33)
+**Data:** 2026-10-15
+**Status:** ✅ UKOŃCZONY
+**Branch:** `cursor/kalkulator-mma-budzet-sprzet-0a0b`
+
+### Styl (jedno źródło dla wszystkich ekranów)
+1. `mobile/STYL.md` – zasady wyglądu i lista kontrolna; reguła `.cursor/rules/styl-aplikacji.mdc`, wpis w `.clinerules`, `AGENTS.md`
+2. Tokeny `src/constants/styl.ts`, klocki `src/components/ui` (Karta, Sekcja, PozycjaListy, WierszDanych, SiatkaDanych,
+   Przycisk, PrzyciskIkony, Ikona SVG, Naciskany, KafelekMenu, AkcjeTelefonu, WykresLiniowy, Kalendarz)
+3. `AppHeader`: strzałka wstecz + domek do menu głównego na każdym ekranie; płynne wejście ekranów (web)
+4. Jeden kalendarz: soboty niebieskie, niedziele i święta czerwone, legenda; `DatePickerButton` na wspólnej siatce
+5. Kafelki menu głównego i Budżetu z jednego komponentu; listy Niezbędnika jako przyciski; karty z cieniem (`layout.karta`)
+
+### Funkcje
+1. Mieszanki: wytwórnie jako przyciski → karta wytwórni z zakładkami Info | Mieszanki
+2. Historia ceny recepty z wykresem liniowym (linia ceny z karty przerywana)
+3. Pracownik: numer telefonu (wpis lub z kontaktów), na karcie Zadzwoń / Kopiuj / Udostępnij
+
+---
+
+## ETAP 23 – Wnętrza Wbudowywania, Planu, Obmiaru i Budowy ze wspólnych klocków (1.8.34)
+**Data:** 2026-10-16
+**Status:** ✅ UKOŃCZONY (build Android do uruchomienia przez właściciela)
+**Branch:** `cursor/kalkulator-mma-budzet-sprzet-0a0b`
+**Wersja aplikacji:** 1.8.34 (versionCode 27)
+
+### Ekrany
+1. Listy: Wbudowywanie, Plan (budowy), Obmiar, Budowa, Archiwum – `Karta` z akcjami Edytuj / Usuń / Otwórz
+2. `plan/[id]`, `plan/budowa/[id]`, `archiwum/[id]`, `archiwum/obmiar/[id]`, `obmiar/[id]` – `Sekcja`, `WierszDanych`, `SiatkaDanych`, `Przycisk`
+3. `budowa/[id]` – przyciski sekcji działają jak zakładki (jedna sekcja na ekranie zamiast długiego przewijania)
+4. `PlanForm` i `PlanZBudowyForm` – sekcje z `src/components/ui`, wyniki działki w kafelkach
+5. `SiatkaDanych` – opcjonalny `dopisek` z kolorem (odchyłka od planu w bilansie archiwum)
+
+### Poprawki
+1. `Alert.alert` z przyciskami → `potwierdzAkcje` / `pokazKomunikat` (działają w przeglądarce)
+2. `rodzajDnia` przyjmuje pełny znacznik ISO i liczy dzień lokalny (test `styl.test.ts`)
+3. Pole daty pokazuje datę w kolorze soboty / niedzieli / święta
+4. Pusty tekst w formularzu planu („Unexpected text node”) przy pustym polu rzutów
+
+### Build
+- Nowy build Android jest potrzebny dla modułu kontaktów (`expo-contacts`, od 1.8.32) – wybór numeru dla wytwórni i pracownika
+

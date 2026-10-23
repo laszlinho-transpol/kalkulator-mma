@@ -5,7 +5,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  TextInput, useColorScheme, Alert, KeyboardAvoidingView,
+  TextInput, useColorScheme, KeyboardAvoidingView,
   Platform, Modal, Pressable, Dimensions,
 } from 'react-native';
 import { router } from 'expo-router';
@@ -26,6 +26,7 @@ import { obszarZWpisamiLive } from '../../src/utils/obmiarDoPlanu';
 import { PlanCalySketch } from '../../src/components/sketch/PlanCalySketch';
 import { AppHeader } from '../../src/components/common/AppHeader';
 import { InfoTooltip } from '../../src/components/common/InfoTooltip';
+import { Wiersz } from '../../src/components/common/Formularz';
 import { AnimatedTabBar } from '../../src/components/common/AnimatedTabBar';
 import { SafeModal } from '../../src/components/common/SafeModal';
 import { ZalacznikiViewer } from '../../src/components/common/ZalacznikiViewer';
@@ -65,8 +66,10 @@ import {
   metryPrzedWpisem,
   sumaMetrowDzialki,
 } from '../../src/utils/liveProgress';
-import { potwierdzAkcje } from '../../src/utils/dialog';
+import { pokazKomunikat, potwierdzAkcje } from '../../src/utils/dialog';
 import type { DzialkaRobocza, Plan, WpisLive } from '../../src/types';
+import { karta as kartaWspolna } from '../../src/constants/layout';
+import { rodzajMieszanki } from '../../src/mieszanki/kolejnosc';
 
 type ZakladkaTyp = 'plan' | 'kontrola' | 'live' | 'pzt';
 
@@ -343,7 +346,7 @@ export default function WbudowywanieDetailScreen() {
     try {
       await archiwizujPlan(plan.id);
     } catch {
-      Alert.alert('Błąd', 'Nie udało się zapisać dniówki do archiwum.');
+      pokazKomunikat('Błąd', 'Nie udało się zapisać dniówki do archiwum.');
       setGenerujeRaport(false);
       return;
     }
@@ -374,7 +377,7 @@ export default function WbudowywanieDetailScreen() {
         await oznaczOstatnieAuto(plan.id, dz.id);
         const next = (aktywnaDzialka?.idx ?? 0) + 1;
         if (next < plan.dzialki.length) {
-          Alert.alert(
+          pokazKomunikat(
             'Przejście do kolejnej działki',
             `${plan.dzialki[next].nazwa}\nKolejne auto: #${kolejnyNumerAuta}`,
           );
@@ -389,7 +392,7 @@ export default function WbudowywanieDetailScreen() {
     const dz = aktywnaDzialka?.dzialka;
     if (!dz) return;
     const mix = dz.mieszankaId;
-    const nazwaMix = getMieszanka(mix)?.rodzaj ?? 'mieszanki';
+    const nazwaMix = (getMieszanka(mix) ? rodzajMieszanki(getMieszanka(mix)!) : 'mieszanki');
     potwierdzAkcje(
       'Koniec mieszanki',
       `Zakończyć wszystkie działki mieszanki ${nazwaMix} i przejść do kolejnej?`,
@@ -402,7 +405,7 @@ export default function WbudowywanieDetailScreen() {
         const next = plan.dzialki.find((d) => d.mieszankaId !== mix && !czyDzialkaZakonczona(plan.id, d.id));
         if (next) {
           setSzkicObszarId(next.id);
-          Alert.alert('Kolejna mieszanka', `${next.nazwa}\nKolejne auto: #${kolejnyNumerAuta}`);
+          pokazKomunikat('Kolejna mieszanka', `${next.nazwa}\nKolejne auto: #${kolejnyNumerAuta}`);
         }
       },
       'Zakończ mieszankę',
@@ -428,9 +431,9 @@ export default function WbudowywanieDetailScreen() {
   const dodajWpisLive = async () => {
     const ton = parseFloat(nowyTonaz.replace(',', '.'));
     const met = rozwiazMetryWpisu();
-    if (isNaN(ton) || ton <= 0) { Alert.alert('Błąd', 'Podaj prawidłowy tonaż.'); return; }
+    if (isNaN(ton) || ton <= 0) { pokazKomunikat('Błąd', 'Podaj prawidłowy tonaż.'); return; }
     if (met === null || met <= 0) {
-      Alert.alert('Błąd', trybMetrowLive === 'odStartu' && edytowanyNumerAuta == null
+      pokazKomunikat('Błąd', trybMetrowLive === 'odStartu' && edytowanyNumerAuta == null
         ? 'Odległość od startu musi być większa niż dotychczas przejechane metry.'
         : 'Podaj prawidłowe metry.');
       return;
@@ -459,14 +462,14 @@ export default function WbudowywanieDetailScreen() {
       rzutReczny.current = true;
     } else {
       if (!aktywnaDzialka) {
-        Alert.alert('Plan ukończony', 'Wszystkie działki są zakończone. Możesz zarchiwizować plan.');
+        pokazKomunikat('Plan ukończony', 'Wszystkie działki są zakończone. Możesz zarchiwizować plan.');
         return;
       }
       const segmenty = rozdzielMetryNaDzialki(
         plan, wpisyCalegoPlanu, sesje, met, ton, ciezarPoMieszance,
       );
       if (segmenty.length === 0) {
-        Alert.alert('Brak miejsca', 'Nie można rozdzielić metrów – sprawdź postęp na działkach.');
+        pokazKomunikat('Brak miejsca', 'Nie można rozdzielić metrów – sprawdź postęp na działkach.');
         return;
       }
       const doZamkniecia = dzialkiDoAutoZamkniecia(plan, wpisyCalegoPlanu, sesje, segmenty);
@@ -490,7 +493,7 @@ export default function WbudowywanieDetailScreen() {
           : doZamkniecia.length > 0
             ? `Działka „${plan.dzialki.find((d) => d.id === doZamkniecia[0])?.nazwa}” ukończona – kolejne auto na następnej.`
             : '';
-        if (msg) Alert.alert('Postęp LIVE', msg);
+        if (msg) pokazKomunikat('Postęp LIVE', msg);
       }
     }
     setNowyTonaz(''); setNowyMetry(''); setNowyKomentarz(''); setNowyGodzina(aktualnaGodzina());
@@ -535,7 +538,7 @@ export default function WbudowywanieDetailScreen() {
 
   const wyczyscLive = () => {
     if (wpisyCalegoPlanu.length === 0) {
-      Alert.alert('Brak wpisów', 'Nie ma żadnych aut LIVE do usunięcia.');
+      pokazKomunikat('Brak wpisów', 'Nie ma żadnych aut LIVE do usunięcia.');
       return;
     }
     potwierdzAkcje(
@@ -590,6 +593,7 @@ export default function WbudowywanieDetailScreen() {
         tytul={formatujDatePl(plan.dataWbudowywania).split(',')[0]}
         podtytul={plan.dzialki.length > 1 ? `Całość dnia · ${plan.dzialki.length} działki` : plan.dzialki[0]?.nazwa}
         lewy={{ tekst: '‹ Wstecz', onPress: wracajZPlanu }}
+        udostepnij={() => generujRaportPDF({ ...opcjeRaportuDnia(), tytul: 'Wbudowywanie Live – Kalkulator MMA' })}
         prawy={{ tekst: generujeRaport ? '…' : 'Zakończ', onPress: zakonczIArchiwizuj, kolor: '#fff', tlo: theme.colors.danger }}
       />
 
@@ -639,7 +643,7 @@ export default function WbudowywanieDetailScreen() {
                     powObszaru += w.lacznaPowierzchnia;
                     masaObszaru += w.lacznaIloscMasy;
                     autaObszaru += w.iloscSamochodow;
-                    if (!mieszNazwy.includes(mie.rodzaj)) mieszNazwy.push(mie.rodzaj);
+                    if (!mieszNazwy.includes(rodzajMieszanki(mie))) mieszNazwy.push(rodzajMieszanki(mie));
                   }
                   return (
                     <View key={obszar.id}>
@@ -731,7 +735,7 @@ export default function WbudowywanieDetailScreen() {
                   {dz.nazwa}
                   {tabelaDz ? `  (auta ${tabelaDz.numerAutaOd}–${tabelaDz.numerAutaDo})` : ''}
                 </Text>
-                <IR label="Mieszanka" v={`${mie.rodzaj}  ρ=${mie.ciezarObjetosciowy.toFixed(3)}`} theme={theme} />
+                <IR label="Mieszanka" v={`${rodzajMieszanki(mie)}  ρ=${mie.ciezarObjetosciowy.toFixed(3)}`} theme={theme} />
                 <IR label="Grubość projektowa" v={`${gruboscProjektowa(dz)} cm`} theme={theme} />
                 <IR label="Tolerancja" v={formatujTolerancje(dz)} theme={theme} />
                 <IR label="Grubość wbudowywania" v={`${gruboscWbudowywania(dz)} cm`} theme={theme} />
@@ -815,16 +819,18 @@ export default function WbudowywanieDetailScreen() {
                 <Text style={[styles.kartaTytul, { color: theme.colors.text, flex: 1 }]}>Kontrola całego dnia</Text>
                 <InfoTooltip tresc="Wpisz łączne tony i metry od startu pierwszej działki – program pokaże pozycję na całym odcinku." />
               </View>
-              <NumInput label="Wbudowane tony [Mg]" value={wbudowaneTonyStr} onChange={setWbudowaneTony} theme={theme} />
-              <View style={{ marginBottom: 10 }}>
-                <Text style={{ color: theme.colors.textSecondary, fontSize: 13, fontWeight: '600', marginBottom: 5 }}>Gdzie powinniśmy dojechać</Text>
-                <View style={[styles.poleSzare, { backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.border }]}>
-                  <Text style={{ color: theme.colors.textSecondary, fontSize: 16 }}>
-                    {metryPlanowane != null ? `${formatLiczby(metryPlanowane)} m od startu` : '— wpisz tony powyżej —'}
-                  </Text>
-                </View>
-              </View>
-              <NumInput label="Przejechane metry [m] od startu" value={przejechaneMetryStr} onChange={setPrzejechaneMetry} theme={theme} />
+              <Wiersz style={{ alignItems: 'flex-start' }}>
+                <NumInput label="Wbudowane [Mg]" value={wbudowaneTonyStr} onChange={setWbudowaneTony} theme={theme} />
+                <PoleWyliczone
+                  label="Gdzie dojechać"
+                  wartosc={metryPlanowane != null ? `${formatLiczby(metryPlanowane)} m` : '—'}
+                  theme={theme}
+                />
+              </Wiersz>
+              <Wiersz>
+                <NumInput label="Przejechane od startu [m]" value={przejechaneMetryStr} onChange={setPrzejechaneMetry} theme={theme} />
+                <View />
+              </Wiersz>
               {wynikiKontroli ? (
                 <View style={styles.wynikKontroli}>
                   <Text style={[styles.wynikNagl, { color: theme.colors.text, borderBottomColor: theme.colors.border }]}>Wyniki porównania:</Text>
@@ -1134,9 +1140,18 @@ export default function WbudowywanieDetailScreen() {
 
                 <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: edytowanyNumerAuta != null ? theme.colors.warning : theme.colors.border }]}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
-                    <Text style={[styles.kartaTytul, { color: theme.colors.text, marginBottom: 0, flex: 1 }]}>
-                      {edytowanyNumerAuta != null ? `Edycja auta #${edytowanyNumerAuta}` : `Auto #${kolejnyNumerAuta}`}
-                    </Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                      <Text style={[styles.kartaTytul, { color: theme.colors.text, marginBottom: 0, flexShrink: 1 }]}>
+                        {edytowanyNumerAuta != null ? `Edycja auta #${edytowanyNumerAuta}` : `Auto #${kolejnyNumerAuta}`}
+                      </Text>
+                      <InfoTooltip
+                        tresc={edytowanyNumerAuta != null
+                          ? 'Edytujesz całe auto: łączny tonaż i łączne metry. Tony wcześniejszych obszarów liczą się z grubości wbudowywania wpisanej w planie, nie z grubości projektowej. Na ostatnim obszarze wychodzi grubość z reszty ładunku i widać, czy trzyma założenie.'
+                          : aktywnaDzialka
+                            ? `Program sam liczy pozycję od „${aktywnaDzialka.dzialka.nazwa}”. Auto, które przechodzi na kolejny obszar, zachowuje ten sam numer.`
+                            : 'Wszystkie działki zakończone.'}
+                      />
+                    </View>
                     <View style={{ minWidth: 120 }}>
                       <TouchableOpacity
                         onPress={() => setRzutListaOtwarta((o) => !o)}
@@ -1165,27 +1180,25 @@ export default function WbudowywanieDetailScreen() {
                       )}
                     </View>
                   </View>
-                  <Text style={[styles.opisMaly, { color: theme.colors.textSecondary, marginBottom: 8 }]}>
-                    {edytowanyNumerAuta != null
-                      ? 'Edytujesz całe auto: łączny tonaż i łączne metry. Tony wcześniejszych obszarów liczą się z grubości wbudowywania wpisanej w planie, nie z grubości projektowej. Na ostatnim obszarze wychodzi grubość z reszty ładunku i widać, czy trzyma założenie.'
-                      : aktywnaDzialka
-                        ? `Program sam liczy pozycję od „${aktywnaDzialka.dzialka.nazwa}”. Auto, które przechodzi na kolejny obszar, zachowuje ten sam numer.`
-                        : 'Wszystkie działki zakończone.'}
-                    {dzialkaZakonczonaWpisu && edytowanyNumerAuta == null ? ' (aktywna działka zakończona – wznów lub dodaj metry na kolejnej)' : ''}
-                  </Text>
-                  <NumInput label="Tonaż [Mg]" value={nowyTonaz} onChange={setNowyTonaz} theme={theme} placeholder={String(plan.tonazAuta)} />
-                  {edytowanyNumerAuta == null && (
-                    <View style={{ marginBottom: 10 }}>
-                      <Text style={{ color: theme.colors.textSecondary, fontSize: 13, fontWeight: '600', marginBottom: 5 }}>Gdzie powinniśmy dojechać</Text>
-                      <View style={[styles.poleSzare, { backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.border }]}>
-                        <Text style={{ color: theme.colors.textSecondary, fontSize: 16 }}>
-                          {metryPlanowaneLive != null && metryZDojazduZAuta != null
-                            ? `${formatLiczby(metryPlanowaneLive)} m od startu / ${formatLiczby(metryZDojazduZAuta)} m z auta`
-                            : '— wpisz tonaż powyżej —'}
-                        </Text>
-                      </View>
-                    </View>
-                  )}
+                  {!aktywnaDzialka && edytowanyNumerAuta == null ? (
+                    <Text style={[styles.opisMaly, { color: theme.colors.textSecondary, marginBottom: 8 }]}>Wszystkie działki zakończone.</Text>
+                  ) : null}
+                  {dzialkaZakonczonaWpisu && edytowanyNumerAuta == null ? (
+                    <Text style={[styles.opisMaly, { color: theme.colors.warning, marginBottom: 8 }]}>Aktywna działka zakończona – wznów lub dodaj metry na kolejnej.</Text>
+                  ) : null}
+                  <Wiersz style={{ alignItems: 'flex-start' }}>
+                    <NumInput label="Tonaż [Mg]" value={nowyTonaz} onChange={setNowyTonaz} theme={theme} placeholder={String(plan.tonazAuta)} />
+                    {edytowanyNumerAuta == null ? (
+                      <PoleWyliczone
+                        label="Gdzie dojechać"
+                        info="Pozycja wyliczona z tonażu: metry od startu planu / metry z tego auta."
+                        wartosc={metryPlanowaneLive != null && metryZDojazduZAuta != null
+                          ? `${formatLiczby(metryPlanowaneLive)} / ${formatLiczby(metryZDojazduZAuta)} m`
+                          : '—'}
+                        theme={theme}
+                      />
+                    ) : null}
+                  </Wiersz>
                   {edytowanyNumerAuta == null && (
                     <View style={[styles.miniTabs, { borderColor: theme.colors.border, marginBottom: 8 }]}>
                       {([
@@ -1204,31 +1217,33 @@ export default function WbudowywanieDetailScreen() {
                       ))}
                     </View>
                   )}
-                  <NumInput
-                    label={edytowanyNumerAuta != null || trybMetrowLive === 'zAuta' ? 'Przejechane metry z auta [m]' : 'Odległość od startu [m]'}
-                    value={nowyMetry}
-                    onChange={setNowyMetry}
-                    theme={theme}
-                  />
-                  {edytowanyNumerAuta == null && (
-                    <View style={{ marginBottom: 10 }}>
-                      <Text style={{ color: theme.colors.textSecondary, fontSize: 13, fontWeight: '600', marginBottom: 5 }}>
-                        {trybMetrowLive === 'zAuta' ? 'Odległość od startu (auto)' : 'Metry z auta (auto)'}
-                      </Text>
-                      <View style={[styles.poleSzare, { backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.border }]}>
-                        <Text style={{ color: theme.colors.textSecondary, fontSize: 16 }}>
-                          {trybMetrowLive === 'zAuta'
-                            ? (metryOdStartuObliczone != null && !isNaN(wartoscMetrowNum) ? `${formatLiczby(metryOdStartuObliczone)} m` : '—')
-                            : (metryZAutaObliczone != null && !isNaN(wartoscMetrowNum) ? `${formatLiczby(metryZAutaObliczone)} m` : '—')}
-                        </Text>
-                      </View>
-                    </View>
-                  )}
+                  <Wiersz style={{ alignItems: 'flex-start' }}>
+                    <NumInput
+                      label={edytowanyNumerAuta != null || trybMetrowLive === 'zAuta' ? 'Metry z auta [m]' : 'Od startu [m]'}
+                      value={nowyMetry}
+                      onChange={setNowyMetry}
+                      theme={theme}
+                    />
+                    {edytowanyNumerAuta == null ? (
+                      <PoleWyliczone
+                        label={trybMetrowLive === 'zAuta' ? 'Od startu (auto)' : 'Z auta (auto)'}
+                        wartosc={trybMetrowLive === 'zAuta'
+                          ? (metryOdStartuObliczone != null && !isNaN(wartoscMetrowNum) ? `${formatLiczby(metryOdStartuObliczone)} m` : '—')
+                          : (metryZAutaObliczone != null && !isNaN(wartoscMetrowNum) ? `${formatLiczby(metryZAutaObliczone)} m` : '—')}
+                        theme={theme}
+                      />
+                    ) : null}
+                  </Wiersz>
                   <View style={styles.godzinWrap}>
-                    <Text style={[styles.godzLabel, { color: theme.colors.textSecondary }]}>Godz. wybudowania</Text>
-                    <TextInput style={[styles.godzInput, { backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.border, color: theme.colors.text }]} value={nowyGodzina} onChangeText={setNowyGodzina} maxLength={5} placeholder="HH:MM" placeholderTextColor={theme.colors.textSecondary} keyboardType="numbers-and-punctuation" />
+                    <View style={{ width: 92 }}>
+                      <Text style={[styles.godzLabel, { color: theme.colors.textSecondary }]}>Godzina</Text>
+                      <TextInput accessibilityLabel="Godzina wybudowania" style={[styles.godzInput, { backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.border, color: theme.colors.text }]} value={nowyGodzina} onChangeText={setNowyGodzina} maxLength={5} placeholder="HH:MM" placeholderTextColor={theme.colors.textSecondary} keyboardType="numbers-and-punctuation" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.godzLabel, { color: theme.colors.textSecondary }]}>Komentarz</Text>
+                      <TextInput accessibilityLabel="Komentarz" style={[styles.komentarzInput, { backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.border, color: theme.colors.text }]} value={nowyKomentarz} onChangeText={setNowyKomentarz} placeholder="opcjonalnie" placeholderTextColor={theme.colors.textSecondary} />
+                    </View>
                   </View>
-                  <TextInput style={[styles.komentarzInput, { backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.border, color: theme.colors.text }]} value={nowyKomentarz} onChangeText={setNowyKomentarz} placeholder="Komentarz / uwagi (opcjonalnie)" placeholderTextColor={theme.colors.textSecondary} multiline />
                   {podgladRozkladu.length > 0 && (
                     <View style={{ marginBottom: 10 }}>
                       <Text style={{ color: theme.colors.textSecondary, fontSize: 13, fontWeight: '600', marginBottom: 5 }}>Rozkład na obszary</Text>
@@ -1282,7 +1297,7 @@ export default function WbudowywanieDetailScreen() {
                       onPress={koniecMieszanki}
                     >
                       <Text style={{ color: theme.colors.info, fontWeight: '700', fontSize: 14 }}>
-                        Koniec mieszanki – {getMieszanka(aktywnaDzialka.dzialka.mieszankaId)?.rodzaj ?? 'następna'}
+                        Koniec mieszanki – {(() => { const m = getMieszanka(aktywnaDzialka.dzialka.mieszankaId); return m ? rodzajMieszanki(m) : 'następna'; })()}
                       </Text>
                     </TouchableOpacity>
                   )}
@@ -1508,11 +1523,25 @@ function ModalRow({ label, v, theme }: { label: string; v: string; theme: AppThe
   );
 }
 
+function PoleWyliczone({ label, wartosc, info, theme }: { label: string; wartosc: string; info?: string; theme: AppTheme }) {
+  return (
+    <View style={{ marginBottom: 10 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 5 }}>
+        <Text style={{ color: theme.colors.textSecondary, fontSize: 13, fontWeight: '600', flexShrink: 1 }} numberOfLines={1}>{label}</Text>
+        {info ? <InfoTooltip tresc={info} /> : null}
+      </View>
+      <View style={[styles.poleSzare, { backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.border, paddingVertical: 11 }]}>
+        <Text style={{ color: theme.colors.textSecondary, fontSize: 16 }} numberOfLines={1}>{wartosc}</Text>
+      </View>
+    </View>
+  );
+}
+
 function NumInput({ label, value, onChange, theme, placeholder }: { label: string; value: string; onChange: (v: string) => void; theme: AppTheme; placeholder?: string }) {
   return (
     <View style={{ marginBottom: 10 }}>
-      <Text style={{ color: theme.colors.textSecondary, fontSize: 13, fontWeight: '600', marginBottom: 5 }}>{label}</Text>
-      <TextInput value={value} onChangeText={(t) => onChange(t.replace(',', '.'))} keyboardType="decimal-pad" placeholder={placeholder} placeholderTextColor={theme.colors.textSecondary} style={{ borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, fontSize: 16, backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.border, color: theme.colors.text }} />
+      <Text style={{ color: theme.colors.textSecondary, fontSize: 13, fontWeight: '600', marginBottom: 5 }} numberOfLines={1}>{label}</Text>
+      <TextInput accessibilityLabel={label} value={value} onChangeText={(t) => onChange(t.replace(',', '.'))} keyboardType="decimal-pad" placeholder={placeholder} placeholderTextColor={theme.colors.textSecondary} style={{ borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, fontSize: 16, backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.border, color: theme.colors.text }} />
     </View>
   );
 }
@@ -1556,7 +1585,7 @@ const styles = StyleSheet.create({
   selectorScroll: { paddingHorizontal: 14, paddingVertical: 8, maxHeight: 50 },
   selectorBtn: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1, marginRight: 8 },
   zawartosc: { padding: 14, gap: 12 },
-  karta: { borderRadius: 14, padding: 14, borderWidth: 1 },
+  karta: { ...kartaWspolna },
   kartaTytul: { fontSize: 13, fontWeight: '800', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
   opisMaly: { fontSize: 13, lineHeight: 18 },
   sep: { height: 1, marginVertical: 10 },
@@ -1574,10 +1603,10 @@ const styles = StyleSheet.create({
   tabelaSuma: { flexDirection: 'row', paddingVertical: 9, paddingHorizontal: 4, borderRadius: 8, marginTop: 4, alignItems: 'center' },
   livePodsumWrap: { borderWidth: 1, borderRadius: 10, padding: 12, marginTop: 12, gap: 2 },
   livePodsumTytul: { fontSize: 12, fontWeight: '700', marginBottom: 6, textTransform: 'uppercase' },
-  godzinWrap: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
-  godzLabel: { fontSize: 13, fontWeight: '600', flex: 1 },
-  godzInput: { width: 80, borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, textAlign: 'center' },
-  komentarzInput: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, fontSize: 14, minHeight: 48, marginBottom: 12 },
+  godzinWrap: { flexDirection: 'row', gap: 10, marginBottom: 10 },
+  godzLabel: { fontSize: 13, fontWeight: '600', marginBottom: 5 },
+  godzInput: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 11, fontSize: 16, textAlign: 'center' },
+  komentarzInput: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 11, fontSize: 15 },
   btnDodajAuto: { paddingVertical: 13, borderRadius: 12, alignItems: 'center' },
   btnDodajAutoTekst: { color: '#fff', fontSize: 15, fontWeight: '700' },
   poleSzare: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12 },

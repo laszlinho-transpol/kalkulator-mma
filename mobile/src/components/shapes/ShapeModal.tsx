@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { SafeModal } from '../common/SafeModal';
 import { lightTheme, darkTheme } from '../../constants/theme';
+import { Wiersz } from '../common/Formularz';
 import { NumericInput } from '../common/NumericInput';
 import { InfoTooltip } from '../common/InfoTooltip';
 import { obliczPowierzchniFigury } from '../../utils/calculations';
@@ -285,40 +286,58 @@ export function ShapeModal({
 
                 {selectedTyp === 'prostokat' && (
                   <>
-                    <NumericInput label="Szerokość" value={prostokat.szerokosc} onChangeText={(v) => setProstokat((f) => ({ ...f, szerokosc: v }))} unit="m" required tooltip="Szerokość układanego pasa. Wymiar poprzeczny do osi drogi." />
-                    <NumericInput label="Długość" value={prostokat.dlugosc} onChangeText={(v) => setProstokat((f) => ({ ...f, dlugosc: v }))} unit="m" required tooltip="Długość odcinka wzdłuż osi drogi." />
+                    <Wiersz>
+                      <NumericInput label="Szerokość" value={prostokat.szerokosc} onChangeText={(v) => setProstokat((f) => ({ ...f, szerokosc: v }))} unit="m" required tooltip="Szerokość układanego pasa. Wymiar poprzeczny do osi drogi." />
+                      <NumericInput label="Długość" value={prostokat.dlugosc} onChangeText={(v) => setProstokat((f) => ({ ...f, dlugosc: v }))} unit="m" required tooltip="Długość odcinka wzdłuż osi drogi." />
+                    </Wiersz>
                   </>
                 )}
 
                 {selectedTyp === 'trapez' && (
                   <>
-                    <NumericInput label="Szerokość 1 (początek)" value={trapez.szerokosc1} onChangeText={(v) => setTrapez((f) => ({ ...f, szerokosc1: v }))} unit="m" required tooltip="Szerokość na początku odcinka." />
-                    <NumericInput label="Szerokość 2 (koniec)" value={trapez.szerokosc2} onChangeText={(v) => setTrapez((f) => ({ ...f, szerokosc2: v }))} unit="m" required tooltip="Szerokość na końcu odcinka." />
-                    <NumericInput label="Długość" value={trapez.dlugosc} onChangeText={(v) => setTrapez((f) => ({ ...f, dlugosc: v }))} unit="m" required tooltip="Długość odcinka wzdłuż osi drogi." />
+                    <Wiersz>
+                      <NumericInput label="Szerokość początek" value={trapez.szerokosc1} onChangeText={(v) => setTrapez((f) => ({ ...f, szerokosc1: v }))} unit="m" required tooltip="Szerokość na początku odcinka." />
+                      <NumericInput label="Szerokość koniec" value={trapez.szerokosc2} onChangeText={(v) => setTrapez((f) => ({ ...f, szerokosc2: v }))} unit="m" required tooltip="Szerokość na końcu odcinka." />
+                    </Wiersz>
+                    <Wiersz>
+                      <NumericInput label="Długość" value={trapez.dlugosc} onChangeText={(v) => setTrapez((f) => ({ ...f, dlugosc: v }))} unit="m" required tooltip="Długość odcinka wzdłuż osi drogi." />
+                      <View />
+                    </Wiersz>
                   </>
                 )}
 
                 {selectedTyp === 'trojkat' && (
                   <>
-                    <NumericInput label="Szerokość (podstawa)" value={trojkat.szerokosc} onChangeText={(v) => setTrojkat((f) => ({ ...f, szerokosc: v }))} unit="m" required tooltip="Szerokość podstawy trójkąta." />
-                    <NumericInput label="Długość (wysokość)" value={trojkat.dlugosc} onChangeText={(v) => setTrojkat((f) => ({ ...f, dlugosc: v }))} unit="m" required tooltip="Długość trójkąta wzdłuż osi drogi." />
+                    <Wiersz>
+                      <NumericInput label="Podstawa" value={trojkat.szerokosc} onChangeText={(v) => setTrojkat((f) => ({ ...f, szerokosc: v }))} unit="m" required tooltip="Szerokość podstawy trójkąta." />
+                      <NumericInput label="Wysokość" value={trojkat.dlugosc} onChangeText={(v) => setTrojkat((f) => ({ ...f, dlugosc: v }))} unit="m" required tooltip="Długość trójkąta wzdłuż osi drogi." />
+                    </Wiersz>
                   </>
                 )}
 
                 {selectedTyp === 'pierscien' && (
                   <>
-                    <NumericInput label="Szerokość pasa" value={pierscien.szerokosc} onChangeText={(v) => setPierscien((f) => ({ ...f, szerokosc: v }))} unit="m" required tooltip="Szerokość pasa jezdni na łuku / rondzie." />
-                    <NumericInput label="Długość zewnętrzna" value={pierscien.dlugoscZewnetrzna} onChangeText={(v) => setPierscien((f) => ({ ...f, dlugoscZewnetrzna: v }))} unit="m" required tooltip="Długość zewnętrznej krawędzi łuku." />
-                    <NumericInput label="Długość wewnętrzna" value={pierscien.dlugoscWewnetrzna} onChangeText={(v) => setPierscien((f) => ({ ...f, dlugoscWewnetrzna: v }))} unit="m" required tooltip="Długość wewnętrznej krawędzi łuku." />
+                    <Wiersz>
+                      <NumericInput label="Szerokość pasa" value={pierscien.szerokosc} onChangeText={(v) => setPierscien((f) => ({ ...f, szerokosc: v }))} unit="m" required tooltip="Szerokość pasa jezdni na łuku / rondzie." />
+                      <NumericInput label="Dł. zewnętrzna" value={pierscien.dlugoscZewnetrzna} onChangeText={(v) => setPierscien((f) => ({ ...f, dlugoscZewnetrzna: v }))} unit="m" required tooltip="Długość zewnętrznej krawędzi łuku." />
+                    </Wiersz>
+                    <Wiersz>
+                      <NumericInput label="Dł. wewnętrzna" value={pierscien.dlugoscWewnetrzna} onChangeText={(v) => setPierscien((f) => ({ ...f, dlugoscWewnetrzna: v }))} unit="m" required tooltip="Długość wewnętrznej krawędzi łuku." />
+                      <View />
+                    </Wiersz>
                   </>
                 )}
 
                 {selectedTyp === 'wjazd' && (
                   <>
-                    <NumericInput label="L – długość wjazdu" value={wjazd.L} onChangeText={(v) => setWjazd((f) => ({ ...f, L: v }))} unit="m" required tooltip="Długość prostego odcinka wjazdu." />
-                    <NumericInput label="s – szerokość wjazdu" value={wjazd.s} onChangeText={(v) => setWjazd((f) => ({ ...f, s: v }))} unit="m" required tooltip="Szerokość wjazdu." />
-                    <NumericInput label="R1 – promień 1" value={wjazd.R1} onChangeText={(v) => setWjazd((f) => ({ ...f, R1: v }))} unit="m" tooltip="Promień łuku przy pierwszym rogu wjazdu (0 jeśli brak)." />
-                    <NumericInput label="R2 – promień 2" value={wjazd.R2} onChangeText={(v) => setWjazd((f) => ({ ...f, R2: v }))} unit="m" tooltip="Promień łuku przy drugim rogu wjazdu (0 jeśli brak)." />
+                    <Wiersz>
+                      <NumericInput label="L – długość" value={wjazd.L} onChangeText={(v) => setWjazd((f) => ({ ...f, L: v }))} unit="m" required tooltip="Długość prostego odcinka wjazdu." />
+                      <NumericInput label="s – szerokość" value={wjazd.s} onChangeText={(v) => setWjazd((f) => ({ ...f, s: v }))} unit="m" required tooltip="Szerokość wjazdu." />
+                    </Wiersz>
+                    <Wiersz>
+                      <NumericInput label="R1 – promień 1" value={wjazd.R1} onChangeText={(v) => setWjazd((f) => ({ ...f, R1: v }))} unit="m" tooltip="Promień łuku przy pierwszym rogu wjazdu (0 jeśli brak)." />
+                      <NumericInput label="R2 – promień 2" value={wjazd.R2} onChangeText={(v) => setWjazd((f) => ({ ...f, R2: v }))} unit="m" tooltip="Promień łuku przy drugim rogu wjazdu (0 jeśli brak)." />
+                    </Wiersz>
                   </>
                 )}
 

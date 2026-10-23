@@ -3,11 +3,12 @@
 // ============================================================
 
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, useColorScheme } from 'react-native';
+import { View, StyleSheet, ScrollView, useColorScheme } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { lightTheme, darkTheme } from '../../src/constants/theme';
 import { AppHeader } from '../../src/components/common/AppHeader';
+import { PozycjaListy } from '../../src/components/ui/Karta';
 
 const KAFELKI = [
   { id: 'masa', tytul: 'Masa i sprzęt', podtytul: 'Szybkie sprawdzenie', ikona: '🧮', sciezka: '/niezbednik/masa', kolor: '#E8A020' },
@@ -25,19 +26,14 @@ export default function NiezbednikScreen() {
       <AppHeader tytul="Niezbędnik masiarza" lewy={{ tekst: '‹ Wstecz', onPress: () => router.back() }} />
       <ScrollView contentContainerStyle={[styles.zawartosc, { paddingBottom: insets.bottom + 16 }]}>
         {KAFELKI.map((k) => (
-          <TouchableOpacity
+          <PozycjaListy
             key={k.id}
-            style={[styles.kafelek, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}
-            onPress={() => router.push(k.sciezka as any)}
-          >
-            <View style={[styles.ikonaTlo, { backgroundColor: `${k.kolor}20` }]}>
-              <Text style={styles.ikona}>{k.ikona}</Text>
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.tytul, { color: theme.colors.text }]} numberOfLines={2}>{k.tytul}</Text>
-              <Text style={[styles.podtytul, { color: k.kolor }]} numberOfLines={2}>{k.podtytul}</Text>
-            </View>
-          </TouchableOpacity>
+            tytul={k.tytul}
+            podtytul={k.podtytul}
+            ikona={k.ikona}
+            kolor={k.kolor}
+            onPress={() => router.push(k.sciezka as never)}
+          />
         ))}
       </ScrollView>
     </View>
@@ -46,10 +42,5 @@ export default function NiezbednikScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  zawartosc: { padding: 14, gap: 12 },
-  kafelek: { flexDirection: 'row', alignItems: 'center', gap: 14, borderRadius: 14, borderWidth: 1, padding: 16 },
-  ikonaTlo: { width: 52, height: 52, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  ikona: { fontSize: 28 },
-  tytul: { fontSize: 16, fontWeight: '700' },
-  podtytul: { fontSize: 13, fontWeight: '600', marginTop: 4 },
+  zawartosc: { padding: 14, gap: 10 },
 });

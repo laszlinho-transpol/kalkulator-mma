@@ -2,7 +2,7 @@
 
 Aplikacja mobilna (React Native + Expo) do planowania i śledzenia wbudowywania mieszanek mineralno-asfaltowych.
 
-**Aktualna wersja: 1.7.0** (Android `versionCode` 18)
+**Aktualna wersja: 1.8.34** (Android `versionCode` 27)
 
 ## Szybki start
 

@@ -4,7 +4,10 @@
 
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { Mieszanka } from '../types';
+import type { CenaRecepty, Mieszanka } from '../types';
+import type { OkresStawek } from '../budzet/typy';
+
+type OkresCeny = OkresStawek<CenaRecepty>;
 
 const KLUCZ_STORAGE = '@mma:mieszanki';
 
@@ -12,10 +15,13 @@ interface MieszankiStore {
   mieszanki: Mieszanka[];
   zaladowane: boolean;
   zaladujMieszanki: () => Promise<void>;
-  dodajMieszanke: (mieszanka: Omit<Mieszanka, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
+  dodajMieszanke: (mieszanka: Omit<Mieszanka, 'id' | 'createdAt' | 'updatedAt'>) => Promise<string>;
   edytujMieszanke: (id: string, dane: Partial<Omit<Mieszanka, 'id' | 'createdAt'>>) => Promise<void>;
   usunMieszanke: (id: string) => Promise<void>;
   pobierzMieszanke: (id: string) => Mieszanka | undefined;
+  dodajOkresCeny: (mieszankaId: string, okres: Omit<OkresCeny, 'id'>) => Promise<string | undefined>;
+  zmienOkresCeny: (mieszankaId: string, okres: OkresCeny) => Promise<void>;
+  usunOkresCeny: (mieszankaId: string, okresId: string) => Promise<void>;
 }
 
 const generujId = (): string =>
@@ -31,7 +37,7 @@ export const useMieszankiStore = create<MieszankiStore>((set, get) => ({
       if (json) {
         set({ mieszanki: JSON.parse(json), zaladowane: true });
       } else {
-        set({ zaladowane: true });
+        set({ mieszanki: [], zaladowane: true });
       }
     } catch {
       set({ zaladowane: true });
@@ -49,6 +55,7 @@ export const useMieszankiStore = create<MieszankiStore>((set, get) => ({
     const zaktualizowane = [...get().mieszanki, nowa];
     set({ mieszanki: zaktualizowane });
     await AsyncStorage.setItem(KLUCZ_STORAGE, JSON.stringify(zaktualizowane));
+    return nowa.id;
   },
 
   edytujMieszanke: async (id, dane) => {
@@ -66,4 +73,28 @@ export const useMieszankiStore = create<MieszankiStore>((set, get) => ({
   },
 
   pobierzMieszanke: (id) => get().mieszanki.find((m) => m.id === id),
+
+  dodajOkresCeny: async (mieszankaId, okres) => {
+    const m = get().pobierzMieszanke(mieszankaId);
+    if (!m) return undefined;
+    const nowy: OkresCeny = { ...okres, id: generujId() };
+    await get().edytujMieszanke(mieszankaId, { historiaCen: [...(m.historiaCen ?? []), nowy] });
+    return nowy.id;
+  },
+
+  zmienOkresCeny: async (mieszankaId, okres) => {
+    const m = get().pobierzMieszanke(mieszankaId);
+    if (!m) return;
+    await get().edytujMieszanke(mieszankaId, {
+      historiaCen: (m.historiaCen ?? []).map((jest) => (jest.id === okres.id ? okres : jest)),
+    });
+  },
+
+  usunOkresCeny: async (mieszankaId, okresId) => {
+    const m = get().pobierzMieszanke(mieszankaId);
+    if (!m) return;
+    await get().edytujMieszanke(mieszankaId, {
+      historiaCen: (m.historiaCen ?? []).filter((okres) => okres.id !== okresId),
+    });
+  },
 }));

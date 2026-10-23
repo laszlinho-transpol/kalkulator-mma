@@ -3,32 +3,31 @@
 // ============================================================
 
 import React, { useMemo } from 'react';
-import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, useColorScheme,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePlanyStore } from '../../src/stores/planyStore';
 import { useBudowyStore } from '../../src/stores/budowyStore';
 import { useLiveStore } from '../../src/stores/liveStore';
-import { lightTheme, darkTheme } from '../../src/constants/theme';
 import { EmptyState } from '../../src/components/common/EmptyState';
 import { AppHeader } from '../../src/components/common/AppHeader';
-import { CollapsibleSection } from '../../src/components/common/CollapsibleSection';
-import { karta, tekstTytul, tekstPodtytul } from '../../src/constants/layout';
+import { Karta, ODSTEP, TYPOGRAFIA, ZasadaDzialania, useMotyw } from '../../src/components/ui';
+import { ZASADA_WBUDOWYWANIA } from '../../src/components/ZasadyDzialow';
 import { komentarzPlanuBudowy, tytulPlanuBudowy } from '../../src/utils/planZBudowy';
 import { potwierdzAkcje } from '../../src/utils/dialog';
 import type { Plan, Budowa } from '../../src/types';
+import { budowaWToku } from '../../src/utils/statusBudowy';
+
+const ZASADA = 'wbudowywanie';
 
 export default function WbudowywanieScreen() {
-  const colorScheme = useColorScheme();
-  const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
+  const theme = useMotyw();
   const insets = useSafeAreaInsets();
   const { plany, usunPlan } = usePlanyStore();
   const { budowy } = useBudowyStore();
   const { wpisyDlaPlanu, wyczyścWpisyPlanu } = useLiveStore();
   const aktywne = plany.filter((p) => p.status === 'aktywny');
-  const budowyAktywne = budowy.filter((b) => b.status !== 'archiwalna');
+  const budowyAktywne = budowy.filter((b) => budowaWToku(b));
 
   const formatujDate = (iso: string) =>
     new Date(iso).toLocaleDateString('pl-PL', { weekday: 'short', day: 'numeric', month: 'long' });
@@ -88,39 +87,18 @@ export default function WbudowywanieScreen() {
       ? komentarzPlanuBudowy(item)
       : `${item.zrodlo === 'obmiar' ? 'Obmiar PZT' : 'Zaplanuj masę'} · ${item.dzialki.length} ${item.dzialki.length === 1 ? 'działka' : 'działki'}`;
     return (
-      <View
+      <Karta
         key={item.id}
-        style={[karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}
-      >
-        <TouchableOpacity onPress={() => router.push(`/wbudowywanie/${item.id}` as any)}>
-          <View style={styles.kartaNaglowek}>
-            <Text style={[tekstTytul, { color: theme.colors.text, flex: 1 }]} numberOfLines={2}>
-              {tytul}
-            </Text>
-            <View style={[styles.znaczek, { backgroundColor: `${theme.colors.success}20` }]}>
-              <Text style={{ color: theme.colors.success, fontSize: 11, fontWeight: '700' }}>● Aktywny</Text>
-            </View>
-          </View>
-          {!!komentarz && (
-            <Text style={[tekstPodtytul, { color: theme.colors.textSecondary }]} numberOfLines={2}>
-              {komentarz}
-            </Text>
-          )}
-          {wpisy.length > 0 && (
-            <Text style={{ color: theme.colors.primary, fontSize: 13, fontWeight: '600', marginTop: 4 }}>
-              {wpisy.length} aut • {sumaTon.toFixed(1)} Mg • {sumaMetrow.toFixed(0)} m
-            </Text>
-          )}
-        </TouchableOpacity>
-        <View style={styles.akcjePlanu}>
-          <TouchableOpacity onPress={() => edytujPlan(item)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Text style={{ color: theme.colors.info, fontWeight: '700', fontSize: 13 }}>Edytuj</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => potwierdzUsuniecie(item)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Text style={{ color: theme.colors.danger, fontWeight: '700', fontSize: 13 }}>Usuń</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+        tytul={tytul}
+        podtytul={komentarz || undefined}
+        znaczek={{ tekst: '● Aktywny', kolor: theme.colors.success }}
+        podsumowanie={wpisy.length > 0 ? `${wpisy.length} aut • ${sumaTon.toFixed(1)} Mg • ${sumaMetrow.toFixed(0)} m` : undefined}
+        onPress={() => router.push(`/wbudowywanie/${item.id}` as never)}
+        akcje={[
+          { tekst: 'Edytuj', onPress: () => edytujPlan(item), accessibilityLabel: `Edytuj plan ${tytul}` },
+          { tekst: 'Usuń', rodzaj: 'niebezpieczna', onPress: () => potwierdzUsuniecie(item), accessibilityLabel: `Usuń plan ${tytul}` },
+        ]}
+      />
     );
   };
 
@@ -131,44 +109,37 @@ export default function WbudowywanieScreen() {
       <AppHeader
         tytul="Wbudowywanie"
         lewy={{ tekst: '‹ Wstecz', onPress: () => router.back() }}
+        zasada={ZASADA}
       />
 
-      {puste ? (
-        <EmptyState
-          ikona="🛣️"
-          tytul="Brak aktywnych planów"
-          opis="Zapisz plan dnia z Obmiaru PZT albo utwórz plan w Zaplanuj masę. Pojawią się tutaj, pogrupowane po budowach."
-          przyciskTekst="Przejdź do planowania"
-          onPrzycisk={() => router.push('/plan')}
-        />
-      ) : (
-        <ScrollView
-          contentContainerStyle={[styles.lista, { paddingBottom: insets.bottom + 16 }]}
-          showsVerticalScrollIndicator={false}
-        >
-          {[...grupy.zBudowa, ...grupy.bezBudowy].map((grupa) => (
-            <CollapsibleSection
-              key={grupa.tytul}
-              tytul={grupa.tytul}
-              liczba={grupa.elementy.length}
-              theme={theme}
-              ikona="🏗️"
-              plaski={grupa.bezPrzypisania}
-              domyslnieRozwinieta
-            >
-              {grupa.elementy.map(renderujPlan)}
-            </CollapsibleSection>
-          ))}
-        </ScrollView>
-      )}
+      <ScrollView
+        contentContainerStyle={[styles.lista, { paddingBottom: insets.bottom + 16 }]}
+        showsVerticalScrollIndicator={false}
+      >
+        <ZasadaDzialania klucz={ZASADA} slajdy={ZASADA_WBUDOWYWANIA} />
+        {puste ? (
+          <EmptyState
+            ikona="🛣️"
+            tytul="Brak aktywnych planów"
+            opis="Zapisz plan dnia z Obmiaru PZT albo utwórz plan w Zaplanuj masę. Pojawią się tutaj, pogrupowane po budowach."
+            przyciskTekst="Przejdź do planowania"
+            onPrzycisk={() => router.push('/plan')}
+          />
+        ) : [...grupy.zBudowa, ...grupy.bezBudowy].map((grupa) => (
+          <View key={grupa.tytul} style={styles.grupa}>
+            <Text style={[TYPOGRAFIA.sekcja, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+              {grupa.bezPrzypisania ? '' : '🏗️ '}{grupa.tytul} · {grupa.elementy.length}
+            </Text>
+            {grupa.elementy.map(renderujPlan)}
+          </View>
+        ))}
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  lista: { padding: 14 },
-  kartaNaglowek: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, gap: 8 },
-  znaczek: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
-  akcjePlanu: { flexDirection: 'row', gap: 16, marginTop: 10, paddingTop: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#E5E7EB' },
+  lista: { flexGrow: 1, padding: 14, gap: ODSTEP.l },
+  grupa: { gap: ODSTEP.s + 2 },
 });

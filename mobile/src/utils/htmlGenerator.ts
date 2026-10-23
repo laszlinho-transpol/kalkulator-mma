@@ -10,6 +10,7 @@ import { formatLiczby, obliczTabeleAutPlanu } from './calculations';
 import { obliczPodsumowaniePlanuDnia, budujSegmentyPlanu } from './planCiagly';
 import { planZProfilemObmiaru } from './planZBudowy';
 import { HTML_LIVE_SCRIPT } from './htmlLiveScript';
+import { rodzajMieszanki } from '../mieszanki/kolejnosc';
 
 export interface OpcjeEksportuHTML {
   autor?: string;
@@ -171,7 +172,7 @@ ${plan.dzialki.map((dz) => {
   return `
   <div class="card">
     <h2>${dz.nazwa}</h2>
-    <div class="row"><span class="label">Mieszanka</span><span class="val">${mie.rodzaj}</span></div>
+    <div class="row"><span class="label">Mieszanka</span><span class="val">${rodzajMieszanki(mie)}</span></div>
     <div class="row"><span class="label">Grubość</span><span class="val">${dz.grubosc} cm</span></div>
     <div class="row"><span class="label">Masa</span><span class="val bold-primary">${masa.toFixed(3)} Mg</span></div>
     <div class="row"><span class="label">Samochodów</span><span class="val">${auta}</span></div>

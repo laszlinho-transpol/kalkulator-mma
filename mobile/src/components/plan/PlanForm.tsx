@@ -5,7 +5,7 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  TextInput, Alert, useColorScheme,
+  TextInput, useColorScheme,
   KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { router } from 'expo-router';
@@ -16,6 +16,8 @@ import { useBudowyStore } from '../../stores/budowyStore';
 import { BudowaPicker } from '../common/BudowaPicker';
 import { lightTheme, darkTheme, type AppTheme } from '../../constants/theme';
 import { DatePickerButton } from '../common/DatePickerButton';
+import { Wiersz } from '../common/Formularz';
+import { Przycisk, Sekcja as SekcjaUi, SiatkaDanych } from '../ui';
 import { NumericInput } from '../common/NumericInput';
 import { MieszankaPicker } from '../common/MieszankaPicker';
 import { ShapeModal } from '../shapes/ShapeModal';
@@ -29,6 +31,8 @@ import { nastepnyDzienRoboczy } from '../../utils/dates';
 import { obliczPikietazFigur, formatujPikietaz, nastepnyPikietaz } from '../../utils/chainage';
 import { DO_METROW_BIEZACYCH, NAZWY_FIGUR } from '../../constants';
 import type { DzialkaRobocza, Figura, KierunekUkladania, Mieszanka, Plan, Rzut } from '../../types';
+import { pokazKomunikat } from '../../utils/dialog';
+import { rodzajMieszanki } from '../../mieszanki/kolejnosc';
 
 // ---- Typ roboczy formularza działki (stringi dla pól numerycznych) ----
 export interface DzialkaForm {
@@ -158,7 +162,7 @@ export function PlanForm({ tytul, initialPlan, onZapisz }: PlanFormProps) {
       if (nowa < 1 || nowa > 10) return prev;
       if (delta > 0) return [...prev, nowyDzialkaForm(prev.length)];
       if (prev[prev.length - 1].figury.length > 0) {
-        Alert.alert('Uwaga', 'Ostatnia działka zawiera figury – usuń je przed usunięciem działki.');
+        pokazKomunikat('Uwaga', 'Ostatnia działka zawiera figury – usuń je przed usunięciem działki.');
         return prev;
       }
       return prev.slice(0, -1);
@@ -236,16 +240,16 @@ export function PlanForm({ tytul, initialPlan, onZapisz }: PlanFormProps) {
   const zapisz = async () => {
     for (let i = 0; i < dzialki.length; i++) {
       const dz = dzialki[i];
-      if (!dz.nazwa.trim()) { Alert.alert('Błąd', `Działka ${i + 1}: podaj nazwę.`); return; }
-      if (!dz.mieszankaId) { Alert.alert('Błąd', `Działka "${dz.nazwa}": wybierz mieszankę.`); return; }
-      if (!dz.gruboscWbudowywaniaStr || parseFloat(dz.gruboscWbudowywaniaStr) <= 0) { Alert.alert('Błąd', `Działka "${dz.nazwa}": podaj grubość wbudowywania.`); return; }
-      if (dz.figury.length === 0) { Alert.alert('Błąd', `Działka "${dz.nazwa}": dodaj co najmniej jedną figurę.`); return; }
+      if (!dz.nazwa.trim()) { pokazKomunikat('Błąd', `Działka ${i + 1}: podaj nazwę.`); return; }
+      if (!dz.mieszankaId) { pokazKomunikat('Błąd', `Działka "${dz.nazwa}": wybierz mieszankę.`); return; }
+      if (!dz.gruboscWbudowywaniaStr || parseFloat(dz.gruboscWbudowywaniaStr) <= 0) { pokazKomunikat('Błąd', `Działka "${dz.nazwa}": podaj grubość wbudowywania.`); return; }
+      if (dz.figury.length === 0) { pokazKomunikat('Błąd', `Działka "${dz.nazwa}": dodaj co najmniej jedną figurę.`); return; }
     }
     let rzuty: Rzut[] = generujDomyslneRzuty(sumaAut);
     if (rzutyStr.trim()) {
       const parsed = parsujRzuty(rzutyStr);
       if (!parsed || !walidujRzuty(rzutyStr, sumaAut)) {
-        Alert.alert('Błąd', `Podział rzutów "${rzutyStr}" jest nieprawidłowy. Suma musi wynosić ${sumaAut}.`);
+        pokazKomunikat('Błąd', `Podział rzutów "${rzutyStr}" jest nieprawidłowy. Suma musi wynosić ${sumaAut}.`);
         return;
       }
       rzuty = parsed;
@@ -265,6 +269,7 @@ export function PlanForm({ tytul, initialPlan, onZapisz }: PlanFormProps) {
       <AppHeader
         tytul={tytul}
         lewy={{ tekst: 'Anuluj', onPress: () => router.back(), kolor: theme.colors.danger }}
+        menu
         prawy={{ tekst: 'Zapisz', onPress: zapisz, kolor: theme.colors.primary }}
       />
 
@@ -274,7 +279,7 @@ export function PlanForm({ tytul, initialPlan, onZapisz }: PlanFormProps) {
           {/* Ogólne */}
           <Sekcja tytul="Ogólne" theme={theme}>
             <DatePickerButton label="Data wbudowywania" value={dataWbudowywania} onChange={setData} minimumDate={minimumDataWbudowywania} />
-            <View style={{ marginTop: 10 }}>
+            <View>
               <Text style={[styles.etykieta, { color: theme.colors.textSecondary }]}>Budowa</Text>
               <TouchableOpacity
                 style={[styles.input, { backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.border, justifyContent: 'center' }]}
@@ -328,14 +333,12 @@ export function PlanForm({ tytul, initialPlan, onZapisz }: PlanFormProps) {
           {/* Rzuty */}
           {sumaAut > 0 && (
             <Sekcja tytul="Podział na rzuty" theme={theme}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-                <Text style={[styles.podsumRow, { color: theme.colors.text }]}>
-                  Łączna masa: <Text style={{ fontWeight: '700', color: theme.colors.primary }}>{formatLiczby(sumaMasy, 2)} Mg</Text>
-                </Text>
-                <Text style={[styles.podsumRow, { color: theme.colors.text }]}>
-                  Aut: <Text style={{ fontWeight: '700', color: theme.colors.primary }}>{sumaAut}</Text>
-                </Text>
-              </View>
+              <SiatkaDanych
+                pozycje={[
+                  { etykieta: 'Łączna masa', wartosc: `${formatLiczby(sumaMasy, 2)} Mg` },
+                  { etykieta: 'Aut', wartosc: String(sumaAut) },
+                ]}
+              />
               <View style={styles.rzadEtykiety}>
                 <Text style={[styles.etykieta, { color: theme.colors.textSecondary }]}>Podział rzutów</Text>
                 <InfoTooltip tresc={`Wpisz podział samochodów na partie (rzuty), np. "6+6+4". Suma musi wynosić ${sumaAut}. Jeśli puste – jeden rzut.`} />
@@ -352,7 +355,7 @@ export function PlanForm({ tytul, initialPlan, onZapisz }: PlanFormProps) {
                 placeholderTextColor={theme.colors.textSecondary}
                 keyboardType="numbers-and-punctuation"
               />
-              {rzutyStr && !walidujRzuty(rzutyStr, sumaAut) && (
+              {!!rzutyStr && !walidujRzuty(rzutyStr, sumaAut) && (
                 <Text style={[styles.bladRzuty, { color: theme.colors.danger }]}>
                   Suma rzutów musi wynosić {sumaAut}
                 </Text>
@@ -438,10 +441,7 @@ function KartaDzialki({ dz, dzIdx, theme, tonazAuta, pobierzMieszanke, updateDzi
     : [];
 
   return (
-    <View style={[styles.kartaDzialki, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-      <Text style={[styles.kartaDzialkiTytul, { color: theme.colors.primary }]}>
-        Działka {dzIdx + 1}
-      </Text>
+    <SekcjaUi tytul={`Działka ${dzIdx + 1}`} style={styles.sekcja}>
 
       {/* Nazwa */}
       <Text style={[styles.etykieta, { color: theme.colors.textSecondary }]}>Nazwa</Text>
@@ -463,18 +463,20 @@ function KartaDzialki({ dz, dzIdx, theme, tonazAuta, pobierzMieszanke, updateDzi
         onPress={onMieszankaPicker}
       >
         {mieszanka
-          ? <Text style={[styles.btnMieszankaTekst, { color: theme.colors.text }]}>{mieszanka.rodzaj}  •  ρ = {mieszanka.ciezarObjetosciowy.toFixed(3)} t/m³</Text>
+          ? <Text style={[styles.btnMieszankaTekst, { color: theme.colors.text }]}>{rodzajMieszanki(mieszanka)}  •  ρ = {mieszanka.ciezarObjetosciowy.toFixed(3)} t/m³</Text>
           : <Text style={[styles.btnMieszankaTekst, { color: theme.colors.textSecondary }]}>Dotknij, aby wybrać mieszankę →</Text>
         }
       </TouchableOpacity>
 
       {/* Grubości warstwy */}
-      <NumericInput label="Grubość projektowa *" value={dz.gruboscProjektowaStr} onChangeText={(v) => updateDzialka(dzIdx, 'gruboscProjektowaStr', v)} unit="cm"
-        tooltip="Grubość projektowa warstwy z dokumentacji (np. 4 cm)." required decimals={1} />
-      <NumericInput label="Tolerancja *" value={dz.tolerancjaStr} onChangeText={(v) => updateDzialka(dzIdx, 'tolerancjaStr', v)} unit="%"
-        tooltip="Dopuszczalna tolerancja grubości, domyślnie ±10%." required decimals={0} />
-      <NumericInput label="Grubość wbudowywania *" value={dz.gruboscWbudowywaniaStr} onChangeText={(v) => updateDzialka(dzIdx, 'gruboscWbudowywaniaStr', v)} unit="cm"
-        tooltip="Planowana grubość po wbudowaniu i zagęszczeniu (np. 3,8 cm). Używana w obliczeniach masy." required decimals={1} />
+      <Wiersz>
+        <NumericInput label="Gr. projekt." value={dz.gruboscProjektowaStr} onChangeText={(v) => updateDzialka(dzIdx, 'gruboscProjektowaStr', v)} unit="cm"
+          tooltip="Grubość projektowa warstwy z dokumentacji (np. 4 cm)." required decimals={1} />
+        <NumericInput label="Tolerancja" value={dz.tolerancjaStr} onChangeText={(v) => updateDzialka(dzIdx, 'tolerancjaStr', v)} unit="%"
+          tooltip="Dopuszczalna tolerancja grubości, domyślnie ±10%." required decimals={0} />
+        <NumericInput label="Gr. wbud." value={dz.gruboscWbudowywaniaStr} onChangeText={(v) => updateDzialka(dzIdx, 'gruboscWbudowywaniaStr', v)} unit="cm"
+          tooltip="Grubość wbudowywania: planowana grubość po wbudowaniu i zagęszczeniu (np. 3,8 cm). Używana w obliczeniach masy." required decimals={1} />
+      </Wiersz>
 
       {/* Opis */}
       <Text style={[styles.etykieta, { color: theme.colors.textSecondary }]}>Opis (opcjonalny)</Text>
@@ -488,37 +490,42 @@ function KartaDzialki({ dz, dzIdx, theme, tonazAuta, pobierzMieszanke, updateDzi
         numberOfLines={2}
       />
 
-      {/* Kilometraż */}
-      <View style={styles.rzadEtykiety}>
-        <Text style={[styles.etykieta, { color: theme.colors.textSecondary }]}>Kilometraż początkowy</Text>
-        <InfoTooltip tresc="Pikietaż punktu startowego. Format: km+mmm, np. 105+500." />
-      </View>
-      <PoleKilometraz
-        theme={theme}
-        km={dz.kmStr}
-        m={dz.mStr}
-        onKm={(v) => updateDzialka(dzIdx, 'kmStr', v)}
-        onM={(v) => updateDzialka(dzIdx, 'mStr', v)}
-      />
-
-      {/* Kierunek */}
-      <View style={styles.rzadEtykiety}>
-        <Text style={[styles.etykieta, { color: theme.colors.textSecondary }]}>Kierunek układania</Text>
-        <InfoTooltip tresc="Rosnący: km rośnie (od 105+000 do 105+500). Malejący: km maleje." />
-      </View>
-      <View style={styles.kierunekWrap}>
-        {(['rosnacy', 'malejacy'] as KierunekUkladania[]).map((k) => (
-          <TouchableOpacity
-            key={k}
-            style={[styles.btnKierunek, { borderColor: theme.colors.border, backgroundColor: dz.kierunek === k ? theme.colors.primary : theme.colors.inputBackground }]}
-            onPress={() => updateDzialka(dzIdx, 'kierunek', k)}
-          >
-            <Text style={[styles.btnKierunekTekst, { color: dz.kierunek === k ? '#fff' : theme.colors.text }]}>
-              {k === 'rosnacy' ? '↑ Rosnący' : '↓ Malejący'}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+      {/* Kilometraż i kierunek */}
+      <Wiersz style={{ alignItems: 'flex-start' }}>
+        <View>
+          <View style={styles.rzadEtykiety}>
+            <Text style={[styles.etykietaRzad, { color: theme.colors.textSecondary }]}>Km początkowy</Text>
+            <InfoTooltip tresc="Pikietaż punktu startowego. Format: km+mmm, np. 105+500." />
+          </View>
+          <PoleKilometraz
+            theme={theme}
+            km={dz.kmStr}
+            m={dz.mStr}
+            onKm={(v) => updateDzialka(dzIdx, 'kmStr', v)}
+            onM={(v) => updateDzialka(dzIdx, 'mStr', v)}
+          />
+        </View>
+        <View>
+          <View style={styles.rzadEtykiety}>
+            <Text style={[styles.etykietaRzad, { color: theme.colors.textSecondary }]}>Kierunek</Text>
+            <InfoTooltip tresc="Rosnący: km rośnie (od 105+000 do 105+500). Malejący: km maleje." />
+          </View>
+          <View style={styles.kierunekWrap}>
+            {(['rosnacy', 'malejacy'] as KierunekUkladania[]).map((k) => (
+              <TouchableOpacity
+                key={k}
+                accessibilityLabel={k === 'rosnacy' ? 'Kierunek rosnący' : 'Kierunek malejący'}
+                style={[styles.btnKierunek, { borderColor: theme.colors.border, backgroundColor: dz.kierunek === k ? theme.colors.primary : theme.colors.inputBackground }]}
+                onPress={() => updateDzialka(dzIdx, 'kierunek', k)}
+              >
+                <Text style={[styles.btnKierunekTekst, { color: dz.kierunek === k ? '#fff' : theme.colors.text }]}>
+                  {k === 'rosnacy' ? '↑ Rosnący' : '↓ Malejący'}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      </Wiersz>
 
       {/* Figury */}
       <View style={[styles.figurySep, { borderTopColor: theme.colors.border }]} />
@@ -558,46 +565,33 @@ function KartaDzialki({ dz, dzIdx, theme, tonazAuta, pobierzMieszanke, updateDzi
         );
       })}
 
-      <TouchableOpacity
-        style={[styles.btnDodajFigure, { borderColor: theme.colors.primary, backgroundColor: `${theme.colors.primary}10` }]}
-        onPress={onAddShape}
-      >
-        <Text style={[styles.btnDodajFigureTekst, { color: theme.colors.primary }]}>+ Dodaj figurę</Text>
-      </TouchableOpacity>
+      <Przycisk tekst="Dodaj figurę" ikona="plus" wariant="drugi" onPress={onAddShape} style={{ marginTop: 8 }} />
 
-      {/* Podsumowanie działki */}
       {wynikiDzialki && (
-        <View style={[styles.podsumDzialki, { backgroundColor: `${theme.colors.info}10`, borderColor: theme.colors.info }]}>
-          <Text style={[styles.podsumRow, { color: theme.colors.text }]}>Powierzchnia: <Text style={{ fontWeight: '700' }}>{formatLiczby(wynikiDzialki.lacznaPowierzchnia)} m²</Text></Text>
-          <Text style={[styles.podsumRow, { color: theme.colors.text }]}>Masa: <Text style={{ fontWeight: '700' }}>{formatLiczby(wynikiDzialki.lacznaIloscMasy, 3)} Mg</Text></Text>
-          <Text style={[styles.podsumRow, { color: theme.colors.text }]}>Samochodów: <Text style={{ fontWeight: '700' }}>{wynikiDzialki.iloscSamochodow}</Text></Text>
+        <View style={{ marginTop: 10 }}>
+          <SiatkaDanych
+            pozycje={[
+              { etykieta: 'Powierzchnia', wartosc: `${formatLiczby(wynikiDzialki.lacznaPowierzchnia)} m²` },
+              { etykieta: 'Masa', wartosc: `${formatLiczby(wynikiDzialki.lacznaIloscMasy, 3)} Mg` },
+              { etykieta: 'Samochodów', wartosc: String(wynikiDzialki.iloscSamochodow) },
+            ]}
+          />
         </View>
       )}
-    </View>
+    </SekcjaUi>
   );
 }
 
 // ---- Sekcja ----
-function Sekcja({ tytul, children, theme }: { tytul: string; children: React.ReactNode; theme: AppTheme }) {
-  return (
-    <View style={[sekcjaStyles.wrap, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-      <Text style={[sekcjaStyles.tytul, { color: theme.colors.textSecondary }]}>{tytul.toUpperCase()}</Text>
-      {children}
-    </View>
-  );
+function Sekcja({ tytul, children }: { tytul: string; children: React.ReactNode; theme: AppTheme }) {
+  return <SekcjaUi tytul={tytul} style={styles.sekcja}>{children}</SekcjaUi>;
 }
-
-const sekcjaStyles = StyleSheet.create({
-  wrap: { marginBottom: 16, borderRadius: 14, padding: 16, borderWidth: 1 },
-  tytul: { fontSize: 11, fontWeight: '700', letterSpacing: 0.5, marginBottom: 12 },
-});
 
 // ---- Style ----
 const styles = StyleSheet.create({
   container: { flex: 1 },
   zawartosc: { padding: 16, gap: 0 },
-  kartaDzialki: { borderRadius: 14, padding: 16, borderWidth: 1, marginBottom: 16 },
-  kartaDzialkiTytul: { fontSize: 14, fontWeight: '800', marginBottom: 14, textTransform: 'uppercase', letterSpacing: 0.5 },
+  sekcja: { marginBottom: 16 },
   etykieta: { fontSize: 13, fontWeight: '600', marginBottom: 6, marginTop: 12 },
   rzadEtykiety: { flexDirection: 'row', alignItems: 'center', marginTop: 12, marginBottom: 6, gap: 6 },
   input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
@@ -608,9 +602,10 @@ const styles = StyleSheet.create({
   inputKm: { flex: 2, borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16, textAlign: 'center' },
   pikietazPlus: { fontSize: 20, fontWeight: '300' },
   inputM: { flex: 1, borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16, textAlign: 'center' },
-  kierunekWrap: { flexDirection: 'row', gap: 10 },
-  btnKierunek: { flex: 1, borderWidth: 1, borderRadius: 10, paddingVertical: 11, alignItems: 'center' },
-  btnKierunekTekst: { fontSize: 14, fontWeight: '600' },
+  kierunekWrap: { flexDirection: 'row', gap: 6 },
+  btnKierunek: { flex: 1, borderWidth: 1, borderRadius: 10, paddingVertical: 9, alignItems: 'center' },
+  btnKierunekTekst: { fontSize: 13, fontWeight: '600' },
+  etykietaRzad: { fontSize: 13, fontWeight: '600', flexShrink: 1 },
   figurySep: { borderTopWidth: 1, marginVertical: 14 },
   figuryTytul: { fontSize: 15, fontWeight: '700' },
   brakFigur: { fontSize: 13, fontStyle: 'italic', textAlign: 'center', marginVertical: 8 },
@@ -624,10 +619,6 @@ const styles = StyleSheet.create({
   btnEdytujTekst: { fontSize: 17, fontWeight: '700' },
   btnUsun: { padding: 6 },
   btnUsunTekst: { fontSize: 18, fontWeight: '700' },
-  btnDodajFigure: { borderWidth: 1.5, borderRadius: 10, borderStyle: 'dashed', paddingVertical: 12, alignItems: 'center', marginTop: 4 },
-  btnDodajFigureTekst: { fontSize: 15, fontWeight: '700' },
-  podsumDzialki: { borderWidth: 1, borderRadius: 10, padding: 12, marginTop: 14, gap: 4 },
-  podsumRow: { fontSize: 14 },
   licznikWrap: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   licznikLabel: { fontSize: 13, fontWeight: '600', flex: 1 },
   licznikPrzyciski: { flexDirection: 'row', alignItems: 'center', gap: 12 },

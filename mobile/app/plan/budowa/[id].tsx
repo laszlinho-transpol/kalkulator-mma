@@ -3,9 +3,7 @@
 // ============================================================
 
 import React, { useMemo } from 'react';
-import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, useColorScheme,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, useColorScheme } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams } from 'expo-router';
@@ -13,9 +11,8 @@ import { usePlanyStore } from '../../../src/stores/planyStore';
 import { useBudowyStore } from '../../../src/stores/budowyStore';
 import { lightTheme, darkTheme } from '../../../src/constants/theme';
 import { AppHeader } from '../../../src/components/common/AppHeader';
-import { InfoTooltip } from '../../../src/components/common/InfoTooltip';
 import { EmptyState } from '../../../src/components/common/EmptyState';
-import { karta, tekstTytul, tekstPodtytul } from '../../../src/constants/layout';
+import { Karta, Przycisk, Sekcja, TYPOGRAFIA } from '../../../src/components/ui';
 import { komentarzPlanuBudowy, tytulPlanuBudowy } from '../../../src/utils/planZBudowy';
 import { potwierdzAkcje } from '../../../src/utils/dialog';
 import type { Plan } from '../../../src/types';
@@ -57,46 +54,30 @@ export default function PlanBudowaScreen() {
         lewy={{ tekst: '‹ Wstecz', onPress: () => router.back() }}
       />
       <ScrollView contentContainerStyle={[styles.lista, { paddingBottom: insets.bottom + 16 }]}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <TouchableOpacity
-            style={[karta, { backgroundColor: `${theme.colors.primary}14`, borderColor: theme.colors.primary, flex: 1 }]}
-            onPress={() => router.push({ pathname: '/plan/nowy', params: { budowaId: budowa.id } } as any)}
-          >
-            <Text style={[tekstTytul, { color: theme.colors.primary }]}>Dodaj nowy plan</Text>
-          </TouchableOpacity>
-          <InfoTooltip tresc="Data, obszar, kilometraż, warstwa i recepta z projektu budowy." />
-        </View>
+        <Sekcja tytul="Nowy plan" info="Data, obszar, kilometraż, warstwa i recepta z projektu budowy.">
+          <Przycisk
+            ikona="plus"
+            tekst="Dodaj nowy plan"
+            onPress={() => router.push({ pathname: '/plan/nowy', params: { budowaId: budowa.id } } as never)}
+          />
+        </Sekcja>
 
-        <Text style={[styles.sekcja, { color: theme.colors.textSecondary }]}>
-          Zapisane ({zapisane.length})
+        <Text style={[TYPOGRAFIA.sekcja, { color: theme.colors.textSecondary, marginTop: 4 }]}>
+          Zapisane · {zapisane.length}
         </Text>
         {zapisane.length === 0 ? (
-          <Text style={{ color: theme.colors.textSecondary, fontSize: 13, paddingVertical: 8 }}>
-            Brak zapisanych planów tej budowy.
-          </Text>
+          <Karta podtytul="Brak zapisanych planów tej budowy." />
         ) : zapisane.map((item) => (
-          <View
+          <Karta
             key={item.id}
-            style={[karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}
-          >
-            <TouchableOpacity onPress={() => router.push(`/plan/${item.id}` as any)}>
-              <View style={styles.kartaNaglowek}>
-                <Text style={[tekstTytul, { color: theme.colors.text, flex: 1 }]} numberOfLines={2}>
-                  {tytulPlanuBudowy(item)}
-                </Text>
-              </View>
-              <Text style={[tekstPodtytul, { color: theme.colors.textSecondary }]} numberOfLines={2}>
-                {komentarzPlanuBudowy(item) || `${item.dzialki.length} działki`}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => potwierdźUsunięcie(item)}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              style={styles.btnUsun}
-            >
-              <Text style={{ color: theme.colors.danger, fontWeight: '700', fontSize: 13 }}>Usuń</Text>
-            </TouchableOpacity>
-          </View>
+            tytul={tytulPlanuBudowy(item)}
+            podtytul={komentarzPlanuBudowy(item) || `${item.dzialki.length} działki`}
+            onPress={() => router.push(`/plan/${item.id}` as never)}
+            akcje={[
+              { tekst: 'Edytuj', onPress: () => router.push(`/plan/edytuj/${item.id}` as never), accessibilityLabel: `Edytuj plan ${tytulPlanuBudowy(item)}` },
+              { tekst: 'Usuń', rodzaj: 'niebezpieczna', onPress: () => potwierdźUsunięcie(item), accessibilityLabel: `Usuń plan ${tytulPlanuBudowy(item)}` },
+            ]}
+          />
         ))}
       </ScrollView>
     </View>
@@ -105,8 +86,5 @@ export default function PlanBudowaScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  lista: { padding: 14 },
-  sekcja: { fontSize: 12, fontWeight: '700', letterSpacing: 0.4, marginTop: 8, marginBottom: 8, textTransform: 'uppercase' },
-  kartaNaglowek: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6, gap: 8, alignItems: 'center' },
-  btnUsun: { marginTop: 10, paddingTop: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#E5E7EB', alignSelf: 'flex-start' },
+  lista: { padding: 14, gap: 10 },
 });

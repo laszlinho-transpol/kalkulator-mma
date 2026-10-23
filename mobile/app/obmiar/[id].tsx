@@ -5,15 +5,19 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  useColorScheme, Alert, TextInput, ActivityIndicator,
+  useColorScheme, TextInput, ActivityIndicator,
 } from 'react-native';
 import { router } from 'expo-router';
+import { wstecz } from '../../src/budzet/nawigacja';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppHeader } from '../../src/components/common/AppHeader';
 import { SafeModal } from '../../src/components/common/SafeModal';
+import { InfoTooltip } from '../../src/components/common/InfoTooltip';
+import { Pole as PoleUi, Przycisk, Sekcja, SiatkaDanych, TYPOGRAFIA, Wiersz, WierszDanych } from '../../src/components/ui';
 import { MieszankaPicker } from '../../src/components/common/MieszankaPicker';
 import { BudowaPicker } from '../../src/components/common/BudowaPicker';
 import { DatePickerButton } from '../../src/components/common/DatePickerButton';
+import { isoZDaty } from '../../src/components/ui/Kalendarz';
 import { WielokatPodglad } from '../../src/components/obmiar/WielokatPodglad';
 import { ObmiarKonfiguracja } from '../../src/components/obmiar/ObmiarKonfiguracja';
 import { lightTheme, darkTheme, type AppTheme } from '../../src/constants/theme';
@@ -34,6 +38,11 @@ import { pobierzUstawienia } from '../ustawienia';
 import { PRESETY_SKALI_PZT, skalaZMianownika, type ObszarObmiaru, type OdsadzkaObmiaru, type TrybWyboruWezla } from '../../src/types';
 import { wybierzPlikTlaPzt, rozmiarObrazu, zapiszJpegTla } from '../../src/utils/tloPztImport';
 import { PdfRasterizer } from '../../src/components/obmiar/PdfRasterizer';
+import { karta as kartaWspolna } from '../../src/constants/layout';
+import { pokazKomunikat, potwierdzAkcje } from '../../src/utils/dialog';
+import { generujRaportObmiaruPDF } from '../../src/utils/pdfGenerator';
+import { rodzajMieszanki } from '../../src/mieszanki/kolejnosc';
+import { budowaWToku } from '../../src/utils/statusBudowy';
 
 type SekcjaNr = 'start' | 'odsadzka' | 'konstrukcja' | null;
 
@@ -133,7 +142,7 @@ export default function ObmiarDetailScreen() {
   if (!sesja) {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-        <AppHeader tytul="Obmiar" lewy={{ tekst: '‹ Wstecz', onPress: () => router.back() }} />
+        <AppHeader tytul="Obmiar" lewy={{ tekst: '‹ Wstecz', onPress: () => wstecz('/obmiar') }} />
         <Text style={{ color: theme.colors.danger, textAlign: 'center', marginTop: 40 }}>Sesja nie znaleziona.</Text>
       </View>
     );
@@ -142,7 +151,7 @@ export default function ObmiarDetailScreen() {
   const importuj = async () => {
     const wynik = await wybierzIParsujXfdf();
     if (!wynik.sukces) {
-      if (wynik.blad !== 'Anulowano wybór pliku.') Alert.alert('Import XFDF', wynik.blad);
+      if (wynik.blad !== 'Anulowano wybór pliku.') pokazKomunikat('Import XFDF', wynik.blad);
       return;
     }
     await dodajObszaryZXfdf(sesja.id, wynik.wynik);
@@ -153,7 +162,7 @@ export default function ObmiarDetailScreen() {
       setSekcjaOtwarta('start');
     }
     const suma = odswiezona?.obszary.reduce((a, o) => a + o.powierzchniaM2, 0) ?? 0;
-    Alert.alert('Zaimportowano', `Dodano ${wynik.wynik.polygony.length} obszar(ów).\nŁącznie: ${formatLiczby(suma)} m²`);
+    pokazKomunikat('Zaimportowano', `Dodano ${wynik.wynik.polygony.length} obszar(ów).\nŁącznie: ${formatLiczby(suma)} m²`);
   };
 
   const importujTlo = async () => {
@@ -174,13 +183,13 @@ export default function ObmiarDetailScreen() {
           widoczne: true,
           opacity: 0.5,
         });
-        Alert.alert('Tło PZT', 'Obraz podłożony. Jeśli nie pokrywa się z obszarem, użyj PDF ze strony XChange albo „Odwróć pion”.');
+        pokazKomunikat('Tło PZT', 'Obraz podłożony. Jeśli nie pokrywa się z obszarem, użyj PDF ze strony XChange albo „Odwróć pion”.');
         return;
       }
       setRasterBusy(true);
       setRasterPdf({ uri: plik.uri, strona: 1 });
     } catch {
-      Alert.alert('Tło PZT', 'Nie udało się wczytać pliku.');
+      pokazKomunikat('Tło PZT', 'Nie udało się wczytać pliku.');
       setRasterBusy(false);
     }
   };
@@ -231,20 +240,14 @@ export default function ObmiarDetailScreen() {
     const braki = brakiZatwierdzeniaObszaru(o);
     if (braki.length) {
       const pierwszy = braki[0];
-      Alert.alert('Uzupełnij konfigurację', braki.map((b) => `• ${b.komunikat}`).join('\n'), [
-        { text: 'Anuluj', style: 'cancel' },
-        {
-          text: 'Przejdź',
-          onPress: () => {
-            setRozwinietyId(o.id);
-            setSekcjaOtwarta(pierwszy.pole === 'start' ? 'start' : 'konstrukcja');
-          },
-        },
-      ]);
+      potwierdzAkcje('Uzupełnij konfigurację', braki.map((b) => `• ${b.komunikat}`).join('\n'), () => {
+        setRozwinietyId(o.id);
+        setSekcjaOtwarta(pierwszy.pole === 'start' ? 'start' : 'konstrukcja');
+      }, 'Przejdź');
       return;
     }
     await ustawKonfiguracjeZablokowana(sesja.id, o.id, true);
-    Alert.alert('Zatwierdzono', 'Kłódka zamknięta – obszar gotowy do kontrolowania w Wbudowywaniu.');
+    pokazKomunikat('Zatwierdzono', 'Kłódka zamknięta – obszar gotowy do kontrolowania w Wbudowywaniu.');
   };
 
   const zapiszPlan = async () => {
@@ -252,19 +255,14 @@ export default function ObmiarDetailScreen() {
     if (niegotowe.length) {
       const o = niegotowe[0];
       const braki = brakiZatwierdzeniaObszaru(o);
-      Alert.alert(
+      potwierdzAkcje(
         'Nie można zapisać planu',
         `Obszar „${o.nazwa}”: ${braki.map((b) => b.komunikat).join(' ')}`,
-        [
-          { text: 'Anuluj', style: 'cancel' },
-          {
-            text: 'Uzupełnij',
-            onPress: () => {
-              setRozwinietyId(o.id);
-              setSekcjaOtwarta(braki[0].pole === 'start' ? 'start' : 'konstrukcja');
-            },
-          },
-        ],
+        () => {
+          setRozwinietyId(o.id);
+          setSekcjaOtwarta(braki[0].pole === 'start' ? 'start' : 'konstrukcja');
+        },
+        'Uzupełnij',
       );
       return;
     }
@@ -272,7 +270,7 @@ export default function ObmiarDetailScreen() {
     if (rzutyStr.trim()) {
       const parsed = parsujRzuty(rzutyStr);
       if (!parsed || !walidujRzuty(rzutyStr, podsumowanie?.sumaAut || 1)) {
-        Alert.alert('Rzuty', `Podział „${rzutyStr}” musi sumować się do ${podsumowanie?.sumaAut} aut.`);
+        pokazKomunikat('Rzuty', `Podział „${rzutyStr}” musi sumować się do ${podsumowanie?.sumaAut} aut.`);
         return;
       }
       rzuty = parsed;
@@ -293,7 +291,7 @@ export default function ObmiarDetailScreen() {
         router.replace(`/wbudowywanie/${planId}` as any);
       }
     } catch {
-      Alert.alert('Błąd', 'Nie udało się zapisać planu.');
+      pokazKomunikat('Błąd', 'Nie udało się zapisać planu.');
     } finally {
       setZapisuje(false);
     }
@@ -325,9 +323,9 @@ export default function ObmiarDetailScreen() {
     ) => {
       const w = await zastosujOdsadzkeLancucha(sesja.id, obszarPodgladu.id, odsadzkaId, dystansM, extra);
       if (w) {
-        Alert.alert('Odsadzka', `Δ ${w.deltaPowierzchniaM2 >= 0 ? '+' : ''}${w.deltaPowierzchniaM2} m²\nNowa: ${w.powierzchniaM2} m²`);
+        pokazKomunikat('Odsadzka', `Δ ${w.deltaPowierzchniaM2 >= 0 ? '+' : ''}${w.deltaPowierzchniaM2} m²\nNowa: ${w.powierzchniaM2} m²`);
       } else {
-        Alert.alert('Odsadzka', 'Nie udało się zastosować. Ustaw start/koniec L i P albo stronę i kilometraż.');
+        pokazKomunikat('Odsadzka', 'Nie udało się zastosować. Ustaw start/koniec L i P albo stronę i kilometraż.');
       }
     },
     onUsunOdsadzke: (oid: string) => usunOdsadzke(sesja.id, obszarPodgladu.id, oid),
@@ -339,7 +337,13 @@ export default function ObmiarDetailScreen() {
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <AppHeader
         tytul={sesja.nazwa}
-        lewy={{ tekst: '‹ Wstecz', onPress: () => router.back() }}
+        lewy={{ tekst: '‹ Wstecz', onPress: () => wstecz('/obmiar') }}
+        udostepnij={() => {
+          const b = sesja.budowaId ? budowy.find((x) => x.id === sesja.budowaId) : undefined;
+          return generujRaportObmiaruPDF({
+            sesja, mieszanki, budowa: b ? { kodBudowy: b.kodBudowy, nazwaInwestycji: b.nazwaInwestycji } : undefined,
+          });
+        }}
         prawy={{ tekst: '+ XFDF', onPress: importuj, kolor: theme.colors.success }}
       />
 
@@ -349,7 +353,7 @@ export default function ObmiarDetailScreen() {
         nestedScrollEnabled
         scrollEnabled={!blokadaPodgladu && !mapaAktywna}
       >
-        <Text style={[styles.kartaTytul, { color: theme.colors.text, marginLeft: 4 }]}>Kolejność układania</Text>
+        <Text style={[TYPOGRAFIA.sekcja, { color: theme.colors.textSecondary, marginLeft: 4 }]}>Kolejność układania</Text>
 
         {sesja.obszary.length === 0 ? (
           <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
@@ -411,10 +415,8 @@ export default function ObmiarDetailScreen() {
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.btnMini, { backgroundColor: `${theme.colors.danger}20` }]}
-                    onPress={() => Alert.alert('Usuń obszar', `Usunąć „${o.nazwa}”?`, [
-                      { text: 'Anuluj', style: 'cancel' },
-                      { text: 'Usuń', style: 'destructive', onPress: () => usunObszar(sesja.id, o.id) },
-                    ])}
+                    onPress={() => potwierdzAkcje('Usuń obszar', `Usunąć „${o.nazwa}”?`, () => usunObszar(sesja.id, o.id))}
+                    accessibilityLabel={`Usuń obszar ${o.nazwa}`}
                   >
                     <Text style={{ color: theme.colors.danger, fontWeight: '700' }}>✕</Text>
                   </TouchableOpacity>
@@ -451,9 +453,10 @@ export default function ObmiarDetailScreen() {
                     </TouchableOpacity>
 
                     <View style={{ gap: 8 }}>
-                      <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>
-                        Tło jak w PDF-XChange: ten sam PDF (strona z poligonami). Zoom rusza tło razem z obszarem.
-                      </Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <Text style={{ color: theme.colors.textSecondary, fontSize: 12, fontWeight: '700' }}>Tło PZT</Text>
+                        <InfoTooltip tresc="Tło jak w PDF-XChange: ten sam PDF (strona z poligonami). Zoom rusza tło razem z obszarem." />
+                      </View>
                       {rasterBusy ? (
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                           <ActivityIndicator color={theme.colors.primary} />
@@ -586,78 +589,69 @@ export default function ObmiarDetailScreen() {
           })
         )}
 
-        <TouchableOpacity style={[styles.btnImport, { backgroundColor: theme.colors.success }]} onPress={importuj}>
-          <Text style={styles.btnImportTekst}>+ Importuj kolejny XFDF</Text>
-        </TouchableOpacity>
+        <Przycisk tekst="Importuj kolejny XFDF" ikona="plus" wariant="drugi" onPress={importuj} />
 
-        <View style={[styles.karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-          <Text style={[styles.kartaTytul, { color: theme.colors.text }]}>Plan dnia</Text>
+        <Sekcja tytul="Plan dnia" info="Po zatwierdzeniu wszystkich obszarów zapisz plan – trafi do Wbudowywania z podziałem aut na kursy.">
           <DatePickerButton
             label="Data"
             value={dataPlanu}
-            onChange={(d) => ustawDateSesji(sesja.id, d.toISOString().slice(0, 10))}
+            onChange={(d) => ustawDateSesji(sesja.id, isoZDaty(d))}
           />
-          <TouchableOpacity style={[styles.btnSek, { borderColor: theme.colors.border }]} onPress={() => setPickerBudowa(true)}>
-            <Text style={{ color: theme.colors.text, fontWeight: '700' }}>
-              {budowa ? `${budowa.kodBudowy} – ${budowa.nazwaInwestycji}` : 'Przypisz budowę'}
-            </Text>
-          </TouchableOpacity>
+          <Przycisk
+            tekst={budowa ? `${budowa.kodBudowy} – ${budowa.nazwaInwestycji}` : 'Przypisz budowę'}
+            wariant="drugi"
+            onPress={() => setPickerBudowa(true)}
+            accessibilityLabel="Przypisz budowę"
+          />
           {podsumowanie && (
-            <View style={{ marginTop: 10, gap: 4 }}>
-              <Row label="Łączna powierzchnia" v={`${formatLiczby(podsumowanie.powierzchniaRazem)} m²`} theme={theme} bold />
+            <>
+              <SiatkaDanych
+                pozycje={[
+                  { etykieta: 'Powierzchnia', wartosc: `${formatLiczby(podsumowanie.powierzchniaRazem)} m²` },
+                  { etykieta: 'Obszary', wartosc: String(podsumowanie.liczbaObszarow) },
+                  { etykieta: 'Razem aut', wartosc: String(podsumowanie.sumaAut) },
+                  { etykieta: 'Masa', wartosc: `${formatLiczby(podsumowanie.masaNaMieszanke.reduce((a, m) => a + m.masaMg, 0), 2)} t` },
+                ]}
+              />
               {podsumowanie.powierzchnie.map((p) => (
-                <Text key={p.etykieta} style={{ color: theme.colors.textSecondary, fontSize: 13, marginLeft: 4 }}>
+                <Text key={p.etykieta} style={[TYPOGRAFIA.opis, { color: theme.colors.textSecondary }]}>
                   – {etykietaPowierzchni(p)}
                 </Text>
               ))}
-              <Row label="Obszary (działki robocze)" v={String(podsumowanie.liczbaObszarow)} theme={theme} />
-              <Text style={{ color: theme.colors.textSecondary, fontSize: 12, fontWeight: '700', marginTop: 6 }}>Mieszanki / masa</Text>
+              <Text style={[TYPOGRAFIA.etykieta, { color: theme.colors.textSecondary, marginTop: 4 }]}>Mieszanki / masa</Text>
               {podsumowanie.mieszanki.length === 0 ? (
-                <Text style={{ color: theme.colors.textSecondary, fontSize: 13 }}>Uzupełnij konstrukcję obszarów.</Text>
+                <Text style={[TYPOGRAFIA.opis, { color: theme.colors.textSecondary }]}>Uzupełnij konstrukcję obszarów.</Text>
               ) : podsumowanie.mieszanki.map((p) => (
-                <Text key={`${p.mieszankaId}-${p.gruboscCm}`} style={{ color: theme.colors.text, fontSize: 13 }}>
+                <Text key={`${p.mieszankaId}-${p.gruboscCm}`} style={[TYPOGRAFIA.opis, { color: theme.colors.text }]}>
                   – {etykietaMasy(p)}
                 </Text>
               ))}
-              <Text style={{ color: theme.colors.textSecondary, fontSize: 12, fontWeight: '700', marginTop: 6 }}>Ilość samochodów</Text>
               {podsumowanie.masaNaMieszanke.map((m) => (
-                <Text key={m.mieszankaId} style={{ color: theme.colors.text, fontSize: 13 }}>
-                  – {m.auta} aut · {formatLiczby(m.masaMg, 2)} t {m.etykieta}
-                </Text>
+                <WierszDanych key={m.mieszankaId} etykieta={m.etykieta} wartosc={`${m.auta} aut · ${formatLiczby(m.masaMg, 2)} t`} />
               ))}
-              <Row label="Razem aut" v={String(podsumowanie.sumaAut)} theme={theme} bold />
-            </View>
+            </>
           )}
-          <View style={{ marginTop: 10 }}>
-            <Text style={{ color: theme.colors.textSecondary, fontSize: 11, marginBottom: 4 }}>Tonaż na auto [t]</Text>
-            <TextInput
+          <Wiersz>
+            <PoleUi
+              etykieta="Tonaż na auto"
+              jednostka="t"
+              liczba
               value={tonazStr}
               onChangeText={setTonazStr}
-              keyboardType="decimal-pad"
-              style={[styles.input, { borderColor: theme.colors.border, color: theme.colors.text, backgroundColor: theme.colors.inputBackground }]}
+              accessibilityLabel="Tonaż na auto"
             />
-          </View>
-          <View style={{ marginTop: 8 }}>
-            <Text style={{ color: theme.colors.textSecondary, fontSize: 11, marginBottom: 4 }}>
-              Podział na kursy (np. 6+6+4), suma = {podsumowanie?.sumaAut ?? 0}
-            </Text>
-            <TextInput
+            <PoleUi
+              etykieta={`Kursy (Σ ${podsumowanie?.sumaAut ?? 0})`}
+              info="Podział aut na kursy, np. 6+6+4. Suma musi równać się liczbie aut. Puste pole oznacza jeden kurs."
               value={rzutyStr}
               onChangeText={setRzutyStr}
-              placeholder="puste = jeden kurs"
-              placeholderTextColor={theme.colors.textSecondary}
-              style={[styles.input, { borderColor: theme.colors.border, color: theme.colors.text, backgroundColor: theme.colors.inputBackground }]}
+              placeholder="6+6+4"
+              accessibilityLabel="Podział na kursy"
             />
-          </View>
-        </View>
+          </Wiersz>
+        </Sekcja>
 
-        <TouchableOpacity
-          style={[styles.btnImport, { backgroundColor: theme.colors.primary }]}
-          onPress={zapiszPlan}
-          disabled={zapisuje}
-        >
-          {zapisuje ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnImportTekst}>Zapisz plan</Text>}
-        </TouchableOpacity>
+        <Przycisk tekst={zapisuje ? 'Zapisywanie…' : 'Zapisz plan'} onPress={zapiszPlan} disabled={zapisuje} />
       </ScrollView>
 
       <SafeModal
@@ -671,7 +665,7 @@ export default function ObmiarDetailScreen() {
           onPress: () => {
             const m = parseInt(mianownikTekst.replace(',', '.'), 10);
             if (!Number.isFinite(m) || m < 1) {
-              Alert.alert('Skala', 'Podaj poprawny mianownik (np. 500).');
+              pokazKomunikat('Skala', 'Podaj poprawny mianownik (np. 500).');
               return;
             }
             zmienSkale(sesja.id, skalaZMianownika(m));
@@ -723,7 +717,7 @@ export default function ObmiarDetailScreen() {
       />
       <BudowaPicker
         visible={pickerBudowa}
-        budowy={budowy.filter((b) => b.status !== 'archiwalna')}
+        budowy={budowy.filter((b) => budowaWToku(b))}
         selectedId={sesja.budowaId}
         theme={theme}
         onSelect={(bid) => ustawBudoweSesji(sesja.id, bid)}
@@ -751,7 +745,7 @@ export default function ObmiarDetailScreen() {
                 odwrocY: sesja.tloPzt?.odwrocY,
               });
             } catch {
-              Alert.alert('Tło PZT', 'Nie udało się zapisać strony PDF.');
+              pokazKomunikat('Tło PZT', 'Nie udało się zapisać strony PDF.');
             } finally {
               setRasterPdf(null);
               setRasterBusy(false);
@@ -760,7 +754,7 @@ export default function ObmiarDetailScreen() {
           onBlad={(komunikat) => {
             setRasterPdf(null);
             setRasterBusy(false);
-            Alert.alert('Tło PZT', komunikat);
+            pokazKomunikat('Tło PZT', komunikat);
           }}
         />
       )}
@@ -841,7 +835,7 @@ function KonstrukcjaObszaru({
       >
         <Text style={{ color: theme.colors.text, fontWeight: '700' }}>
           {mieszanka
-            ? `${mieszanka.rodzaj}${mieszanka.nrRecepty ? ` · ${mieszanka.nrRecepty}` : ''} · ρ ${mieszanka.ciezarObjetosciowy.toFixed(3)}`
+            ? `${rodzajMieszanki(mieszanka)}${mieszanka.nrRecepty ? ` · ${mieszanka.nrRecepty}` : ''} · ρ ${mieszanka.ciezarObjetosciowy.toFixed(3)}`
             : 'Wybierz mieszankę'}
         </Text>
       </TouchableOpacity>
@@ -850,15 +844,6 @@ function KonstrukcjaObszaru({
         <Pole label="Tolerancja [%]" value={tol} onChange={setTol} theme={theme} onBlur={zapiszLiczby} />
       </View>
       <Pole label="Grubość wbudowywania [cm]" value={wb} onChange={setWb} theme={theme} onBlur={zapiszLiczby} />
-    </View>
-  );
-}
-
-function Row({ label, v, theme, bold }: { label: string; v: string; theme: AppTheme; bold?: boolean }) {
-  return (
-    <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4, gap: 8 }}>
-      <Text style={{ color: theme.colors.textSecondary, fontSize: 13, flex: 1 }}>{label}</Text>
-      <Text style={{ color: theme.colors.text, fontSize: 13, fontWeight: bold ? '700' : '400' }}>{v}</Text>
     </View>
   );
 }
@@ -887,13 +872,10 @@ function Pole({
 const styles = StyleSheet.create({
   container: { flex: 1 },
   zawartosc: { padding: 14, gap: 12 },
-  karta: { borderRadius: 14, padding: 14, borderWidth: 1 },
-  kartaTytul: { fontSize: 13, fontWeight: '800', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.4 },
+  karta: { ...kartaWspolna },
   rzadAkcji: { flexDirection: 'row', gap: 8, marginTop: 10 },
   btnMini: { width: 40, height: 36, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   btnSek: { marginTop: 10, borderWidth: 1, borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
-  btnImport: { paddingVertical: 14, borderRadius: 12, alignItems: 'center', marginTop: 4 },
-  btnImportTekst: { color: '#fff', fontWeight: '700', fontSize: 15 },
   btnZatwierdz: { paddingVertical: 13, borderRadius: 10, alignItems: 'center' },
   btnZatwierdzTekst: { color: '#fff', fontWeight: '800', fontSize: 15 },
   input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16 },

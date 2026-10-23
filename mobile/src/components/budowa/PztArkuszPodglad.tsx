@@ -8,9 +8,17 @@ import {
   PinchGestureHandler,
   State,
 } from 'react-native-gesture-handler';
-import Svg, { Circle, G, Image as SvgImage, Line, Polygon, Polyline, Rect, Text as SvgText } from 'react-native-svg';
+import Svg, {
+  Circle, ClipPath, Defs, G, Image as SvgImage, Line, Path, Polygon, Polyline, Rect, Text as SvgText,
+} from 'react-native-svg';
 import { InfoTooltip } from '../common/InfoTooltip';
-import type { ArkuszPzt, Punkt2D, TloArkuszaPzt } from '../../types';
+import type { ArkuszPzt, ElementSzkicu, Punkt2D, TloArkuszaPzt } from '../../types';
+import {
+  dociagnijDoObszaru, dodajPunktKreski, dodajWezel, elementPodPunktem, krawedzieLamanej, lukPrzezPunkt, obrysLamanej,
+  przesunWezel, punktWWielokacie, srodekKrawedzi, stacjeZnakowInfo, ustawLuk, wymazGumka, type LamanaSzkicu,
+} from '../../liniowka/liniowka';
+import { wypelnijDoKrawedzi, zakresPunktow } from '../../liniowka/rasterSzkicu';
+import { kluczLegendy } from '../../utils/projektBudowy';
 import { bboxWielokata } from '../../utils/obmiarGeometry';
 import {
   czoloObmiaruPdf,
@@ -117,6 +125,93 @@ interface LiveAutoPzt {
   numer: number;
 }
 
+/** Ułożony odcinek na liniówce – kolejność tablicy = kolejność zakrywania (ostatni na wierzchu). */
+export interface OdcinekLiniowkiPodgladu {
+  id: string;
+  /** Klucz legendy obszaru, np. "obszar|#FFEE58". */
+  kluczObszaru: string;
+  kmOdM: number;
+  kmDoM: number;
+  kolor: string;
+  krycie: number;
+  reczny?: boolean;
+  /** Klucz warstwy – strzałki dnia leżą tuż nad swoją warstwą. */
+  warstwa?: string;
+}
+
+export interface SzkicPodgladu {
+  id: string;
+  elementy: ElementSzkicu[];
+  krycie: number;
+  /** Ile odcinków liniówki leży pod szkicem. Brak = na wierzchu. */
+  poIndeksie?: number;
+  /** Obszary warstwy (PDF) – szkic widać tylko w nich. Brak = cały arkusz. */
+  klip?: Punkt2D[][] | null;
+}
+
+export interface LiniowkaPodgladu {
+  odcinki: OdcinekLiniowkiPodgladu[];
+  szkice?: SzkicPodgladu[];
+  podswietlonyId?: string;
+  onPressOdcinek?: (id: string) => void;
+  podswietlonySzkicId?: string;
+  onPressSzkic?: (id: string) => void;
+}
+
+export type NarzedzieSzkicu = 'pioro' | 'wiadro' | 'gumka' | 'lamana';
+
+export interface RysowaniePodgladu {
+  narzedzie: NarzedzieSzkicu;
+  kolor: string;
+  /** Grubość na ekranie przy obecnym przybliżeniu – zapisywana w jednostkach PDF. 0 = linia obszaru. */
+  gruboscPx: number;
+  elementy: ElementSzkicu[];
+  onZmien: (elementy: ElementSzkicu[]) => void;
+  /** Obszary warstwy (PDF): pióro i wiaderko działają tylko w nich. Brak = cały arkusz. */
+  klip?: Punkt2D[][] | null;
+  onWiadroBezGranic?: () => void;
+  /** Linia łamana w budowie (narzędzie „lamana”). */
+  lamana?: LamanaSzkicu;
+  onLamana?: (l: LamanaSzkicu) => void;
+  /** Wybór obszaru: stuknięcie zwraca punkt PDF, nic się nie rysuje; `klip` = obszary do wyboru. */
+  onWskazObszar?: (p: Punkt2D) => void;
+}
+
+type ChwytLamanej = { typ: 'wezel'; i: number } | { typ: 'luk'; i: number } | { typ: 'widok' };
+
+const PROMIEN_GUMKI_PX = 12;
+const CHWYT_WEZLA_PX = 16;
+const LINIA_OBSZARU_PX = 1.25;
+const LED_HALO = '#FDE047';
+const LED_RDZEN = '#FFFBEB';
+
+function sciezkaSvg(pts: Punkt2D[], zamknij: boolean): string {
+  if (pts.length === 0) return '';
+  const [p0, ...reszta] = pts;
+  return `M${p0.x.toFixed(2)},${p0.y.toFixed(2)}${reszta.map((p) => `L${p.x.toFixed(2)},${p.y.toFixed(2)}`).join('')}${zamknij ? 'Z' : ''}`;
+}
+
+function idKlipu(id: string): string {
+  return `klip-${id.replace(/[^A-Za-z0-9_-]/g, '_')}`;
+}
+
+interface WymiarStrzalki {
+  dl: number;
+  pol: number;
+  odstep: number;
+}
+
+/** Strzałka w jednostkach rysunku – rośnie i maleje razem z planem. */
+function strzalka(mx: number, my: number, ux: number, uy: number, { dl, pol, odstep }: WymiarStrzalki): string {
+  const bx = mx + ux * odstep;
+  const by = my + uy * odstep;
+  const tx = bx + ux * dl;
+  const ty = by + uy * dl;
+  const nx = -uy;
+  const ny = ux;
+  return `${tx},${ty} ${bx + nx * pol},${by + ny * pol} ${bx - nx * pol},${by - ny * pol}`;
+}
+
 interface Props {
   arkusz: ArkuszPzt;
   theme: AppTheme;
@@ -136,6 +231,9 @@ interface Props {
   zakresKoniecM?: number;
   /** Stuknięcie w podgląd zwraca punkt PDF (wybór kilometrażu na mapie). */
   onWskazPdf?: (p: Punkt2D) => void;
+  liniowka?: LiniowkaPodgladu;
+  /** Tryb szkicu: jeden palec rysuje, dwa przybliżają. */
+  rysowanie?: RysowaniePodgladu;
 }
 
 export function PztArkuszPodglad({
@@ -153,6 +251,8 @@ export function PztArkuszPodglad({
   zakresStartM,
   zakresKoniecM,
   onWskazPdf,
+  liniowka,
+  rysowanie,
 }: Props) {
   const [rozmiar, setRozmiar] = useState({ w: 320, h: wysokosc });
   const [skalaPct, setSkalaPct] = useState(100);
@@ -420,6 +520,130 @@ export function PztArkuszPodglad({
     };
   }, [arkusz, geometria, rozmiar.w, rozmiar.h, liveStacjaM, liveAuta, podzialkaM, zakresStartM, zakresKoniecM]);
 
+  const odcinkiLiniowki = liniowka?.odcinki;
+  const liniowkaSvg = useMemo(() => {
+    const osPdf = mapa?.osPdf;
+    if (!mapa || !odcinkiLiniowki?.length || !osPdf || osPdf.length < 2) return [];
+    const toSvg = (p: Punkt2D) => pdfDoSvgPodgladu(p, mapa.mapaSvg);
+    const odKm = arkusz.kilometrazPoczatkowyM;
+    const doKm = arkusz.kilometrazKoncowyM;
+    const spanKm = Math.max(0.01, doKm - odKm);
+    const dlPdf = dlugoscPolilinii(osPdf);
+    const sZKm = (km: number) => Math.max(0, Math.min(dlPdf, ((km - odKm) / spanKm) * dlPdf));
+    const naArkuszu = (km: number) => km >= odKm - 0.6 && km <= doKm + 0.6;
+    const out: Array<OdcinekLiniowkiPodgladu & {
+      idx: number;
+      wielokaty: Array<{ pts: Punkt2D[]; punkty: string }>;
+      kreski: Array<{
+        rola: 'start' | 'koniec'; x1: number; y1: number; x2: number; y2: number; mx: number; my: number; ux: number; uy: number;
+        wymiar: WymiarStrzalki;
+      }>;
+      znaki: Array<Punkt2D & { r: number }>;
+    }> = [];
+    for (const [idx, o] of odcinkiLiniowki.entries()) {
+      const lo = Math.min(o.kmOdM, o.kmDoM);
+      const hi = Math.max(o.kmOdM, o.kmDoM);
+      if (hi < odKm - 0.05 || lo > doKm + 0.05) continue;
+      const obszary = arkusz.obszary.filter((ob) => kluczLegendy('obszar', ob.kolorWypelnienia) === o.kluczObszaru);
+      if (obszary.length === 0) continue;
+      const sA = sZKm(o.kmOdM);
+      const sB = sZKm(o.kmDoM);
+      if (Math.abs(sB - sA) < 0.05) continue;
+      const wielokaty = obszary
+        .map((ob) => wycinekWielokataPoOsi(ob.wierzcholkiPdf, osPdf, sA, sB))
+        .filter((c) => c.length >= 3)
+        .map((c) => {
+          const pts = c.map(toSvg);
+          return { pts, punkty: pts.map((p) => `${p.x},${p.y}`).join(' ') };
+        });
+      if (wielokaty.length === 0) continue;
+      const rosnie = o.kmDoM >= o.kmOdM;
+      const dlOdcinkaSvg = Math.abs(sB - sA) * mapa.skalaFit;
+      const szerPasaSvg = Math.max(0.5, medianaSzerokosciObszarowPdf(obszary)) * mapa.skalaFit;
+      const kreski: (typeof out)[number]['kreski'] = [];
+      for (const [rola, km] of [['start', o.kmOdM], ['koniec', o.kmDoM]] as const) {
+        if (!naArkuszu(km)) continue;
+        const s0 = sZKm(km);
+        const wGlab = Math.sign(rola === 'start' ? sB - sA : sA - sB);
+        // Na krawędzi arkusza prostopadła mija obrys obszaru – czoło szukamy odrobinę w głąb odcinka.
+        let s = s0;
+        let cz = czoloObmiaruPdf(obszary, osPdf, s);
+        for (const f of [0.005, 0.01, 0.02, 0.04, 0.08]) {
+          if (cz) break;
+          s = s0 + wGlab * f * Math.abs(sB - sA);
+          cz = czoloObmiaruPdf(obszary, osPdf, s);
+        }
+        const t = stycznyNaOsi(osPdf, s);
+        if (!cz || !t) continue;
+        const a = toSvg(cz.a);
+        const b = toSvg(cz.b);
+        const m = toSvg(cz.srodek);
+        const l = Math.hypot(t.dx, t.dy) || 1;
+        const kier = (rosnie ? 1 : -1) * (rola === 'start' ? 1 : -1);
+        const szer = Math.hypot(b.x - a.x, b.y - a.y) || szerPasaSvg;
+        const dl = Math.min(szer * 0.75, dlOdcinkaSvg * 0.3);
+        kreski.push({
+          rola, x1: a.x, y1: a.y, x2: b.x, y2: b.y, mx: m.x, my: m.y, ux: (t.dx / l) * kier, uy: (-t.dy / l) * kier,
+          wymiar: { dl, pol: Math.min(szer * 0.32, dl * 0.55), odstep: dl * 0.12 },
+        });
+      }
+      const znaki = stacjeZnakowInfo(o.kmOdM, o.kmDoM)
+        .filter((km) => km >= odKm && km <= doKm)
+        .map((km) => {
+          const s = sZKm(km);
+          const pas = pasUkladaniaPdf(obszary, osPdf, s);
+          const p = pas?.srodek ?? punktNaOsi(osPdf, s);
+          if (!p) return null;
+          const szer = pas && pas.szer > 0.4 ? pas.szer * mapa.skalaFit : szerPasaSvg;
+          return { ...toSvg(p), r: Math.min(szer * 0.3, dlOdcinkaSvg * 0.2) };
+        })
+        .filter((p): p is Punkt2D & { r: number } => !!p);
+      out.push({ ...o, idx, wielokaty, kreski, znaki });
+    }
+    return out;
+  }, [mapa, odcinkiLiniowki, arkusz]);
+
+  const [kreska, setKreska] = useState<Punkt2D[]>([]);
+  const kreskaRef = useRef<Punkt2D[]>([]);
+  const rysowanieRef = useRef(rysowanie);
+  rysowanieRef.current = rysowanie;
+  const elementyRef = useRef<ElementSzkicu[]>(rysowanie?.elementy ?? []);
+  elementyRef.current = rysowanie?.elementy ?? [];
+  const liniowkaSvgRef = useRef(liniowkaSvg);
+  liniowkaSvgRef.current = liniowkaSvg;
+  const onPressOdcinekRef = useRef(liniowka?.onPressOdcinek);
+  onPressOdcinekRef.current = liniowka?.onPressOdcinek;
+  const ostatniPanMs = useRef(0);
+
+  const szkiceSvg = useMemo(() => {
+    if (!mapa) return [];
+    const toSvg = (p: Punkt2D) => pdfDoSvgPodgladu(p, mapa.mapaSvg);
+    const lista: SzkicPodgladu[] = [
+      ...(liniowka?.szkice ?? []),
+      ...(rysowanie ? [{ id: 'rysowany', krycie: 0.5, elementy: rysowanie.elementy, klip: rysowanie.klip }] : []),
+    ];
+    return lista.map((sz) => ({
+      id: sz.id,
+      krycie: sz.krycie,
+      poIndeksie: sz.poIndeksie ?? Infinity,
+      klip: sz.klip?.map((poly) => poly.map(toSvg).map((p) => `${p.x},${p.y}`).join(' ')),
+      elementy: sz.elementy.map((e) => ({
+        id: e.id,
+        d: [e.punktyPdf, ...(e.otwory ?? [])].map((r) => sciezkaSvg(r.map(toSvg), !!e.wypelnienie)).join(''),
+        kolor: e.kolor,
+        szer: e.gruboscPdf > 0 ? Math.max(0.05, e.gruboscPdf * mapa.skalaFit) : 0,
+        wypelnienie: e.wypelnienie,
+        plama: !!e.plama,
+      })),
+    }));
+  }, [mapa, liniowka?.szkice, rysowanie]);
+  const szkiceRef = useRef(liniowka?.szkice);
+  szkiceRef.current = liniowka?.szkice;
+  const onPressSzkicRef = useRef(liniowka?.onPressSzkic);
+  onPressSzkicRef.current = liniowka?.onPressSzkic;
+  const arkuszRef = useRef(arkusz);
+  arkuszRef.current = arkusz;
+
   const mapaRef = useRef(mapa);
   mapaRef.current = mapa;
   const zmierzRef = useRef(zmierz);
@@ -446,10 +670,196 @@ export function PztArkuszPodglad({
     return svgDoPdfPodgladu(svg, m.mapaSvg);
   };
 
+  const tapRef = useRef<(x: number, y: number) => void>(() => undefined);
+  const pdfNaEkranPx = () => (mapaRef.current?.skalaFit ?? 1) * bazaSkali.current;
+
+  const zmienElementy = (elementy: ElementSzkicu[]) => {
+    elementyRef.current = elementy;
+    rysowanieRef.current?.onZmien(elementy);
+  };
+
+  const gumkaW = (ekranX: number, ekranY: number) => {
+    const pdf = pdfZEkranu(ekranX, ekranY);
+    if (!pdf) return;
+    const po = wymazGumka(elementyRef.current, pdf, PROMIEN_GUMKI_PX / pdfNaEkranPx());
+    if (po !== elementyRef.current && (po.length !== elementyRef.current.length || po.some((e, i) => e !== elementyRef.current[i]))) {
+      zmienElementy(po);
+    }
+  };
+
+  const chwytRef = useRef<ChwytLamanej | null>(null);
+  const zLamana = (r: RysowaniePodgladu | undefined) => !!r && (r.narzedzie === 'lamana' || !!r.onWskazObszar);
+
+  const chwytLamanej = (ekranX: number, ekranY: number): ChwytLamanej => {
+    const r = rysowanieRef.current;
+    const pdf = pdfZEkranu(ekranX, ekranY);
+    const l = r?.lamana;
+    if (!pdf || !l || r?.onWskazObszar) return { typ: 'widok' };
+    let best: ChwytLamanej = { typ: 'widok' };
+    let bestD = CHWYT_WEZLA_PX / pdfNaEkranPx();
+    l.wezly.forEach((w, i) => {
+      const d = Math.hypot(w.x - pdf.x, w.y - pdf.y);
+      if (d <= bestD) {
+        best = { typ: 'wezel', i };
+        bestD = d;
+      }
+    });
+    if (best.typ !== 'widok') return best;
+    for (const k of krawedzieLamanej(l)) {
+      const m = srodekKrawedzi(k.a, k.b, k.c);
+      const d = Math.hypot(m.x - pdf.x, m.y - pdf.y);
+      if (d <= bestD) {
+        best = { typ: 'luk', i: k.i };
+        bestD = d;
+      }
+    }
+    return best;
+  };
+
+  const przeciagnijLamana = (ekranX: number, ekranY: number, c: ChwytLamanej) => {
+    const r = rysowanieRef.current;
+    const l = r?.lamana;
+    const pdf = pdfZEkranu(ekranX, ekranY);
+    if (!r || !l || !pdf || !r.onLamana) return;
+    if (c.typ === 'wezel') {
+      r.onLamana(przesunWezel(l, c.i, dociagnijDoObszaru(pdf, r.klip)));
+    } else if (c.typ === 'luk') {
+      const k = krawedzieLamanej(l).find((x) => x.i === c.i);
+      if (k) r.onLamana(ustawLuk(l, c.i, lukPrzezPunkt(k.a, k.b, pdf, 3 / pdfNaEkranPx())));
+    }
+  };
+
+  const lamanaTap = (ekranX: number, ekranY: number) => {
+    const r = rysowanieRef.current;
+    const pdf = pdfZEkranu(ekranX, ekranY);
+    if (!r || !pdf || !r.onLamana) return;
+    const l = r.lamana ?? { wezly: [], luki: [] };
+    if (l.wezly.length === 0) {
+      const tol = 6 / pdfNaEkranPx();
+      const gotowa = [...elementyRef.current].reverse().find((e) => e.lamana && elementPodPunktem([e], pdf, tol));
+      if (gotowa?.lamana) {
+        zmienElementy(elementyRef.current.filter((e) => e !== gotowa));
+        r.onLamana({ wezly: gotowa.lamana.wezly, luki: gotowa.lamana.luki });
+        return;
+      }
+    }
+    r.onLamana(dodajWezel(l, dociagnijDoObszaru(pdf, r.klip)));
+  };
+
+  const rysujPunkt = (ekranX: number, ekranY: number) => {
+    const r = rysowanieRef.current;
+    if (!r || r.onWskazObszar) return;
+    if (r.narzedzie === 'gumka') {
+      gumkaW(ekranX, ekranY);
+      return;
+    }
+    if (r.narzedzie !== 'pioro') return;
+    const pdf = pdfZEkranu(ekranX, ekranY);
+    if (!pdf) return;
+    const next = dodajPunktKreski(kreskaRef.current, pdf, 1 / pdfNaEkranPx());
+    if (next !== kreskaRef.current) {
+      kreskaRef.current = next;
+      setKreska(next);
+    }
+  };
+
+  const wiadroW = (ekranX: number, ekranY: number) => {
+    const r = rysowanieRef.current;
+    const pdf = pdfZEkranu(ekranX, ekranY);
+    if (!r || !pdf) return;
+    const { w, h } = rozmiarRef.current;
+    const rogi = [pdfZEkranu(0, 0), pdfZEkranu(w, h), pdfZEkranu(0, h), pdfZEkranu(w, 0)].filter((p): p is Punkt2D => !!p);
+    const widok = zakresPunktow(rogi);
+    if (!widok) return;
+    const dx = widok.maxX - widok.minX;
+    const dy = widok.maxY - widok.minY;
+    const po = wypelnijDoKrawedzi({
+      elementy: elementyRef.current,
+      punkt: pdf,
+      kolor: r.kolor,
+      krawedzie: arkuszRef.current.obszary.map((o) => o.wierzcholkiPdf),
+      dozwolone: r.klip,
+      zakres: { minX: widok.minX - dx, minY: widok.minY - dy, maxX: widok.maxX + dx, maxY: widok.maxY + dy },
+      liniaObszaruPdf: LINIA_OBSZARU_PX / pdfNaEkranPx(),
+    });
+    if (po) zmienElementy(po);
+    else r.onWiadroBezGranic?.();
+  };
+
+  const zakonczKreske = () => {
+    const r = rysowanieRef.current;
+    const pts = kreskaRef.current;
+    kreskaRef.current = [];
+    setKreska([]);
+    if (!r || r.narzedzie !== 'pioro' || pts.length < 2) return;
+    zmienElementy([
+      ...elementyRef.current,
+      {
+        id: `k${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+        punktyPdf: pts,
+        kolor: r.kolor,
+        gruboscPdf: r.gruboscPx > 0 ? r.gruboscPx / pdfNaEkranPx() : 0,
+      },
+    ]);
+  };
+
   const obsluzTapMapy = (ekranX: number, ekranY: number) => {
     if (zmierzRef.current) {
       dodajPunktPomiaru(ekranX, ekranY);
       return;
+    }
+    const r = rysowanieRef.current;
+    if (r) {
+      if (r.onWskazObszar) {
+        const pdf = pdfZEkranu(ekranX, ekranY);
+        if (pdf) r.onWskazObszar(pdf);
+        return;
+      }
+      if (r.narzedzie === 'gumka') gumkaW(ekranX, ekranY);
+      if (r.narzedzie === 'wiadro') wiadroW(ekranX, ekranY);
+      if (r.narzedzie === 'lamana') lamanaTap(ekranX, ekranY);
+      return;
+    }
+    const lin = liniowkaSvgRef.current;
+    const cbOdcinek = onPressOdcinekRef.current;
+    const svg = punktSvgZEkranu({
+      ekranX,
+      ekranY,
+      szer: rozmiarRef.current.w,
+      wys: rozmiarRef.current.h,
+      tx: bazaX.current,
+      ty: bazaY.current,
+      rot: 0,
+      skala: bazaSkali.current,
+    });
+    const odGory = [...lin].reverse();
+    if (cbOdcinek) {
+      const zapas = 8 / bazaSkali.current;
+      const zeZnakiem = odGory.find((o) => o.znaki.some((z) => Math.hypot(z.x - svg.x, z.y - svg.y) <= Math.max(z.r, zapas)));
+      if (zeZnakiem) {
+        cbOdcinek(zeZnakiem.id);
+        return;
+      }
+    }
+    const cbSzkic = onPressSzkicRef.current;
+    const pdfTap = cbSzkic ? pdfZEkranu(ekranX, ekranY) : null;
+    if (cbSzkic && pdfTap) {
+      const tol = 6 / pdfNaEkranPx();
+      const trafionySzkic = [...(szkiceRef.current ?? [])].reverse().find((sz) => (
+        (!sz.klip || sz.klip.some((poly) => punktWWielokacie(pdfTap, poly)))
+        && !!elementPodPunktem(sz.elementy, pdfTap, tol)
+      ));
+      if (trafionySzkic) {
+        cbSzkic(trafionySzkic.id);
+        return;
+      }
+    }
+    if (cbOdcinek) {
+      const trafiony = odGory.find((o) => o.wielokaty.some((w) => punktWWielokacie(svg, w.pts)));
+      if (trafiony) {
+        cbOdcinek(trafiony.id);
+        return;
+      }
     }
     const m = mapaRef.current;
     if (m?.maszyny && onPressAutoRef.current) {
@@ -471,6 +881,8 @@ export function PztArkuszPodglad({
     }
     wskazNaMapie(ekranX, ekranY);
   };
+
+  tapRef.current = obsluzTapMapy;
 
   const dodajPunktPomiaru = (ekranX: number, ekranY: number) => {
     const m = mapaRef.current;
@@ -594,9 +1006,15 @@ export function PztArkuszPodglad({
     };
     el.addEventListener('wheel', handler, { passive: false });
     const onClick = (e: MouseEvent) => {
-      if (!zmierzRef.current) return;
       const rect = el.getBoundingClientRect();
-      dodajPunktPomiaru(e.clientX - rect.left, e.clientY - rect.top);
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      if (zmierzRef.current) {
+        dodajPunktPomiaru(x, y);
+        return;
+      }
+      if (Date.now() - ostatniPanMs.current < 350) return;
+      tapRef.current(x, y);
     };
     el.addEventListener('click', onClick);
     odpinWheel.current = () => {
@@ -679,6 +1097,25 @@ export function PztArkuszPodglad({
 
   const onPan = (e: any) => {
     if (e.nativeEvent.numberOfPointers > 1) return;
+    if (rysowanieRef.current) {
+      const x = e.nativeEvent.x as number | undefined;
+      const y = e.nativeEvent.y as number | undefined;
+      const c = chwytRef.current;
+      if (zLamana(rysowanieRef.current) && c) {
+        if (c.typ === 'widok') {
+          const t = clampTrans(
+            bazaX.current + e.nativeEvent.translationX * PAN_CZYNNIK,
+            bazaY.current + e.nativeEvent.translationY * PAN_CZYNNIK,
+          );
+          ustawWidok(bazaSkali.current, t.x, t.y);
+        } else if (x != null && y != null) {
+          przeciagnijLamana(x, y, c);
+        }
+        return;
+      }
+      if (x != null && y != null) rysujPunkt(x, y);
+      return;
+    }
     const t = clampTrans(
       bazaX.current + e.nativeEvent.translationX * PAN_CZYNNIK,
       bazaY.current + e.nativeEvent.translationY * PAN_CZYNNIK,
@@ -692,6 +1129,35 @@ export function PztArkuszPodglad({
     const dy = e.nativeEvent.translationY ?? 0;
     const tap = Math.hypot(dx, dy) < TAP_MAX;
     if (st === State.ACTIVE) onDotykZmiana?.(true);
+    if (rysowanieRef.current) {
+      const x = e.nativeEvent.x as number | undefined;
+      const y = e.nativeEvent.y as number | undefined;
+      if (st === State.BEGAN) {
+        kreskaRef.current = [];
+        chwytRef.current = zLamana(rysowanieRef.current) && x != null && y != null ? chwytLamanej(x, y) : null;
+        // Gumka dopiero przy ruchu: usunięcie ścieżki pod kursorem w pointerdown psuje przechwycenie wskaźnika na webie.
+        if (x != null && y != null && rysowanieRef.current.narzedzie === 'pioro') rysujPunkt(x, y);
+      }
+      if (st === State.FAILED || st === State.CANCELLED || st === State.END) {
+        const c = chwytRef.current;
+        chwytRef.current = null;
+        if (c?.typ === 'widok' && !tap && e.nativeEvent.oldState === State.ACTIVE) {
+          const t = clampTrans(bazaX.current + dx * PAN_CZYNNIK, bazaY.current + dy * PAN_CZYNNIK);
+          bazaX.current = t.x;
+          bazaY.current = t.y;
+          ustawWidok(bazaSkali.current, t.x, t.y);
+        }
+        if (tap && kreskaRef.current.length < 2 && (!c || c.typ === 'widok')) {
+          kreskaRef.current = [];
+          if (x != null && y != null) obsluzTapMapy(x, y);
+        }
+        zakonczKreske();
+        ostatniPanMs.current = Date.now();
+        onDotykZmiana?.(false);
+      }
+      return;
+    }
+    if (e.nativeEvent.oldState === State.ACTIVE && !tap) ostatniPanMs.current = Date.now();
     if (e.nativeEvent.oldState !== State.ACTIVE) {
       if (st === State.FAILED || st === State.CANCELLED || st === State.END) {
         if (tap) {
@@ -734,7 +1200,7 @@ export function PztArkuszPodglad({
     );
   }
 
-  const panOffset = blokadaPodgladu ? 2 : 14;
+  const panOffset = rysowanie ? 1 : (blokadaPodgladu ? 2 : 14);
   const gXform = `translate(${rozmiar.w / 2 + xform.tx},${rozmiar.h / 2 + xform.ty}) scale(${xform.s}) translate(${-rozmiar.w / 2},${-rozmiar.h / 2})`;
   const swEkran = 1.25;
   const dash = 5 / Math.max(xform.s, 0.12);
@@ -744,6 +1210,99 @@ export function PztArkuszPodglad({
   const buforTla = tloMeta && tickTla >= 0
     ? (buforTlaArkusza(arkusz.id) ?? podlaczBuforDoArkusza(arkusz.id, tloMeta.nazwa) ?? null)
     : null;
+  const podswietlony = liniowka?.podswietlonyId
+    ? liniowkaSvg.find((o) => o.id === liniowka.podswietlonyId)
+    : undefined;
+  const szkicPodswietlony = liniowka?.podswietlonySzkicId
+    ? szkiceSvg.find((sz) => sz.id === liniowka.podswietlonySzkicId)
+    : undefined;
+  const kreskaSvg = kreska.length >= 2 && mapa
+    ? sciezkaSvg(kreska.map((p) => pdfDoSvgPodgladu(p, mapa.mapaSvg)), false)
+    : '';
+  const klipSvg = rysowanie?.klip ? szkiceSvg.find((sz) => sz.id === 'rysowany')?.klip : undefined;
+  const lam = rysowanie?.lamana;
+  const lamanaSvg = lam && lam.wezly.length > 0 ? (() => {
+    const toS = (p: Punkt2D) => pdfDoSvgPodgladu(p, mapa.mapaSvg);
+    const zamknieta = lam.wezly.length >= 3;
+    return {
+      zamknieta,
+      d: sciezkaSvg((zamknieta ? obrysLamanej(lam) : lam.wezly).map(toS), zamknieta),
+      wezly: lam.wezly.map(toS),
+      uchwyty: krawedzieLamanej(lam).map((k) => ({ i: k.i, luk: !!k.c, ...toS(srodekKrawedzi(k.a, k.b, k.c)) })),
+    };
+  })() : null;
+  const wKlipie = (sz: { id: string; klip?: string[] }, tresc: React.ReactNode, klucz: string) => (
+    sz.klip?.length ? (
+      <G key={klucz}>
+        <Defs>
+          <ClipPath id={idKlipu(`${klucz}-${sz.id}`)}>
+            {sz.klip.map((pts, i) => <Polygon key={i} points={pts} />)}
+          </ClipPath>
+        </Defs>
+        <G clipPath={`url(#${idKlipu(`${klucz}-${sz.id}`)})`}>{tresc}</G>
+      </G>
+    ) : <G key={klucz}>{tresc}</G>
+  );
+  const szkiceMiedzy = (lo: number, hi: number) => szkiceSvg
+    .filter((sz) => sz.poIndeksie > lo && sz.poIndeksie <= hi)
+    .map((sz) => wKlipie(sz, sz.elementy.map((e) => (
+      <Path
+        key={e.id}
+        d={e.d}
+        stroke={e.plama ? 'none' : e.kolor}
+        strokeWidth={e.plama ? 0 : (e.szer || LINIA_OBSZARU_PX)}
+        vectorEffect={e.szer ? undefined : 'non-scaling-stroke'}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill={e.wypelnienie ?? 'none'}
+        fillRule="evenodd"
+        fillOpacity={e.wypelnienie ? sz.krycie : 0}
+      />
+    )), `sz-${sz.id}`));
+  /** Świecący obrys jak taśma LED: szeroka poświata, jaśniejsza smuga i biały rdzeń. */
+  const obrysLed = (klucz: string, rysuj: (p: { stroke: string; strokeWidth: number; strokeOpacity: number }) => React.ReactNode) => (
+    <G key={klucz}>
+      {rysuj({ stroke: LED_HALO, strokeWidth: 16, strokeOpacity: 0.18 })}
+      {rysuj({ stroke: LED_HALO, strokeWidth: 9, strokeOpacity: 0.4 })}
+      {rysuj({ stroke: '#FACC15', strokeWidth: 4.5, strokeOpacity: 0.95 })}
+      {rysuj({ stroke: LED_RDZEN, strokeWidth: 1.6, strokeOpacity: 1 })}
+    </G>
+  );
+  const kreskiOdcinka = (o: (typeof liniowkaSvg)[number], klucz: string) => o.kreski.map((k) => {
+    const kolor = k.rola === 'start' ? '#16A34A' : '#DC2626';
+    return (
+      <G key={`${klucz}-${o.id}-${k.rola}`}>
+        <Line
+          x1={k.x1}
+          y1={k.y1}
+          x2={k.x2}
+          y2={k.y2}
+          stroke={kolor}
+          strokeWidth={swEkran * 1.8}
+          strokeLinecap="butt"
+          vectorEffect="non-scaling-stroke"
+        />
+        <Polygon
+          points={strzalka(k.mx, k.my, k.ux, k.uy, k.wymiar)}
+          fill={kolor}
+          stroke="#FFFFFF"
+          strokeWidth={k.wymiar.dl * 0.06}
+          strokeLinejoin="round"
+        />
+      </G>
+    );
+  });
+  const grupyWarstw: Array<{ warstwa: string; odcinki: typeof liniowkaSvg; indeksy: number[] }> = [];
+  liniowkaSvg.forEach((o, i) => {
+    const ost = grupyWarstw[grupyWarstw.length - 1];
+    const w = o.warstwa ?? o.id;
+    if (ost && ost.warstwa === w) {
+      ost.odcinki.push(o);
+      ost.indeksy.push(i);
+    } else {
+      grupyWarstw.push({ warstwa: w, odcinki: [o], indeksy: [i] });
+    }
+  });
 
   return (
     <View>
@@ -868,10 +1427,11 @@ export function PztArkuszPodglad({
                       width={rozmiar.w}
                       height={rozmiar.h}
                       style={{ backgroundColor: 'transparent' }}
-                      onPress={(e) => {
+                      onPress={Platform.OS === 'web' ? undefined : (e) => {
                         const ne = e.nativeEvent as { locationX?: number; x?: number; locationY?: number; y?: number };
                         const x = ne.locationX ?? ne.x;
                         const y = ne.locationY ?? ne.y;
+                        if (Date.now() - ostatniPanMs.current < 350) return;
                         if (x != null && y != null) obsluzTapMapy(x, y);
                       }}
                     >
@@ -913,6 +1473,46 @@ export function PztArkuszPodglad({
                         ))}
                         {mapa.ulozone.map((pts, i) => (
                           <Polygon key={`ulo-${i}`} points={pts} fill={FILL_ULOZONE} />
+                        ))}
+                        {grupyWarstw.map((g) => (
+                          <G key={`lw-${g.indeksy[0]}`}>
+                            {g.odcinki.map((o, n) => {
+                              const i = g.indeksy[n];
+                              return (
+                                <G key={`lin-${o.id}`}>
+                                  {szkiceMiedzy(i === 0 ? -1 : liniowkaSvg[i - 1].idx, o.idx)}
+                                  {o.wielokaty.map((w, j) => (
+                                    <Polygon
+                                      key={j}
+                                      points={w.punkty}
+                                      fill={o.kolor}
+                                      fillOpacity={o.krycie}
+                                      stroke={o.reczny ? o.kolor : 'none'}
+                                      strokeOpacity={1}
+                                      strokeWidth={o.reczny ? swEkran * 1.6 : 0}
+                                      strokeDasharray={o.reczny ? `${dash * 1.4} ${dash}` : undefined}
+                                      strokeLinejoin="round"
+                                      vectorEffect="non-scaling-stroke"
+                                    />
+                                  ))}
+                                </G>
+                              );
+                            })}
+                            {g.odcinki.flatMap((o) => kreskiOdcinka(o, 'lk'))}
+                          </G>
+                        ))}
+                        {szkiceMiedzy(liniowkaSvg.length ? liniowkaSvg[liniowkaSvg.length - 1].idx : -1, Infinity)}
+                        {klipSvg?.map((pts, i) => (
+                          <Polygon
+                            key={`kl-${i}`}
+                            points={pts}
+                            fill="none"
+                            stroke="#E8A020"
+                            strokeWidth={swEkran * 1.6}
+                            strokeDasharray={`${dash * 1.2} ${dash * 0.7}`}
+                            strokeLinejoin="round"
+                            vectorEffect="non-scaling-stroke"
+                          />
                         ))}
                         {mapa.obszary.flatMap((o) =>
                           o.krawedzniki.map((k) => (
@@ -1006,6 +1606,117 @@ export function PztArkuszPodglad({
                             </G>
                           );
                         })}
+                        {podswietlony ? (
+                          <G accessibilityLabel="Podświetlony obszar">
+                            {podswietlony.wielokaty.map((w, j) => (
+                              <Polygon
+                                key={`psf-${j}`}
+                                points={w.punkty}
+                                fill={podswietlony.kolor}
+                                fillOpacity={Math.min(1, podswietlony.krycie + 0.15)}
+                              />
+                            ))}
+                            {podswietlony.wielokaty.map((w, j) => obrysLed(`ps-${j}`, (p) => (
+                              <Polygon
+                                points={w.punkty}
+                                fill="none"
+                                {...p}
+                                strokeLinejoin="round"
+                                vectorEffect="non-scaling-stroke"
+                              />
+                            )))}
+                            {kreskiOdcinka(podswietlony, 'psk')}
+                          </G>
+                        ) : null}
+                        {szkicPodswietlony ? wKlipie(szkicPodswietlony, szkicPodswietlony.elementy.map((e) => obrysLed(`pss-${e.id}`, (p) => (
+                          <Path
+                            d={e.d}
+                            fill="none"
+                            {...p}
+                            strokeWidth={p.strokeWidth + (e.szer ? e.szer * xform.s : 0)}
+                            strokeLinejoin="round"
+                            strokeLinecap="round"
+                            vectorEffect="non-scaling-stroke"
+                          />
+                        ))), 'pss') : null}
+                        {liniowkaSvg.flatMap((o) => o.znaki.map((z, j) => {
+                          const on = o.id === liniowka?.podswietlonyId;
+                          return (
+                            <G key={`li-${o.id}-${j}`}>
+                              <Circle
+                                cx={z.x}
+                                cy={z.y}
+                                r={z.r}
+                                fill={on ? '#F59E0B' : '#1D4ED8'}
+                                stroke="#FFFFFF"
+                                strokeWidth={z.r * 0.16}
+                              />
+                              <SvgText
+                                x={z.x}
+                                y={z.y + z.r * 0.42}
+                                fontSize={z.r * 1.25}
+                                fontWeight="800"
+                                fontStyle="italic"
+                                fill="#FFFFFF"
+                                textAnchor="middle"
+                              >
+                                i
+                              </SvgText>
+                            </G>
+                          );
+                        }))}
+                        {kreskaSvg && rysowanie ? wKlipie({ id: 'rysowany', klip: klipSvg }, (
+                          <Path
+                            d={kreskaSvg}
+                            stroke={rysowanie.kolor}
+                            strokeWidth={rysowanie.gruboscPx || LINIA_OBSZARU_PX}
+                            vectorEffect="non-scaling-stroke"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            fill="none"
+                          />
+                        ), 'kreska') : null}
+                        {lamanaSvg && rysowanie ? (
+                          <G accessibilityLabel="Linia łamana">
+                            {lamanaSvg.zamknieta ? wKlipie({ id: 'rysowany', klip: klipSvg }, (
+                              <Path d={lamanaSvg.d} fill={rysowanie.kolor} fillOpacity={0.35} stroke="none" />
+                            ), 'lam-wyp') : null}
+                            <Path
+                              d={lamanaSvg.d}
+                              fill="none"
+                              stroke={rysowanie.kolor === '#FFFFFF' ? '#111827' : rysowanie.kolor}
+                              strokeWidth={2}
+                              strokeLinejoin="round"
+                              vectorEffect="non-scaling-stroke"
+                            />
+                            {lamanaSvg.uchwyty.map((u) => (
+                              <Circle
+                                key={`lu-${u.i}`}
+                                cx={u.x}
+                                cy={u.y}
+                                r={5 / xform.s}
+                                fill={u.luk ? rysowanie.kolor : '#FFFFFF'}
+                                fillOpacity={0.9}
+                                stroke="#111827"
+                                strokeWidth={1.2}
+                                strokeDasharray="2 2"
+                                vectorEffect="non-scaling-stroke"
+                              />
+                            ))}
+                            {lamanaSvg.wezly.map((w, i) => (
+                              <Circle
+                                key={`lw-${i}`}
+                                cx={w.x}
+                                cy={w.y}
+                                r={(i === 0 ? 8 : 7) / xform.s}
+                                fill="#FFFFFF"
+                                stroke={rysowanie.kolor === '#FFFFFF' ? '#111827' : rysowanie.kolor}
+                                strokeWidth={2.5}
+                                vectorEffect="non-scaling-stroke"
+                              />
+                            ))}
+                          </G>
+                        ) : null}
                         {mapa.maszyny.map((m) => (
                           <G key={m.id} onPress={m.rodzaj === 'auto' ? () => onPressAuto?.(m.id) : undefined}>
                             <MaszynaObmiaru

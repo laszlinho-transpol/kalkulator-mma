@@ -38,7 +38,7 @@ export const usePlanyStore = create<PlanyStore>((set, get) => ({
       if (json) {
         set({ plany: JSON.parse(json), zaladowane: true });
       } else {
-        set({ zaladowane: true });
+        set({ plany: [], zaladowane: true });
       }
     } catch {
       set({ zaladowane: true });

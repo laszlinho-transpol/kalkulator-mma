@@ -51,8 +51,13 @@ export function CollapsibleSection({
         </Text>
         <View style={styles.prawo}>
           {onAkcja && akcjaEtykieta && (
-            <TouchableOpacity onPress={(e) => { e.stopPropagation?.(); onAkcja(); }} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
-              <Text style={{ color: theme.colors.info, fontSize: 12, fontWeight: '600' }}>{akcjaEtykieta}</Text>
+            <TouchableOpacity
+              accessibilityLabel={`${akcjaEtykieta} ${tytul}`}
+              onPress={(e) => { e.stopPropagation?.(); onAkcja(); }}
+              hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+              style={[styles.akcja, { borderColor: theme.colors.info, backgroundColor: `${theme.colors.info}12` }]}
+            >
+              <Text style={{ color: theme.colors.info, fontSize: 13, fontWeight: '800' }}>{akcjaEtykieta}</Text>
             </TouchableOpacity>
           )}
           <Text style={[styles.liczba, { color: theme.colors.textSecondary }]}>{liczba}</Text>
@@ -72,6 +77,7 @@ const styles = StyleSheet.create({
   tytul: { fontSize: 14, fontWeight: '800', flex: 1, marginRight: 8 },
   prawo: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   liczba: { fontSize: 13, fontWeight: '600' },
+  akcja: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
   strzalka: { fontSize: 12, fontWeight: '700' },
   zawartosc: { gap: 8, paddingLeft: 4, overflow: 'visible' },
 });

@@ -4,11 +4,24 @@
 
 // --- Wytwórnia (zakład produkcyjny) ---
 
+import type { OkresStawek } from '../budzet/typy';
+import type { PrzekrojPoprzeczny } from '../geodezja/przekroj';
+
+export interface KontaktWytworni {
+  id: string;
+  nazwa: string;
+  telefon: string;
+  stanowisko?: string;
+}
+
 export interface Wytwornia {
   id: string;
   nazwa: string;
   /** Link Google Maps (np. maps.app.goo.gl/...) */
   linkGoogleMaps?: string;
+  /** Adres lub współrzędne „lat,lng” do podglądu mapy – odczytane z linku albo wpisane ręcznie. */
+  adresMapy?: string;
+  kontakty?: KontaktWytworni[];
   createdAt: string;
   updatedAt: string;
 }
@@ -22,7 +35,10 @@ export interface Budowa {
   zalaczniki?: ZalacznikPlanu[];
   /** Szablon PROJEKT / WYKONANIE (PZT, legenda, konstrukcje, przedmiar) */
   projekt?: ProjektBudowy;
-  status?: 'aktywna' | 'archiwalna';
+  /** „archiwalna” – zapis sprzed statusów, czytany jak „zakonczona”. */
+  status?: 'aktywna' | 'gwarancja' | 'zakonczona' | 'archiwalna';
+  /** Koniec gwarancji (YYYY-MM-DD); po tej dacie budowa jest zakończona. */
+  gwarancjaDo?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -42,14 +58,23 @@ export interface ZalacznikPlanu {
 
 // --- Mieszanki (Mixes) ---
 
+export interface CenaRecepty {
+  cena?: number;
+}
+
 export interface Mieszanka {
   id: string;
   rodzaj: string;               // np. AC22P, SMA11
   nrRecepty?: string;
+  /** Wartość bez „KR”, np. „3-4” (starsze zapisy: „KR3-4”). Wyświetlana przez `rodzajMieszanki`. */
+  kategoriaRuchu?: string;
   ciezarObjetosciowy: number;   // [t/m3], do 3 miejsc po przecinku
   wytworniaId?: string;
   /** @deprecated użyj wytworniaId – zachowane dla importu starych danych */
   wytwórnia?: string;
+  /** Cena netto [zł/t] obowiązująca poza okresami z historii. */
+  cena?: number;
+  historiaCen?: OkresStawek<CenaRecepty>[];
   createdAt: string;
   updatedAt: string;
 }
@@ -565,7 +590,85 @@ export interface WierszPrzedmiaruScalony {
   nazwa?: string;
 }
 
+export interface KolorWarstwyLiniowki {
+  kolor: string;
+  /** 0–1 */
+  krycie: number;
+}
+
+/** Warstwa dodana ze szkicu – trafia na liniówkę i do filtra. */
+export interface WarstwaWlasnaLiniowki {
+  id: string;
+  nazwa: string;
+  opis?: string;
+}
+
+/** Obszar ułożony poza raportem (np. przez inną firmę). */
+export interface WpisRecznyLiniowki {
+  id: string;
+  /** YYYY-MM-DD */
+  data: string;
+  zakladki: ZakladkaPlanuBudowy[];
+  /** Powierzchnia każdej zakładki [m²] w dniu zapisu. */
+  powierzchnieM2: number[];
+  komentarz?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Kreska szkicu. Punkty we współrzędnych PDF arkusza, grubość w jednostkach PDF.
+ * Grubość 0 = linia obszaru (cienka jak obrys XFDF przy każdym przybliżeniu).
+ */
+export interface ElementSzkicu {
+  id: string;
+  punktyPdf: Punkt2D[];
+  kolor: string;
+  gruboscPdf: number;
+  /** Kolor wypełnienia z wiaderka. */
+  wypelnienie?: string;
+  /** Plama z wiaderka – wielokąt wypełnienia bez obrysu. */
+  plama?: boolean;
+  /** Niezamalowane wyspy wewnątrz plamy. */
+  otwory?: Punkt2D[][];
+  /** Obszar z linii łamanej: węzły i punkty kontrolne łuków krawędzi (null = prosta). */
+  lamana?: { wezly: Punkt2D[]; luki: Array<Punkt2D | null> };
+}
+
+export interface PowierzchniaSzkicuObszaru {
+  obszarId: string;
+  obszarNazwa: string;
+  m2: number;
+}
+
+export interface SzkicLiniowki {
+  id: string;
+  arkuszId: string;
+  elementy: ElementSzkicu[];
+  /** Klucz warstwy liniówki: kategoria, `inna|nazwa` albo `wlasna|id`. */
+  warstwaKlucz: string;
+  /** Obszar arkusza, po którym rysowano – szkic widać i liczy się tylko w nim. */
+  obszarId?: string;
+  opis?: string;
+  /** Zamalowana powierzchnia z dnia zapisu [m²]. */
+  powierzchniaM2?: number;
+  powierzchnie?: PowierzchniaSzkicuObszaru[];
+  /** Raport dzienny, do którego podłączono szkic. */
+  raportId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LiniowkaProjektu {
+  /** Klucz warstwy liniówki → kolor i krycie. Brak = domyślne. */
+  kolory?: Record<string, KolorWarstwyLiniowki>;
+  warstwyWlasne?: WarstwaWlasnaLiniowki[];
+  reczne?: WpisRecznyLiniowki[];
+  szkice?: SzkicLiniowki[];
+}
+
 export interface ProjektBudowy {
+  liniowka?: LiniowkaProjektu;
   kilometrazPoczatkowyM: number;
   /** Co ile metrów rysować podziałkę na osi PZT (0 = wyłącz). Domyślnie 50. */
   podzialkaKilometrazuM?: number;
@@ -574,4 +677,11 @@ export interface ProjektBudowy {
   legenda: WpisLegendy[];
   konstrukcje: KonstrukcjaObszaru[];
   scaloneWiersze: WierszPrzedmiaruScalony[];
+  /** Szczegóły konstrukcyjne (przekroje poprzeczne) – kopie szablonów z geodezji, edytowane niezależnie. */
+  szczegoly?: SzczegolBudowy[];
 }
+
+export type SzczegolBudowy = PrzekrojPoprzeczny & {
+  /** Szablon z geodezji, z którego powstała kopia. */
+  szablonId?: string;
+};

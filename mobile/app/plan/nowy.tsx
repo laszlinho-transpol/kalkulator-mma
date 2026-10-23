@@ -3,16 +3,18 @@
 // ============================================================
 
 import React from 'react';
-import { Alert, View, Text, useColorScheme } from 'react-native';
+import { View, Text, useColorScheme } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { usePlanyStore } from '../../src/stores/planyStore';
 import { PlanZBudowyForm } from '../../src/components/plan/PlanZBudowyForm';
 import { AppHeader } from '../../src/components/common/AppHeader';
 import { lightTheme, darkTheme } from '../../src/constants/theme';
 import type { Plan } from '../../src/types';
+import { pokazKomunikat } from '../../src/utils/dialog';
+import { wstecz } from '../../src/budzet/nawigacja';
 
 export default function NowyPlanScreen() {
-  const { budowaId } = useLocalSearchParams<{ budowaId?: string }>();
+  const { budowaId, data, zHarmonogramu } = useLocalSearchParams<{ budowaId?: string; data?: string; zHarmonogramu?: string }>();
   const { dodajPlan } = usePlanyStore();
   const colorScheme = useColorScheme();
   const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
@@ -20,9 +22,10 @@ export default function NowyPlanScreen() {
   const handleZapisz = async (dane: Omit<Plan, 'id' | 'createdAt' | 'updatedAt'>) => {
     try {
       const planId = await dodajPlan(dane);
-      router.replace(`/wbudowywanie/${planId}` as any);
+      if (zHarmonogramu === '1') wstecz('/harmonogram');
+      else router.replace(`/wbudowywanie/${planId}` as any);
     } catch {
-      Alert.alert('Błąd', 'Nie udało się zapisać planu. Spróbuj ponownie.');
+      pokazKomunikat('Błąd', 'Nie udało się zapisać planu. Spróbuj ponownie.');
     }
   };
 
@@ -37,5 +40,5 @@ export default function NowyPlanScreen() {
     );
   }
 
-  return <PlanZBudowyForm tytul="Nowy plan" budowaId={budowaId} onZapisz={handleZapisz} />;
+  return <PlanZBudowyForm tytul="Nowy plan" budowaId={budowaId} dataPoczatkowa={data} onZapisz={handleZapisz} />;
 }
