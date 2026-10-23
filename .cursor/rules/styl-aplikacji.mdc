@@ -29,6 +29,10 @@ Pełny opis: `mobile/STYL.md` (przeczytaj przed pracą nad UI). Skrót:
   jako SVG w metrach; logika w `src/geodezja/` – `rysunek.ts` daje prymitywy dla ekranu i eksportu SVG/PDF.
   Odczyt łaty [mm] ↔ rzędna [m] przez horyzont instrumentu; „cel” zawsze na zielono. Szablony przekroju i szkice
   mają nazwę, opis, archiwum, „Zapisz jako SVG” i PDF w `AppHeader`.
+- „Zasada działania”: na górze pierwszej strony działu (kalkulator / pierwsza lista) `ZasadaDzialania` – slajdy
+  z rysunkiem albo wycinkiem formularza i opisem, co wpisać i co się dostanie; ten sam klucz w `AppHeader zasada=…`
+  (przycisk „i” obok domku chowa/pokazuje). **Po każdej aktualizacji i zmianie w działaniu strony sprawdź, czy nie
+  trzeba zaktualizować jej „Zasady działania”.**
 - Listy obiektów = `PozycjaListy` (przycisk do karty obiektu), nie rozwijane sekcje. Karta obiektu ma `Zakladki`.
 - Pola parami (`Wiersz`, dwie kolumny); etykieta i jednostka nie mogą się zawijać.
 - Bez opisów na ekranie – wyjaśnienia tylko w „i” (`info` w `Pole`/`Etykieta`/`Sekcja`).

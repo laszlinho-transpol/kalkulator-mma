@@ -110,6 +110,9 @@ Ilość aut       = ceil(Masa_Mg / Tonaz_auta)   [domyślnie 25.5t, edytowalne]
      przesuwanie i zoom) jako SVG w metrach; logika w `src/geodezja/` (szkic, przekrój, `rysunek.ts` – ten sam opis
      rysuje ekran i eksport SVG/PDF), wysokości: odczyt łaty [mm] ↔ rzędna [m] przez horyzont instrumentu,
      wartości docelowe („cel”) zawsze na zielono (`PAPIER.cel`),
+   - „Zasada działania”: pierwsza strona działu ma na górze `ZasadaDzialania` (slajdy krok po kroku, przycisk „i”
+     w `AppHeader` obok domku chowa/pokazuje); **po każdej aktualizacji i zmianie w działaniu strony sprawdź, czy
+     nie trzeba zaktualizować jej „Zasady działania”**,
    - wspólną zmianę wyglądu robimy w klocku, nie na pojedynczym ekranie.
 
 ## TRZY ŻELAZNE ZASADY (OBOWIĄZKOWE)

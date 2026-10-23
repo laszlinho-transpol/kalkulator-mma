@@ -4,4 +4,6 @@
 - **Wygląd i nowe ekrany: `mobile/STYL.md`** – ekrany składamy z klocków `mobile/src/components/ui`
   (nagłówek z domkiem, karty, sekcje, dwie kolumny, opisy w „i”, wspólny kalendarz). Reguła Cursor:
   `.cursor/rules/styl-aplikacji.mdc`.
+- Po każdej aktualizacji i zmianie w działaniu strony sprawdź, czy nie trzeba zaktualizować jej samouczka
+  „Zasada działania” (`ZasadaDzialania` na górze strony, STYL.md zasada 19).
 - Sprawdzanie: `cd mobile && npx tsc --noEmit && npx tsx --test src/**/*.test.ts`.
