@@ -2,11 +2,14 @@ import React, { useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { AppHeader, InfoTooltip, Pole, PozycjaListy, Przycisk, stylFormularza, useMotyw, TYPOGRAFIA } from '../../../src/components/ui';
+import { AppHeader, InfoTooltip, Pole, PozycjaListy, Przycisk, stylFormularza, useMotyw, TYPOGRAFIA, ZasadaDzialania } from '../../../src/components/ui';
+import { ZASADA_FIRM } from '../../../src/components/ZasadyDzialow';
 import { SafeModal } from '../../../src/components/common/SafeModal';
 import { wstecz } from '../../../src/budzet/nawigacja';
 import { useFirmyStore } from '../../../src/stores/firmyStore';
 import { useSprzetStore } from '../../../src/stores/sprzetStore';
+
+const ZASADA = 'budzet/firmy';
 
 export default function FirmyScreen() {
   const theme = useMotyw();
@@ -35,8 +38,10 @@ export default function FirmyScreen() {
         tytul="Firmy"
         lewy={{ tekst: '‹ Wstecz', onPress: () => wstecz('/budzet') }}
         prawy={{ tekst: '+ Nowa', onPress: otworzNowa }}
+        zasada={ZASADA}
       />
       <ScrollView contentContainerStyle={[styles.tresc, { paddingBottom: insets.bottom + 24 }]}>
+        <ZasadaDzialania klucz={ZASADA} slajdy={ZASADA_FIRM} />
         <View style={styles.naglowek}>
           <Text style={[TYPOGRAFIA.sekcja, { color: theme.colors.textSecondary }]}>Firmy w bazie · {firmy.length}</Text>
           <InfoTooltip tresc="Dodaj firmę przyciskiem „+ Nowa” albo wpisz ją przy sprzęcie, transporcie lub materiale w raporcie dnia. Firmy z bazy podpowiadają się w tych polach. Na karcie firmy uzupełnisz dane kontaktowe i zobaczysz jej sprzęt." />

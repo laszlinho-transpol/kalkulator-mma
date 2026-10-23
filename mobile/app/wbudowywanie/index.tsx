@@ -3,26 +3,25 @@
 // ============================================================
 
 import React, { useMemo } from 'react';
-import {
-  View, Text, StyleSheet, ScrollView, useColorScheme,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePlanyStore } from '../../src/stores/planyStore';
 import { useBudowyStore } from '../../src/stores/budowyStore';
 import { useLiveStore } from '../../src/stores/liveStore';
-import { lightTheme, darkTheme } from '../../src/constants/theme';
 import { EmptyState } from '../../src/components/common/EmptyState';
 import { AppHeader } from '../../src/components/common/AppHeader';
-import { Karta, ODSTEP, TYPOGRAFIA } from '../../src/components/ui';
+import { Karta, ODSTEP, TYPOGRAFIA, ZasadaDzialania, useMotyw } from '../../src/components/ui';
+import { ZASADA_WBUDOWYWANIA } from '../../src/components/ZasadyDzialow';
 import { komentarzPlanuBudowy, tytulPlanuBudowy } from '../../src/utils/planZBudowy';
 import { potwierdzAkcje } from '../../src/utils/dialog';
 import type { Plan, Budowa } from '../../src/types';
 import { budowaWToku } from '../../src/utils/statusBudowy';
 
+const ZASADA = 'wbudowywanie';
+
 export default function WbudowywanieScreen() {
-  const colorScheme = useColorScheme();
-  const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
+  const theme = useMotyw();
   const insets = useSafeAreaInsets();
   const { plany, usunPlan } = usePlanyStore();
   const { budowy } = useBudowyStore();
@@ -110,37 +109,37 @@ export default function WbudowywanieScreen() {
       <AppHeader
         tytul="Wbudowywanie"
         lewy={{ tekst: '‹ Wstecz', onPress: () => router.back() }}
+        zasada={ZASADA}
       />
 
-      {puste ? (
-        <EmptyState
-          ikona="🛣️"
-          tytul="Brak aktywnych planów"
-          opis="Zapisz plan dnia z Obmiaru PZT albo utwórz plan w Zaplanuj masę. Pojawią się tutaj, pogrupowane po budowach."
-          przyciskTekst="Przejdź do planowania"
-          onPrzycisk={() => router.push('/plan')}
-        />
-      ) : (
-        <ScrollView
-          contentContainerStyle={[styles.lista, { paddingBottom: insets.bottom + 16 }]}
-          showsVerticalScrollIndicator={false}
-        >
-          {[...grupy.zBudowa, ...grupy.bezBudowy].map((grupa) => (
-            <View key={grupa.tytul} style={styles.grupa}>
-              <Text style={[TYPOGRAFIA.sekcja, { color: theme.colors.textSecondary }]} numberOfLines={1}>
-                {grupa.bezPrzypisania ? '' : '🏗️ '}{grupa.tytul} · {grupa.elementy.length}
-              </Text>
-              {grupa.elementy.map(renderujPlan)}
-            </View>
-          ))}
-        </ScrollView>
-      )}
+      <ScrollView
+        contentContainerStyle={[styles.lista, { paddingBottom: insets.bottom + 16 }]}
+        showsVerticalScrollIndicator={false}
+      >
+        <ZasadaDzialania klucz={ZASADA} slajdy={ZASADA_WBUDOWYWANIA} />
+        {puste ? (
+          <EmptyState
+            ikona="🛣️"
+            tytul="Brak aktywnych planów"
+            opis="Zapisz plan dnia z Obmiaru PZT albo utwórz plan w Zaplanuj masę. Pojawią się tutaj, pogrupowane po budowach."
+            przyciskTekst="Przejdź do planowania"
+            onPrzycisk={() => router.push('/plan')}
+          />
+        ) : [...grupy.zBudowa, ...grupy.bezBudowy].map((grupa) => (
+          <View key={grupa.tytul} style={styles.grupa}>
+            <Text style={[TYPOGRAFIA.sekcja, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+              {grupa.bezPrzypisania ? '' : '🏗️ '}{grupa.tytul} · {grupa.elementy.length}
+            </Text>
+            {grupa.elementy.map(renderujPlan)}
+          </View>
+        ))}
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  lista: { padding: 14, gap: ODSTEP.l },
+  lista: { flexGrow: 1, padding: 14, gap: ODSTEP.l },
   grupa: { gap: ODSTEP.s + 2 },
 });

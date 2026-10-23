@@ -120,12 +120,16 @@ opisanych niżej** – bez własnych kolorów, odstępów i nagłówków. Zmiana
     przy górnej krawędzi (klawiatura pod nim), panele zaznaczenia mieszczą się bez przewijania.
 19. **Zasada działania na pierwszej stronie działu.** Na górze strony (kalkulator albo pierwsza lista działu)
     stoi `ZasadaDzialania` – slajdy krok po kroku przesuwane palcem: rysunek SVG albo wycinek formularza
-    (`WycinekPola`, `WycinekPrzycisku`, `WycinekWyniku`, `WycinekZakladek`) i opis z **pogrubionymi** nazwami pól
+    (`WycinekPola`, `WycinekPrzycisku`, `WycinekWyniku`, `WycinekZakladek`, `WycinekPozycji`, `WycinekKarty`) i opis z **pogrubionymi** nazwami pól
     i przycisków. Opis mówi nowemu użytkownikowi, co wpisać i co dostanie. Ten sam `klucz` dostaje
     `AppHeader zasada=…` – przycisk „i” obok domku chowa/pokazuje okienko (podświetlony = pokazane), stan
     zapamiętuje `zasadyStore`. Kalkulatory jak „Wierzchołek łuku”: `Sekcja „Dane”` z `PoleLiczby` i
     `KlawiaturaLiczb` w `StrefaKlawiatury`, wynik w `RamkaWyniku`, reszta w `SiatkaDanych`,
     `usePrzewijanieDoDanych` przewija do danych po otwarciu klawiatury.
+    Na stronach list (Budowa, Mieszanki, Wbudowywanie, Sprzęt, Pracownicy, Firmy, Obmiar PZT) okienko stoi
+    w `ScrollView` nad listą i nad `EmptyState`; slajdy działów są w `src/components/ZasadyDzialow.tsx`.
+    **Po każdej aktualizacji i zmianie w działaniu strony sprawdź, czy nie trzeba zaktualizować jej
+    „Zasady działania”** (nazwy pól i przycisków, kolejność kroków, wycinki i rysunki slajdów).
 
 ## 2. Klocki (`src/components/ui`)
 

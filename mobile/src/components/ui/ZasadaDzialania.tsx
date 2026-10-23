@@ -174,6 +174,46 @@ export function WycinekWyniku({ etykieta, wartosc, kolor }: { etykieta: string; 
   );
 }
 
+/** Wycinek wiersza listy (jak `PozycjaListy`) – stuknięcie otwiera kartę obiektu. */
+export function WycinekPozycji({ tytul, opis, prawy, gwiazdka }: { tytul: string; opis?: string; prawy?: string; gwiazdka?: boolean }) {
+  const theme = useMotyw();
+  return (
+    <View style={[styles.pozycja, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+      {gwiazdka ? <Text style={{ color: theme.colors.primary, fontSize: 16 }}>★</Text> : null}
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={{ color: theme.colors.text, fontWeight: '800', fontSize: 14 }} numberOfLines={1}>{tytul}</Text>
+        {opis ? <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }} numberOfLines={1}>{opis}</Text> : null}
+      </View>
+      {prawy ? <Text style={{ color: theme.colors.text, fontWeight: '800', fontSize: 14 }}>{prawy}</Text> : null}
+      <Ikona nazwa="dalej" kolor={theme.colors.textSecondary} rozmiar={16} />
+    </View>
+  );
+}
+
+/** Wycinek karty listy (jak `Karta`) z przyciskami akcji – pierwszy jest główny. */
+export function WycinekKarty({ tytul, podtytul, podsumowanie, akcje = [] }: { tytul: string; podtytul?: string; podsumowanie?: string; akcje?: string[] }) {
+  const theme = useMotyw();
+  return (
+    <View style={[styles.pozycjaKarta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+      <Text style={{ color: theme.colors.text, fontWeight: '800', fontSize: 15 }} numberOfLines={1}>{tytul}</Text>
+      {podtytul ? <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }} numberOfLines={1}>{podtytul}</Text> : null}
+      {podsumowanie ? <Text style={{ color: theme.colors.text, fontSize: 12, fontWeight: '700' }} numberOfLines={1}>{podsumowanie}</Text> : null}
+      {akcje.length ? (
+        <View style={styles.wiersz}>
+          {akcje.map((a, i) => (
+            <View key={a} style={[styles.akcja, {
+              borderColor: i === 0 ? theme.colors.primary : a === 'Usuń' ? theme.colors.danger : theme.colors.border,
+              backgroundColor: i === 0 ? theme.colors.primary : 'transparent',
+            }]}>
+              <Text style={{ color: i === 0 ? '#1A1A1A' : a === 'Usuń' ? theme.colors.danger : theme.colors.text, fontWeight: '800', fontSize: 12 }} numberOfLines={1}>{a}</Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
 /** Wycinek zakładek / pasków przycisków: pierwszy aktywny. */
 export function WycinekZakladek({ zakladki, aktywna = 0 }: { zakladki: string[]; aktywna?: number }) {
   const theme = useMotyw();
@@ -209,6 +249,9 @@ const styles = StyleSheet.create({
   wiersz: { flexDirection: 'row', gap: 8 },
   przycisk: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderWidth: 1, borderRadius: PROMIEN.m, paddingVertical: 9 },
   wynik: { borderWidth: 1.5, borderRadius: 12, padding: 8, alignItems: 'center' },
+  pozycja: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderRadius: PROMIEN.m, paddingHorizontal: 12, paddingVertical: 8 },
+  pozycjaKarta: { borderWidth: 1, borderRadius: PROMIEN.m, padding: 10, gap: 3 },
+  akcja: { flex: 1, alignItems: 'center', borderWidth: 1, borderRadius: 8, paddingVertical: 5, marginTop: 4 },
   zakladki: { flexDirection: 'row', borderWidth: 1, borderRadius: 10, padding: 3, gap: 3 },
   zakladka: { flex: 1, alignItems: 'center', paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: 'transparent' },
 });

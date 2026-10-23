@@ -16,7 +16,7 @@ export { Przycisk, PrzyciskIkony, type WariantPrzycisku } from './Przycisk';
 export { PrzejscieEkranu } from './PrzejscieEkranu';
 export { WykresLiniowy, type PunktWykresu } from './WykresLiniowy';
 export {
-  ZasadaDzialania, WycinekPola, WycinekWiersz, WycinekPrzycisku, WycinekWyniku, WycinekZakladek, type SlajdZasady,
+  ZasadaDzialania, WycinekPola, WycinekWiersz, WycinekPrzycisku, WycinekWyniku, WycinekZakladek, WycinekPozycji, WycinekKarty, type SlajdZasady,
 } from './ZasadaDzialania';
 export { useMotyw } from '../../hooks/useMotyw';
 export { ODSTEP, PROMIEN, TYPOGRAFIA, CZAS, cien, kolorDnia, rodzajDnia } from '../../constants/styl';

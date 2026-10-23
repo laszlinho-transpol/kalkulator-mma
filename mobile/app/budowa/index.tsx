@@ -3,24 +3,23 @@
 // ============================================================
 
 import React, { useState } from 'react';
-import {
-  View, Text, StyleSheet, ScrollView, useColorScheme,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppHeader } from '../../src/components/common/AppHeader';
 import { EmptyState } from '../../src/components/common/EmptyState';
 import { FormularzBudowy } from '../../src/components/budowa/FormularzBudowy';
-import { lightTheme, darkTheme } from '../../src/constants/theme';
-import { Karta, TYPOGRAFIA } from '../../src/components/ui';
+import { Karta, TYPOGRAFIA, ZasadaDzialania, useMotyw } from '../../src/components/ui';
+import { ZASADA_BUDOWY } from '../../src/components/ZasadyDzialow';
 import { potwierdzAkcje } from '../../src/utils/dialog';
 import { useBudowyStore } from '../../src/stores/budowyStore';
 import { grupyBudow, opisStatusu, statusBudowy } from '../../src/utils/statusBudowy';
 import type { Budowa } from '../../src/types';
 
+const ZASADA = 'budowa';
+
 export default function BudowaListaScreen() {
-  const colorScheme = useColorScheme();
-  const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
+  const theme = useMotyw();
   const insets = useSafeAreaInsets();
   const { budowy, usunBudowe, edytujBudowe } = useBudowyStore();
   const grupy = grupyBudow(budowy);
@@ -68,25 +67,25 @@ export default function BudowaListaScreen() {
         tytul="Budowa"
         lewy={{ tekst: '‹ Wstecz', onPress: () => router.back() }}
         prawy={{ tekst: '+ Nowa', onPress: nowa, kolor: theme.colors.primary }}
+        zasada={ZASADA}
       />
-      {budowy.length === 0 ? (
-        <EmptyState
-          ikona="🏗️"
-          tytul="Brak budów"
-          opis="Załóż budowę (nazwa + kod, np. B128). Powstanie szablon: PZT, legenda, konstrukcje, przedmiar."
-          przyciskTekst="+ Nowa budowa"
-          onPrzycisk={nowa}
-        />
-      ) : (
-        <ScrollView contentContainerStyle={[styles.lista, { paddingBottom: insets.bottom + 16 }]}>
-          {grupy.filter((g) => g.budowy.length > 0).map((g, i) => (
-            <React.Fragment key={g.status}>
-              <Text style={[TYPOGRAFIA.sekcja, { color: theme.colors.textSecondary, marginTop: i === 0 ? 0 : 8 }]}>{g.nazwa} · {g.budowy.length}</Text>
-              {g.budowy.map(kartaBudowy)}
-            </React.Fragment>
-          ))}
-        </ScrollView>
-      )}
+      <ScrollView contentContainerStyle={[styles.lista, { paddingBottom: insets.bottom + 16 }]}>
+        <ZasadaDzialania klucz={ZASADA} slajdy={ZASADA_BUDOWY} />
+        {budowy.length === 0 ? (
+          <EmptyState
+            ikona="🏗️"
+            tytul="Brak budów"
+            opis="Załóż budowę (nazwa + kod, np. B128). Powstanie szablon: PZT, legenda, konstrukcje, przedmiar."
+            przyciskTekst="+ Nowa budowa"
+            onPrzycisk={nowa}
+          />
+        ) : grupy.filter((g) => g.budowy.length > 0).map((g) => (
+          <React.Fragment key={g.status}>
+            <Text style={[TYPOGRAFIA.sekcja, { color: theme.colors.textSecondary, marginTop: 8 }]}>{g.nazwa} · {g.budowy.length}</Text>
+            {g.budowy.map(kartaBudowy)}
+          </React.Fragment>
+        ))}
+      </ScrollView>
 
       <FormularzBudowy
         widoczny={modal}
@@ -103,5 +102,5 @@ export default function BudowaListaScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  lista: { padding: 14, gap: 10 },
+  lista: { flexGrow: 1, padding: 14, gap: 10 },
 });

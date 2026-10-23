@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.56';
+export const WERSJA_APLIKACJI = '1.8.57';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,16 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.57',
+    data: '2026-10-23',
+    tytul: '„Zasada działania” w działach, kąt prosty z dowolnego boku',
+    zmiany: [
+      'Okienko „Zasada działania” ze slajdami na pierwszych stronach: Budowa, Mieszanki, Wbudowywanie, Sprzęt, Pracownicy, Firmy i Obmiar PZT – co stuknąć, co wpisać i co się dostanie; przycisk „i” w nagłówku chowa je i pokazuje',
+      'Tyczenie kąta prostego: zamiast mnożnika wpisujesz dowolny bok – a (3×), b (4×) albo przekątną c (5×) – a pozostałe boki, mnożnik i długość taśmy przeliczają się same',
+      'Listy Sprzętu i Pracowników w sekcjach jak w reszcie aplikacji, pusty widok list z nowymi przyciskami (czarny tekst na żółtym)',
+    ],
+  },
   {
     wersja: '1.8.56',
     data: '2026-10-23',

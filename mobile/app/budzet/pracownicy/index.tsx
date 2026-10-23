@@ -1,19 +1,23 @@
 import React, { useMemo } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, useColorScheme, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { AppHeader } from '../../../src/components/common/AppHeader';
+import {
+  AppHeader, Naciskany, ODSTEP, PROMIEN, Sekcja as SekcjaUi, TYPOGRAFIA, ZasadaDzialania, useMotyw,
+} from '../../../src/components/ui';
+import { ZASADA_PRACOWNIKOW } from '../../../src/components/ZasadyDzialow';
 import { Gwiazdka } from '../../../src/components/budzet/Zakladki';
-import { lightTheme, darkTheme, type AppTheme } from '../../../src/constants/theme';
+import type { AppTheme } from '../../../src/constants/theme';
 import { formatLiczby } from '../../../src/utils/calculations';
 import { wstecz } from '../../../src/budzet/nawigacja';
 import { nazwaPracownika, sekcjePracownikow, type SekcjaPracownikow } from '../../../src/budzet/pracownicy';
 import { useGrupyPracownikowStore } from '../../../src/stores/grupyPracownikowStore';
 import { usePracownicyStore } from '../../../src/stores/pracownicyStore';
 
+const ZASADA = 'budzet/pracownicy';
+
 export default function PracownicyScreen() {
-  const colorScheme = useColorScheme();
-  const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
+  const theme = useMotyw();
   const insets = useSafeAreaInsets();
   const pracownicy = usePracownicyStore((s) => s.pracownicy);
   const grupy = useGrupyPracownikowStore((s) => s.grupy);
@@ -26,10 +30,12 @@ export default function PracownicyScreen() {
         podtytul={`${pracownicy.length} w bazie`}
         lewy={{ tekst: '‹ Wstecz', onPress: () => wstecz('/budzet') }}
         przyciski={[{ tekst: 'Dodaj nowy', onPress: () => router.push('/budzet/pracownicy/nowy' as never), tlo: theme.colors.primary, kolor: '#1A1A1A' }]}
+        zasada={ZASADA}
       />
       <ScrollView contentContainerStyle={[styles.lista, { paddingBottom: insets.bottom + 24 }]}>
+        <ZasadaDzialania klucz={ZASADA} slajdy={ZASADA_PRACOWNIKOW} />
         {pracownicy.length === 0 && grupy.length === 0 ? (
-          <Text style={{ color: theme.colors.textSecondary, fontSize: 15 }}>
+          <Text style={[TYPOGRAFIA.opis, { color: theme.colors.textSecondary }]}>
             Brak pracowników. Dodaj pierwszą osobę przyciskiem „Dodaj nowy”.
           </Text>
         ) : null}
@@ -49,35 +55,33 @@ function Sekcja({ sekcja, theme }: { sekcja: SekcjaPracownikow; theme: AppTheme 
   const { grupa } = sekcja;
 
   return (
-    <View style={styles.grupa}>
-      <View style={styles.grupaNaglowek}>
-        <Text style={[styles.grupaTytul, { color: theme.colors.textSecondary }]}>
-          {grupa?.nazwa ?? 'Bez grupy'} · {sekcja.pracownicy.length}
-        </Text>
-        {grupa ? (
-          <Gwiazdka
-            theme={theme}
-            wlaczona={grupa.ulubiona}
-            onPress={() => { void przelaczGrupe(grupa.id); }}
-            accessibilityLabel={`${grupa.ulubiona ? 'Usuń z ulubionych' : 'Dodaj do ulubionych'} grupę ${grupa.nazwa}`}
-          />
-        ) : null}
-      </View>
+    <SekcjaUi
+      tytul={`${grupa?.nazwa ?? 'Bez grupy'} · ${sekcja.pracownicy.length}`}
+      prawy={grupa ? (
+        <Gwiazdka
+          theme={theme}
+          wlaczona={grupa.ulubiona}
+          onPress={() => { void przelaczGrupe(grupa.id); }}
+          accessibilityLabel={`${grupa.ulubiona ? 'Usuń z ulubionych' : 'Dodaj do ulubionych'} grupę ${grupa.nazwa}`}
+        />
+      ) : undefined}
+    >
       {sekcja.pracownicy.length === 0 ? (
-        <Text style={{ color: theme.colors.textSecondary }}>Brak pracowników w grupie.</Text>
+        <Text style={[TYPOGRAFIA.opis, { color: theme.colors.textSecondary }]}>Brak pracowników w grupie.</Text>
       ) : sekcja.pracownicy.map((p) => {
         const nazwa = nazwaPracownika(p);
         return (
-          <TouchableOpacity
+          <Naciskany
             key={p.id}
+            accessibilityRole="button"
             accessibilityLabel={`Pracownik ${nazwa}`}
             onPress={() => router.push(`/budzet/pracownicy/${p.id}` as never)}
-            style={[styles.przycisk, { backgroundColor: theme.colors.card, borderColor: p.ulubiony ? theme.colors.primary : theme.colors.border }]}
+            style={[styles.pozycja, { backgroundColor: theme.colors.inputBackground, borderColor: p.ulubiony ? theme.colors.primary : theme.colors.border }]}
           >
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.nazwa, { color: theme.colors.text }]}>{nazwa}</Text>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={[TYPOGRAFIA.tytulKarty, { color: theme.colors.text }]} numberOfLines={1}>{nazwa}</Text>
               {p.stawki.stawka8h ? (
-                <Text style={{ color: theme.colors.textSecondary, marginTop: 2 }}>Stawka 8h: {formatLiczby(p.stawki.stawka8h)} zł</Text>
+                <Text style={[TYPOGRAFIA.opis, { color: theme.colors.textSecondary }]}>Stawka 8h: {formatLiczby(p.stawki.stawka8h)} zł</Text>
               ) : null}
             </View>
             <Gwiazdka
@@ -86,20 +90,16 @@ function Sekcja({ sekcja, theme }: { sekcja: SekcjaPracownikow; theme: AppTheme 
               onPress={() => { void przelaczPracownika(p.id); }}
               accessibilityLabel={`${p.ulubiony ? 'Usuń z ulubionych' : 'Dodaj do ulubionych'} ${nazwa}`}
             />
-          </TouchableOpacity>
+          </Naciskany>
         );
       })}
-    </View>
+    </SekcjaUi>
   );
 }
 
 const styles = StyleSheet.create({
   ekran: { flex: 1 },
-  lista: { padding: 16, gap: 18 },
-  grupa: { gap: 8 },
-  grupaNaglowek: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  grupaTytul: { fontSize: 13, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.4, flex: 1 },
+  lista: { padding: 14, gap: 12 },
   kreska: { height: 2, borderRadius: 1 },
-  przycisk: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 8 },
-  nazwa: { fontSize: 16, fontWeight: '700' },
+  pozycja: { flexDirection: 'row', alignItems: 'center', gap: ODSTEP.s, borderWidth: 1, borderRadius: PROMIEN.m, paddingHorizontal: ODSTEP.m + 2, paddingVertical: ODSTEP.m },
 });

@@ -3,22 +3,23 @@
 // ============================================================
 
 import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, ScrollView, useColorScheme } from 'react-native';
+import { View, StyleSheet, ScrollView } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppHeader } from '../../src/components/common/AppHeader';
-import { lightTheme, darkTheme } from '../../src/constants/theme';
 import { useObmiarStore } from '../../src/stores/obmiarStore';
 import { formatujDatePl } from '../../src/utils/dates';
 import { formatLiczby } from '../../src/utils/calculations';
 import { SafeModal } from '../../src/components/common/SafeModal';
-import { Karta, Pole, kolorDnia, rodzajDnia } from '../../src/components/ui';
+import { Karta, Pole, ZasadaDzialania, kolorDnia, rodzajDnia, useMotyw } from '../../src/components/ui';
+import { ZASADA_OBMIARU } from '../../src/components/ZasadyDzialow';
 import { dataKrotko } from '../../src/budzet/wyswietlanie';
 import { potwierdzAkcje } from '../../src/utils/dialog';
 
+const ZASADA = 'obmiar';
+
 export default function ObmiarIndexScreen() {
-  const colorScheme = useColorScheme();
-  const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
+  const theme = useMotyw();
   const insets = useSafeAreaInsets();
   const { sesje, zaladuj, utworzSesje, usunSesje } = useObmiarStore();
   const [modalNowa, setModalNowa] = useState(false);
@@ -40,8 +41,10 @@ export default function ObmiarIndexScreen() {
         tytul="Obmiar PZT"
         lewy={{ tekst: '‹ Wstecz', onPress: () => router.back() }}
         prawy={{ tekst: 'Nowy', onPress: () => setModalNowa(true), kolor: theme.colors.primary }}
+        zasada={ZASADA}
       />
       <ScrollView contentContainerStyle={[styles.zawartosc, { paddingBottom: insets.bottom + 20 }]}>
+        <ZasadaDzialania klucz={ZASADA} slajdy={ZASADA_OBMIARU} />
         {sesje.filter((s) => s.status !== 'archiwalna').length === 0 ? (
           <Karta podtytul="Brak sesji obmiaru. Naciśnij „Nowy” i zaimportuj XFDF." />
         ) : (
