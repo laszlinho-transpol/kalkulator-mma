@@ -67,7 +67,7 @@ describe('obliczWskaznikRozkladarki', () => {
     const zaSzeroko = obliczWskaznikRozkladarki({ ...baza, wDocelowa: 7 });
     assert.equal(zaSzeroko.ok, false);
     if (zaSzeroko.ok) return;
-    assert.match(zaSzeroko.blad, /6\.50/);
+    assert.match(zaSzeroko.blad, /6,50/);
 
     const zaWasko = obliczWskaznikRozkladarki({ ...baza, wDocelowa: 3 });
     assert.equal(zaWasko.ok, false);

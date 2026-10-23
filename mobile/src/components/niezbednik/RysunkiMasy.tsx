@@ -130,7 +130,7 @@ export function RysWskaznik({ odOsi, odGasienicy, odPlozy }: { odOsi: string; od
             <G key={w.y}>
               <Line x1={w.x} y1={w.y} x2={262} y2={w.y} stroke={k.tusz} strokeWidth={1.6} />
               <Path d={`M${w.x} ${w.y} L${w.x + 6} ${w.y - 4} M${w.x} ${w.y} L${w.x + 6} ${w.y + 4} M262 ${w.y} L256 ${w.y - 4} M262 ${w.y} L256 ${w.y + 4}`} stroke={k.tusz} strokeWidth={1.6} fill="none" />
-              <SvgText x={w.x - 4} y={w.y + 4} fontSize={11} fontWeight="800" fill={k.tusz} textAnchor="end">{w.napis}</SvgText>
+              <SvgText x={w.x - 8} y={w.y + 4} fontSize={11} fontWeight="800" fill={k.tusz} textAnchor="end">{w.napis}</SvgText>
             </G>
           ))}
         </>

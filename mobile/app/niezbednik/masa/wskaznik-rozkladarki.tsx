@@ -5,7 +5,7 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-  AppHeader, Przycisk, PrzyciskIkony, RamkaWyniku, Sekcja, SiatkaDanych, TYPOGRAFIA, Wiersz, Wybor,
+  AppHeader, Etykieta, Przycisk, PrzyciskIkony, RamkaWyniku, Sekcja, SiatkaDanych, Wiersz, Wybor,
   WycinekPola, WycinekPrzycisku, WycinekWiersz, WycinekWyniku, ZasadaDzialania, useMotyw,
 } from '../../../src/components/ui';
 import { KlawiaturaLiczb, PoleLiczby, StrefaKlawiatury, usePrzewijanieDoStref } from '../../../src/components/geodezja/KlawiaturaLiczb';
@@ -121,10 +121,10 @@ export default function WskaznikRozkladarkiScreen() {
         <View ref={widokStrefy('poszerzenia')}>
           <StrefaKlawiatury nazwa="poszerzenia">
             <Sekcja tytul="Poszerzenia">
-              <Wiersz>
+              <View style={styles.dwieKolumny}>
                 <ListaPoszerzen strona="L" tytul="Strona lewa" wartosci={poszL} onZmien={setPoszL} onDodaj={dodajL} />
                 <ListaPoszerzen strona="P" tytul="Strona prawa" wartosci={poszP} onZmien={setPoszP} onDodaj={dodajP} />
-              </Wiersz>
+              </View>
               <KlawiaturaLiczb />
             </Sekcja>
           </StrefaKlawiatury>
@@ -137,7 +137,7 @@ export default function WskaznikRozkladarkiScreen() {
                 <PoleLiczby etykieta="Docelowa szerokość" value={wDocelowa} onChangeText={setWDocelowa} jednostka="m" accessibilityLabel="Docelowa szerokość układania [m]" />
                 <PoleLiczby etykieta="Linka od krawędzi" value={lLinka} onChangeText={setLLinka} jednostka="m" accessibilityLabel="Odległość linki od krawędzi [m]" />
               </Wiersz>
-              <Text style={[TYPOGRAFIA.etykieta, { color: theme.colors.textSecondary }]}>Strona wskaźnika</Text>
+              <Etykieta tekst="Strona wskaźnika" />
               <Wiersz>
                 <Wybor zaznaczony={strona === 'lewa'} etykieta="Lewa" accessibilityLabel="Strona lewa" onPress={() => setStrona('lewa')} wysrodkuj />
                 <Wybor zaznaczony={strona === 'prawa'} etykieta="Prawa" accessibilityLabel="Strona prawa" onPress={() => setStrona('prawa')} wysrodkuj />
@@ -185,8 +185,8 @@ function ListaPoszerzen({ strona, tytul, wartosci, onZmien, onDodaj }: {
 }) {
   const theme = useMotyw();
   return (
-    <View style={{ gap: 8 }}>
-      <Text style={[TYPOGRAFIA.etykieta, { color: theme.colors.textSecondary }]}>{tytul}</Text>
+    <View style={styles.kolumna}>
+      <Etykieta tekst={tytul} />
       {wartosci.length === 0 ? <Text style={{ color: theme.colors.textSecondary }}>Brak poszerzeń</Text> : null}
       {wartosci.map((v, i) => (
         <View key={i} style={styles.poszerzenie}>
@@ -218,5 +218,7 @@ const styles = StyleSheet.create({
   ekran: { flex: 1 },
   tresc: { padding: 14, gap: 12 },
   parametry: { flexDirection: 'row', gap: 12, alignItems: 'center' },
+  dwieKolumny: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
+  kolumna: { flex: 1, minWidth: 0, gap: 8 },
   poszerzenie: { flexDirection: 'row', alignItems: 'flex-end', gap: 6 },
 });

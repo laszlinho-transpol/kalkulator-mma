@@ -89,7 +89,7 @@ export function obliczWskaznikRozkladarki(params: {
   if (wDocelowa + 1e-9 < konfiguracja.szerMin || wDocelowa - 1e-9 > konfiguracja.szerMax) {
     return {
       ok: false,
-      blad: `Stół układa od ${konfiguracja.szerMin.toFixed(2)} m do ${konfiguracja.szerMax.toFixed(2)} m`,
+      blad: `Stół układa od ${konfiguracja.szerMin.toFixed(2).replace('.', ',')} m do ${konfiguracja.szerMax.toFixed(2).replace('.', ',')} m – zmień poszerzenia albo docelową szerokość`,
       konfiguracja,
     };
   }
