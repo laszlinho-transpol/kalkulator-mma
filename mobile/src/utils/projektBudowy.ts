@@ -11,6 +11,7 @@ import type {
   Mieszanka,
   ObszarObmiaru,
   ProjektBudowy,
+  Punkt2D,
   SkalaPzt,
   TypElementuLegendy,
   WarstwaKonstrukcji,
@@ -25,7 +26,7 @@ import {
 } from '../mieszanki/kolejnosc';
 import { dlugoscUkladaniaObszaru } from './obmiarLive';
 import { dlugoscKilometrazaObszaru, bokiFigury } from './obmiarFigura';
-import { obszaryZPolygony, czyLiniaOsiBocznej, stronaTrasyZKoloru, type WynikParsowaniaXfdf } from './xfdfParser';
+import { obszaryZPolygony, czyLiniaOsiBocznej, kreskaNalezyDoOsi, stronaTrasyZKoloru, type WynikParsowaniaXfdf } from './xfdfParser';
 import { skalujWierzcholki } from './obmiarGeometry';
 import { powierzchniaWarstwyObszaru } from './odsadzkaObszaru';
 import {
@@ -228,7 +229,9 @@ export function arkuszZWynikuXfdf(
     }
     : undefined;
   const osieBoczne: OsBocznaPzt[] = wynikOs.polilinie
-    .filter((l) => czyLiniaOsiBocznej(l.color, l.subject) && l.wierzcholki.length >= 2)
+    .filter((l) => czyLiniaOsiBocznej(l.color, l.subject)
+      && l.wierzcholki.length >= 2
+      && !kreskaNalezyDoOsi(l.wierzcholki, os?.wierzcholki ?? []))
     .map((l) => {
       const wm = skalujWierzcholki(l.wierzcholki, skala);
       return {
@@ -254,7 +257,7 @@ export function arkuszZWynikuXfdf(
   });
 }
 
-/** Długość arkusza = suma linii osi z XFDF (wymiar kreski, inaczej geometria osi). */
+/** Długość arkusza = długość osi z XFDF (wymiar tej kreski, inaczej geometria łamanej). */
 export function dlugoscArkuszaM(arkusz: ArkuszPzt): number {
   const etykieta = arkusz.osTrasy?.dlugoscEtykietaM;
   if (etykieta && etykieta > 80 && etykieta < 2500) return round2(etykieta);
@@ -428,6 +431,57 @@ function ustawKmObszaru(obszar: ObszarObmiaru, startM: number, koniecM: number):
   };
 }
 
+function dlugoscZapisanejOsi(os: { wierzcholkiM?: Punkt2D[]; dlugoscM?: number; dlugoscEtykietaM?: number }): number {
+  const etykieta = os.dlugoscEtykietaM;
+  if (etykieta && etykieta > 0.5) return etykieta;
+  if (os.wierzcholkiM && os.wierzcholkiM.length >= 2) {
+    const geom = dlugoscPolilinii(os.wierzcholkiM);
+    if (geom > 0.5) return geom;
+  }
+  return os.dlugoscM ?? 0;
+}
+
+/**
+ * Oś arkusza już wgranego: najdłuższa zapisana kreska (główna albo boczna).
+ * Dzięki temu niebieska oś dłuższa niż krótka czarna wchodzi w pikietaż bez ponownego importu.
+ */
+export function ustawNajdluzszaOs(arkusz: ArkuszPzt): ArkuszPzt {
+  const boczne = arkusz.osieBoczne ?? [];
+  let bestI = -1;
+  let bestDl = arkusz.osTrasy ? dlugoscZapisanejOsi(arkusz.osTrasy) : 0;
+  boczne.forEach((os, i) => {
+    const dl = dlugoscZapisanejOsi(os);
+    if (dl > bestDl + 0.5) {
+      bestDl = dl;
+      bestI = i;
+    }
+  });
+  if (bestI < 0) return arkusz;
+  const os = boczne[bestI];
+  const zostaja = boczne.filter((_, i) => i !== bestI);
+  const stare = arkusz.osTrasy;
+  if (stare && stare.wierzcholkiM.length >= 2) {
+    zostaja.push({
+      id: `os-krotka-${bestI}`,
+      wierzcholkiPdf: stare.wierzcholkiPdf,
+      wierzcholkiM: stare.wierzcholkiM,
+      dlugoscM: round2(dlugoscZapisanejOsi(stare)),
+      kolor: stare.kolor || '#000000',
+    });
+  }
+  return {
+    ...arkusz,
+    osTrasy: {
+      wierzcholkiPdf: os.wierzcholkiPdf,
+      wierzcholkiM: os.wierzcholkiM,
+      dlugoscM: round2(bestDl),
+      dlugoscEtykietaM: round2(bestDl),
+      kolor: os.kolor,
+    },
+    osieBoczne: zostaja,
+  };
+}
+
 /**
  * Uciągla kilometraż: pierwszy arkusz od km projektu,
  * kolejne z flagą kontynuacji startują na końcu poprzedniego.
@@ -437,7 +491,7 @@ export function zastosujKilometrazArkuszy(
   arkusze: ArkuszPzt[],
   kilometrazPoczatkowyM: number,
 ): ArkuszPzt[] {
-  const przygotowane = arkusze.map((surowy) => dopasujGeometrieArkuszaDoEtykiety(surowy));
+  const przygotowane = arkusze.map((surowy) => dopasujGeometrieArkuszaDoEtykiety(ustawNajdluzszaOs(surowy)));
   let biezacy = Math.max(0, kilometrazPoczatkowyM);
   return przygotowane.map((arkusz, i) => {
     const naTrasie = czyArkuszNaTrasieGlownej(arkusz, i);

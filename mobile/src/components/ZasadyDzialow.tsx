@@ -35,7 +35,7 @@ export const ZASADA_BUDOWY: SlajdZasady[] = [
         <WycinekPrzycisku tekst="Dodaj arkusze XFDF / PDF" plus drugi />
       </>
     ),
-    opis: 'W zakładce **PZT** stuknij **+ Dodaj arkusze XFDF / PDF** i ustaw **role kolorów** (trasa L i P, droga boczna, wjazd, ścieżka). Czerwona linia to krawężnik, czarna to oś główna, niebieska – oś boczna. Stuknij wiersz **Kontynuacja poprzedniego arkusza**, żeby zdjąć plik z pikietażu (droga boczna): następny arkusz trasy styka się z poprzednim, np. 9, potem 11. W **Konstrukcjach** każda ma numer: **Przypisz obszary**, stukaj je na arkuszach PZT i zatwierdź **OK**. **Przedmiar** liczy powierzchnie z odsadzkami.',
+    opis: 'W zakładce **PZT** stuknij **+ Dodaj arkusze XFDF / PDF** i ustaw **role kolorów** (trasa L i P, droga boczna, wjazd, ścieżka). Czerwona linia to krawężnik. Oś trasy to najdłuższa kreska osi, czarna albo niebieska: jej długość jest kilometrażem arkusza, krawężnik jej nie skraca. Krótsze niebieskie kreski to osie boczne. **Podziałka kilometrażu osi** rysuje pikiety co podaną liczbę metrów wzdłuż tej osi. Stuknij wiersz **Kontynuacja poprzedniego arkusza**, żeby zdjąć plik z pikietażu (droga boczna): następny arkusz trasy styka się z poprzednim, np. 9, potem 11. W **Konstrukcjach** każda ma numer: **Przypisz obszary**, stukaj je na arkuszach PZT i zatwierdź **OK**. **Przedmiar** liczy powierzchnie z odsadzkami.',
   },
   {
     tytul: 'Wykonanie',

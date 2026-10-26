@@ -106,6 +106,20 @@ describe('obmiarGeometry / xfdfParser', () => {
     assert.equal(obszary[0].krawedzniki?.length, 1);
   });
 
+  it('najdłuższa niebieska kreska jest osią w całości, krótsza czarna 155 m jej nie zastępuje', () => {
+    const xfdf = `<?xml version="1.0"?><xfdf>
+<polygon interior-color="#FFEE58" subject="Obszar"><vertices>0,10;400,10;400,30;0,30</vertices></polygon>
+<polyline color="#000000" subject="Obwód"><vertices>0,20;90,20</vertices><contents>155 m</contents></polyline>
+<polyline color="#0000FF" subject="Obwód"><vertices>0,20;150,20;160,35;400,20</vertices><contents>420,50 m</contents></polyline>
+<polyline color="#0000FF" subject="Obwód"><vertices>160,35;160,120</vertices><contents>18 m</contents></polyline>
+<polyline color="#FF0000" width="2" subject="Obwód"><vertices>140,10;180,40</vertices><contents>40 m</contents></polyline>
+</xfdf>`;
+    const w = parsujXfdfTekst(xfdf, 'ark.xfdf');
+    assert.equal(w.osTrasy?.color?.toUpperCase(), '#0000FF');
+    assert.equal(w.osTrasy?.dlugoscEtykietaM, 420.5);
+    assert.deepEqual(w.osTrasy?.wierzcholki.map((p) => p.x), [0, 150, 160, 400]);
+  });
+
   it('żółty/różowy + czerwony obwód: L/P, krawężnik na krawędzi, bez odsadzki', () => {
     const xfdf = `<?xml version="1.0"?><xfdf>
 <polygon interior-color="#FFEE58" subject="Obszar">

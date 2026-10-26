@@ -1587,31 +1587,59 @@ export function PztArkuszPodglad({
                             vectorEffect="non-scaling-stroke"
                           />
                         ) : null}
-                        {mapa.podzialki.map((t) => (
-                          <G key={`pk-${t.kmM}`}>
-                            <Line
-                              x1={t.x1}
-                              y1={t.y1}
-                              x2={t.x2}
-                              y2={t.y2}
-                              stroke="#374151"
-                              strokeWidth={swEkran * 0.75}
-                              strokeLinecap="butt"
-                              vectorEffect="non-scaling-stroke"
-                            />
-                            <SvgText
-                              x={t.tx}
-                              y={t.ty}
-                              fontSize={t.fontSvg}
-                              fontWeight="600"
-                              fill="#374151"
-                              textAnchor="middle"
-                              alignmentBaseline="middle"
-                            >
-                              {t.etykieta}
-                            </SvgText>
-                          </G>
-                        ))}
+                        {(() => {
+                          let ostatniNapis: { x: number; y: number } | null = null;
+                          const skalaEkranu = Math.max(xform.s, 0.05);
+                          return mapa.podzialki.map((t) => {
+                            const mx = (t.x1 + t.x2) / 2;
+                            const my = (t.y1 + t.y2) / 2;
+                            let x1 = t.x1;
+                            let y1 = t.y1;
+                            let x2 = t.x2;
+                            let y2 = t.y2;
+                            const dlUser = Math.hypot(x2 - x1, y2 - y1);
+                            const minUser = 18 / skalaEkranu;
+                            if (dlUser < minUser) {
+                              const k = minUser / (dlUser || 1);
+                              x1 = mx - (x2 - x1) * k / 2;
+                              y1 = my - (y2 - y1) * k / 2;
+                              x2 = mx + (t.x2 - t.x1) * k / 2;
+                              y2 = my + (t.y2 - t.y1) * k / 2;
+                            }
+                            const odNapis = ostatniNapis
+                              ? Math.hypot(mx - ostatniNapis.x, my - ostatniNapis.y) * skalaEkranu
+                              : Infinity;
+                            const pokazNapis = odNapis >= 28;
+                            if (pokazNapis) ostatniNapis = { x: mx, y: my };
+                            return (
+                              <G key={`pk-${t.kmM}`}>
+                                <Line
+                                  x1={x1}
+                                  y1={y1}
+                                  x2={x2}
+                                  y2={y2}
+                                  stroke="#111827"
+                                  strokeWidth={swEkran * 1.35}
+                                  strokeLinecap="butt"
+                                  vectorEffect="non-scaling-stroke"
+                                />
+                                {pokazNapis ? (
+                                  <SvgText
+                                    x={t.tx}
+                                    y={t.ty}
+                                    fontSize={11 / skalaEkranu}
+                                    fontWeight="700"
+                                    fill="#111827"
+                                    textAnchor="middle"
+                                    alignmentBaseline="middle"
+                                  >
+                                    {t.etykieta}
+                                  </SvgText>
+                                ) : null}
+                              </G>
+                            );
+                          });
+                        })()}
                         {mapa.zakresKreski.map((t) => {
                           const napis = t.rola === 'start' ? 'START' : 'KONIEC';
                           const font = 13 / Math.max(xform.s, 0.08);

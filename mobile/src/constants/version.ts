@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.61';
+export const WERSJA_APLIKACJI = '1.8.62';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,15 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.62',
+    data: '2026-10-26',
+    tytul: 'Długość osi z kreski i podziałka co 10 m',
+    zmiany: [
+      'Oś trasy to najdłuższa kreska osi na arkuszu, czarna albo niebieska. Jej długość jest kilometrażem. Krawężnik i inne linie jej nie skracają',
+      'Podziałka kilometrażu znowu rysuje kreski pikiet co podaną liczbę metrów, także co 10 m',
+    ],
+  },
   {
     wersja: '1.8.61',
     data: '2026-10-26',

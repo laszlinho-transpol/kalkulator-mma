@@ -207,6 +207,56 @@ describe('projektBudowy', () => {
     assert.equal(reczna?.nazwa, 'Trasa L – ręcznie');
   });
 
+  it('kilometraż arkusza to długość najdłuższej kreski osi, także niebieskiej', () => {
+    const xfdf = `<?xml version="1.0"?><xfdf>
+<polygon interior-color="#FFEE58" subject="Obszar"><vertices>0,10;400,10;400,30;0,30</vertices></polygon>
+<polyline color="#000000" subject="Obwód"><vertices>0,20;90,20</vertices><contents>155 m</contents></polyline>
+<polyline color="#0000FF" subject="Obwód"><vertices>0,20;150,20;160,35;400,20</vertices><contents>420,50 m</contents></polyline>
+<polyline color="#0000FF" subject="Obwód"><vertices>160,35;160,120</vertices><contents>18 m</contents></polyline>
+<polyline color="#FF0000" width="2" subject="Obwód"><vertices>140,10;180,40</vertices></polyline>
+</xfdf>`;
+    const arkusz = arkuszZWynikuXfdf(parsujXfdfTekst(xfdf, 'ark.xfdf'), {
+      kolejnosc: 1,
+      kontynuacjaPoprzedniego: false,
+    });
+    assert.equal(dlugoscArkuszaM(arkusz), 420.5);
+    assert.equal(arkusz.osTrasy?.wierzcholkiPdf.length, 4);
+    assert.equal(arkusz.osieBoczne?.length, 1);
+    assert.ok((arkusz.osieBoczne?.[0].dlugoscM ?? 0) < 30);
+  });
+
+  it('zapisany arkusz podmienia krótką oś na dłuższą niebieską', () => {
+    const krotka: ArkuszPzt = {
+      id: 'a',
+      nazwa: 'Ark. 2_9',
+      zrodloNazwa: 'a.xfdf',
+      kolejnosc: 1,
+      kontynuacjaPoprzedniego: false,
+      kilometrazPoczatkowyM: 106000,
+      kilometrazKoncowyM: 106155,
+      obszary: [],
+      osTrasy: {
+        wierzcholkiPdf: [{ x: 0, y: 0 }, { x: 80, y: 0 }],
+        wierzcholkiM: [{ x: 0, y: 0 }, { x: 155, y: 0 }],
+        dlugoscM: 155,
+        dlugoscEtykietaM: 155,
+        kolor: '#000000',
+      },
+      osieBoczne: [{
+        id: 'b',
+        wierzcholkiPdf: [{ x: 0, y: 0 }, { x: 0, y: 200 }],
+        wierzcholkiM: [{ x: 0, y: 0 }, { x: 0, y: 420.5 }],
+        dlugoscM: 420.5,
+        kolor: '#0000FF',
+      }],
+    };
+    const [po] = zastosujKilometrazArkuszy([krotka], 106000);
+    assert.equal(po.osTrasy?.kolor?.toUpperCase(), '#0000FF');
+    assert.equal(po.kilometrazKoncowyM, 106420.5);
+    assert.equal(po.osieBoczne?.length, 1);
+    assert.ok((po.osieBoczne?.[0].dlugoscM ?? 0) < 200);
+  });
+
   it('legenda dopisuje oś i nowy kolor obszaru z kolejnego XFDF', () => {
     const xfdfOs = `<?xml version="1.0"?><xfdf>
 <polygon interior-color="#FFEE58"><vertices>0,40;0,20;100,20;100,40</vertices></polygon>

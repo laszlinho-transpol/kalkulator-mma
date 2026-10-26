@@ -487,7 +487,7 @@ export function SekcjaPzt({
       <View style={[karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border, gap: 8 }]}>
         <View style={styles.rzad}>
           <Text style={[styles.label, { color: theme.colors.text }]}>Podziałka kilometrażu osi</Text>
-          <InfoTooltip tresc={`Kreska z pikietą co pełne ${projekt.podzialkaKilometrazuM ?? 50} m od startu. Oś i kilometraż biorą się z XFDF: suma długości linii osi (np. „422,07 m” na kresce). Pominięty arkusz drogi bocznej (np. 2_9) nie robi dziury: 2_8 styka się z 2_10. Ponowne wgranie tego samego arkusza podmienia geometrię w pamięci przeglądarki.`} />
+          <InfoTooltip tresc={`Kreska z pikietą co ${projekt.podzialkaKilometrazuM ?? 50} m wzdłuż osi. Oś to najdłuższa kreska osi na arkuszu (czarna albo niebieska). Jej długość jest kilometrażem – krawężnik ani inna linia jej nie skracają. Krótsze niebieskie kreski to osie boczne.`} />
         </View>
         <View style={styles.kmRzad}>
           <TextInput
@@ -619,7 +619,7 @@ export function SekcjaPzt({
                 <View style={[karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border, gap: 8 }]}>
                   <Text style={{ color: theme.colors.text, fontWeight: '800' }}>Role kolorów</Text>
                   <Text style={{ color: theme.colors.textSecondary, fontSize: 12, lineHeight: 16 }}>
-                    Żółty i różowy to trasa główna, oliwkowy drogi boczne, zielony wjazdy, turkusowy ścieżka. Czerwona linia to krawężnik (obszar się przy niej nie poszerza), niebieska to oś boczna.
+                    Żółty i różowy to trasa główna, oliwkowy drogi boczne, zielony wjazdy, turkusowy ścieżka. Czerwona linia to krawężnik (obszar się przy niej nie poszerza). Oś trasy to najdłuższa kreska osi, czarna albo niebieska: długość tej kreski jest kilometrażem. Krótsze niebieskie kreski to osie boczne.
                   </Text>
                   {projekt.legenda.filter((w) => w.typ === 'obszar' || w.typ === 'linia' || w.typ === 'os').map((w) => (
                     <View key={w.id} style={{ gap: 6 }}>
