@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, ScrollView, Switch, Platform, TextInput, Alert,
+  View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, TextInput, Alert,
 } from 'react-native';
 import type { AppTheme } from '../../constants/theme';
 import type { ProjektBudowy } from '../../types';
@@ -439,6 +439,18 @@ export function SekcjaPzt({
     const next = przesunArkusz(projekt, aktywny.id, kierunek);
     onZmien(next);
   };
+  const ustawKontynuacje = (wlaczona: boolean) => {
+    if (!aktywny || idxAktywny <= 0) return;
+    const arkusze = zastosujKilometrazArkuszy(
+      projekt.arkusze.map((a) => (
+        a.id === aktywny.id
+          ? { ...a, kontynuacjaPoprzedniego: wlaczona, kilometrazPoczatkowyM: wlaczona ? a.kilometrazPoczatkowyM : 0 }
+          : a
+      )),
+      projekt.kilometrazPoczatkowyM,
+    );
+    onZmien({ ...projekt, arkusze });
+  };
 
   return (
     <View style={{ gap: 10 }}>
@@ -733,31 +745,37 @@ export function SekcjaPzt({
                     <Text style={{ color: theme.colors.text, fontWeight: '700' }}>Później na trasie ▶</Text>
                   </TouchableOpacity>
                 </View>
-                <View style={styles.rzad}>
-                  <Text style={{ color: theme.colors.text, flex: 1, fontWeight: '600' }}>Kontynuacja poprzedniego arkusza</Text>
-                  <Switch
-                    value={idxAktywny === 0 || aktywny.kontynuacjaPoprzedniego !== false}
-                    onValueChange={(v) => {
-                      const arkusze = zastosujKilometrazArkuszy(
-                        projekt.arkusze.map((a) => (
-                          a.id === aktywny.id
-                            ? { ...a, kontynuacjaPoprzedniego: v, kilometrazPoczatkowyM: v ? a.kilometrazPoczatkowyM : 0 }
-                            : a
-                        )),
-                        projekt.kilometrazPoczatkowyM,
-                      );
-                      onZmien({ ...projekt, arkusze });
-                    }}
-                    disabled={idxAktywny === 0}
-                  />
-                </View>
-                {idxAktywny > 0 ? (
-                  <Text style={{ color: theme.colors.textSecondary, fontSize: 12, lineHeight: 16 }}>
-                    {aktywny.kontynuacjaPoprzedniego !== false
-                      ? 'Włączone: ten arkusz dokleja się do pikietażu poprzedniego arkusza trasy głównej.'
-                      : 'Wyłączone: to PZT poza trasą główną (np. droga boczna). Następny arkusz z włączoną kontynuacją styka się z poprzednim, więc kolejność może iść 9, potem 11.'}
-                  </Text>
-                ) : null}
+                {(() => {
+                  const naTrasie = idxAktywny === 0 || aktywny.kontynuacjaPoprzedniego !== false;
+                  return (
+                    <TouchableOpacity
+                      disabled={idxAktywny === 0}
+                      onPress={() => ustawKontynuacje(!naTrasie)}
+                      accessibilityRole="switch"
+                      accessibilityState={{ checked: naTrasie, disabled: idxAktywny === 0 }}
+                      accessibilityLabel="Kontynuacja poprzedniego arkusza"
+                      style={[styles.kontynuacja, {
+                        borderColor: naTrasie ? theme.colors.primary : theme.colors.border,
+                        backgroundColor: theme.colors.card,
+                        opacity: idxAktywny === 0 ? 0.55 : 1,
+                      }]}
+                    >
+                      <View style={{ flex: 1, gap: 4 }}>
+                        <Text style={{ color: theme.colors.text, fontWeight: '700' }}>Kontynuacja poprzedniego arkusza</Text>
+                        <Text style={{ color: theme.colors.textSecondary, fontSize: 12, lineHeight: 16 }}>
+                          {idxAktywny === 0
+                            ? 'Pierwszy arkusz zaczyna trasę.'
+                            : naTrasie
+                              ? 'Stuknij, żeby wyłączyć. Ten plik zejdzie z pikietażu, a następny arkusz trasy styka się z poprzednim.'
+                              : 'Wyłączone. To PZT poza trasą główną. Stuknij ponownie, żeby włączyć kontynuację.'}
+                        </Text>
+                      </View>
+                      <View style={[styles.suwak, { backgroundColor: naTrasie ? theme.colors.primary : theme.colors.border }]}>
+                        <View style={[styles.suwakKropka, { alignSelf: naTrasie ? 'flex-end' : 'flex-start' }]} />
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })()}
                 {!aktywny.kontynuacjaPoprzedniego && idxAktywny > 0 ? (
                   <View>
                     <Text style={[styles.label, { color: theme.colors.textSecondary }]}>Własny początek tego arkusza</Text>
@@ -949,6 +967,9 @@ const styles = StyleSheet.create({
   kmRzad: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
   input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15 },
   btnKolej: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, flexGrow: 1 },
+  kontynuacja: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 12 },
+  suwak: { width: 52, height: 32, borderRadius: 16, padding: 3, justifyContent: 'center' },
+  suwakKropka: { width: 26, height: 26, borderRadius: 13, backgroundColor: '#fff' },
   btnUsun: { borderWidth: 1, borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
   btnKonfigurator: { borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12 },
   pdfChipy: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },

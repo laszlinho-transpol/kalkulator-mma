@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.60';
+export const WERSJA_APLIKACJI = '1.8.61';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,14 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.61',
+    data: '2026-10-26',
+    tytul: 'Kontynuacja arkusza stuknięciem wiersza',
+    zmiany: [
+      '„Kontynuacja poprzedniego arkusza” to cały wiersz: stuknięcie wyłącza pikietaż tego pliku i tak zostaje. Następny arkusz trasy styka się z poprzednim',
+    ],
+  },
   {
     wersja: '1.8.60',
     data: '2026-10-26',
