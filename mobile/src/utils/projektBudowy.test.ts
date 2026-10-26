@@ -128,6 +128,44 @@ describe('projektBudowy', () => {
     assert.equal(s1.obszary[0].kilometrazStartM, 840);
   });
 
+  it('wyłączona kontynuacja nie wlicza drogi bocznej: po 9 jest 11', () => {
+    const ark = (id: string, dl: number, kontynuacja: boolean): ArkuszPzt => ({
+      id,
+      nazwa: id,
+      zrodloNazwa: `${id}.xfdf`,
+      kolejnosc: 1,
+      kontynuacjaPoprzedniego: kontynuacja,
+      kilometrazPoczatkowyM: 0,
+      kilometrazKoncowyM: 0,
+      obszary: [prostokat(id, '#FFEE58', dl, 5, id)],
+      osTrasy: {
+        wierzcholkiPdf: [{ x: 0, y: 0 }, { x: 100, y: 0 }],
+        wierzcholkiM: [{ x: 0, y: 0 }, { x: dl, y: 0 }],
+        dlugoscM: dl,
+        dlugoscEtykietaM: dl,
+      },
+    });
+    const [a9, a10, a11] = zastosujKilometrazArkuszy([
+      ark('2_9', 400, false),
+      ark('2_10', 421.54, false),
+      ark('2_11', 430, true),
+    ], 110000);
+    assert.equal(a9.kilometrazKoncowyM, 110400);
+    assert.equal(a10.kontynuacjaPoprzedniego, false);
+    assert.equal(a10.kilometrazPoczatkowyM, 0);
+    assert.equal(a11.kilometrazPoczatkowyM, 110400);
+    assert.equal(a11.kilometrazKoncowyM, 110830);
+    const projekt = { ...pustyProjektBudowy(110000), arkusze: [a9, a10, a11] };
+    assert.equal(sumaOsiTrasyM(projekt), 830);
+    const dalej = przeliczProjektPoZmianieKm(projekt);
+    assert.equal(dalej.arkusze[1].kontynuacjaPoprzedniego, false);
+    assert.equal(dalej.arkusze[2].kilometrazPoczatkowyM, 110400);
+    const przestawiony = przesunArkusz(projekt, '2_11', -1);
+    assert.equal(przestawiony.arkusze.map((a) => a.id).join(','), '2_9,2_11,2_10');
+    assert.equal(przestawiony.arkusze[2].kontynuacjaPoprzedniego, false);
+    assert.equal(przestawiony.arkusze[1].kilometrazPoczatkowyM, 110400);
+  });
+
   it('kilometraż arkusza to średnia osi L/P, nie max (dłuższa jezdnia / wyspy)', () => {
     const a1: ArkuszPzt = {
       id: 'a1',

@@ -35,7 +35,7 @@ export const ZASADA_BUDOWY: SlajdZasady[] = [
         <WycinekPrzycisku tekst="Dodaj arkusze XFDF / PDF" plus drugi />
       </>
     ),
-    opis: 'W zakładce **PZT** stuknij **+ Dodaj arkusze XFDF / PDF** i ustaw **role kolorów** (trasa L i P, droga boczna, wjazd, ścieżka). Czerwona linia to krawężnik, czarna to oś główna, niebieska – oś boczna. W **Konstrukcjach** każda ma numer: **Przypisz obszary**, stukaj je na arkuszach PZT i zatwierdź **OK**. **Przedmiar** liczy powierzchnie z odsadzkami.',
+    opis: 'W zakładce **PZT** stuknij **+ Dodaj arkusze XFDF / PDF** i ustaw **role kolorów** (trasa L i P, droga boczna, wjazd, ścieżka). Czerwona linia to krawężnik, czarna to oś główna, niebieska – oś boczna. **Kontynuacja poprzedniego arkusza** wyłączona oznacza PZT poza trasą (droga boczna): pikietaż idzie dalej z poprzedniego arkusza trasy, np. 9, potem 11. W **Konstrukcjach** każda ma numer: **Przypisz obszary**, stukaj je na arkuszach PZT i zatwierdź **OK**. **Przedmiar** liczy powierzchnie z odsadzkami.',
   },
   {
     tytul: 'Wykonanie',

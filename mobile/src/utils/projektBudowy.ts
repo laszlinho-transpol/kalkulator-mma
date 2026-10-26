@@ -273,14 +273,33 @@ export function dlugoscArkuszaM(arkusz: ArkuszPzt): number {
   return round2(ds.reduce((s, d) => s + d, 0) / ds.length);
 }
 
-/** Suma pikietażu = suma długości osi XFDF. */
+/**
+ * Pierwszy arkusz zaczyna trasę. Kolejny z wyłączoną kontynuacją (PZT drogi bocznej)
+ * nie wchodzi w pikietaż: następny arkusz z włączoną kontynuacją styka się z poprzednim.
+ */
+export function czyArkuszNaTrasieGlownej(arkusz: ArkuszPzt, index: number): boolean {
+  return index === 0 || arkusz.kontynuacjaPoprzedniego !== false;
+}
+
+export function arkuszeTrasyGlownej(arkusze: ArkuszPzt[]): ArkuszPzt[] {
+  return arkusze.filter((a, i) => czyArkuszNaTrasieGlownej(a, i));
+}
+
+/** Suma pikietażu trasy głównej = osie XFDF arkuszy z włączoną kontynuacją. */
 export function sumaOsiTrasyM(projekt: ProjektBudowy): number {
-  const zOsi = round2(projekt.arkusze.reduce((s, a) => s + dlugoscArkuszaM(a), 0));
+  const naTrasie = arkuszeTrasyGlownej(projekt.arkusze);
+  const zOsi = round2(naTrasie.reduce((s, a) => s + dlugoscArkuszaM(a), 0));
   if (zOsi > 1) return zOsi;
-  return round2(projekt.arkusze.reduce(
+  return round2(naTrasie.reduce(
     (s, a) => s + Math.max(0, a.kilometrazKoncowyM - a.kilometrazPoczatkowyM),
     0,
   ));
+}
+
+export function koniecTrasyGlownejM(projekt: ProjektBudowy): number | undefined {
+  const trasa = arkuszeTrasyGlownej(projekt.arkusze);
+  if (trasa.length === 0) return undefined;
+  return trasa[trasa.length - 1].kilometrazKoncowyM;
 }
 
 /** Długość arkusza do pikietażu: zawsze linia osi XFDF. */
@@ -305,7 +324,8 @@ export function podsumowanieOsiTrasy(projekt: ProjektBudowy): {
   let geomM = 0;
   const wymiary: number[] = [];
   let xfdfM = 0;
-  for (const a of projekt.arkusze) {
+  projekt.arkusze.forEach((a, i) => {
+    if (!czyArkuszNaTrasieGlownej(a, i)) return;
     const e = a.osTrasy?.dlugoscEtykietaM;
     const native = (e && e > 80 && e < 2500) ? round2(e) : dlugoscArkuszaM(a);
     wymiary.push(native);
@@ -319,7 +339,7 @@ export function podsumowanieOsiTrasy(projekt: ProjektBudowy): {
     } else if (a.osTrasy && a.osTrasy.dlugoscM > 0.5) {
       geomM += a.osTrasy.dlugoscM;
     }
-  }
+  });
   const xfdf = round2(xfdfM);
   const kmM = sumaOsiTrasyM(projekt);
   return {
@@ -420,16 +440,15 @@ export function zastosujKilometrazArkuszy(
   const przygotowane = arkusze.map((surowy) => dopasujGeometrieArkuszaDoEtykiety(surowy));
   let biezacy = Math.max(0, kilometrazPoczatkowyM);
   return przygotowane.map((arkusz, i) => {
-    const start = i === 0 || arkusz.kontynuacjaPoprzedniego
-      ? biezacy
-      : arkusz.kilometrazPoczatkowyM;
+    const naTrasie = czyArkuszNaTrasieGlownej(arkusz, i);
     const dlugosc = dlugoscArkuszaM(arkusz);
+    const start = naTrasie ? biezacy : arkusz.kilometrazPoczatkowyM;
     const koniec = round2(start + dlugosc);
-    biezacy = koniec;
+    if (naTrasie) biezacy = koniec;
     return {
       ...arkusz,
       kolejnosc: i + 1,
-      kontynuacjaPoprzedniego: i > 0,
+      kontynuacjaPoprzedniego: i === 0 ? false : arkusz.kontynuacjaPoprzedniego !== false,
       kilometrazPoczatkowyM: start,
       kilometrazKoncowyM: koniec,
       obszary: arkusz.obszary.map((o) => ustawKmObszaru(o, start, koniec)),
@@ -1216,7 +1235,6 @@ export function usunArkusz(projekt: ProjektBudowy, arkuszId: string): ProjektBud
     projekt.arkusze.filter((a) => a.id !== arkuszId).map((a, i) => ({
       ...a,
       kolejnosc: i + 1,
-      kontynuacjaPoprzedniego: i === 0 ? false : true,
     })),
     projekt.kilometrazPoczatkowyM,
   );
@@ -1236,13 +1254,11 @@ export function przesunArkusz(projekt: ProjektBudowy, arkuszId: string, kierunek
   if (idx < 0 || j < 0 || j >= projekt.arkusze.length) return projekt;
   const kopia = [...projekt.arkusze];
   const [item] = kopia.splice(idx, 1);
-  kopia.splice(j, 0, item);
+  const przenoszony = idx === 0 ? { ...item, kontynuacjaPoprzedniego: true } : item;
+  kopia.splice(j, 0, przenoszony);
+  if (kopia[0]) kopia[0] = { ...kopia[0], kontynuacjaPoprzedniego: false };
   const arkusze = zastosujKilometrazArkuszy(
-    kopia.map((a, i) => ({
-      ...a,
-      kolejnosc: i + 1,
-      kontynuacjaPoprzedniego: i > 0,
-    })),
+    kopia.map((a, i) => ({ ...a, kolejnosc: i + 1 })),
     projekt.kilometrazPoczatkowyM,
   );
   return { ...projekt, arkusze };

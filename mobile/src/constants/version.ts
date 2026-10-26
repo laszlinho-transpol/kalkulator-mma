@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.59';
+export const WERSJA_APLIKACJI = '1.8.60';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,15 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.60',
+    data: '2026-10-26',
+    tytul: 'PZT drogi bocznej poza pikietażem',
+    zmiany: [
+      'Suwak „Kontynuacja poprzedniego arkusza” da się wyłączyć i tak zostaje. Wyłączony arkusz (np. Ark. 2_10, droga boczna) nie wlicza się do kilometraża trasy głównej',
+      'Następny arkusz z włączoną kontynuacją styka się z poprzednim arkuszem trasy: kolejność może iść 1…9, 11, 12, 13',
+    ],
+  },
   {
     wersja: '1.8.59',
     data: '2026-10-26',

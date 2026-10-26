@@ -33,7 +33,7 @@ import {
   type WarstwaLiniowki,
 } from '../../liniowka/liniowka';
 import { wpisLegendyObszaru } from '../../utils/planZBudowy';
-import { etykietaZakladkiArkusza, formatujKmM, kluczLegendy, konstrukcjaDlaObszaru, ustawTloArkusza } from '../../utils/projektBudowy';
+import { czyArkuszNaTrasieGlownej, etykietaZakladkiArkusza, formatujKmM, kluczLegendy, konstrukcjaDlaObszaru, ustawTloArkusza } from '../../utils/projektBudowy';
 import { rysunkiOdsadzekArkusza } from '../../utils/odsadzkaObszaru';
 import { formatLiczby } from '../../utils/calculations';
 import { potwierdzAkcje, pokazKomunikat } from '../../utils/dialog';
@@ -196,9 +196,11 @@ export function SekcjaLiniowka({
     const klucz = wpisLegendyObszaru(projekt, s.legendaId)?.klucz;
     const lo = Math.min(s.kmOdM, s.kmDoM);
     const hi = Math.max(s.kmOdM, s.kmDoM);
-    return projekt.arkusze.find((a) => a.kilometrazKoncowyM > lo && a.kilometrazPoczatkowyM < hi
+    const naTrasie = (a: ArkuszPzt, i: number) => czyArkuszNaTrasieGlownej(a, i)
+      && a.kilometrazKoncowyM > lo && a.kilometrazPoczatkowyM < hi;
+    return projekt.arkusze.find((a, i) => naTrasie(a, i)
       && a.obszary.some((o) => kluczLegendy('obszar', o.kolorWypelnienia) === klucz))
-      ?? projekt.arkusze.find((a) => a.kilometrazKoncowyM > lo && a.kilometrazPoczatkowyM < hi);
+      ?? projekt.arkusze.find((a, i) => naTrasie(a, i));
   };
 
   const pokaz = (s: SegmentLiniowki) => {

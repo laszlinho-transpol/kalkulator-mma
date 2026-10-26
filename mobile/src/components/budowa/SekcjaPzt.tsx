@@ -10,8 +10,10 @@ import { PoleKilometraz, parsujPolaKilometraza, polaZKilometraza } from '../comm
 import { parsujWebFileList, wybierzIParsujWieleXfdf } from '../../utils/xfdfImport';
 import {
   dodajArkuszeDoProjektu,
+  czyArkuszNaTrasieGlownej,
   etykietaZakladkiArkusza,
   formatujKmM,
+  koniecTrasyGlownejM,
   komunikatPoImporcieXfdf,
   podsumowanieDlugosciArkusza,
   podsumowanieOsiTrasy,
@@ -117,7 +119,7 @@ export function SekcjaPzt({
     });
   };
   const idxAktywny = aktywny ? projekt.arkusze.findIndex((a) => a.id === aktywny.id) : -1;
-  const kmKoniecTrasy = projekt.arkusze[projekt.arkusze.length - 1]?.kilometrazKoncowyM;
+  const kmKoniecTrasy = koniecTrasyGlownejM(projekt);
   const sumaOsi = podsumowanieOsiTrasy(projekt);
   const dlAkt = aktywny ? podsumowanieDlugosciArkusza(aktywny) : null;
   const kluczPikietazu = `${projekt.kilometrazPoczatkowyM}|${projekt.arkusze.length}|${sumaOsi.nEtykiet}|${sumaOsi.etykietyM}|${sumaOsi.kmM}`;
@@ -553,7 +555,9 @@ export function SekcjaPzt({
                         {i + 1}. {etykietaZakladkiArkusza(a.nazwa)}
                       </Text>
                       <Text style={{ color: theme.colors.primary, fontSize: 11, fontWeight: '700', marginTop: 2 }}>
-                        {formatujKmM(a.kilometrazPoczatkowyM)} → {formatujKmM(a.kilometrazKoncowyM)}
+                        {czyArkuszNaTrasieGlownej(a, i)
+                          ? `${formatujKmM(a.kilometrazPoczatkowyM)} → ${formatujKmM(a.kilometrazKoncowyM)}`
+                          : 'poza trasą główną'}
                       </Text>
                       {a.tlo ? (
                         <Text style={{ color: theme.colors.textSecondary, fontSize: 10, marginTop: 2 }} numberOfLines={1}>
@@ -732,10 +736,14 @@ export function SekcjaPzt({
                 <View style={styles.rzad}>
                   <Text style={{ color: theme.colors.text, flex: 1, fontWeight: '600' }}>Kontynuacja poprzedniego arkusza</Text>
                   <Switch
-                    value={aktywny.kontynuacjaPoprzedniego}
+                    value={idxAktywny === 0 || aktywny.kontynuacjaPoprzedniego !== false}
                     onValueChange={(v) => {
                       const arkusze = zastosujKilometrazArkuszy(
-                        projekt.arkusze.map((a) => a.id === aktywny.id ? { ...a, kontynuacjaPoprzedniego: v } : a),
+                        projekt.arkusze.map((a) => (
+                          a.id === aktywny.id
+                            ? { ...a, kontynuacjaPoprzedniego: v, kilometrazPoczatkowyM: v ? a.kilometrazPoczatkowyM : 0 }
+                            : a
+                        )),
                         projekt.kilometrazPoczatkowyM,
                       );
                       onZmien({ ...projekt, arkusze });
@@ -743,9 +751,16 @@ export function SekcjaPzt({
                     disabled={idxAktywny === 0}
                   />
                 </View>
+                {idxAktywny > 0 ? (
+                  <Text style={{ color: theme.colors.textSecondary, fontSize: 12, lineHeight: 16 }}>
+                    {aktywny.kontynuacjaPoprzedniego !== false
+                      ? 'Włączone: ten arkusz dokleja się do pikietażu poprzedniego arkusza trasy głównej.'
+                      : 'Wyłączone: to PZT poza trasą główną (np. droga boczna). Następny arkusz z włączoną kontynuacją styka się z poprzednim, więc kolejność może iść 9, potem 11.'}
+                  </Text>
+                ) : null}
                 {!aktywny.kontynuacjaPoprzedniego && idxAktywny > 0 ? (
                   <View>
-                    <Text style={[styles.label, { color: theme.colors.textSecondary }]}>Własny kilometraż startu</Text>
+                    <Text style={[styles.label, { color: theme.colors.textSecondary }]}>Własny początek tego arkusza</Text>
                     <PoleKilometraz
                       theme={theme}
                       compact

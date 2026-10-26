@@ -304,15 +304,16 @@ export function transformZajeciaWezlow(src: WezlyCzola, dst: WezlyCzola): Transf
  * – pozostałe punkty z różnic XFDF (ten sam układ względny).
  */
 export function scalPztDoArkusza(arkusze: ArkuszPzt[]): ArkuszPzt | null {
-  if (arkusze.length === 0) return null;
-  const kmOd = arkusze[0].kilometrazPoczatkowyM;
-  const pikietaz = round2(arkusze.reduce((s, a) => s + dlugoscDoPikietazuM(a), 0));
+  const trasa = arkusze.filter((a, i) => i === 0 || a.kontynuacjaPoprzedniego !== false);
+  if (trasa.length === 0) return null;
+  const kmOd = trasa[0].kilometrazPoczatkowyM;
+  const pikietaz = round2(trasa.reduce((s, a) => s + dlugoscDoPikietazuM(a), 0));
   const kmDo = round2(kmOd + pikietaz);
   let prevWezly: WezlyCzola | null = null;
   const osGlobal: Punkt2D[] = [];
   const obszary: ObszarObmiaru[] = [];
 
-  for (const surowy of arkusze) {
+  for (const surowy of trasa) {
     let ark = dopasujGeometrieArkuszaDoEtykiety(surowy);
     const cel = dlugoscDoPikietazuM(ark);
     if (cel > 80) ark = dopasujGeometrieArkuszaDoDlugosci(ark, cel);
