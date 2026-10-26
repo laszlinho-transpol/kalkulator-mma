@@ -430,6 +430,8 @@ export interface ObszarObmiaru {
   krawedzniki?: KrawedznikObmiaru[];
   /** Żółty = lewa, różowy = prawa (trasa główna) */
   stronaTrasy?: 'lewa' | 'prawa';
+  /** Opcjonalny opis, np. numer drogi gminnej albo kilometraż wjazdu */
+  nazwaDodatkowa?: string;
   /** Długość odcinka wzdłuż rosnącego km (oś / boki) */
   dlugoscOdcinkaM?: number;
   /** Szerokość poprzeczna (podstawa L–P) */
@@ -539,13 +541,24 @@ export interface WyjatekKonstrukcji {
   /** Kilometraż do [m bieżące] */
   kmDoM: number;
   warstwy: WarstwaKonstrukcji[];
+  /** Gdy ustawione – wyjątek dotyczy tylko tych obszarów. Puste = wszystkie obszary konstrukcji. */
+  obszarIds?: string[];
 }
 
 export interface KonstrukcjaObszaru {
-  /** Wpis legendy typu obszar */
+  /** Stabilny identyfikator (przypisanie obszarów, numer). */
+  id?: string;
+  /** Liczba porządkowa od 1. */
+  numer?: number;
+  /** Wpis legendy typu obszar (kolor, z którego powstała konstrukcja). */
   legendaId: string;
   warstwy: WarstwaKonstrukcji[];
   wyjatki: WyjatekKonstrukcji[];
+  /**
+   * Jawne przypisanie obszarów PZT. Brak pola = stary tryb „cały kolor legendy”.
+   * Pusta tablica = konstrukcja bez obszarów (tryb przypisań już włączony).
+   */
+  obszarIds?: string[];
 }
 
 /** Tło oryginalnego PDF pod SVG arkusza (binaria w pamięci / IndexedDB, nie w JSON). */
@@ -581,6 +594,18 @@ export interface ArkuszPzt {
     dlugoscEtykietaM?: number;
     kolor?: string;
   };
+  /** Niebieskie osie dróg bocznych i wjazdów – dowiązanie do kilometraża trasy głównej. */
+  osieBoczne?: OsBocznaPzt[];
+}
+
+export interface OsBocznaPzt {
+  id: string;
+  wierzcholkiPdf: Punkt2D[];
+  wierzcholkiM: Punkt2D[];
+  dlugoscM: number;
+  /** Kilometraż trasy głównej w miejscu najbliższym tej osi [m bieżące]. */
+  kmDowiazaniaM?: number;
+  kolor?: string;
 }
 
 export interface WierszPrzedmiaruScalony {

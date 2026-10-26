@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.58';
+export const WERSJA_APLIKACJI = '1.8.62';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,44 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.62',
+    data: '2026-10-26',
+    tytul: 'Długość osi z kreski i podziałka co 10 m',
+    zmiany: [
+      'Oś trasy to najdłuższa kreska osi na arkuszu, czarna albo niebieska. Jej długość jest kilometrażem. Krawężnik i inne linie jej nie skracają',
+      'Podziałka kilometrażu znowu rysuje kreski pikiet co podaną liczbę metrów, także co 10 m',
+    ],
+  },
+  {
+    wersja: '1.8.61',
+    data: '2026-10-26',
+    tytul: 'Kontynuacja arkusza stuknięciem wiersza',
+    zmiany: [
+      '„Kontynuacja poprzedniego arkusza” to cały wiersz: stuknięcie wyłącza pikietaż tego pliku i tak zostaje. Następny arkusz trasy styka się z poprzednim',
+    ],
+  },
+  {
+    wersja: '1.8.60',
+    data: '2026-10-26',
+    tytul: 'PZT drogi bocznej poza pikietażem',
+    zmiany: [
+      'Suwak „Kontynuacja poprzedniego arkusza” da się wyłączyć i tak zostaje. Wyłączony arkusz (np. Ark. 2_10, droga boczna) nie wlicza się do kilometraża trasy głównej',
+      'Następny arkusz z włączoną kontynuacją styka się z poprzednim arkuszem trasy: kolejność może iść 1…9, 11, 12, 13',
+    ],
+  },
+  {
+    wersja: '1.8.59',
+    data: '2026-10-26',
+    tytul: 'Obszary PZT, konstrukcje i odsadzki',
+    zmiany: [
+      'Na PZT role kolorów: trasa lewa i prawa, droga boczna, wjazd, ścieżka rowerowa. Czerwona linia to krawężnik (warstwa się przy niej nie poszerza). Czarna linia, także ciągła, jest osią główną, niebieska – osią drogi bocznej albo wjazdu dowiązaną do jej kilometraża',
+      'Konstrukcje mają numery. Przypisujesz do nich obszary stukając na arkuszach PZT – drugie stuknięcie odznacza, zapis jest po OK. Widać, ile obszarów ma już konstrukcję. Wyjątek może objąć kilka obszarów, a początek i koniec zaznaczasz na planie',
+      'Przedmiar liczy powierzchnię warstwy z odsadzkami konstrukcji. Obrys XFDF to ścieralna. Liniówka dorysowuje szersze warstwy',
+      'Zaawansowanie: zostało do zakrycia (powierzchnia × grubość projektowa każdej mieszanki) oraz oszczędność albo przepał wbudowanych mas wobec przedmiaru tej samej powierzchni, na warstwie i na całości',
+      'W raporcie dnia i w liniówce, oprócz wpisywania kilometraża, zaznaczasz początek i koniec na planie. Powierzchnia wykonania bierze odsadzki z raportu',
+    ],
+  },
   {
     wersja: '1.8.58',
     data: '2026-10-23',

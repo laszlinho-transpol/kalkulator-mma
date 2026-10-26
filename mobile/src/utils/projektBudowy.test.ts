@@ -83,6 +83,10 @@ describe('projektBudowy', () => {
     assert.equal(sugerowanaNazwaLegendy('linia', '#FF0000'), 'krawężnik (brak odsadzek)');
     assert.equal(sugerowanaNazwaLegendy('os', '#000000'), 'oś trasy');
     assert.equal(sugerowanaNazwaLegendy('obszar', '#4CAF50'), '');
+    assert.equal(sugerowanaNazwaLegendy('obszar', '#8B8B00'), 'Droga boczna');
+    assert.equal(sugerowanaNazwaLegendy('obszar', '#009300'), 'Wjazd');
+    assert.equal(sugerowanaNazwaLegendy('obszar', '#40E0D0'), 'Ścieżka rowerowa');
+    assert.equal(sugerowanaNazwaLegendy('os', '#0000FF'), 'oś boczna');
     assert.equal(kluczLegendy('obszar', '#ffee58'), 'obszar|#FFEE58');
     assert.equal(kluczLegendy('os', '#000000'), 'os|#000000');
   });
@@ -124,6 +128,44 @@ describe('projektBudowy', () => {
     assert.equal(s1.obszary[0].kilometrazStartM, 840);
   });
 
+  it('wyłączona kontynuacja nie wlicza drogi bocznej: po 9 jest 11', () => {
+    const ark = (id: string, dl: number, kontynuacja: boolean): ArkuszPzt => ({
+      id,
+      nazwa: id,
+      zrodloNazwa: `${id}.xfdf`,
+      kolejnosc: 1,
+      kontynuacjaPoprzedniego: kontynuacja,
+      kilometrazPoczatkowyM: 0,
+      kilometrazKoncowyM: 0,
+      obszary: [prostokat(id, '#FFEE58', dl, 5, id)],
+      osTrasy: {
+        wierzcholkiPdf: [{ x: 0, y: 0 }, { x: 100, y: 0 }],
+        wierzcholkiM: [{ x: 0, y: 0 }, { x: dl, y: 0 }],
+        dlugoscM: dl,
+        dlugoscEtykietaM: dl,
+      },
+    });
+    const [a9, a10, a11] = zastosujKilometrazArkuszy([
+      ark('2_9', 400, false),
+      ark('2_10', 421.54, false),
+      ark('2_11', 430, true),
+    ], 110000);
+    assert.equal(a9.kilometrazKoncowyM, 110400);
+    assert.equal(a10.kontynuacjaPoprzedniego, false);
+    assert.equal(a10.kilometrazPoczatkowyM, 0);
+    assert.equal(a11.kilometrazPoczatkowyM, 110400);
+    assert.equal(a11.kilometrazKoncowyM, 110830);
+    const projekt = { ...pustyProjektBudowy(110000), arkusze: [a9, a10, a11] };
+    assert.equal(sumaOsiTrasyM(projekt), 830);
+    const dalej = przeliczProjektPoZmianieKm(projekt);
+    assert.equal(dalej.arkusze[1].kontynuacjaPoprzedniego, false);
+    assert.equal(dalej.arkusze[2].kilometrazPoczatkowyM, 110400);
+    const przestawiony = przesunArkusz(projekt, '2_11', -1);
+    assert.equal(przestawiony.arkusze.map((a) => a.id).join(','), '2_9,2_11,2_10');
+    assert.equal(przestawiony.arkusze[2].kontynuacjaPoprzedniego, false);
+    assert.equal(przestawiony.arkusze[1].kilometrazPoczatkowyM, 110400);
+  });
+
   it('kilometraż arkusza to średnia osi L/P, nie max (dłuższa jezdnia / wyspy)', () => {
     const a1: ArkuszPzt = {
       id: 'a1',
@@ -163,6 +205,56 @@ describe('projektBudowy', () => {
     ]);
     const reczna = druga.find((w) => w.klucz === legenda[0].klucz);
     assert.equal(reczna?.nazwa, 'Trasa L – ręcznie');
+  });
+
+  it('kilometraż arkusza to długość najdłuższej kreski osi, także niebieskiej', () => {
+    const xfdf = `<?xml version="1.0"?><xfdf>
+<polygon interior-color="#FFEE58" subject="Obszar"><vertices>0,10;400,10;400,30;0,30</vertices></polygon>
+<polyline color="#000000" subject="Obwód"><vertices>0,20;90,20</vertices><contents>155 m</contents></polyline>
+<polyline color="#0000FF" subject="Obwód"><vertices>0,20;150,20;160,35;400,20</vertices><contents>420,50 m</contents></polyline>
+<polyline color="#0000FF" subject="Obwód"><vertices>160,35;160,120</vertices><contents>18 m</contents></polyline>
+<polyline color="#FF0000" width="2" subject="Obwód"><vertices>140,10;180,40</vertices></polyline>
+</xfdf>`;
+    const arkusz = arkuszZWynikuXfdf(parsujXfdfTekst(xfdf, 'ark.xfdf'), {
+      kolejnosc: 1,
+      kontynuacjaPoprzedniego: false,
+    });
+    assert.equal(dlugoscArkuszaM(arkusz), 420.5);
+    assert.equal(arkusz.osTrasy?.wierzcholkiPdf.length, 4);
+    assert.equal(arkusz.osieBoczne?.length, 1);
+    assert.ok((arkusz.osieBoczne?.[0].dlugoscM ?? 0) < 30);
+  });
+
+  it('zapisany arkusz podmienia krótką oś na dłuższą niebieską', () => {
+    const krotka: ArkuszPzt = {
+      id: 'a',
+      nazwa: 'Ark. 2_9',
+      zrodloNazwa: 'a.xfdf',
+      kolejnosc: 1,
+      kontynuacjaPoprzedniego: false,
+      kilometrazPoczatkowyM: 106000,
+      kilometrazKoncowyM: 106155,
+      obszary: [],
+      osTrasy: {
+        wierzcholkiPdf: [{ x: 0, y: 0 }, { x: 80, y: 0 }],
+        wierzcholkiM: [{ x: 0, y: 0 }, { x: 155, y: 0 }],
+        dlugoscM: 155,
+        dlugoscEtykietaM: 155,
+        kolor: '#000000',
+      },
+      osieBoczne: [{
+        id: 'b',
+        wierzcholkiPdf: [{ x: 0, y: 0 }, { x: 0, y: 200 }],
+        wierzcholkiM: [{ x: 0, y: 0 }, { x: 0, y: 420.5 }],
+        dlugoscM: 420.5,
+        kolor: '#0000FF',
+      }],
+    };
+    const [po] = zastosujKilometrazArkuszy([krotka], 106000);
+    assert.equal(po.osTrasy?.kolor?.toUpperCase(), '#0000FF');
+    assert.equal(po.kilometrazKoncowyM, 106420.5);
+    assert.equal(po.osieBoczne?.length, 1);
+    assert.ok((po.osieBoczne?.[0].dlugoscM ?? 0) < 200);
   });
 
   it('legenda dopisuje oś i nowy kolor obszaru z kolejnego XFDF', () => {

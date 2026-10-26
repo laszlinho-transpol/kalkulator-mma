@@ -231,6 +231,10 @@ interface Props {
   zakresKoniecM?: number;
   /** Stuknięcie w podgląd zwraca punkt PDF (wybór kilometrażu na mapie). */
   onWskazPdf?: (p: Punkt2D) => void;
+  /** Poszerzone warstwy (odsadzki) rysowane pod obrysem ścieralnej. */
+  odsadzki?: { id: string; wierzcholkiPdf: Punkt2D[]; kolor: string; krycie: number }[];
+  /** Obszary podświetlone przy przypisywaniu do konstrukcji. */
+  zaznaczoneIds?: string[];
   liniowka?: LiniowkaPodgladu;
   /** Tryb szkicu: jeden palec rysuje, dwa przybliżają. */
   rysowanie?: RysowaniePodgladu;
@@ -251,6 +255,8 @@ export function PztArkuszPodglad({
   zakresStartM,
   zakresKoniecM,
   onWskazPdf,
+  odsadzki,
+  zaznaczoneIds,
   liniowka,
   rysowanie,
 }: Props) {
@@ -303,8 +309,10 @@ export function PztArkuszPodglad({
       ...(o.krawedzniki ?? []).flatMap((k) => k.wierzcholkiPdf),
     ]);
     if (arkusz.osTrasy?.wierzcholkiPdf?.length) pts.push(...arkusz.osTrasy.wierzcholkiPdf);
+    for (const os of arkusz.osieBoczne ?? []) pts.push(...os.wierzcholkiPdf);
+    for (const o of odsadzki ?? []) pts.push(...o.wierzcholkiPdf);
     return bboxWielokata(pts);
-  }, [arkusz]);
+  }, [arkusz, odsadzki]);
 
   const mapa = useMemo(() => {
     if (arkusz.obszary.length === 0 || geometria.szer <= 0) return null;
@@ -336,8 +344,19 @@ export function PztArkuszPodglad({
           kolor: k.kolor || '#FF0000',
           odOsi: k.polozenie === 'odOsi',
         })),
+        zaznaczony: zaznaczoneIds?.includes(o.id) ?? false,
       };
     });
+    const odsadzkiSvg = (odsadzki ?? []).map((o) => ({
+      id: o.id,
+      punkty: o.wierzcholkiPdf.map(toSvg).map((p) => `${p.x},${p.y}`).join(' '),
+      kolor: o.kolor,
+      krycie: o.krycie,
+    }));
+    const osieBoczne = (arkusz.osieBoczne ?? []).map((os) => ({
+      id: os.id,
+      punkty: os.wierzcholkiPdf.map(toSvg).map((p) => `${p.x},${p.y}`).join(' '),
+    }));
     const osPdf = osPdfZorientowana(arkusz);
     const osPts = osPdf.map(toSvg);
     const osPunkty = osPts.map((p) => `${p.x},${p.y}`).join(' ');
@@ -503,6 +522,8 @@ export function PztArkuszPodglad({
     const xfdfM = arkusz.osTrasy?.dlugoscEtykietaM;
     return {
       obszary,
+      odsadzkiSvg,
+      osieBoczne,
       skalaFit,
       cx,
       cy,
@@ -518,7 +539,7 @@ export function PztArkuszPodglad({
       zakresKreski,
       rMarkerSvg: podzialki[0]?.rMarkerSvg ?? Math.max(2.2, Math.min(4.5, 3.2 * skalaFit)),
     };
-  }, [arkusz, geometria, rozmiar.w, rozmiar.h, liveStacjaM, liveAuta, podzialkaM, zakresStartM, zakresKoniecM]);
+  }, [arkusz, geometria, rozmiar.w, rozmiar.h, liveStacjaM, liveAuta, podzialkaM, zakresStartM, zakresKoniecM, odsadzki, zaznaczoneIds]);
 
   const odcinkiLiniowki = liniowka?.odcinki;
   const liniowkaSvg = useMemo(() => {
@@ -1460,13 +1481,25 @@ export function PztArkuszPodglad({
                             />
                           </G>
                         ) : null}
+                        {mapa.odsadzkiSvg.map((o) => (
+                          <Polygon
+                            key={o.id}
+                            points={o.punkty}
+                            fill={o.kolor}
+                            fillOpacity={o.krycie}
+                            stroke={o.kolor}
+                            strokeWidth={swEkran}
+                            strokeLinejoin="round"
+                            vectorEffect="non-scaling-stroke"
+                          />
+                        ))}
                         {mapa.obszary.map((o) => (
                           <Polygon
                             key={o.id}
                             points={o.punkty}
-                            fill={o.fill}
-                            stroke={o.stroke}
-                            strokeWidth={swEkran}
+                            fill={o.zaznaczony ? hexDoRgba(o.stroke, 0.55) : o.fill}
+                            stroke={o.zaznaczony ? '#111827' : o.stroke}
+                            strokeWidth={o.zaznaczony ? swEkran * 3.2 : swEkran}
                             strokeLinejoin="round"
                             vectorEffect="non-scaling-stroke"
                           />
@@ -1529,6 +1562,19 @@ export function PztArkuszPodglad({
                             />
                           )),
                         )}
+                        {mapa.osieBoczne.map((os) => (
+                          <Polyline
+                            key={os.id}
+                            points={os.punkty}
+                            fill="none"
+                            stroke="#2563EB"
+                            strokeWidth={swEkran * 1.35}
+                            strokeDasharray={`${dash * 1.2} ${dash * 0.7}`}
+                            strokeLinejoin="round"
+                            strokeLinecap="round"
+                            vectorEffect="non-scaling-stroke"
+                          />
+                        ))}
                         {mapa.osPunkty ? (
                           <Polyline
                             points={mapa.osPunkty}
@@ -1541,31 +1587,59 @@ export function PztArkuszPodglad({
                             vectorEffect="non-scaling-stroke"
                           />
                         ) : null}
-                        {mapa.podzialki.map((t) => (
-                          <G key={`pk-${t.kmM}`}>
-                            <Line
-                              x1={t.x1}
-                              y1={t.y1}
-                              x2={t.x2}
-                              y2={t.y2}
-                              stroke="#374151"
-                              strokeWidth={swEkran * 0.75}
-                              strokeLinecap="butt"
-                              vectorEffect="non-scaling-stroke"
-                            />
-                            <SvgText
-                              x={t.tx}
-                              y={t.ty}
-                              fontSize={t.fontSvg}
-                              fontWeight="600"
-                              fill="#374151"
-                              textAnchor="middle"
-                              alignmentBaseline="middle"
-                            >
-                              {t.etykieta}
-                            </SvgText>
-                          </G>
-                        ))}
+                        {(() => {
+                          let ostatniNapis: { x: number; y: number } | null = null;
+                          const skalaEkranu = Math.max(xform.s, 0.05);
+                          return mapa.podzialki.map((t) => {
+                            const mx = (t.x1 + t.x2) / 2;
+                            const my = (t.y1 + t.y2) / 2;
+                            let x1 = t.x1;
+                            let y1 = t.y1;
+                            let x2 = t.x2;
+                            let y2 = t.y2;
+                            const dlUser = Math.hypot(x2 - x1, y2 - y1);
+                            const minUser = 18 / skalaEkranu;
+                            if (dlUser < minUser) {
+                              const k = minUser / (dlUser || 1);
+                              x1 = mx - (x2 - x1) * k / 2;
+                              y1 = my - (y2 - y1) * k / 2;
+                              x2 = mx + (t.x2 - t.x1) * k / 2;
+                              y2 = my + (t.y2 - t.y1) * k / 2;
+                            }
+                            const odNapis = ostatniNapis
+                              ? Math.hypot(mx - ostatniNapis.x, my - ostatniNapis.y) * skalaEkranu
+                              : Infinity;
+                            const pokazNapis = odNapis >= 28;
+                            if (pokazNapis) ostatniNapis = { x: mx, y: my };
+                            return (
+                              <G key={`pk-${t.kmM}`}>
+                                <Line
+                                  x1={x1}
+                                  y1={y1}
+                                  x2={x2}
+                                  y2={y2}
+                                  stroke="#111827"
+                                  strokeWidth={swEkran * 1.35}
+                                  strokeLinecap="butt"
+                                  vectorEffect="non-scaling-stroke"
+                                />
+                                {pokazNapis ? (
+                                  <SvgText
+                                    x={t.tx}
+                                    y={t.ty}
+                                    fontSize={11 / skalaEkranu}
+                                    fontWeight="700"
+                                    fill="#111827"
+                                    textAnchor="middle"
+                                    alignmentBaseline="middle"
+                                  >
+                                    {t.etykieta}
+                                  </SvgText>
+                                ) : null}
+                              </G>
+                            );
+                          });
+                        })()}
                         {mapa.zakresKreski.map((t) => {
                           const napis = t.rola === 'start' ? 'START' : 'KONIEC';
                           const font = 13 / Math.max(xform.s, 0.08);

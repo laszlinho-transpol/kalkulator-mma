@@ -11,6 +11,11 @@ export interface OdcinekRaportu {
   kmOdM: number;
   kmDoM: number;
   powierzchniaM2: number;
+  /** Obszar wskazany na planie. */
+  obszarId?: string;
+  /** Odsadzki z raportu [cm]. Przedmiar liczy odsadzki konstrukcji. */
+  odsadzkaLewaCm?: number;
+  odsadzkaPrawaCm?: number;
 }
 
 export interface PozycjaRaportu {

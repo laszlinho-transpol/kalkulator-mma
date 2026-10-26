@@ -23,10 +23,10 @@ import { formatujDateKrotko } from './dates';
 import {
   arkuszeNachodzaceNaKm,
   arkuszWycinekDlaKm,
-  powierzchniaWycinkaM2,
   stacjaNaOsi,
   stacjeLokalneNaOsiM,
 } from './osPzt';
+import { powierzchniaWarstwyObszaru } from './odsadzkaObszaru';
 import {
   formatujKmM,
   kluczLegendy,
@@ -248,22 +248,10 @@ export function powierzchniaOdcinkaM2(
   let suma = 0;
   for (const arkusz of arkuszeNachodzaceNaKm(projekt, lo, hi)) {
     const matching = arkusz.obszary.filter(pasuje);
-    const osM = arkusz.osTrasy?.wierzcholkiM;
     const { s0, s1 } = stacjeLokalneNaOsiM(arkusz, lo, hi);
     if (s1 <= s0 + 0.05) continue;
-    if (osM && osM.length >= 2) {
-      for (const o of matching) {
-        const ods = odsadzkiBezKrawedznika(o, osM, s0, s1, odsadzkaLewaCm, odsadzkaPrawaCm);
-        suma += powierzchniaWycinkaM2(o, osM, s0, s1, ods.lewa, ods.prawa);
-      }
-    } else {
-      const dlArk = Math.max(0.01, arkusz.kilometrazKoncowyM - arkusz.kilometrazPoczatkowyM);
-      const udzial = Math.max(0, s1 - s0) / dlArk;
-      for (const o of matching) {
-        const ods = odsadzkiBezKrawedznika(o, osM, s0, s1, odsadzkaLewaCm, odsadzkaPrawaCm);
-        const extra = Math.abs(s1 - s0) * ((ods.lewa + ods.prawa) / 100);
-        suma += o.powierzchniaM2 * udzial + extra / Math.max(matching.length, 1);
-      }
+    for (const o of matching) {
+      suma += powierzchniaWarstwyObszaru(o, arkusz, odsadzkaLewaCm, odsadzkaPrawaCm, lo, hi);
     }
   }
   return round2(Math.max(0, suma));

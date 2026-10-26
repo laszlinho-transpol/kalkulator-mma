@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, ScrollView, Switch, Platform, TextInput, Alert,
+  View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, TextInput, Alert,
 } from 'react-native';
 import type { AppTheme } from '../../constants/theme';
 import type { ProjektBudowy } from '../../types';
@@ -10,8 +10,10 @@ import { PoleKilometraz, parsujPolaKilometraza, polaZKilometraza } from '../comm
 import { parsujWebFileList, wybierzIParsujWieleXfdf } from '../../utils/xfdfImport';
 import {
   dodajArkuszeDoProjektu,
+  czyArkuszNaTrasieGlownej,
   etykietaZakladkiArkusza,
   formatujKmM,
+  koniecTrasyGlownejM,
   komunikatPoImporcieXfdf,
   podsumowanieDlugosciArkusza,
   podsumowanieOsiTrasy,
@@ -21,6 +23,9 @@ import {
   ustawTloArkusza,
   zastosujKilometrazArkuszy,
   zmienNazweArkusza,
+  ROLE_OBSZARU_PZT,
+  konstrukcjaDlaObszaru,
+  postepPrzypisan,
 } from '../../utils/projektBudowy';
 import { karta } from '../../constants/layout';
 import { Z_METROW_BIEZACYCH } from '../../constants';
@@ -40,6 +45,9 @@ import {
   zapiszBuforPliku,
 } from '../../utils/tloPdfPamiec';
 import { dlugoscPolilinii } from '../../utils/osPzt';
+import { rysunkiOdsadzekArkusza } from '../../utils/odsadzkaObszaru';
+import { punktWWielokacie } from '../../liniowka/liniowka';
+import { Przycisk } from '../ui';
 import { wymiaryStronyPdf } from '../../utils/pdfjsWeb';
 import type { PlikWebImport } from './PrzyciskImportuXfdf';
 
@@ -50,6 +58,11 @@ interface Props {
   blokadaPodgladu?: boolean;
   onBlokadaPodgladu?: (v: boolean) => void;
   onDotykZmiana?: (aktywny: boolean) => void;
+  /** Przypisywanie obszarów do wybranej konstrukcji. Zapis dopiero po OK. */
+  przypisanie?: { numer: number; zaznaczone: string[] } | null;
+  onToggleObszar?: (obszarId: string) => void;
+  onOkPrzypisania?: () => void;
+  onAnulujPrzypisania?: () => void;
 }
 
 function potwierdzWeb(pytanie: string): boolean {
@@ -67,6 +80,7 @@ function pokazKomunikat(tytul: string, tresc: string) {
 
 export function SekcjaPzt({
   projekt, theme, onZmien, blokadaPodgladu = false, onBlokadaPodgladu, onDotykZmiana,
+  przypisanie, onToggleObszar, onOkPrzypisania, onAnulujPrzypisania,
 }: Props) {
   const [arkuszId, setArkuszId] = useState<string | undefined>(projekt.arkusze[0]?.id);
   const [busy, setBusy] = useState(false);
@@ -83,8 +97,29 @@ export function SekcjaPzt({
   const [mStr, setMStr] = useState(startInit.m);
   const [podzStr, setPodzStr] = useState(String(projekt.podzialkaKilometrazuM ?? 50));
   const aktywny = projekt.arkusze.find((a) => a.id === arkuszId) ?? projekt.arkusze[0];
+  const [nazwaObszaruId, setNazwaObszaruId] = useState<string | null>(null);
+  const postep = postepPrzypisan(projekt);
+  const odsadzki = useMemo(() => (aktywny
+    ? rysunkiOdsadzekArkusza(projekt, aktywny, (obszar) => konstrukcjaDlaObszaru(projekt, obszar.id)?.warstwy ?? [])
+    : []), [projekt, aktywny]);
+  const obszarNazwy = aktywny?.obszary.find((o) => o.id === nazwaObszaruId);
+  const ustawRole = (legendaId: string, nazwa: string) => {
+    onZmien({
+      ...projekt,
+      legenda: projekt.legenda.map((w) => (w.id === legendaId ? { ...w, nazwa } : w)),
+    });
+  };
+  const ustawNazweDodatkowa = (obszarId: string, nazwa: string) => {
+    onZmien({
+      ...projekt,
+      arkusze: projekt.arkusze.map((a) => ({
+        ...a,
+        obszary: a.obszary.map((o) => (o.id === obszarId ? { ...o, nazwaDodatkowa: nazwa } : o)),
+      })),
+    });
+  };
   const idxAktywny = aktywny ? projekt.arkusze.findIndex((a) => a.id === aktywny.id) : -1;
-  const kmKoniecTrasy = projekt.arkusze[projekt.arkusze.length - 1]?.kilometrazKoncowyM;
+  const kmKoniecTrasy = koniecTrasyGlownejM(projekt);
   const sumaOsi = podsumowanieOsiTrasy(projekt);
   const dlAkt = aktywny ? podsumowanieDlugosciArkusza(aktywny) : null;
   const kluczPikietazu = `${projekt.kilometrazPoczatkowyM}|${projekt.arkusze.length}|${sumaOsi.nEtykiet}|${sumaOsi.etykietyM}|${sumaOsi.kmM}`;
@@ -404,6 +439,18 @@ export function SekcjaPzt({
     const next = przesunArkusz(projekt, aktywny.id, kierunek);
     onZmien(next);
   };
+  const ustawKontynuacje = (wlaczona: boolean) => {
+    if (!aktywny || idxAktywny <= 0) return;
+    const arkusze = zastosujKilometrazArkuszy(
+      projekt.arkusze.map((a) => (
+        a.id === aktywny.id
+          ? { ...a, kontynuacjaPoprzedniego: wlaczona, kilometrazPoczatkowyM: wlaczona ? a.kilometrazPoczatkowyM : 0 }
+          : a
+      )),
+      projekt.kilometrazPoczatkowyM,
+    );
+    onZmien({ ...projekt, arkusze });
+  };
 
   return (
     <View style={{ gap: 10 }}>
@@ -440,7 +487,7 @@ export function SekcjaPzt({
       <View style={[karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border, gap: 8 }]}>
         <View style={styles.rzad}>
           <Text style={[styles.label, { color: theme.colors.text }]}>Podziałka kilometrażu osi</Text>
-          <InfoTooltip tresc={`Kreska z pikietą co pełne ${projekt.podzialkaKilometrazuM ?? 50} m od startu. Oś i kilometraż biorą się z XFDF: suma długości linii osi (np. „422,07 m” na kresce). Pominięty arkusz drogi bocznej (np. 2_9) nie robi dziury: 2_8 styka się z 2_10. Ponowne wgranie tego samego arkusza podmienia geometrię w pamięci przeglądarki.`} />
+          <InfoTooltip tresc={`Kreska z pikietą co ${projekt.podzialkaKilometrazuM ?? 50} m wzdłuż osi. Oś to najdłuższa kreska osi na arkuszu (czarna albo niebieska). Jej długość jest kilometrażem – krawężnik ani inna linia jej nie skracają. Krótsze niebieskie kreski to osie boczne.`} />
         </View>
         <View style={styles.kmRzad}>
           <TextInput
@@ -520,7 +567,9 @@ export function SekcjaPzt({
                         {i + 1}. {etykietaZakladkiArkusza(a.nazwa)}
                       </Text>
                       <Text style={{ color: theme.colors.primary, fontSize: 11, fontWeight: '700', marginTop: 2 }}>
-                        {formatujKmM(a.kilometrazPoczatkowyM)} → {formatujKmM(a.kilometrazKoncowyM)}
+                        {czyArkuszNaTrasieGlownej(a, i)
+                          ? `${formatujKmM(a.kilometrazPoczatkowyM)} → ${formatujKmM(a.kilometrazKoncowyM)}`
+                          : 'poza trasą główną'}
                       </Text>
                       {a.tlo ? (
                         <Text style={{ color: theme.colors.textSecondary, fontSize: 10, marginTop: 2 }} numberOfLines={1}>
@@ -566,6 +615,76 @@ export function SekcjaPzt({
 
           {aktywny ? (
             <>
+              {projekt.legenda.some((w) => w.typ === 'obszar') ? (
+                <View style={[karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border, gap: 8 }]}>
+                  <Text style={{ color: theme.colors.text, fontWeight: '800' }}>Role kolorów</Text>
+                  <Text style={{ color: theme.colors.textSecondary, fontSize: 12, lineHeight: 16 }}>
+                    Żółty i różowy to trasa główna, oliwkowy drogi boczne, zielony wjazdy, turkusowy ścieżka. Czerwona linia to krawężnik (obszar się przy niej nie poszerza). Oś trasy to najdłuższa kreska osi, czarna albo niebieska: długość tej kreski jest kilometrażem. Krótsze niebieskie kreski to osie boczne.
+                  </Text>
+                  {projekt.legenda.filter((w) => w.typ === 'obszar' || w.typ === 'linia' || w.typ === 'os').map((w) => (
+                    <View key={w.id} style={{ gap: 6 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <View style={{ width: 16, height: 16, borderRadius: 4, backgroundColor: w.kolor }} />
+                        <Text style={{ color: theme.colors.text, fontWeight: '700', flex: 1 }} numberOfLines={1}>
+                          {w.nazwa || w.sugerowanaNazwa || w.kolor}
+                        </Text>
+                      </View>
+                      {w.typ === 'obszar' ? (
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+                          {ROLE_OBSZARU_PZT.map((r) => {
+                            const on = w.nazwa === r.nazwa;
+                            return (
+                              <TouchableOpacity
+                                key={r.id}
+                                onPress={() => ustawRole(w.id, r.nazwa)}
+                                accessibilityLabel={`Rola ${r.nazwa}`}
+                                style={{
+                                  borderWidth: 1,
+                                  borderRadius: 8,
+                                  paddingHorizontal: 8,
+                                  paddingVertical: 6,
+                                  borderColor: on ? theme.colors.primary : theme.colors.border,
+                                  backgroundColor: on ? `${theme.colors.primary}22` : theme.colors.inputBackground,
+                                }}
+                              >
+                                <Text style={{ color: theme.colors.text, fontSize: 12, fontWeight: '700' }}>{r.nazwa}</Text>
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </ScrollView>
+                      ) : null}
+                    </View>
+                  ))}
+                  <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>
+                    Konstrukcje przypisane do {postep.przypisane} z {postep.wszystkie} obszarów
+                    {postep.wszystkie > 0 ? ` (${Math.round((postep.przypisane / postep.wszystkie) * 100)}%)` : ''}.
+                  </Text>
+                </View>
+              ) : null}
+              {przypisanie ? (
+                <View style={[karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.primary, gap: 8 }]}>
+                  <Text style={{ color: theme.colors.text, fontWeight: '800' }}>
+                    Konstrukcja {przypisanie.numer}: stuknij obszary na arkuszach
+                  </Text>
+                  <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>
+                    Zaznaczone: {przypisanie.zaznaczone.length}. Ponowne stuknięcie zdejmuje zaznaczenie. Zapis po OK.
+                  </Text>
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    <Przycisk tekst="OK" maly onPress={() => onOkPrzypisania?.()} accessibilityLabel="Zatwierdź przypisanie obszarów" />
+                    <Przycisk tekst="Anuluj" maly wariant="drugi" onPress={() => onAnulujPrzypisania?.()} />
+                  </View>
+                  {obszarNazwy ? (
+                    <TextInput
+                      value={obszarNazwy.nazwaDodatkowa ?? ''}
+                      onChangeText={(t) => ustawNazweDodatkowa(obszarNazwy.id, t)}
+                      placeholder="Nazwa dodatkowa, np. nr drogi albo km wjazdu"
+                      placeholderTextColor={theme.colors.textSecondary}
+                      accessibilityLabel="Nazwa dodatkowa obszaru"
+                      style={[styles.input, { color: theme.colors.text, borderColor: theme.colors.border, backgroundColor: theme.colors.inputBackground }]}
+                    />
+                  ) : null}
+                </View>
+              ) : null}
               <PztArkuszPodglad
                 arkusz={aktywny}
                 theme={theme}
@@ -573,6 +692,14 @@ export function SekcjaPzt({
                 onBlokadaPodgladu={onBlokadaPodgladu}
                 onDotykZmiana={onDotykZmiana}
                 podzialkaM={projekt.podzialkaKilometrazuM ?? 50}
+                odsadzki={odsadzki}
+                zaznaczoneIds={przypisanie?.zaznaczone}
+                onWskazPdf={przypisanie ? (p) => {
+                  const traf = [...aktywny.obszary].reverse().find((o) => punktWWielokacie(p, o.wierzcholkiPdf));
+                  if (!traf) return;
+                  setNazwaObszaruId(traf.id);
+                  onToggleObszar?.(traf.id);
+                } : undefined}
                 onTloZmiana={(patch) => {
                   if (!aktywny.tlo) return;
                   onZmien(ustawTloArkusza(projekt, aktywny.id, { ...aktywny.tlo, ...patch }));
@@ -618,23 +745,40 @@ export function SekcjaPzt({
                     <Text style={{ color: theme.colors.text, fontWeight: '700' }}>Później na trasie ▶</Text>
                   </TouchableOpacity>
                 </View>
-                <View style={styles.rzad}>
-                  <Text style={{ color: theme.colors.text, flex: 1, fontWeight: '600' }}>Kontynuacja poprzedniego arkusza</Text>
-                  <Switch
-                    value={aktywny.kontynuacjaPoprzedniego}
-                    onValueChange={(v) => {
-                      const arkusze = zastosujKilometrazArkuszy(
-                        projekt.arkusze.map((a) => a.id === aktywny.id ? { ...a, kontynuacjaPoprzedniego: v } : a),
-                        projekt.kilometrazPoczatkowyM,
-                      );
-                      onZmien({ ...projekt, arkusze });
-                    }}
-                    disabled={idxAktywny === 0}
-                  />
-                </View>
+                {(() => {
+                  const naTrasie = idxAktywny === 0 || aktywny.kontynuacjaPoprzedniego !== false;
+                  return (
+                    <TouchableOpacity
+                      disabled={idxAktywny === 0}
+                      onPress={() => ustawKontynuacje(!naTrasie)}
+                      accessibilityRole="switch"
+                      accessibilityState={{ checked: naTrasie, disabled: idxAktywny === 0 }}
+                      accessibilityLabel="Kontynuacja poprzedniego arkusza"
+                      style={[styles.kontynuacja, {
+                        borderColor: naTrasie ? theme.colors.primary : theme.colors.border,
+                        backgroundColor: theme.colors.card,
+                        opacity: idxAktywny === 0 ? 0.55 : 1,
+                      }]}
+                    >
+                      <View style={{ flex: 1, gap: 4 }}>
+                        <Text style={{ color: theme.colors.text, fontWeight: '700' }}>Kontynuacja poprzedniego arkusza</Text>
+                        <Text style={{ color: theme.colors.textSecondary, fontSize: 12, lineHeight: 16 }}>
+                          {idxAktywny === 0
+                            ? 'Pierwszy arkusz zaczyna trasę.'
+                            : naTrasie
+                              ? 'Stuknij, żeby wyłączyć. Ten plik zejdzie z pikietażu, a następny arkusz trasy styka się z poprzednim.'
+                              : 'Wyłączone. To PZT poza trasą główną. Stuknij ponownie, żeby włączyć kontynuację.'}
+                        </Text>
+                      </View>
+                      <View style={[styles.suwak, { backgroundColor: naTrasie ? theme.colors.primary : theme.colors.border }]}>
+                        <View style={[styles.suwakKropka, { alignSelf: naTrasie ? 'flex-end' : 'flex-start' }]} />
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })()}
                 {!aktywny.kontynuacjaPoprzedniego && idxAktywny > 0 ? (
                   <View>
-                    <Text style={[styles.label, { color: theme.colors.textSecondary }]}>Własny kilometraż startu</Text>
+                    <Text style={[styles.label, { color: theme.colors.textSecondary }]}>Własny początek tego arkusza</Text>
                     <PoleKilometraz
                       theme={theme}
                       compact
@@ -823,6 +967,9 @@ const styles = StyleSheet.create({
   kmRzad: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
   input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15 },
   btnKolej: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, flexGrow: 1 },
+  kontynuacja: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 12 },
+  suwak: { width: 52, height: 32, borderRadius: 16, padding: 3, justifyContent: 'center' },
+  suwakKropka: { width: 26, height: 26, borderRadius: 13, backgroundColor: '#fff' },
   btnUsun: { borderWidth: 1, borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
   btnKonfigurator: { borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12 },
   pdfChipy: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },

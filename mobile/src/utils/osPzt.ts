@@ -280,6 +280,11 @@ export function dopasujGeometrieArkuszaDoDlugosci(arkusz: ArkuszPzt, celM: numbe
         })),
       };
     }),
+    osieBoczne: arkusz.osieBoczne?.map((os) => ({
+      ...os,
+      wierzcholkiM: mapuj(os.wierzcholkiM),
+      dlugoscM: round2(dlugoscPolilinii(mapuj(os.wierzcholkiM))),
+    })),
   };
 }
 
@@ -626,7 +631,11 @@ export function powierzchniaWycinkaM2(
 export function arkuszeNachodzaceNaKm(projekt: ProjektBudowy, odM: number, doM: number): ArkuszPzt[] {
   const lo = Math.min(odM, doM);
   const hi = Math.max(odM, doM);
-  return projekt.arkusze.filter((a) => a.kilometrazKoncowyM > lo + 0.05 && a.kilometrazPoczatkowyM < hi - 0.05);
+  return projekt.arkusze.filter((a, i) => (
+    (i === 0 || a.kontynuacjaPoprzedniego !== false)
+    && a.kilometrazKoncowyM > lo + 0.05
+    && a.kilometrazPoczatkowyM < hi - 0.05
+  ));
 }
 
 export function arkuszWycinekDlaKm(

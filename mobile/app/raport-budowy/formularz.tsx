@@ -21,6 +21,8 @@ import { generujIdRaportu, useRaportyBudowyStore } from '../../src/stores/raport
 import { Z_METROW_BIEZACYCH } from '../../src/constants';
 import { formatLiczby } from '../../src/utils/calculations';
 import { dzisIso } from '../../src/utils/zakresDat';
+import { odsadzkiWarstwy } from '../../src/utils/projektBudowy';
+import { WyborZakresuNaPlanie } from '../../src/components/plan/WyborZakresuNaPlanie';
 
 interface OdcinekSzkic {
   id: string;
@@ -30,6 +32,9 @@ interface OdcinekSzkic {
   doKm: string;
   doM: string;
   m2: string;
+  odsL: string;
+  odsP: string;
+  obszarId?: string;
 }
 
 interface PozycjaSzkic {
@@ -49,7 +54,9 @@ function polaKm(metry?: number) {
   return polaZKilometraza(km, m);
 }
 
-const pustyOdcinek = (): OdcinekSzkic => ({ id: generujIdRaportu(), odcinekKlucz: '', odKm: '', odM: '', doKm: '', doM: '', m2: '' });
+const pustyOdcinek = (): OdcinekSzkic => ({
+  id: generujIdRaportu(), odcinekKlucz: '', odKm: '', odM: '', doKm: '', doM: '', m2: '', odsL: '', odsP: '',
+});
 const pustaPozycja = (): PozycjaSzkic => ({ id: generujIdRaportu(), warstwaKlucz: '', ilosc: '', odcinki: [pustyOdcinek()] });
 
 function szkicZRaportu(r: RaportDzienny): PozycjaSzkic[] {
@@ -61,7 +68,12 @@ function szkicZRaportu(r: RaportDzienny): PozycjaSzkic[] {
     odcinki: p.odcinki.map((o) => {
       const od = polaKm(o.kmOdM);
       const dos = polaKm(o.kmDoM);
-      return { id: o.id, odcinekKlucz: kluczOdcinka(o), odKm: od.km, odM: od.m, doKm: dos.km, doM: dos.m, m2: liczbaTekst(o.powierzchniaM2) };
+      return {
+        id: o.id, odcinekKlucz: kluczOdcinka(o), odKm: od.km, odM: od.m, doKm: dos.km, doM: dos.m,
+        m2: liczbaTekst(o.powierzchniaM2), obszarId: o.obszarId,
+        odsL: o.odsadzkaLewaCm != null ? liczbaTekst(o.odsadzkaLewaCm) : '',
+        odsP: o.odsadzkaPrawaCm != null ? liczbaTekst(o.odsadzkaPrawaCm) : '',
+      };
     }),
   }));
 }
@@ -110,6 +122,7 @@ export default function FormularzRaportuScreen() {
   const [uwagi, setUwagi] = useState(edytowany?.uwagi ?? '');
   const [blad, setBlad] = useState('');
   const [zapis, setZapis] = useState(false);
+  const [mapaOdcinka, setMapaOdcinka] = useState<{ pozId: string; odcId: string } | null>(null);
 
   const powrot = edytowany ? `/raport-budowy/${edytowany.id}` : `/budowa/${budowaId}?zakladka=raporty`;
 
@@ -169,6 +182,9 @@ export default function FormularzRaportuScreen() {
           kmOdM: od.km * 1000 + od.m,
           kmDoM: dos.km * 1000 + dos.m,
           powierzchniaM2: m2,
+          ...(o.obszarId ? { obszarId: o.obszarId } : {}),
+          odsadzkaLewaCm: parsujLiczbePola(o.odsL) ?? 0,
+          odsadzkaPrawaCm: parsujLiczbePola(o.odsP) ?? 0,
         });
       }
       const recepta = p.mieszankaId ? mieszanki.find((m) => m.id === p.mieszankaId) : undefined;
@@ -212,6 +228,22 @@ export default function FormularzRaportuScreen() {
       setZapis(false);
     }
   };
+
+  const odsadzkiDlaMapy = (() => {
+    const poz = pozycje.find((p) => p.id === mapaOdcinka?.pozId);
+    const odc = poz?.odcinki.find((o) => o.id === mapaOdcinka?.odcId);
+    const opcja = opcje.find((o) => o.klucz === poz?.warstwaKlucz);
+    const opOdc = opcja?.odcinki.find((o) => kluczOdcinka(o) === odc?.odcinekKlucz);
+    const wpisL = odc ? parsujLiczbePola(odc.odsL) : undefined;
+    const wpisP = odc ? parsujLiczbePola(odc.odsP) : undefined;
+    if (wpisL != null || wpisP != null) return { lewa: wpisL ?? 0, prawa: wpisP ?? 0 };
+    const k = budowa?.projekt?.konstrukcje.find((x) => x.legendaId === opOdc?.legendaId);
+    const warstwy = opOdc?.wyjatekId
+      ? k?.wyjatki.find((w) => w.id === opOdc.wyjatekId)?.warstwy
+      : k?.warstwy;
+    const warstwa = warstwy?.find((w) => `${w.nazwa.trim().toLowerCase()}|${w.gruboscCm}` === poz?.warstwaKlucz);
+    return warstwa ? odsadzkiWarstwy(warstwa) : { lewa: 0, prawa: 0 };
+  })();
 
   return (
     <View style={[styles.ekran, { backgroundColor: theme.colors.background }]}>
@@ -341,6 +373,31 @@ export default function FormularzRaportuScreen() {
                             />
                           </View>
                         </Wiersz>
+                        <Wiersz>
+                          <Pole
+                            etykieta="Odsadzka L"
+                            jednostka="cm"
+                            liczba
+                            value={odc.odsL}
+                            onChangeText={(v) => zmienOdcinek(poz.id, odc.id, { odsL: v })}
+                            accessibilityLabel={`Odsadzka lewa odcinka ${j + 1}`}
+                          />
+                          <Pole
+                            etykieta="Odsadzka P"
+                            jednostka="cm"
+                            liczba
+                            value={odc.odsP}
+                            onChangeText={(v) => zmienOdcinek(poz.id, odc.id, { odsP: v })}
+                            accessibilityLabel={`Odsadzka prawa odcinka ${j + 1}`}
+                          />
+                        </Wiersz>
+                        <Przycisk
+                          tekst="Zaznacz początek i koniec na planie"
+                          wariant="drugi"
+                          maly
+                          onPress={() => setMapaOdcinka({ pozId: poz.id, odcId: odc.id })}
+                          accessibilityLabel={`Zaznacz zakres odcinka ${j + 1} na planie`}
+                        />
                         <Pole
                           etykieta="Powierzchnia"
                           wymagane
@@ -348,6 +405,7 @@ export default function FormularzRaportuScreen() {
                           liczba
                           value={odc.m2}
                           onChangeText={(v) => zmienOdcinek(poz.id, odc.id, { m2: v })}
+                          info="Z planu: ścieralna z XFDF poszerzona o odsadzki raportu. Krawężnik nie poszerza krawędzi."
                           accessibilityLabel={`Powierzchnia odcinka ${j + 1}`}
                         />
                       </View>
@@ -395,6 +453,29 @@ export default function FormularzRaportuScreen() {
           />
         </ScrollView>
       )}
+      {budowa?.projekt && mapaOdcinka ? (
+        <WyborZakresuNaPlanie
+          visible
+          projekt={budowa.projekt}
+          theme={theme}
+          odsLewaCm={odsadzkiDlaMapy.lewa}
+          odsPrawaCm={odsadzkiDlaMapy.prawa}
+          onClose={() => setMapaOdcinka(null)}
+          onWybierz={(w) => {
+            const od = polaKm(w.kmOdM);
+            const dos = polaKm(w.kmDoM);
+            zmienOdcinek(mapaOdcinka.pozId, mapaOdcinka.odcId, {
+              odKm: od.km,
+              odM: od.m,
+              doKm: dos.km,
+              doM: dos.m,
+              m2: liczbaTekst(w.powierzchniaM2) || '0',
+              obszarId: w.obszarId,
+            });
+            setMapaOdcinka(null);
+          }}
+        />
+      ) : null}
     </View>
   );
 }
