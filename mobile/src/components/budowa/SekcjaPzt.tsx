@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView, Switch, Platform, TextInput, Alert,
 } from 'react-native';
@@ -21,6 +21,9 @@ import {
   ustawTloArkusza,
   zastosujKilometrazArkuszy,
   zmienNazweArkusza,
+  ROLE_OBSZARU_PZT,
+  konstrukcjaDlaObszaru,
+  postepPrzypisan,
 } from '../../utils/projektBudowy';
 import { karta } from '../../constants/layout';
 import { Z_METROW_BIEZACYCH } from '../../constants';
@@ -40,6 +43,9 @@ import {
   zapiszBuforPliku,
 } from '../../utils/tloPdfPamiec';
 import { dlugoscPolilinii } from '../../utils/osPzt';
+import { rysunkiOdsadzekArkusza } from '../../utils/odsadzkaObszaru';
+import { punktWWielokacie } from '../../liniowka/liniowka';
+import { Przycisk } from '../ui';
 import { wymiaryStronyPdf } from '../../utils/pdfjsWeb';
 import type { PlikWebImport } from './PrzyciskImportuXfdf';
 
@@ -50,6 +56,11 @@ interface Props {
   blokadaPodgladu?: boolean;
   onBlokadaPodgladu?: (v: boolean) => void;
   onDotykZmiana?: (aktywny: boolean) => void;
+  /** Przypisywanie obszarów do wybranej konstrukcji. Zapis dopiero po OK. */
+  przypisanie?: { numer: number; zaznaczone: string[] } | null;
+  onToggleObszar?: (obszarId: string) => void;
+  onOkPrzypisania?: () => void;
+  onAnulujPrzypisania?: () => void;
 }
 
 function potwierdzWeb(pytanie: string): boolean {
@@ -67,6 +78,7 @@ function pokazKomunikat(tytul: string, tresc: string) {
 
 export function SekcjaPzt({
   projekt, theme, onZmien, blokadaPodgladu = false, onBlokadaPodgladu, onDotykZmiana,
+  przypisanie, onToggleObszar, onOkPrzypisania, onAnulujPrzypisania,
 }: Props) {
   const [arkuszId, setArkuszId] = useState<string | undefined>(projekt.arkusze[0]?.id);
   const [busy, setBusy] = useState(false);
@@ -83,6 +95,27 @@ export function SekcjaPzt({
   const [mStr, setMStr] = useState(startInit.m);
   const [podzStr, setPodzStr] = useState(String(projekt.podzialkaKilometrazuM ?? 50));
   const aktywny = projekt.arkusze.find((a) => a.id === arkuszId) ?? projekt.arkusze[0];
+  const [nazwaObszaruId, setNazwaObszaruId] = useState<string | null>(null);
+  const postep = postepPrzypisan(projekt);
+  const odsadzki = useMemo(() => (aktywny
+    ? rysunkiOdsadzekArkusza(projekt, aktywny, (obszar) => konstrukcjaDlaObszaru(projekt, obszar.id)?.warstwy ?? [])
+    : []), [projekt, aktywny]);
+  const obszarNazwy = aktywny?.obszary.find((o) => o.id === nazwaObszaruId);
+  const ustawRole = (legendaId: string, nazwa: string) => {
+    onZmien({
+      ...projekt,
+      legenda: projekt.legenda.map((w) => (w.id === legendaId ? { ...w, nazwa } : w)),
+    });
+  };
+  const ustawNazweDodatkowa = (obszarId: string, nazwa: string) => {
+    onZmien({
+      ...projekt,
+      arkusze: projekt.arkusze.map((a) => ({
+        ...a,
+        obszary: a.obszary.map((o) => (o.id === obszarId ? { ...o, nazwaDodatkowa: nazwa } : o)),
+      })),
+    });
+  };
   const idxAktywny = aktywny ? projekt.arkusze.findIndex((a) => a.id === aktywny.id) : -1;
   const kmKoniecTrasy = projekt.arkusze[projekt.arkusze.length - 1]?.kilometrazKoncowyM;
   const sumaOsi = podsumowanieOsiTrasy(projekt);
@@ -566,6 +599,76 @@ export function SekcjaPzt({
 
           {aktywny ? (
             <>
+              {projekt.legenda.some((w) => w.typ === 'obszar') ? (
+                <View style={[karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border, gap: 8 }]}>
+                  <Text style={{ color: theme.colors.text, fontWeight: '800' }}>Role kolorów</Text>
+                  <Text style={{ color: theme.colors.textSecondary, fontSize: 12, lineHeight: 16 }}>
+                    Żółty i różowy to trasa główna, oliwkowy drogi boczne, zielony wjazdy, turkusowy ścieżka. Czerwona linia to krawężnik (obszar się przy niej nie poszerza), niebieska to oś boczna.
+                  </Text>
+                  {projekt.legenda.filter((w) => w.typ === 'obszar' || w.typ === 'linia' || w.typ === 'os').map((w) => (
+                    <View key={w.id} style={{ gap: 6 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <View style={{ width: 16, height: 16, borderRadius: 4, backgroundColor: w.kolor }} />
+                        <Text style={{ color: theme.colors.text, fontWeight: '700', flex: 1 }} numberOfLines={1}>
+                          {w.nazwa || w.sugerowanaNazwa || w.kolor}
+                        </Text>
+                      </View>
+                      {w.typ === 'obszar' ? (
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+                          {ROLE_OBSZARU_PZT.map((r) => {
+                            const on = w.nazwa === r.nazwa;
+                            return (
+                              <TouchableOpacity
+                                key={r.id}
+                                onPress={() => ustawRole(w.id, r.nazwa)}
+                                accessibilityLabel={`Rola ${r.nazwa}`}
+                                style={{
+                                  borderWidth: 1,
+                                  borderRadius: 8,
+                                  paddingHorizontal: 8,
+                                  paddingVertical: 6,
+                                  borderColor: on ? theme.colors.primary : theme.colors.border,
+                                  backgroundColor: on ? `${theme.colors.primary}22` : theme.colors.inputBackground,
+                                }}
+                              >
+                                <Text style={{ color: theme.colors.text, fontSize: 12, fontWeight: '700' }}>{r.nazwa}</Text>
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </ScrollView>
+                      ) : null}
+                    </View>
+                  ))}
+                  <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>
+                    Konstrukcje przypisane do {postep.przypisane} z {postep.wszystkie} obszarów
+                    {postep.wszystkie > 0 ? ` (${Math.round((postep.przypisane / postep.wszystkie) * 100)}%)` : ''}.
+                  </Text>
+                </View>
+              ) : null}
+              {przypisanie ? (
+                <View style={[karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.primary, gap: 8 }]}>
+                  <Text style={{ color: theme.colors.text, fontWeight: '800' }}>
+                    Konstrukcja {przypisanie.numer}: stuknij obszary na arkuszach
+                  </Text>
+                  <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>
+                    Zaznaczone: {przypisanie.zaznaczone.length}. Ponowne stuknięcie zdejmuje zaznaczenie. Zapis po OK.
+                  </Text>
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    <Przycisk tekst="OK" maly onPress={() => onOkPrzypisania?.()} accessibilityLabel="Zatwierdź przypisanie obszarów" />
+                    <Przycisk tekst="Anuluj" maly wariant="drugi" onPress={() => onAnulujPrzypisania?.()} />
+                  </View>
+                  {obszarNazwy ? (
+                    <TextInput
+                      value={obszarNazwy.nazwaDodatkowa ?? ''}
+                      onChangeText={(t) => ustawNazweDodatkowa(obszarNazwy.id, t)}
+                      placeholder="Nazwa dodatkowa, np. nr drogi albo km wjazdu"
+                      placeholderTextColor={theme.colors.textSecondary}
+                      accessibilityLabel="Nazwa dodatkowa obszaru"
+                      style={[styles.input, { color: theme.colors.text, borderColor: theme.colors.border, backgroundColor: theme.colors.inputBackground }]}
+                    />
+                  ) : null}
+                </View>
+              ) : null}
               <PztArkuszPodglad
                 arkusz={aktywny}
                 theme={theme}
@@ -573,6 +676,14 @@ export function SekcjaPzt({
                 onBlokadaPodgladu={onBlokadaPodgladu}
                 onDotykZmiana={onDotykZmiana}
                 podzialkaM={projekt.podzialkaKilometrazuM ?? 50}
+                odsadzki={odsadzki}
+                zaznaczoneIds={przypisanie?.zaznaczone}
+                onWskazPdf={przypisanie ? (p) => {
+                  const traf = [...aktywny.obszary].reverse().find((o) => punktWWielokacie(p, o.wierzcholkiPdf));
+                  if (!traf) return;
+                  setNazwaObszaruId(traf.id);
+                  onToggleObszar?.(traf.id);
+                } : undefined}
                 onTloZmiana={(patch) => {
                   if (!aktywny.tlo) return;
                   onZmien(ustawTloArkusza(projekt, aktywny.id, { ...aktywny.tlo, ...patch }));

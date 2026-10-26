@@ -2,7 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { parsujVertices, parsujXfdfTekst, obszaryZPolygony, parsujListeTekstowXfdf, scalLinieOsi, bazyWzdluzOsi, etykietaOsiZArkusza, pikietyZTekstu } from './xfdfParser';
+import { parsujVertices, parsujXfdfTekst, obszaryZPolygony, parsujListeTekstowXfdf, scalLinieOsi, bazyWzdluzOsi, etykietaOsiZArkusza, pikietyZTekstu, czyLiniaKrawedznika, czyLiniaOsiBocznej } from './xfdfParser';
 import { dlugoscPikietazuJezdniM, dlugoscPolilinii, orientujLancuchDoKm, osPdfZorientowana, rozciagnijLancuchDoDlugosci, rozmiarPodzialkiOsi, stacjePodzialki, stronaWzgledemOsi } from './osPzt';
 import {
   powierzchniaWielokata,
@@ -69,6 +69,41 @@ describe('obmiarGeometry / xfdfParser', () => {
     const metry = skalujWierzcholki(pts, skala);
     const pow = powierzchniaWielokata(metry);
     assert.ok(Math.abs(pow - 1821) < 1);
+  });
+
+  it('niebieska linia z tematem Obwód jest osią boczną, nie krawężnikiem', () => {
+    assert.equal(czyLiniaOsiBocznej('#0000FF', 'Obwód'), true);
+    assert.equal(czyLiniaKrawedznika('#0000FF', 'Obwód'), false);
+    assert.equal(czyLiniaKrawedznika('#FF0000', 'Obwód'), true);
+    const xfdf = `<?xml version="1.0"?><xfdf>
+<polygon interior-color="#8B8B00" subject="Obszar"><vertices>0,0;40,0;40,10;0,10</vertices></polygon>
+<polyline color="#0000FF" subject="Obwód"><vertices>0,5;40,5</vertices></polyline>
+<polyline color="#FF0000" subject="Obwód"><vertices>0,10;40,10</vertices></polyline>
+</xfdf>`;
+    const w = parsujXfdfTekst(xfdf, 'bok.xfdf');
+    const obszary = obszaryZPolygony(w, DOMYSLNA_SKALA_PZT);
+    assert.equal(obszary[0].krawedzniki?.length, 1);
+    assert.equal((obszary[0].krawedzniki ?? [])[0].kolor?.toUpperCase(), '#FF0000');
+    assert.equal(obszary[0].nazwa, 'Droga boczna');
+  });
+
+  it('ciągła czarna polilinia jest osią główną, a oliwkowy obszar nie dostaje strony trasy', () => {
+    const xfdf = `<?xml version="1.0"?><xfdf>
+<polygon interior-color="#FFEE58" color="#FBC02D" subject="Obszar"><vertices>0,20;200,20;200,40;0,40</vertices></polygon>
+<polygon interior-color="#8B8B00" color="#FBC02D" subject="Obszar"><vertices>80,40;100,40;100,90;80,90</vertices></polygon>
+<polygon interior-color="#009300" subject="Obszar"><vertices>40,40;55,40;55,70;40,70</vertices></polygon>
+<polyline color="#000000" subject="Obwód"><vertices>0,20;200,20</vertices><contents>435,99 m</contents></polyline>
+<polyline color="#0000FF" subject="Obwód"><vertices>90,20;90,90</vertices></polyline>
+<polyline color="#FF0000" width="2" subject="Obwód"><vertices>0,40;200,40</vertices></polyline>
+</xfdf>`;
+    const w = parsujXfdfTekst(xfdf, 'ark.xfdf');
+    assert.equal(w.osTrasy?.color?.toUpperCase(), '#000000');
+    assert.equal(w.osTrasy?.dlugoscEtykietaM, 435.99);
+    assert.equal(w.polilinie.filter((l) => czyLiniaOsiBocznej(l.color, l.subject)).length, 1);
+    const obszary = obszaryZPolygony(w, DOMYSLNA_SKALA_PZT);
+    assert.equal(obszary.map((o) => o.nazwa).join(','), 'Trasa L,Droga boczna,Wjazd');
+    assert.equal(obszary[1].stronaTrasy, undefined);
+    assert.equal(obszary[0].krawedzniki?.length, 1);
   });
 
   it('żółty/różowy + czerwony obwód: L/P, krawężnik na krawędzi, bez odsadzki', () => {

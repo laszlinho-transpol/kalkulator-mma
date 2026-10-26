@@ -83,6 +83,10 @@ describe('projektBudowy', () => {
     assert.equal(sugerowanaNazwaLegendy('linia', '#FF0000'), 'krawężnik (brak odsadzek)');
     assert.equal(sugerowanaNazwaLegendy('os', '#000000'), 'oś trasy');
     assert.equal(sugerowanaNazwaLegendy('obszar', '#4CAF50'), '');
+    assert.equal(sugerowanaNazwaLegendy('obszar', '#8B8B00'), 'Droga boczna');
+    assert.equal(sugerowanaNazwaLegendy('obszar', '#009300'), 'Wjazd');
+    assert.equal(sugerowanaNazwaLegendy('obszar', '#40E0D0'), 'Ścieżka rowerowa');
+    assert.equal(sugerowanaNazwaLegendy('os', '#0000FF'), 'oś boczna');
     assert.equal(kluczLegendy('obszar', '#ffee58'), 'obszar|#FFEE58');
     assert.equal(kluczLegendy('os', '#000000'), 'os|#000000');
   });

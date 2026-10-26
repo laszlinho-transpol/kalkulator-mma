@@ -280,6 +280,11 @@ export function dopasujGeometrieArkuszaDoDlugosci(arkusz: ArkuszPzt, celM: numbe
         })),
       };
     }),
+    osieBoczne: arkusz.osieBoczne?.map((os) => ({
+      ...os,
+      wierzcholkiM: mapuj(os.wierzcholkiM),
+      dlugoscM: round2(dlugoscPolilinii(mapuj(os.wierzcholkiM))),
+    })),
   };
 }
 

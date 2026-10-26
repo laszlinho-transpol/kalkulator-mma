@@ -7,6 +7,7 @@ import type {
   ArkuszPzt,
   KategoriaWarstwy,
   KonstrukcjaObszaru,
+  OsBocznaPzt,
   Mieszanka,
   ObszarObmiaru,
   ProjektBudowy,
@@ -24,14 +25,17 @@ import {
 } from '../mieszanki/kolejnosc';
 import { dlugoscUkladaniaObszaru } from './obmiarLive';
 import { dlugoscKilometrazaObszaru, bokiFigury } from './obmiarFigura';
-import { obszaryZPolygony, stronaTrasyZKoloru, type WynikParsowaniaXfdf } from './xfdfParser';
+import { obszaryZPolygony, czyLiniaOsiBocznej, stronaTrasyZKoloru, type WynikParsowaniaXfdf } from './xfdfParser';
 import { skalujWierzcholki } from './obmiarGeometry';
+import { powierzchniaWarstwyObszaru } from './odsadzkaObszaru';
 import {
   dlugoscObszarowWzdluzOsiM,
   dlugoscPolilinii,
   dopasujGeometrieArkuszaDoEtykiety,
   kierunekRosnacegoKm,
   orientujLancuchDoKm,
+  stacjaNaOsi,
+  stycznyNaOsi,
 } from './osPzt';
 
 export const GESTOSC_MMA_DOMYSLNA = 2.45;
@@ -76,17 +80,32 @@ export function sugerowanaNazwaLegendy(
 ): string {
   const k = normalizujKolorHex(kolor);
   const stronaZKoloru = strona ?? stronaTrasyZKoloru(k);
-  if (typ === 'os') return 'oś trasy';
+  if (typ === 'os') {
+    if (k === '#0000FF' || k === '#0000CD' || k === '#1E40AF' || k === '#2196F3' || k === '#1565C0') return 'oś boczna';
+    return 'oś trasy';
+  }
   if (typ === 'obszar') {
     if (stronaZKoloru === 'lewa') return 'Trasa główna (strona lewa)';
     if (stronaZKoloru === 'prawa') return 'Trasa główna (strona prawa)';
+    if (k === '#8B8B00' || k === '#827717' || k === '#9E9D24' || k === '#AFB42B') return 'Droga boczna';
+    if (k === '#009300' || k === '#00C853' || k === '#2E7D32' || k === '#43A047' || k === '#008000') return 'Wjazd';
+    if (k === '#40E0D0' || k === '#26A69A' || k === '#00BCD4' || k === '#388E8E' || k === '#80DEEA') return 'Ścieżka rowerowa';
     return '';
   }
   if (k === '#FF0000' || k === '#E53935' || k === '#C62828' || k === '#F44336') {
     return 'krawężnik (brak odsadzek)';
   }
+  if (k === '#0000FF' || k === '#0000CD' || k === '#2196F3') return 'oś boczna';
   return '';
 }
+
+export const ROLE_OBSZARU_PZT: { id: string; nazwa: string }[] = [
+  { id: 'trasa_l', nazwa: 'Trasa główna (strona lewa)' },
+  { id: 'trasa_p', nazwa: 'Trasa główna (strona prawa)' },
+  { id: 'boczna', nazwa: 'Droga boczna' },
+  { id: 'wjazd', nazwa: 'Wjazd' },
+  { id: 'sciezka', nazwa: 'Ścieżka rowerowa' },
+];
 
 export function nowaWarstwa(
   partial: Partial<WarstwaKonstrukcji> & Pick<WarstwaKonstrukcji, 'nazwa' | 'kolejnosc'>,
@@ -208,6 +227,18 @@ export function arkuszZWynikuXfdf(
       kolor: os.color,
     }
     : undefined;
+  const osieBoczne: OsBocznaPzt[] = wynikOs.polilinie
+    .filter((l) => czyLiniaOsiBocznej(l.color, l.subject) && l.wierzcholki.length >= 2)
+    .map((l) => {
+      const wm = skalujWierzcholki(l.wierzcholki, skala);
+      return {
+        id: generujId(),
+        wierzcholkiPdf: l.wierzcholki,
+        wierzcholkiM: wm,
+        dlugoscM: round2(dlugoscPolilinii(wm)),
+        kolor: l.color,
+      };
+    });
   return dopasujGeometrieArkuszaDoEtykiety({
     id: generujId(),
     nazwa,
@@ -219,6 +250,7 @@ export function arkuszZWynikuXfdf(
     kilometrazKoncowyM: 0,
     obszary,
     osTrasy: osTrasy0,
+    osieBoczne: osieBoczne.length ? osieBoczne : undefined,
   });
 }
 
@@ -401,7 +433,34 @@ export function zastosujKilometrazArkuszy(
       kilometrazPoczatkowyM: start,
       kilometrazKoncowyM: koniec,
       obszary: arkusz.obszary.map((o) => ustawKmObszaru(o, start, koniec)),
+      osieBoczne: dowiazOsieBoczne(arkusz, start, koniec),
     };
+  });
+}
+
+function dowiazOsieBoczne(arkusz: ArkuszPzt, start: number, koniec: number): ArkuszPzt['osieBoczne'] {
+  const osie = arkusz.osieBoczne;
+  if (!osie?.length) return osie;
+  const glowna = arkusz.osTrasy?.wierzcholkiM;
+  if (!glowna || glowna.length < 2) return osie;
+  const dl = dlugoscPolilinii(glowna);
+  if (dl < 1e-6) return osie;
+  return osie.map((os) => {
+    if (os.wierzcholkiM.length === 0) return os;
+    let best = os.wierzcholkiM[0];
+    let bestD = Infinity;
+    for (const p of os.wierzcholkiM) {
+      const t = stycznyNaOsi(glowna, stacjaNaOsi(glowna, p));
+      if (!t) continue;
+      const d = Math.hypot(p.x - t.punkt.x, p.y - t.punkt.y);
+      if (d < bestD) {
+        bestD = d;
+        best = p;
+      }
+    }
+    const s = stacjaNaOsi(glowna, best);
+    const km = start + (s / dl) * (koniec - start);
+    return { ...os, kmDowiazaniaM: round2(km) };
   });
 }
 
@@ -458,6 +517,21 @@ export function zbierzLegendeZArkuszy(
         });
       }
     }
+    for (const os of arkusz.osieBoczne ?? []) {
+      const oKolor = normalizujKolorHex(os.kolor || '#0000FF');
+      const oKlucz = kluczLegendy('os', oKolor);
+      if (!mapa.has(oKlucz)) {
+        const sugerowana = sugerowanaNazwaLegendy('os', oKolor);
+        mapa.set(oKlucz, {
+          id: generujId(),
+          kolor: oKolor,
+          typ: 'os',
+          klucz: oKlucz,
+          nazwa: sugerowana,
+          sugerowanaNazwa: sugerowana || undefined,
+        });
+      }
+    }
   }
 
   const obszary = [...mapa.values()].filter((w) => w.typ === 'obszar');
@@ -470,11 +544,15 @@ export function zbierzLegendeZArkuszy(
 /** Uzupełnia legendę i konstrukcje o nowe kolory / oś z już wgranych arkuszy (bez utraty ręcznych nazw). */
 export function zsynchronizujLegendeProjektu(projekt: ProjektBudowy): ProjektBudowy {
   const legenda = zbierzLegendeZArkuszy(projekt.arkusze, projekt.legenda);
-  const konstrukcje = uzupelnijKonstrukcjeDlaLegendy(projekt.konstrukcje, legenda);
+  const konstrukcje = zapewnijIdentyfikatoryKonstrukcji(
+    uzupelnijKonstrukcjeDlaLegendy(projekt.konstrukcje, legenda),
+  );
   const teSameKlucze = legenda.length === projekt.legenda.length
     && legenda.every((w) => projekt.legenda.some((s) => s.klucz === w.klucz))
     && projekt.legenda.every((s) => legenda.some((w) => w.klucz === s.klucz));
-  if (teSameKlucze && konstrukcje.length === projekt.konstrukcje.length) return projekt;
+  const teSameKonstrukcje = konstrukcje.length === projekt.konstrukcje.length
+    && konstrukcje.every((k, i) => k === projekt.konstrukcje[i]);
+  if (teSameKlucze && teSameKonstrukcje) return projekt;
   return { ...projekt, legenda, konstrukcje };
 }
 
@@ -684,10 +762,12 @@ export function segmentyKonstrukcji(
   konstrukcja: KonstrukcjaObszaru,
   od: number,
   doKm: number,
+  obszarId?: string,
 ): SegmentKonstrukcji[] {
   const totalOd = Math.min(od, doKm);
   const totalDo = Math.max(od, doKm);
   const wyjatki = [...konstrukcja.wyjatki]
+    .filter((w) => !w.obszarIds?.length || (obszarId != null && w.obszarIds.includes(obszarId)))
     .map((w) => ({
       od: Math.max(totalOd, Math.min(w.kmOdM, w.kmDoM)),
       do: Math.min(totalDo, Math.max(w.kmOdM, w.kmDoM)),
@@ -758,32 +838,98 @@ export interface WierszPrzedmiaru {
   daSieScalicZ: string[];
 }
 
-function obszaryDlaWpisu(projekt: ProjektBudowy, wpis: WpisLegendy): ObszarObmiaru[] {
-  const out: ObszarObmiaru[] = [];
+function obszaryDlaWpisu(projekt: ProjektBudowy, wpis: WpisLegendy): { obszar: ObszarObmiaru; arkusz: ArkuszPzt }[] {
+  const out: { obszar: ObszarObmiaru; arkusz: ArkuszPzt }[] = [];
   for (const a of projekt.arkusze) {
     for (const o of a.obszary) {
-      if (kluczLegendy('obszar', o.kolorWypelnienia) === wpis.klucz) out.push(o);
+      if (kluczLegendy('obszar', o.kolorWypelnienia) === wpis.klucz) out.push({ obszar: o, arkusz: a });
     }
   }
   return out;
 }
 
+export function arkuszZObszarem(projekt: ProjektBudowy, obszarId: string): ArkuszPzt | undefined {
+  return projekt.arkusze.find((a) => a.obszary.some((o) => o.id === obszarId));
+}
+
+export function wszystkieObszary(projekt: ProjektBudowy): { obszar: ObszarObmiaru; arkusz: ArkuszPzt }[] {
+  const out: { obszar: ObszarObmiaru; arkusz: ArkuszPzt }[] = [];
+  for (const arkusz of projekt.arkusze) {
+    for (const obszar of arkusz.obszary) out.push({ obszar, arkusz });
+  }
+  return out;
+}
+
+/** Tryb klikania na PZT: choć jedna konstrukcja ma zapisaną listę obszarów. */
+export function czyPrzypisaniaAktywne(projekt: Pick<ProjektBudowy, 'konstrukcje'>): boolean {
+  return projekt.konstrukcje.some((k) => Array.isArray(k.obszarIds));
+}
+
+export function postepPrzypisan(projekt: ProjektBudowy): { wszystkie: number; przypisane: number } {
+  const ids = new Set(wszystkieObszary(projekt).map((x) => x.obszar.id));
+  const przypisane = new Set<string>();
+  for (const k of projekt.konstrukcje) {
+    for (const id of k.obszarIds ?? []) if (ids.has(id)) przypisane.add(id);
+  }
+  return { wszystkie: ids.size, przypisane: przypisane.size };
+}
+
+export function konstrukcjaDlaObszaru(projekt: ProjektBudowy, obszarId: string): KonstrukcjaObszaru | undefined {
+  if (czyPrzypisaniaAktywne(projekt)) {
+    return projekt.konstrukcje.find((k) => k.obszarIds?.includes(obszarId));
+  }
+  const para = wszystkieObszary(projekt).find((x) => x.obszar.id === obszarId);
+  if (!para) return undefined;
+  const klucz = kluczLegendy('obszar', para.obszar.kolorWypelnienia);
+  const wpis = projekt.legenda.find((w) => w.klucz === klucz && w.typ === 'obszar');
+  return wpis ? projekt.konstrukcje.find((k) => k.legendaId === wpis.id) : undefined;
+}
+
+export function zapewnijIdentyfikatoryKonstrukcji(konstrukcje: KonstrukcjaObszaru[]): KonstrukcjaObszaru[] {
+  let max = 0;
+  for (const k of konstrukcje) if ((k.numer ?? 0) > max) max = k.numer ?? 0;
+  let zmieniono = false;
+  const next = konstrukcje.map((k) => {
+    let id = k.id;
+    let numer = k.numer;
+    if (!id) {
+      id = generujId();
+      zmieniono = true;
+    }
+    if (!numer) {
+      numer = ++max;
+      zmieniono = true;
+    }
+    if (id === k.id && numer === k.numer) return k;
+    return { ...k, id, numer };
+  });
+  return zmieniono ? next : konstrukcje;
+}
+
+export function nowaKonstrukcja(legendaId: string, numer: number): KonstrukcjaObszaru {
+  return {
+    id: generujId(),
+    numer,
+    legendaId,
+    warstwy: domyslneWarstwyKonstrukcji(),
+    wyjatki: [],
+    obszarIds: [],
+  };
+}
+
 function ilosciDlaObszaru(
   obszar: ObszarObmiaru,
+  arkusz: ArkuszPzt | undefined,
   konstrukcja: KonstrukcjaObszaru,
   mieszanki: Pick<Mieszanka, 'id' | 'ciezarObjetosciowy'>[],
 ): Map<string, IloscWarstwy> {
   const acc = new Map<string, IloscWarstwy>();
   const km = kmObszaru(obszar);
-  const dlugoscCalk = Math.max(km.do - km.od, 0.01);
-  const segmenty = segmentyKonstrukcji(konstrukcja, km.od, km.do);
+  const segmenty = segmentyKonstrukcji(konstrukcja, km.od, km.do, obszar.id);
   for (const seg of segmenty) {
-    const udzial = Math.max(0, seg.do - seg.od) / dlugoscCalk;
-    const powSeg = obszar.powierzchniaM2 * udzial;
-    const dlSeg = dlugoscUkladaniaObszaru(obszar) * udzial;
     for (const warstwa of [...seg.warstwy].sort((a, b) => a.kolejnosc - b.kolejnosc)) {
       const ods = odsadzkiWarstwy(warstwa);
-      const powW = powierzchniaWarstwyZOdsadzkami(powSeg, dlSeg, ods.lewa, ods.prawa);
+      const powW = powierzchniaWarstwyObszaru(obszar, arkusz, ods.lewa, ods.prawa, seg.od, seg.do);
       const rho = gestoscWarstwy(warstwa, mieszanki);
       dodajIlosc(acc, {
         nazwa: warstwa.nazwa,
@@ -811,10 +957,75 @@ function podpisWarstw(warstwy: WarstwaKonstrukcji[]): string {
     .join('|');
 }
 
+function wierszZObszarow(
+  id: string,
+  nazwa: string,
+  legendaIds: string[],
+  pary: { obszar: ObszarObmiaru; arkusz: ArkuszPzt }[],
+  konstrukcja: KonstrukcjaObszaru | undefined,
+  mieszanki: Pick<Mieszanka, 'id' | 'ciezarObjetosciowy'>[],
+): WierszPrzedmiaru {
+  const acc = new Map<string, IloscWarstwy>();
+  let pow = 0;
+  let dl = 0;
+  for (const { obszar, arkusz } of pary) {
+    pow += obszar.powierzchniaM2;
+    dl += dlugoscUkladaniaObszaru(obszar);
+    if (!konstrukcja) continue;
+    const czastkowe = ilosciDlaObszaru(obszar, arkusz, konstrukcja, mieszanki);
+    for (const v of czastkowe.values()) dodajIlosc(acc, v);
+  }
+  return {
+    id,
+    nazwa,
+    legendaIds,
+    powierzchniaObrysuM2: round2(pow),
+    dlugoscM: round2(dl),
+    warstwy: [...acc.values()].sort((a, b) => a.kolejnosc - b.kolejnosc || a.nazwa.localeCompare(b.nazwa, 'pl')),
+    daSieScalicZ: [],
+  };
+}
+
+function obliczPrzedmiarZPrzypisan(
+  projekt: ProjektBudowy,
+  mieszanki: Pick<Mieszanka, 'id' | 'ciezarObjetosciowy'>[],
+): WierszPrzedmiaru[] {
+  const pary = wszystkieObszary(projekt);
+  const uzyte = new Set<string>();
+  const wynik: WierszPrzedmiaru[] = [];
+  const konstrukcje = [...projekt.konstrukcje].sort((a, b) => (a.numer ?? 99) - (b.numer ?? 99));
+  for (const k of konstrukcje) {
+    const swoje = pary.filter((p) => k.obszarIds?.includes(p.obszar.id));
+    for (const p of swoje) uzyte.add(p.obszar.id);
+    if (swoje.length === 0) continue;
+    const legenda = projekt.legenda.find((w) => w.id === k.legendaId);
+    const nazwy = [...new Set(swoje.map((p) => p.obszar.nazwaDodatkowa?.trim() || p.obszar.nazwa))];
+    const nazwa = `Konstrukcja ${k.numer ?? ''}`.trim() + (legenda?.nazwa ? ` · ${legenda.nazwa}` : '');
+    const wiersz = wierszZObszarow(
+      k.id || k.legendaId,
+      swoje.length === 1 && nazwy[0] ? `${nazwa} (${nazwy[0]})` : nazwa,
+      [...new Set(swoje.map((p) => {
+        const klucz = kluczLegendy('obszar', p.obszar.kolorWypelnienia);
+        return projekt.legenda.find((w) => w.klucz === klucz)?.id ?? k.legendaId;
+      }))],
+      swoje,
+      k,
+      mieszanki,
+    );
+    wynik.push(wiersz);
+  }
+  const wolne = pary.filter((p) => !uzyte.has(p.obszar.id));
+  if (wolne.length > 0) {
+    wynik.push(wierszZObszarow('bez-konstrukcji', 'Bez konstrukcji', [], wolne, undefined, mieszanki));
+  }
+  return wynik;
+}
+
 export function obliczPrzedmiar(
   projekt: ProjektBudowy,
   mieszanki: Pick<Mieszanka, 'id' | 'ciezarObjetosciowy'>[] = [],
 ): WierszPrzedmiaru[] {
+  if (czyPrzypisaniaAktywne(projekt)) return obliczPrzedmiarZPrzypisan(projekt, mieszanki);
   const obszaryLegendy = projekt.legenda.filter((w) => w.typ === 'obszar' && w.nazwa.trim());
   const surowe: WierszPrzedmiaru[] = obszaryLegendy.map((wpis) => {
     const konstrukcja = projekt.konstrukcje.find((k) => k.legendaId === wpis.id) ?? {
@@ -826,10 +1037,10 @@ export function obliczPrzedmiar(
     const acc = new Map<string, IloscWarstwy>();
     let pow = 0;
     let dl = 0;
-    for (const o of obszary) {
+    for (const { obszar: o, arkusz } of obszary) {
       pow += o.powierzchniaM2;
       dl += dlugoscUkladaniaObszaru(o);
-      const czastkowe = ilosciDlaObszaru(o, konstrukcja, mieszanki);
+      const czastkowe = ilosciDlaObszaru(o, arkusz, konstrukcja, mieszanki);
       for (const v of czastkowe.values()) dodajIlosc(acc, v);
     }
     return {

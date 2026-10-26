@@ -35,7 +35,7 @@ export const ZASADA_BUDOWY: SlajdZasady[] = [
         <WycinekPrzycisku tekst="Dodaj arkusze XFDF / PDF" plus drugi />
       </>
     ),
-    opis: 'W zakładce **PZT** stuknij **+ Dodaj arkusze XFDF / PDF** – wgrasz arkusze planu z obszarami. **Legenda** ustawia kolory warstw, **Konstrukcje** – warstwy i mieszanki odcinków, **Przedmiar** liczy ilości z PZT.',
+    opis: 'W zakładce **PZT** stuknij **+ Dodaj arkusze XFDF / PDF** i ustaw **role kolorów** (trasa L i P, droga boczna, wjazd, ścieżka). Czerwona linia to krawężnik, czarna to oś główna, niebieska – oś boczna. W **Konstrukcjach** każda ma numer: **Przypisz obszary**, stukaj je na arkuszach PZT i zatwierdź **OK**. **Przedmiar** liczy powierzchnie z odsadzkami.',
   },
   {
     tytul: 'Wykonanie',
@@ -45,7 +45,7 @@ export const ZASADA_BUDOWY: SlajdZasady[] = [
         <WycinekPrzycisku tekst="Dodaj raport" plus />
       </>
     ),
-    opis: '**Raporty** – raport dnia z kalendarzem. **Liniówka** – zamalowujesz na PZT, co zrobiono danego dnia. **Zaawansowanie** pokazuje postęp robót. Ikona udostępniania w nagłówku zapisuje budowę do **PDF**.',
+    opis: '**Raporty** – kilometraż wpisujesz albo zaznaczasz początek i koniec na planie; odsadzki L i P z raportu liczą wykonaną powierzchnię. **Liniówka** dorysowuje odsadzki warstw (krawężnik zostaje). **Zaawansowanie** pokazuje, ile m² zostało do zakrycia, ile ton każdej mieszanki jeszcze potrzeba i czy jest oszczędność, czy przepał.',
   },
 ];
 

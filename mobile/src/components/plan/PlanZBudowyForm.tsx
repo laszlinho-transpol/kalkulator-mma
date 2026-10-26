@@ -26,6 +26,7 @@ import {
 import { formatujKmM } from '../../utils/projektBudowy';
 import { pobierzUstawienia } from '../../utils/ustawieniaAplikacji';
 import { WyborKmNaMapie } from './WyborKmNaMapie';
+import { WyborZakresuNaPlanie } from './WyborZakresuNaPlanie';
 import {
   gestoscZRecepty,
   odsadzkiWpisaneWPlanie,
@@ -228,6 +229,7 @@ export function PlanZBudowyForm({ tytul, budowaId, initialPlan, dataPoczatkowa, 
   const [pickerMix, setPickerMix] = useState(false);
   const [komentarz, setKomentarz] = useState(reczny?.komentarz ?? '');
   const [mapaKm, setMapaKm] = useState<'start' | 'koniec' | null>(null);
+  const [mapaZakres, setMapaZakres] = useState(false);
 
   const aktywnaIdx = Math.min(aktywna, Math.max(0, zakladki.length - 1));
   const zak = zakladki[aktywnaIdx];
@@ -580,6 +582,12 @@ export function PlanZBudowyForm({ tytul, budowaId, initialPlan, dataPoczatkowa, 
             >
               <Text style={{ color: '#DC2626', fontWeight: '800' }}>Zaznacz na mapie</Text>
             </TouchableOpacity>
+            <TouchableOpacity
+              style={[styl.btnMapa, { borderColor: theme.colors.secondary, backgroundColor: `${theme.colors.secondary}12` }]}
+              onPress={() => setMapaZakres(true)}
+            >
+              <Text style={{ color: theme.colors.secondary, fontWeight: '800' }}>Początek i koniec na planie</Text>
+            </TouchableOpacity>
           </Sekcja>
 
           {widok.odcinki.length > 1 && (
@@ -747,6 +755,22 @@ export function PlanZBudowyForm({ tytul, budowaId, initialPlan, dataPoczatkowa, 
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {mapaZakres && projekt ? (
+        <WyborZakresuNaPlanie
+          visible
+          projekt={projekt}
+          theme={theme}
+          odsLewaCm={parsujOdsadzkeCm(zak.odsL)}
+          odsPrawaCm={parsujOdsadzkeCm(zak.odsP)}
+          onClose={() => setMapaZakres(false)}
+          onWybierz={({ kmOdM, kmDoM }) => {
+            const od = metryNaPola(kmOdM);
+            const dos = metryNaPola(kmDoM);
+            patchAktywna({ odKm: od.km, odM: od.mm, doKm: dos.km, doM: dos.mm });
+          }}
+        />
+      ) : null}
 
       {mapaKm && projekt ? (
         <WyborKmNaMapie

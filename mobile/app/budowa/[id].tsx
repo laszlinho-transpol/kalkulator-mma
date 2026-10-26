@@ -17,6 +17,7 @@ import { SekcjaSzczegolow } from '../../src/components/budowa/SekcjaSzczegolow';
 import { SekcjaPrzedmiar } from '../../src/components/budowa/SekcjaPrzedmiar';
 import { SekcjaRaporty } from '../../src/components/budowa/SekcjaRaporty';
 import { SekcjaLiniowka } from '../../src/components/budowa/SekcjaLiniowka';
+import { SekcjaZaawansowanie } from '../../src/components/budowa/SekcjaZaawansowanie';
 import { pustyProjektBudowy, zsynchronizujLegendeProjektu } from '../../src/utils/projektBudowy';
 import type { ProjektBudowy } from '../../src/types';
 import { useMieszankiStore } from '../../src/stores/mieszankiStore';
@@ -54,6 +55,7 @@ export default function BudowaSzablonScreen() {
   const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
   const insets = useSafeAreaInsets();
   const budowa = useBudowyStore((s) => s.budowy.find((b) => b.id === id));
+  const raportyBudowy = useRaportyBudowyStore((s) => s.raporty);
   const zapiszProjekt = useBudowyStore((s) => s.zapiszProjekt);
   const [mapaAktywna, setMapaAktywna] = useState(false);
   const [blokadaPodgladu, setBlokadaPodgladu] = useState(false);
@@ -67,6 +69,7 @@ export default function BudowaSzablonScreen() {
     ostatnieZakladki.set(id, { aktywna, widok: widokKonstrukcji });
   }, [id, aktywna, widokKonstrukcji]);
   const [skupienie, setSkupienie] = useState(false);
+  const [przypisanie, setPrzypisanie] = useState<{ konstrukcjaId: string; numer: number; zaznaczone: string[] } | null>(null);
   const scrollRef = useRef<ScrollView>(null);
   const naSkupienie = useCallback((v: boolean) => {
     setSkupienie(v);
@@ -175,6 +178,27 @@ export default function BudowaSzablonScreen() {
                 blokadaPodgladu={blokadaPodgladu}
                 onBlokadaPodgladu={setBlokadaPodgladu}
                 onDotykZmiana={setMapaAktywna}
+                przypisanie={przypisanie}
+                onToggleObszar={(obszarId) => setPrzypisanie((prev) => {
+                  if (!prev) return prev;
+                  const jest = prev.zaznaczone.includes(obszarId);
+                  return { ...prev, zaznaczone: jest ? prev.zaznaczone.filter((id) => id !== obszarId) : [...prev.zaznaczone, obszarId] };
+                })}
+                onOkPrzypisania={() => {
+                  if (!przypisanie) return;
+                  const ids = przypisanie.zaznaczone;
+                  onZmien({
+                    ...projekt,
+                    konstrukcje: projekt.konstrukcje.map((k) => {
+                      const klucz = k.id || k.legendaId;
+                      if (klucz === przypisanie.konstrukcjaId) return { ...k, obszarIds: ids };
+                      if (!Array.isArray(k.obszarIds)) return k;
+                      return { ...k, obszarIds: k.obszarIds.filter((id) => !ids.includes(id)) };
+                    }),
+                  });
+                  setPrzypisanie(null);
+                }}
+                onAnulujPrzypisania={() => setPrzypisanie(null)}
               />
             ) : null}
             {aktywna === 'legenda' ? <SekcjaLegenda projekt={projekt} theme={theme} onZmien={onZmien} /> : null}
@@ -187,7 +211,22 @@ export default function BudowaSzablonScreen() {
                   zakladki={[['odcinki', 'Odcinki'], ['szczegoly', `Szczegóły · ${projekt.szczegoly?.length ?? 0}`]]}
                 />
                 {widokKonstrukcji === 'odcinki'
-                  ? <SekcjaKonstrukcje projekt={projekt} theme={theme} onZmien={onZmien} />
+                  ? (
+                    <SekcjaKonstrukcje
+                      projekt={projekt}
+                      theme={theme}
+                      onZmien={onZmien}
+                      onPrzypisz={(konstrukcjaId) => {
+                        const k = projekt.konstrukcje.find((x) => (x.id || x.legendaId) === konstrukcjaId);
+                        setPrzypisanie({
+                          konstrukcjaId,
+                          numer: k?.numer ?? 1,
+                          zaznaczone: [...(k?.obszarIds ?? [])],
+                        });
+                        setAktywna('pzt');
+                      }}
+                    />
+                  )
                   : <SekcjaSzczegolow budowaId={budowa.id} projekt={projekt} onZmien={onZmien} />}
               </View>
             ) : null}
@@ -207,7 +246,11 @@ export default function BudowaSzablonScreen() {
               />
             ) : null}
             {aktywna === 'zaawansowanie' ? (
-              <Text style={{ color: theme.colors.textSecondary, fontSize: 13 }}>W przygotowaniu.</Text>
+              <SekcjaZaawansowanie
+                projekt={projekt}
+                raporty={raportyBudowy.filter((r) => r.budowaId === budowa.id)}
+                theme={theme}
+              />
             ) : null}
           </Sekcja>
         )}

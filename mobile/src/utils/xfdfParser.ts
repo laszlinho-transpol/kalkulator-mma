@@ -371,23 +371,35 @@ export function czyLiniaOsi(
   zrodlo?: 'polyline' | 'line',
 ): boolean {
   const s = (subject || '').toLowerCase();
-  const st = (style || '').toLowerCase();
   if (s.includes('oś') || s.includes('os trasy') || s.includes('oś trasy') || s.includes('axis')) return true;
   if (zrodlo === 'line') return false;
+  if (czyLiniaOsiBocznej(color, subject)) return false;
   const c = (color || '').toUpperCase();
   if (c === '#FF0000' || c === '#E53935' || c === '#C62828' || c === '#F44336') return false;
   const czarna = !c || c === '#000000' || c === '#000' || c === '#111111' || c === '#212121' || c === '#1A1A1A';
-  if (czarna && (st === 'dash' || st === 'dashed' || st.includes('dash'))) return true;
-  return false;
+  if (!czarna) return false;
+  const st = (style || '').toLowerCase();
+  // Kreskowana albo ciągła (brak stylu, „solid”) – oś trasy. Inny styl pomijamy.
+  return st === '' || st === 'solid' || st === 'dash' || st === 'dashed' || st.includes('dash');
 }
 
 export function czyLiniaKrawedznika(color?: string, subject?: string, style?: string): boolean {
   if (czyLiniaOsi(color, subject, style)) return false;
+  if (czyLiniaOsiBocznej(color, subject)) return false;
   const c = (color || '').toUpperCase();
   const s = (subject || '').toLowerCase();
-  if (c === '#FF0000' || c === '#E53935' || c === '#C62828' || c === '#F44336') return true;
-  if (s.includes('obwód') || s.includes('obwod') || s.includes('krawęż') || s.includes('krawenz')) return true;
+  const czerwona = c === '#FF0000' || c === '#E53935' || c === '#C62828' || c === '#F44336' || c === '#FF1744';
+  if (czerwona) return true;
+  if (s.includes('krawęż') || s.includes('krawenz') || s.includes('krawężnik')) return true;
   return false;
+}
+
+/** Niebieska polilinia: oś drogi bocznej albo wjazdu, nie krawężnik. */
+export function czyLiniaOsiBocznej(color?: string, subject?: string): boolean {
+  const c = (color || '').toUpperCase();
+  const s = (subject || '').toLowerCase();
+  if (s.includes('oś bocz') || s.includes('os bocz') || s.includes('oś wjaz') || s.includes('os wjaz')) return true;
+  return c === '#0000FF' || c === '#0000CD' || c === '#1E40AF' || c === '#2196F3' || c === '#1565C0' || c === '#3F51B5';
 }
 
 /**
@@ -558,12 +570,24 @@ export function parsujXfdfTekst(xml: string, zrodloNazwa: string): WynikParsowan
   return { zrodloNazwa, zrodloPdfHref, polygony, polilinie, osTrasy };
 }
 
+function rolaKoloruObszaru(hex?: string): 'boczna' | 'wjazd' | 'sciezka' | undefined {
+  const h = (hex || '').toUpperCase();
+  if (h === '#8B8B00' || h === '#827717' || h === '#9E9D24' || h === '#AFB42B') return 'boczna';
+  if (h === '#009300' || h === '#00C853' || h === '#2E7D32' || h === '#43A047' || h === '#008000') return 'wjazd';
+  if (h === '#40E0D0' || h === '#26A69A' || h === '#00BCD4' || h === '#388E8E' || h === '#80DEEA') return 'sciezka';
+  return undefined;
+}
+
 function nazwaObszaru(
   p: PolygonXfdfSurowy,
   i: number,
   kolejnoscStart: number,
   strona?: 'lewa' | 'prawa',
 ): string {
+  const rola = rolaKoloruObszaru(p.kolorWypelnienia);
+  if (rola === 'boczna') return 'Droga boczna';
+  if (rola === 'wjazd') return 'Wjazd';
+  if (rola === 'sciezka') return 'Ścieżka rowerowa';
   const s = strona ?? stronaTrasyZKoloru(p.kolorWypelnienia);
   if (s === 'lewa') return 'Trasa L';
   if (s === 'prawa') return 'Trasa P';
@@ -629,7 +653,7 @@ export function obszaryZPolygony(
       y: p.wierzcholki.reduce((s, q) => s + q.y, 0) / Math.max(p.wierzcholki.length, 1),
     };
     const stronaTrasy = stronaTrasyZKoloru(p.kolorWypelnienia)
-      ?? (osPdf ? stronaWzgledemOsi(centroid, osPdf) : undefined);
+      ?? (rolaKoloruObszaru(p.kolorWypelnienia) ? undefined : (osPdf ? stronaWzgledemOsi(centroid, osPdf) : undefined));
     const dlugoscOdcinkaM = zOsi ? round2(zOsi.dlugosc * k) : undefined;
     const iL = bazy?.start.idxLewy;
     const iP = bazy?.start.idxPrawy;

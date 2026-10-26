@@ -231,6 +231,10 @@ interface Props {
   zakresKoniecM?: number;
   /** Stuknięcie w podgląd zwraca punkt PDF (wybór kilometrażu na mapie). */
   onWskazPdf?: (p: Punkt2D) => void;
+  /** Poszerzone warstwy (odsadzki) rysowane pod obrysem ścieralnej. */
+  odsadzki?: { id: string; wierzcholkiPdf: Punkt2D[]; kolor: string; krycie: number }[];
+  /** Obszary podświetlone przy przypisywaniu do konstrukcji. */
+  zaznaczoneIds?: string[];
   liniowka?: LiniowkaPodgladu;
   /** Tryb szkicu: jeden palec rysuje, dwa przybliżają. */
   rysowanie?: RysowaniePodgladu;
@@ -251,6 +255,8 @@ export function PztArkuszPodglad({
   zakresStartM,
   zakresKoniecM,
   onWskazPdf,
+  odsadzki,
+  zaznaczoneIds,
   liniowka,
   rysowanie,
 }: Props) {
@@ -303,8 +309,10 @@ export function PztArkuszPodglad({
       ...(o.krawedzniki ?? []).flatMap((k) => k.wierzcholkiPdf),
     ]);
     if (arkusz.osTrasy?.wierzcholkiPdf?.length) pts.push(...arkusz.osTrasy.wierzcholkiPdf);
+    for (const os of arkusz.osieBoczne ?? []) pts.push(...os.wierzcholkiPdf);
+    for (const o of odsadzki ?? []) pts.push(...o.wierzcholkiPdf);
     return bboxWielokata(pts);
-  }, [arkusz]);
+  }, [arkusz, odsadzki]);
 
   const mapa = useMemo(() => {
     if (arkusz.obszary.length === 0 || geometria.szer <= 0) return null;
@@ -336,8 +344,19 @@ export function PztArkuszPodglad({
           kolor: k.kolor || '#FF0000',
           odOsi: k.polozenie === 'odOsi',
         })),
+        zaznaczony: zaznaczoneIds?.includes(o.id) ?? false,
       };
     });
+    const odsadzkiSvg = (odsadzki ?? []).map((o) => ({
+      id: o.id,
+      punkty: o.wierzcholkiPdf.map(toSvg).map((p) => `${p.x},${p.y}`).join(' '),
+      kolor: o.kolor,
+      krycie: o.krycie,
+    }));
+    const osieBoczne = (arkusz.osieBoczne ?? []).map((os) => ({
+      id: os.id,
+      punkty: os.wierzcholkiPdf.map(toSvg).map((p) => `${p.x},${p.y}`).join(' '),
+    }));
     const osPdf = osPdfZorientowana(arkusz);
     const osPts = osPdf.map(toSvg);
     const osPunkty = osPts.map((p) => `${p.x},${p.y}`).join(' ');
@@ -503,6 +522,8 @@ export function PztArkuszPodglad({
     const xfdfM = arkusz.osTrasy?.dlugoscEtykietaM;
     return {
       obszary,
+      odsadzkiSvg,
+      osieBoczne,
       skalaFit,
       cx,
       cy,
@@ -518,7 +539,7 @@ export function PztArkuszPodglad({
       zakresKreski,
       rMarkerSvg: podzialki[0]?.rMarkerSvg ?? Math.max(2.2, Math.min(4.5, 3.2 * skalaFit)),
     };
-  }, [arkusz, geometria, rozmiar.w, rozmiar.h, liveStacjaM, liveAuta, podzialkaM, zakresStartM, zakresKoniecM]);
+  }, [arkusz, geometria, rozmiar.w, rozmiar.h, liveStacjaM, liveAuta, podzialkaM, zakresStartM, zakresKoniecM, odsadzki, zaznaczoneIds]);
 
   const odcinkiLiniowki = liniowka?.odcinki;
   const liniowkaSvg = useMemo(() => {
@@ -1460,13 +1481,25 @@ export function PztArkuszPodglad({
                             />
                           </G>
                         ) : null}
+                        {mapa.odsadzkiSvg.map((o) => (
+                          <Polygon
+                            key={o.id}
+                            points={o.punkty}
+                            fill={o.kolor}
+                            fillOpacity={o.krycie}
+                            stroke={o.kolor}
+                            strokeWidth={swEkran}
+                            strokeLinejoin="round"
+                            vectorEffect="non-scaling-stroke"
+                          />
+                        ))}
                         {mapa.obszary.map((o) => (
                           <Polygon
                             key={o.id}
                             points={o.punkty}
-                            fill={o.fill}
-                            stroke={o.stroke}
-                            strokeWidth={swEkran}
+                            fill={o.zaznaczony ? hexDoRgba(o.stroke, 0.55) : o.fill}
+                            stroke={o.zaznaczony ? '#111827' : o.stroke}
+                            strokeWidth={o.zaznaczony ? swEkran * 3.2 : swEkran}
                             strokeLinejoin="round"
                             vectorEffect="non-scaling-stroke"
                           />
@@ -1529,6 +1562,19 @@ export function PztArkuszPodglad({
                             />
                           )),
                         )}
+                        {mapa.osieBoczne.map((os) => (
+                          <Polyline
+                            key={os.id}
+                            points={os.punkty}
+                            fill="none"
+                            stroke="#2563EB"
+                            strokeWidth={swEkran * 1.35}
+                            strokeDasharray={`${dash * 1.2} ${dash * 0.7}`}
+                            strokeLinejoin="round"
+                            strokeLinecap="round"
+                            vectorEffect="non-scaling-stroke"
+                          />
+                        ))}
                         {mapa.osPunkty ? (
                           <Polyline
                             points={mapa.osPunkty}
