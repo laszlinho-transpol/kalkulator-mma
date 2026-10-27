@@ -291,12 +291,12 @@ export function arkuszeTrasyGlownej(arkusze: ArkuszPzt[]): ArkuszPzt[] {
 /** Suma pikietażu trasy głównej = osie XFDF arkuszy z włączoną kontynuacją. */
 export function sumaOsiTrasyM(projekt: ProjektBudowy): number {
   const naTrasie = arkuszeTrasyGlownej(projekt.arkusze);
-  const zOsi = round2(naTrasie.reduce((s, a) => s + dlugoscArkuszaM(a), 0));
-  if (zOsi > 1) return zOsi;
-  return round2(naTrasie.reduce(
+  const zeStacji = round2(naTrasie.reduce(
     (s, a) => s + Math.max(0, a.kilometrazKoncowyM - a.kilometrazPoczatkowyM),
     0,
   ));
+  if (zeStacji > 1) return zeStacji;
+  return round2(naTrasie.reduce((s, a) => s + dlugoscArkuszaM(a), 0));
 }
 
 export function koniecTrasyGlownejM(projekt: ProjektBudowy): number | undefined {
@@ -483,9 +483,45 @@ export function ustawNajdluzszaOs(arkusz: ArkuszPzt): ArkuszPzt {
 }
 
 /**
+ * Rozpiętość pikietażu arkusza. Domyślnie długość czarnej kreski.
+ * `kilometrazProjektuKoncowyM` rozciąga tylko stacje wzdłuż tej kreski.
+ */
+export function dlugoscPikietazuArkuszaM(arkusz: ArkuszPzt, startM: number): number {
+  const kreska = dlugoscArkuszaM(arkusz);
+  const koniecProjektu = arkusz.kilometrazProjektuKoncowyM;
+  if (koniecProjektu == null || !Number.isFinite(koniecProjektu)) return kreska;
+  const dl = round2(koniecProjektu - startM);
+  if (dl < 1 || dl > 8000) return kreska;
+  return dl;
+}
+
+/**
+ * Ustawia albo czyści koniec pikietażu z projektu na jednym arkuszu
+ * i przelicza stacje następnych. Geometria metrów zostaje.
+ */
+export function ustawKilometrazProjektuArkusza(
+  projekt: ProjektBudowy,
+  arkuszId: string,
+  koniecM: number | null,
+): ProjektBudowy {
+  const arkusze = zastosujKilometrazArkuszy(
+    projekt.arkusze.map((a) => {
+      if (a.id !== arkuszId) return a;
+      if (koniecM == null) {
+        const { kilometrazProjektuKoncowyM: _pomin, ...reszta } = a;
+        return reszta;
+      }
+      return { ...a, kilometrazProjektuKoncowyM: round2(koniecM) };
+    }),
+    projekt.kilometrazPoczatkowyM,
+  );
+  return { ...projekt, arkusze };
+}
+
+/**
  * Uciągla kilometraż: pierwszy arkusz od km projektu,
  * kolejne z flagą kontynuacji startują na końcu poprzedniego.
- * Długość = linia osi z XFDF (wymiar kreski), bez korelacji do nadruku PZT.
+ * Długość = linia osi z XFDF, chyba że arkusz ma koniec wg projektu.
  */
 export function zastosujKilometrazArkuszy(
   arkusze: ArkuszPzt[],
@@ -495,8 +531,8 @@ export function zastosujKilometrazArkuszy(
   let biezacy = Math.max(0, kilometrazPoczatkowyM);
   return przygotowane.map((arkusz, i) => {
     const naTrasie = czyArkuszNaTrasieGlownej(arkusz, i);
-    const dlugosc = dlugoscArkuszaM(arkusz);
     const start = naTrasie ? biezacy : arkusz.kilometrazPoczatkowyM;
+    const dlugosc = dlugoscPikietazuArkuszaM(arkusz, start);
     const koniec = round2(start + dlugosc);
     if (naTrasie) biezacy = koniec;
     return {

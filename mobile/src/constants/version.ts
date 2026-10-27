@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.63';
+export const WERSJA_APLIKACJI = '1.8.64';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,14 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.64',
+    data: '2026-10-27',
+    tytul: 'Koniec pikietażu wg projektu',
+    zmiany: [
+      'Na arkuszu PZT pole „Koniec wg projektu” ustawia pikietę końca wzdłuż czarnej kreski. Szerokości, domiary i powierzchnie zostają w skali rysunku. Następny arkusz trasy styka się z tym końcem',
+    ],
+  },
   {
     wersja: '1.8.63',
     data: '2026-10-27',

@@ -23,6 +23,8 @@ import {
   ustawTloArkusza,
   zastosujKilometrazArkuszy,
   zmienNazweArkusza,
+  dlugoscArkuszaM,
+  ustawKilometrazProjektuArkusza,
   ROLE_OBSZARU_PZT,
   konstrukcjaDlaObszaru,
   postepPrzypisan,
@@ -68,6 +70,43 @@ interface Props {
 function potwierdzWeb(pytanie: string): boolean {
   if (typeof window !== 'undefined') return window.confirm(pytanie);
   return true;
+}
+
+function KoniecWgProjektu({
+  theme,
+  koniecM,
+  onZapisz,
+}: {
+  theme: AppTheme;
+  koniecM: number | null;
+  onZapisz: (km: string, m: string) => void;
+}) {
+  const z = koniecM == null ? null : Z_METROW_BIEZACYCH(koniecM);
+  const kmZ = z ? String(z.km) : '';
+  const mZ = z ? String(z.m).padStart(3, '0') : '';
+  const [km, setKm] = useState(kmZ);
+  const [m, setM] = useState(mZ);
+  useEffect(() => {
+    setKm(kmZ);
+    setM(mZ);
+  }, [kmZ, mZ]);
+  return (
+    <PoleKilometraz
+      theme={theme}
+      compact
+      accessibilityLabel="Koniec wg projektu"
+      km={km}
+      m={m}
+      onKm={(v) => {
+        setKm(v);
+        if (v.trim() && m.trim()) onZapisz(v, m);
+      }}
+      onM={(v) => {
+        setM(v);
+        if (km.trim() && v.trim()) onZapisz(km, v);
+      }}
+    />
+  );
 }
 
 function pokazKomunikat(tytul: string, tresc: string) {
@@ -487,7 +526,7 @@ export function SekcjaPzt({
       <View style={[karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border, gap: 8 }]}>
         <View style={styles.rzad}>
           <Text style={[styles.label, { color: theme.colors.text }]}>Podziałka kilometrażu osi</Text>
-          <InfoTooltip tresc={`Kreska z pikietą co ${projekt.podzialkaKilometrazuM ?? 50} m wzdłuż osi. Oś to najdłuższa kreska osi na arkuszu (czarna albo niebieska). Jej długość jest kilometrażem – krawężnik ani inna linia jej nie skracają. Krótsze niebieskie kreski to osie boczne.`} />
+          <InfoTooltip tresc={`Kreska z pikietą co ${projekt.podzialkaKilometrazuM ?? 50} m wzdłuż osi. Oś to czarna kreska z pliku. Jej długość jest pikietażem, dopóki nie wpiszesz końca wg projektu – wtedy rozstaw pikiet zmienia się tylko wzdłuż osi, a szerokości i powierzchnie zostają. Krawężnik jej nie skraca. Niebieskie kreski to domiary dróg bocznych.`} />
         </View>
         <View style={styles.kmRzad}>
           <TextInput
@@ -619,7 +658,7 @@ export function SekcjaPzt({
                 <View style={[karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border, gap: 8 }]}>
                   <Text style={{ color: theme.colors.text, fontWeight: '800' }}>Role kolorów</Text>
                   <Text style={{ color: theme.colors.textSecondary, fontSize: 12, lineHeight: 16 }}>
-                    Żółty i różowy to trasa główna, oliwkowy drogi boczne, zielony wjazdy, turkusowy ścieżka. Czerwona linia to krawężnik (obszar się przy niej nie poszerza). Oś trasy to najdłuższa kreska osi, czarna albo niebieska: długość tej kreski jest kilometrażem. Krótsze niebieskie kreski to osie boczne.
+                    Żółty i różowy to trasa główna, oliwkowy drogi boczne, zielony wjazdy, turkusowy ścieżka. Czerwona linia to krawężnik (obszar się przy niej nie poszerza). Oś trasy to czarna kreska. Koniec wg projektu rozciąga tylko pikietaż wzdłuż niej. Niebieskie kreski to domiary.
                   </Text>
                   {projekt.legenda.filter((w) => w.typ === 'obszar' || w.typ === 'linia' || w.typ === 'os').map((w) => (
                     <View key={w.id} style={{ gap: 6 }}>
@@ -720,6 +759,42 @@ export function SekcjaPzt({
                 <Text style={{ color: theme.colors.primary, fontWeight: '800', fontSize: 13 }}>
                   Zakres: {formatujKmM(aktywny.kilometrazPoczatkowyM)} → {formatujKmM(aktywny.kilometrazKoncowyM)}
                 </Text>
+                <View style={styles.rzad}>
+                  <Text style={[styles.label, { color: theme.colors.text }]}>Koniec wg projektu</Text>
+                  <InfoTooltip tresc="Gdy pikiety na rysunku są rozstawione inaczej niż długość czarnej kreski, wpisz pikietę końca tego arkusza. Podziałka idzie wzdłuż kreski aż do tej pikiety. Szerokości, domiary i powierzchnie zostają w skali rysunku. Puste pole liczy koniec z długości kreski. Następny arkusz trasy styka się z tym końcem." />
+                </View>
+                <KoniecWgProjektu
+                  theme={theme}
+                  koniecM={aktywny.kilometrazProjektuKoncowyM ?? null}
+                  onZapisz={(kmN, mN) => {
+                    const { km, m } = parsujPolaKilometraza(kmN, mN);
+                    const koniec = km * 1000 + m;
+                    const nastepny = ustawKilometrazProjektuArkusza(projekt, aktywny.id, koniec);
+                    const po = nastepny.arkusze.find((a) => a.id === aktywny.id);
+                    if (!po || Math.abs(po.kilometrazKoncowyM - koniec) > 0.6) {
+                      setBlad('Koniec wg projektu musi leżeć za początkiem tego arkusza.');
+                      return;
+                    }
+                    setBlad(null);
+                    onZmien(nastepny);
+                  }}
+                />
+                {aktywny.kilometrazProjektuKoncowyM != null ? (
+                  <View style={styles.rzad}>
+                    <Text style={{ color: theme.colors.textSecondary, fontSize: 12, flex: 1 }}>
+                      Kreska {Math.round(dlugoscArkuszaM(aktywny))} m
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() => {
+                        setBlad(null);
+                        onZmien(ustawKilometrazProjektuArkusza(projekt, aktywny.id, null));
+                      }}
+                      accessibilityLabel="Wyczyść koniec wg projektu"
+                    >
+                      <Text style={{ color: theme.colors.primary, fontWeight: '800', fontSize: 12 }}>Wyczyść</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : null}
                 {dlAkt ? (
                   <Text style={{ color: theme.colors.textSecondary, fontSize: 12, lineHeight: 16 }}>
                     Oś km: {Math.round(dlAkt.kmM)} m

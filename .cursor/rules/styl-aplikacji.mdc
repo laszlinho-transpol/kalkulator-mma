@@ -21,7 +21,8 @@ Pełny opis: `mobile/STYL.md` (przeczytaj przed pracą nad UI). Skrót:
 - Budowa: formularz tylko `FormularzBudowy`, status z `src/utils/statusBudowy.ts`; Harmonogram: logika w `src/harmonogram/harmonogram.ts`.
 - Wszystko nakładane na PZT (szkic, oś, podziałka, opis kilometrażu, pomiar „Zmierz”, znaki) jest SVG we
   współrzędnych PDF: ostre przy przybliżeniu i w skali projektu (rośnie i maleje razem z planem). Podziałka
-  i opis km na PZT i liniówce nie wystają poza obszar i są prostopadłe do osi. Grubość szkicu w jednostkach PDF.
+  i opis km na PZT i liniówce nie wystają poza obszar i są prostopadłe do osi. „Koniec wg projektu”
+  rozciąga tylko pikietaż wzdłuż osi; szerokości, domiary i powierzchnie zostają w skali rysunku. Grubość szkicu w jednostkach PDF.
   Strzałki i znak „i” liniówki też liczymy w jednostkach pliku (z szerokości pasa); stałą grubość na
   ekranie mają tylko linie (obrysy, kreski start/koniec, podświetlenie, „linia obszaru” szkicu). Szkic rysujemy
   w jednej warstwie i jednym obszarze naraz i przycinamy do niego; linia łamana: węzły stuknięciem, przeciągane

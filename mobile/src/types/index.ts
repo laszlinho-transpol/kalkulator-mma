@@ -584,6 +584,11 @@ export interface ArkuszPzt {
   kontynuacjaPoprzedniego: boolean;
   kilometrazPoczatkowyM: number;
   kilometrazKoncowyM: number;
+  /**
+   * Koniec pikietażu z projektu [m bieżące]. Rozciąga tylko kilometraż wzdłuż osi.
+   * Szerokości, domiary i powierzchnie zostają w skali rysunku.
+   */
+  kilometrazProjektuKoncowyM?: number;
   obszary: ObszarObmiaru[];
   tlo?: TloArkuszaPzt;
   /** Przerywana oś trasy z XFDF – pikietaż PZT */

@@ -84,7 +84,9 @@ opisanych niżej** – bez własnych kolorów, odstępów i nagłówków. Zmiana
     było ostre i w skali projektu. Przy przybliżaniu i oddalaniu te elementy rosną i maleją razem z planem,
     nie zostają stałym rozmiarem na ekranie. Podziałka i opis kilometrażu na PZT i na liniówce leżą wewnątrz
     obszaru (kreska kończy się na krawędzi korytarza, napis mieści się w tej szerokości) i są prostopadłe do
-    osi, jak na rysunku projektowym. Grubość kreski szkicu jest w jednostkach PDF (`gruboscPdf`). Znaki
+    osi, jak na rysunku projektowym. Gdy rozstaw pikiet projektu różni się od długości kreski, pole
+    „Koniec wg projektu” zmienia tylko kilometraż wzdłuż osi. Metry poprzeczne, domiary i powierzchnie
+    zostają w skali rysunku. Grubość kreski szkicu jest w jednostkach PDF (`gruboscPdf`). Znaki
     liniówki (strzałka, „i”) liczymy z szerokości pasa, więc też skalują się z planem.
     Stałą grubość na ekranie (`vectorEffect="non-scaling-stroke"`) mają tylko linie: obrysy obszarów,
     kreski start/koniec, oś, podświetlenie LED i najcieńsza linia szkicu („linia obszaru”, `gruboscPdf: 0`).
