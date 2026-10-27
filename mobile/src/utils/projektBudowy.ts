@@ -1012,6 +1012,90 @@ export function konstrukcjaDlaObszaru(projekt: ProjektBudowy, obszarId: string):
   return wpis ? projekt.konstrukcje.find((k) => k.legendaId === wpis.id) : undefined;
 }
 
+function obszaryLegendyKonstrukcji(projekt: ProjektBudowy, legendaId: string): string[] {
+  const wpis = projekt.legenda.find((w) => w.id === legendaId && w.typ === 'obszar');
+  if (!wpis) return [];
+  return wszystkieObszary(projekt)
+    .filter((p) => kluczLegendy('obszar', p.obszar.kolorWypelnienia) === wpis.klucz)
+    .map((p) => p.obszar.id);
+}
+
+/**
+ * Przypisuje obszar do konstrukcji o podanym id albo zdejmuje przypisanie (`null`).
+ * Pierwsze ręczne przypisanie przenosi dotychczasowe kolory na listy obszarów.
+ */
+export function przypiszObszarDoKonstrukcji(
+  projekt: ProjektBudowy,
+  obszarId: string,
+  konstrukcjaId: string | null,
+): ProjektBudowy {
+  const konstrukcje = projekt.konstrukcje.map((k) => {
+    const bazowe = Array.isArray(k.obszarIds) ? [...k.obszarIds] : obszaryLegendyKonstrukcji(projekt, k.legendaId);
+    const bez = bazowe.filter((id) => id !== obszarId);
+    const dolacz = konstrukcjaId != null && (k.id === konstrukcjaId || k.legendaId === konstrukcjaId);
+    return { ...k, obszarIds: dolacz ? [...bez, obszarId] : bez };
+  });
+  return { ...projekt, konstrukcje };
+}
+
+/** Nowa konstrukcja z kolejnym numerem, od razu przypisana do obszaru. */
+export function utworzKonstrukcjeDlaObszaru(projekt: ProjektBudowy, obszarId: string): ProjektBudowy {
+  const para = wszystkieObszary(projekt).find((x) => x.obszar.id === obszarId);
+  if (!para) return projekt;
+  const klucz = kluczLegendy('obszar', para.obszar.kolorWypelnienia);
+  let legenda = projekt.legenda;
+  let wpis = legenda.find((w) => w.klucz === klucz && w.typ === 'obszar');
+  if (!wpis) {
+    const sugerowana = sugerowanaNazwaLegendy('obszar', para.obszar.kolorWypelnienia, para.obszar.stronaTrasy);
+    wpis = {
+      id: generujId(),
+      kolor: normalizujKolorHex(para.obszar.kolorWypelnienia),
+      typ: 'obszar',
+      klucz,
+      nazwa: sugerowana || 'Obszar',
+      sugerowanaNazwa: sugerowana || undefined,
+    };
+    legenda = [...legenda, wpis];
+  } else if (!wpis.nazwa.trim()) {
+    const nazwa = wpis.sugerowanaNazwa || 'Obszar';
+    wpis = { ...wpis, nazwa };
+    legenda = legenda.map((w) => (w.id === wpis!.id ? wpis! : w));
+  }
+  const numer = projekt.konstrukcje.reduce((m, k) => Math.max(m, k.numer ?? 0), 0) + 1;
+  const nowa = nowaKonstrukcja(wpis.id, numer);
+  const zNowa = { ...projekt, legenda, konstrukcje: [...projekt.konstrukcje, nowa] };
+  return przypiszObszarDoKonstrukcji(zNowa, obszarId, nowa.id ?? nowa.legendaId);
+}
+
+export function ilosciWarstwObszaru(
+  projekt: ProjektBudowy,
+  obszarId: string,
+  mieszanki: Pick<Mieszanka, 'id' | 'ciezarObjetosciowy'>[],
+): IloscWarstwy[] {
+  const para = wszystkieObszary(projekt).find((x) => x.obszar.id === obszarId);
+  const konstrukcja = konstrukcjaDlaObszaru(projekt, obszarId);
+  if (!para || !konstrukcja) return [];
+  return [...ilosciDlaObszaru(para.obszar, para.arkusz, konstrukcja, mieszanki).values()]
+    .sort((a, b) => a.kolejnosc - b.kolejnosc);
+}
+
+export function zrodlaOdsadzekObszaru(projekt: ProjektBudowy, obszar: ObszarObmiaru): Array<{
+  warstwy: WarstwaKonstrukcji[];
+  kmOdM: number;
+  kmDoM: number;
+}> {
+  const konstrukcja = konstrukcjaDlaObszaru(projekt, obszar.id);
+  if (!konstrukcja) return [];
+  const km = kmObszaru(obszar);
+  const segmenty = segmentyKonstrukcji(konstrukcja, km.od, km.do, obszar.id);
+  const lista = segmenty.length > 0 ? segmenty : [{ od: km.od, do: km.od, warstwy: konstrukcja.warstwy }];
+  return lista.map((s) => ({
+    warstwy: s.warstwy,
+    kmOdM: s.od,
+    kmDoM: s.do,
+  }));
+}
+
 export function zapewnijIdentyfikatoryKonstrukcji(konstrukcje: KonstrukcjaObszaru[]): KonstrukcjaObszaru[] {
   let max = 0;
   for (const k of konstrukcje) if ((k.numer ?? 0) > max) max = k.numer ?? 0;

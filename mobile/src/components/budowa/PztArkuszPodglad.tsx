@@ -245,6 +245,9 @@ interface Props {
   odsadzki?: { id: string; wierzcholkiPdf: Punkt2D[]; kolor: string; krycie: number }[];
   /** Obszary podświetlone przy przypisywaniu do konstrukcji. */
   zaznaczoneIds?: string[];
+  /** Obszar podświetlony po stuknięciu (karta powierzchni i konstrukcji). */
+  podswietlonyObszarId?: string;
+  onPressObszar?: (obszarId: string) => void;
   liniowka?: LiniowkaPodgladu;
   /** Tryb szkicu: jeden palec rysuje, dwa przybliżają. */
   rysowanie?: RysowaniePodgladu;
@@ -267,6 +270,8 @@ export function PztArkuszPodglad({
   onWskazPdf,
   odsadzki,
   zaznaczoneIds,
+  podswietlonyObszarId,
+  onPressObszar,
   liniowka,
   rysowanie,
 }: Props) {
@@ -693,6 +698,8 @@ export function PztArkuszPodglad({
   zmierzRef.current = zmierz;
   const wskazRef = useRef(onWskazPdf);
   wskazRef.current = onWskazPdf;
+  const onPressObszarRef = useRef(onPressObszar);
+  onPressObszarRef.current = onPressObszar;
   const onPressAutoRef = useRef(onPressAuto);
   onPressAutoRef.current = onPressAuto;
   const lastTapMs = useRef(0);
@@ -904,6 +911,17 @@ export function PztArkuszPodglad({
         return;
       }
     }
+    const cbObszar = onPressObszarRef.current;
+    if (cbObszar) {
+      const pdfObszar = pdfZEkranu(ekranX, ekranY);
+      if (pdfObszar) {
+        const trafObszar = [...arkuszRef.current.obszary].reverse().find((o) => punktWWielokacie(pdfObszar, o.wierzcholkiPdf));
+        if (trafObszar) {
+          cbObszar(trafObszar.id);
+          return;
+        }
+      }
+    }
     const m = mapaRef.current;
     if (m?.maszyny && onPressAutoRef.current) {
       const svg = punktSvgZEkranu({
@@ -994,11 +1012,7 @@ export function PztArkuszPodglad({
   const rysunekPomiaru = useMemo(() => {
     if (!mapa || punktyPomiaru.length === 0) return null;
     const toSvg = (p: Punkt2D) => pdfDoSvgPodgladu(p, mapa.mapaSvg);
-    const font = mapa.podzialki[0]?.fontSvg ?? mapa.rMarkerSvg ?? 4;
-    const r = Math.max(font * 0.62, 2.4);
     return {
-      r,
-      font: Math.max(font * 0.85, r * 1.05),
       punkty: punktyPomiaru.map(toSvg),
     };
   }, [mapa, punktyPomiaru]);
@@ -1441,12 +1455,10 @@ export function PztArkuszPodglad({
           <TouchableOpacity
             style={styl.blokada}
             onPress={() => {
-              setZmierz((v) => {
-                const next = !v;
-                if (next) onBlokadaPodgladu?.(true);
-                else setPunktyPomiaru([]);
-                return next;
-              });
+              const next = !zmierz;
+              setZmierz(next);
+              if (next) onBlokadaPodgladu?.(true);
+              else setPunktyPomiaru([]);
             }}
             accessibilityLabel="Zmierz na planie"
           >
@@ -1853,28 +1865,60 @@ export function PztArkuszPodglad({
                             vectorEffect="non-scaling-stroke"
                           />
                         ) : null}
-                        {rysunekPomiaru?.punkty.map((mk, i) => (
-                          <G key={`pom-${i}`}>
-                            <Circle
-                              cx={mk.x}
-                              cy={mk.y}
-                              r={rysunekPomiaru.r}
-                              fill="#2563EB"
-                              stroke="#fff"
-                              strokeWidth={rysunekPomiaru.r * 0.16}
-                            />
-                            <SvgText
-                              x={mk.x}
-                              y={mk.y + rysunekPomiaru.r * 0.35}
-                              fontSize={rysunekPomiaru.font}
-                              fontWeight="800"
-                              fill="#fff"
-                              textAnchor="middle"
-                            >
-                              {i + 1}
-                            </SvgText>
+                        {mapa.obszary.filter((o) => o.id === podswietlonyObszarId).map((o) => (
+                          <G key={`led-obszar-${o.id}`} accessibilityLabel="Podświetlony obszar">
+                            {obrysLed(`led-obszar-${o.id}`, (p) => (
+                              <Polygon
+                                points={o.punkty}
+                                fill="none"
+                                {...p}
+                                strokeLinejoin="round"
+                                vectorEffect="non-scaling-stroke"
+                              />
+                            ))}
                           </G>
                         ))}
+                        {rysunekPomiaru?.punkty.map((mk, i) => {
+                          const r = 5.5 / xform.s;
+                          const font = 13 / xform.s;
+                          const dx = 8 / xform.s;
+                          const dy = 9 / xform.s;
+                          return (
+                            <G key={`pom-${i}`}>
+                              <Circle
+                                cx={mk.x}
+                                cy={mk.y}
+                                r={r}
+                                fill="#1D4ED8"
+                                stroke="#FFFFFF"
+                                strokeWidth={1.6}
+                                vectorEffect="non-scaling-stroke"
+                              />
+                              <SvgText
+                                x={mk.x + dx}
+                                y={mk.y - dy}
+                                fontSize={font}
+                                fontWeight="800"
+                                fill="#FFFFFF"
+                                stroke="#FFFFFF"
+                                strokeWidth={3.2 / xform.s}
+                                textAnchor="start"
+                              >
+                                {i + 1}
+                              </SvgText>
+                              <SvgText
+                                x={mk.x + dx}
+                                y={mk.y - dy}
+                                fontSize={font}
+                                fontWeight="800"
+                                fill="#1E3A8A"
+                                textAnchor="start"
+                              >
+                                {i + 1}
+                              </SvgText>
+                            </G>
+                          );
+                        })}
                       </G>
                     </Svg>
                   </Animated.View>
@@ -1931,7 +1975,7 @@ export function PztArkuszPodglad({
             </TouchableOpacity>
           ) : null}
         </View>
-        <InfoTooltip tresc="Ramka blokuje przewijanie strony: jeden palec albo mysz przesuwa rysunek, dwa palce, kółko albo lupka przybliżają. Żeby widać było pikiety, pobocza i budynki, wgraj oryginalny PDF arkusza. Podziałka i jej opis są wektorami w skali arkusza: leżą w obszarze, prostopadle do osi i rosną razem z przybliżeniem. Zmierz: stukaj kolejne punkty łamanej, węzeł przesuwasz palcem. Długość jest w metrach skali 1:500. Kasuj pomiar czyści linię." />
+        <InfoTooltip tresc="Ramka blokuje przewijanie strony: jeden palec albo mysz przesuwa rysunek, dwa palce, kółko albo lupka przybliżają. Żeby widać było pikiety, pobocza i budynki, wgraj oryginalny PDF arkusza. Podziałka i jej opis są wektorami w skali arkusza. Stuknięcie obszaru podświetla go i otwiera powierzchnię oraz numer konstrukcji. Zmierz stawia łamaną z małymi numerami 1, 2, 3 obok punktu. Węzeł przesuwasz palcem. Długość jest w metrach skali 1:500. Kasuj pomiar czyści linię." />
       </View>
     </View>
   );

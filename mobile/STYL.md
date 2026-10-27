@@ -82,7 +82,9 @@ opisanych niżej** – bez własnych kolorów, odstępów i nagłówków. Zmiana
     (szkice, wypełnienia, obszary liniówki, oś, podziałka kilometrażu, opisy pikiet, pomiar „Zmierz”, znaki),
     jest wektorem SVG we współrzędnych PDF arkusza – nigdy obrazem rastrowym – żeby przy każdym przybliżeniu
     było ostre i w skali projektu. Przy przybliżaniu i oddalaniu te elementy rosną i maleją razem z planem,
-    nie zostają stałym rozmiarem na ekranie. Podziałka i opis kilometrażu na PZT i na liniówce leżą wewnątrz
+    nie zostają stałym rozmiarem na ekranie. Wyjątek: znaczniki punktów „Zmierz” to małe kółka z numerem
+    1, 2, 3 obok punktu, w stałym rozmiarze na ekranie (jak punkty szkicu geodezyjnego). Łamana pomiaru
+    nadal jest w skali planu. Podziałka i opis kilometrażu na PZT i na liniówce leżą wewnątrz
     obszaru. Kreska podziałki jest prostopadła do osi, krótsza od szerokości korytarza i urywa się przed
     opisem, więc go nie przecina. Opis czyta się od lewej do prawej w kierunku rosnącego kilometrażu
     i rośnie razem z przybliżeniem planu. Na każdej zakładce pola „Początek” i „Koniec” wg planu

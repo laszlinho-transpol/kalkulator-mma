@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.65';
+export const WERSJA_APLIKACJI = '1.8.66';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,15 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.66',
+    data: '2026-10-27',
+    tytul: 'Obszar na PZT i czytelny pomiar',
+    zmiany: [
+      'Stuknięcie obszaru na arkuszu podświetla go i otwiera powierzchnię oraz numer konstrukcji. Przy przypisaniu widać powierzchnię i tony każdej warstwy',
+      'Punkty „Zmierz” są małymi kółkami z numerami 1, 2, 3. Szkic konstrukcji pokazuje grubość warstw. Wybrana mieszanka zatwierdzona jest zaznaczona kolorem',
+    ],
+  },
   {
     wersja: '1.8.65',
     data: '2026-10-27',

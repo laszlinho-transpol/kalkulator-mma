@@ -147,13 +147,13 @@ export function WyborMieszanki({ mieszanki, zaznaczone, onWybierz, etykietaDoste
                 accessibilityState={{ selected: sel }}
                 accessibilityLabel={etykietaDostepnosci ? etykietaDostepnosci(m) : `Mieszanka ${nazwaMieszanki(m)}`}
                 onPress={() => onWybierz(m)}
-                style={[styles.wiersz, sel && { backgroundColor: `${theme.colors.primary}22`, borderColor: theme.colors.primary }]}
+                style={[styles.wiersz, sel && { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary }]}
               >
                 <View style={{ flex: 1 }}>
-                  <Text style={[TYPOGRAFIA.wartosc, { color: theme.colors.text }]} numberOfLines={1}>{nazwaMieszanki(m)}</Text>
-                  <Text style={[TYPOGRAFIA.opis, { color: theme.colors.textSecondary }]} numberOfLines={1}>{opisMieszanki(m)}</Text>
+                  <Text style={[TYPOGRAFIA.wartosc, { color: sel ? '#1A1A1A' : theme.colors.text }]} numberOfLines={1}>{nazwaMieszanki(m)}</Text>
+                  <Text style={[TYPOGRAFIA.opis, { color: sel ? '#1A1A1A' : theme.colors.textSecondary }]} numberOfLines={1}>{opisMieszanki(m)}</Text>
                 </View>
-                {sel ? <Text style={[styles.ptaszek, { color: theme.colors.primary }]}>✓</Text> : null}
+                {sel ? <Text style={[styles.ptaszek, { color: '#1A1A1A' }]}>✓</Text> : null}
               </Naciskany>
             );
           }}

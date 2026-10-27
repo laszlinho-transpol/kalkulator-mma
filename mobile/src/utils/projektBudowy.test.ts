@@ -30,6 +30,11 @@ import {
   usunArkusz,
   zastosujKilometrazArkuszy,
   ustawKilometrazProjektuArkusza,
+  przypiszObszarDoKonstrukcji,
+  utworzKonstrukcjeDlaObszaru,
+  ilosciWarstwObszaru,
+  konstrukcjaDlaObszaru,
+  zrodlaOdsadzekObszaru,
   zbierzLegendeZArkuszy,
   zmienNazweArkusza,
   zmienNazweScalonegoWiersza,
@@ -261,6 +266,78 @@ describe('projektBudowy', () => {
     assert.equal(projekt.arkusze[0].kilometrazProjektuPoczatkowyM, undefined);
     assert.equal(projekt.arkusze[0].kilometrazPoczatkowyM, 115593.93);
     assert.equal(formatujKmM(projekt.arkusze[0].kilometrazKoncowyM), '116+031');
+  });
+
+  it('przypisanie numeru konstrukcji do obszaru liczy powierzchnię i tony warstw', () => {
+    const obszar = prostokat('o1', '#FFEE58', 100, 7, 'L');
+    obszar.kilometrazStartKm = 0;
+    obszar.kilometrazStartM = 0;
+    obszar.kilometrazKoniecKm = 0;
+    obszar.kilometrazKoniecM = 100;
+    const arkusz: ArkuszPzt = {
+      id: 'a',
+      nazwa: 'a',
+      zrodloNazwa: 'a.xfdf',
+      kolejnosc: 1,
+      kontynuacjaPoprzedniego: false,
+      kilometrazPoczatkowyM: 0,
+      kilometrazKoncowyM: 100,
+      obszary: [obszar],
+    };
+    const start = { ...pustyProjektBudowy(0), arkusze: [arkusz] };
+    const zK = utworzKonstrukcjeDlaObszaru(start, 'o1');
+    const k = konstrukcjaDlaObszaru(zK, 'o1');
+    assert.equal(k?.numer, 1);
+    assert.ok(k?.obszarIds?.includes('o1'));
+    const sma = ilosciWarstwObszaru(zK, 'o1', []).find((w) => w.nazwa === 'SMA8');
+    assert.equal(sma?.powierzchniaM2, 700);
+    assert.equal(sma?.tony, 68.6);
+    const bez = przypiszObszarDoKonstrukcji(zK, 'o1', null);
+    assert.equal(konstrukcjaDlaObszaru(bez, 'o1'), undefined);
+  });
+
+  it('szkic odsadzek na planie bierze warstwy zmiany konstrukcji, nie tylko podstawę', () => {
+    const obszar = prostokat('o1', '#FFEE58', 100, 7, 'L');
+    obszar.kilometrazStartKm = 0;
+    obszar.kilometrazStartM = 0;
+    obszar.kilometrazKoniecKm = 0;
+    obszar.kilometrazKoniecM = 100;
+    const arkusz: ArkuszPzt = {
+      id: 'a',
+      nazwa: 'a',
+      zrodloNazwa: 'a.xfdf',
+      kolejnosc: 1,
+      kontynuacjaPoprzedniego: false,
+      kilometrazPoczatkowyM: 0,
+      kilometrazKoncowyM: 100,
+      obszary: [obszar],
+      osTrasy: {
+        wierzcholkiPdf: [{ x: 0, y: 0 }, { x: 100, y: 0 }],
+        wierzcholkiM: [{ x: 0, y: 0 }, { x: 100, y: 0 }],
+        dlugoscM: 100,
+        dlugoscEtykietaM: 100,
+        kolor: '#000000',
+      },
+    };
+    const start = utworzKonstrukcjeDlaObszaru({ ...pustyProjektBudowy(0), arkusze: [arkusz] }, 'o1');
+    const k = konstrukcjaDlaObszaru(start, 'o1');
+    assert.ok(k);
+    const zmienione = k.warstwy.map((w) => (
+      w.nazwa === 'SMA8' ? { ...w, gruboscCm: 9, odsadzkaLewaCm: 12, odsadzkaPrawaCm: 12, odsadzkaCm: 12 } : w
+    ));
+    const projekt = {
+      ...start,
+      konstrukcje: start.konstrukcje.map((x) => (x.id === k.id ? {
+        ...x,
+        wyjatki: [{ id: 'w1', opis: 'zmiana', kmOdM: 40, kmDoM: 70, warstwy: zmienione }],
+      } : x)),
+    };
+    const zrodla = zrodlaOdsadzekObszaru(projekt, obszar);
+    const srodek = zrodla.find((z) => z.kmOdM === 40 && z.kmDoM === 70);
+    const skraj = zrodla.find((z) => z.kmOdM === 0);
+    assert.equal(srodek?.warstwy.find((w) => w.nazwa === 'SMA8')?.gruboscCm, 9);
+    assert.equal(skraj?.warstwy.find((w) => w.nazwa === 'SMA8')?.gruboscCm, 4);
+    assert.ok(zrodla.length >= 2);
   });
 
   it('kilometraż arkusza to średnia osi L/P, nie max (dłuższa jezdnia / wyspy)', () => {

@@ -25,10 +25,15 @@ import {
   zmienNazweArkusza,
   dlugoscArkuszaM,
   ustawKilometrazProjektuArkusza,
-  ROLE_OBSZARU_PZT,
   konstrukcjaDlaObszaru,
-  postepPrzypisan,
+  przypiszObszarDoKonstrukcji,
+  utworzKonstrukcjeDlaObszaru,
+  ilosciWarstwObszaru,
+  zrodlaOdsadzekObszaru,
+  wszystkieObszary,
 } from '../../utils/projektBudowy';
+import { formatLiczby } from '../../utils/calculations';
+import { useMieszankiStore } from '../../stores/mieszankiStore';
 import { karta } from '../../constants/layout';
 import { Z_METROW_BIEZACYCH } from '../../constants';
 import type { WynikParsowaniaXfdf } from '../../utils/xfdfParser';
@@ -139,17 +144,21 @@ export function SekcjaPzt({
   const [podzStr, setPodzStr] = useState(String(projekt.podzialkaKilometrazuM ?? 50));
   const aktywny = projekt.arkusze.find((a) => a.id === arkuszId) ?? projekt.arkusze[0];
   const [nazwaObszaruId, setNazwaObszaruId] = useState<string | null>(null);
-  const postep = postepPrzypisan(projekt);
+  const [kartaObszaruId, setKartaObszaruId] = useState<string | null>(null);
+  const [kartaOtwarta, setKartaOtwarta] = useState(false);
+  const mieszanki = useMieszankiStore((s) => s.mieszanki);
   const odsadzki = useMemo(() => (aktywny
-    ? rysunkiOdsadzekArkusza(projekt, aktywny, (obszar) => konstrukcjaDlaObszaru(projekt, obszar.id)?.warstwy ?? [])
+    ? rysunkiOdsadzekArkusza(projekt, aktywny, (obszar) => zrodlaOdsadzekObszaru(projekt, obszar))
     : []), [projekt, aktywny]);
   const obszarNazwy = aktywny?.obszary.find((o) => o.id === nazwaObszaruId);
-  const ustawRole = (legendaId: string, nazwa: string) => {
-    onZmien({
-      ...projekt,
-      legenda: projekt.legenda.map((w) => (w.id === legendaId ? { ...w, nazwa } : w)),
-    });
-  };
+  const kartaObszaru = kartaObszaruId
+    ? wszystkieObszary(projekt).find((x) => x.obszar.id === kartaObszaruId)
+    : undefined;
+  const konstrukcjaKarty = kartaObszaruId ? konstrukcjaDlaObszaru(projekt, kartaObszaruId) : undefined;
+  const warstwyKarty = useMemo(
+    () => (kartaObszaruId ? ilosciWarstwObszaru(projekt, kartaObszaruId, mieszanki) : []),
+    [kartaObszaruId, projekt, mieszanki],
+  );
   const ustawNazweDodatkowa = (obszarId: string, nazwa: string) => {
     onZmien({
       ...projekt,
@@ -686,52 +695,6 @@ export function SekcjaPzt({
 
           {aktywny ? (
             <>
-              {projekt.legenda.some((w) => w.typ === 'obszar') ? (
-                <View style={[karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border, gap: 8 }]}>
-                  <Text style={{ color: theme.colors.text, fontWeight: '800' }}>Role kolorów</Text>
-                  <Text style={{ color: theme.colors.textSecondary, fontSize: 12, lineHeight: 16 }}>
-                    Żółty i różowy to trasa główna, oliwkowy drogi boczne, zielony wjazdy, turkusowy ścieżka. Czerwona linia to krawężnik (obszar się przy niej nie poszerza). Oś trasy to czarna kreska. Początek i koniec wg planu rozciągają pikietaż wzdłuż niej. Niebieskie kreski to domiary.
-                  </Text>
-                  {projekt.legenda.filter((w) => w.typ === 'obszar' || w.typ === 'linia' || w.typ === 'os').map((w) => (
-                    <View key={w.id} style={{ gap: 6 }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                        <View style={{ width: 16, height: 16, borderRadius: 4, backgroundColor: w.kolor }} />
-                        <Text style={{ color: theme.colors.text, fontWeight: '700', flex: 1 }} numberOfLines={1}>
-                          {w.nazwa || w.sugerowanaNazwa || w.kolor}
-                        </Text>
-                      </View>
-                      {w.typ === 'obszar' ? (
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
-                          {ROLE_OBSZARU_PZT.map((r) => {
-                            const on = w.nazwa === r.nazwa;
-                            return (
-                              <TouchableOpacity
-                                key={r.id}
-                                onPress={() => ustawRole(w.id, r.nazwa)}
-                                accessibilityLabel={`Rola ${r.nazwa}`}
-                                style={{
-                                  borderWidth: 1,
-                                  borderRadius: 8,
-                                  paddingHorizontal: 8,
-                                  paddingVertical: 6,
-                                  borderColor: on ? theme.colors.primary : theme.colors.border,
-                                  backgroundColor: on ? `${theme.colors.primary}22` : theme.colors.inputBackground,
-                                }}
-                              >
-                                <Text style={{ color: theme.colors.text, fontSize: 12, fontWeight: '700' }}>{r.nazwa}</Text>
-                              </TouchableOpacity>
-                            );
-                          })}
-                        </ScrollView>
-                      ) : null}
-                    </View>
-                  ))}
-                  <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>
-                    Konstrukcje przypisane do {postep.przypisane} z {postep.wszystkie} obszarów
-                    {postep.wszystkie > 0 ? ` (${Math.round((postep.przypisane / postep.wszystkie) * 100)}%)` : ''}.
-                  </Text>
-                </View>
-              ) : null}
               {przypisanie ? (
                 <View style={[karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.primary, gap: 8 }]}>
                   <Text style={{ color: theme.colors.text, fontWeight: '800' }}>
@@ -765,6 +728,11 @@ export function SekcjaPzt({
                 podzialkaM={projekt.podzialkaKilometrazuM ?? 50}
                 odsadzki={odsadzki}
                 zaznaczoneIds={przypisanie?.zaznaczone}
+                podswietlonyObszarId={przypisanie ? undefined : kartaObszaruId ?? undefined}
+                onPressObszar={przypisanie ? undefined : (id) => {
+                  setKartaObszaruId(id);
+                  setKartaOtwarta(true);
+                }}
                 onWskazPdf={przypisanie ? (p) => {
                   const traf = [...aktywny.obszary].reverse().find((o) => punktWWielokacie(p, o.wierzcholkiPdf));
                   if (!traf) return;
@@ -1039,6 +1007,93 @@ export function SekcjaPzt({
             );
           })}
         </ScrollView>
+      </SafeModal>
+      <SafeModal
+        visible={kartaOtwarta && !!kartaObszaru}
+        tytul={kartaObszaru?.obszar.nazwaDodatkowa?.trim() || kartaObszaru?.obszar.nazwa || 'Obszar'}
+        theme={theme}
+        onClose={() => setKartaOtwarta(false)}
+        prawy={{ tekst: 'Gotowe', onPress: () => setKartaOtwarta(false), kolor: theme.colors.primary }}
+      >
+        {kartaObszaru ? (
+          <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }} keyboardShouldPersistTaps="handled">
+            <Text style={{ color: theme.colors.text, fontSize: 22, fontWeight: '800' }}>
+              {formatLiczby(kartaObszaru.obszar.powierzchniaM2, 1)} m²
+            </Text>
+            <Text style={{ color: theme.colors.textSecondary, fontSize: 13 }}>
+              Powierzchnia obrysu na planie
+            </Text>
+            <Text style={[styles.label, { color: theme.colors.text }]}>Konstrukcja</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+              <TouchableOpacity
+                accessibilityLabel="Bez konstrukcji"
+                onPress={() => onZmien(przypiszObszarDoKonstrukcji(projekt, kartaObszaru.obszar.id, null))}
+                style={{
+                  borderWidth: 1,
+                  borderRadius: 8,
+                  paddingHorizontal: 10,
+                  paddingVertical: 8,
+                  borderColor: konstrukcjaKarty ? theme.colors.border : theme.colors.primary,
+                  backgroundColor: konstrukcjaKarty ? theme.colors.inputBackground : theme.colors.primary,
+                }}
+              >
+                <Text style={{ color: konstrukcjaKarty ? theme.colors.text : '#1A1A1A', fontWeight: '800', fontSize: 13 }}>Bez numeru</Text>
+              </TouchableOpacity>
+              {[...projekt.konstrukcje].sort((a, b) => (a.numer ?? 99) - (b.numer ?? 99)).map((k) => {
+                const on = konstrukcjaKarty?.id === k.id;
+                return (
+                  <TouchableOpacity
+                    key={k.id ?? k.legendaId}
+                    accessibilityLabel={`Konstrukcja ${k.numer ?? ''}`}
+                    onPress={() => onZmien(przypiszObszarDoKonstrukcji(projekt, kartaObszaru.obszar.id, k.id ?? k.legendaId))}
+                    style={{
+                      borderWidth: 1,
+                      borderRadius: 8,
+                      paddingHorizontal: 10,
+                      paddingVertical: 8,
+                      borderColor: on ? theme.colors.primary : theme.colors.border,
+                      backgroundColor: on ? theme.colors.primary : theme.colors.inputBackground,
+                    }}
+                  >
+                    <Text style={{ color: on ? '#1A1A1A' : theme.colors.text, fontWeight: '800', fontSize: 13 }}>
+                      {`Konstrukcja ${k.numer ?? ''}`}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+              <TouchableOpacity
+                accessibilityLabel="Nowa konstrukcja"
+                onPress={() => onZmien(utworzKonstrukcjeDlaObszaru(projekt, kartaObszaru.obszar.id))}
+                style={{
+                  borderWidth: 1,
+                  borderRadius: 8,
+                  paddingHorizontal: 10,
+                  paddingVertical: 8,
+                  borderColor: theme.colors.border,
+                  backgroundColor: theme.colors.card,
+                }}
+              >
+                <Text style={{ color: theme.colors.primary, fontWeight: '800', fontSize: 13 }}>+ Nowa</Text>
+              </TouchableOpacity>
+            </View>
+            {konstrukcjaKarty && warstwyKarty.length > 0 ? (
+              <View style={{ gap: 8 }}>
+                <Text style={[styles.label, { color: theme.colors.text }]}>Warstwy tego obszaru</Text>
+                {warstwyKarty.map((w) => (
+                  <View key={`${w.kolejnosc}|${w.nazwa}`} style={{ borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.colors.border, paddingTop: 8 }}>
+                    <Text style={{ color: theme.colors.text, fontWeight: '800' }}>{w.nazwa}</Text>
+                    <Text style={{ color: theme.colors.textSecondary, fontSize: 13 }}>
+                      {`${w.gruboscCm} cm · ${formatLiczby(w.powierzchniaM2, 1)} m² · ${formatLiczby(w.tony, 2)} t`}
+                    </Text>
+                  </View>
+                ))}
+                <Text style={{ color: theme.colors.text, fontWeight: '800' }}>
+                  {`Razem ${formatLiczby(warstwyKarty.reduce((s, w) => s + w.tony, 0), 2)} t`}
+                </Text>
+              </View>
+            ) : null}
+          </ScrollView>
+        ) : null}
       </SafeModal>
     </View>
   );
