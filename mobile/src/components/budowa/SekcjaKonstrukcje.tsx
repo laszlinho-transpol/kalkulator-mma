@@ -16,6 +16,7 @@ import { useWytwornieStore } from '../../stores/wytwornieStore';
 import {
   czyLegendaUzupelniona,
   formatujKmM,
+  konstrukcjaDlaObszaru,
   nowaKonstrukcja,
   nowaWarstwa,
   odsadzkiWarstwy,
@@ -25,9 +26,10 @@ import {
   sklonujWarstwy,
   wszystkieObszary,
 } from '../../utils/projektBudowy';
+import { lokalizacjaObszaru, nastepnyNumerWyjatku, odcinkiObszaru } from '../../utils/lokalizacjaObszaru';
 import { zakresKmObszaru } from '../../utils/planZBudowy';
 import { Z_METROW_BIEZACYCH } from '../../constants';
-import { Przycisk, PrzyciskIkony, Wybor } from '../ui';
+import { Przycisk, PrzyciskIkony } from '../ui';
 import { WyborZakresuNaPlanie } from '../plan/WyborZakresuNaPlanie';
 import { potwierdzAkcje } from '../../utils/dialog';
 import { rodzajMieszanki } from '../../mieszanki/kolejnosc';
@@ -36,7 +38,7 @@ interface Props {
   projekt: ProjektBudowy;
   theme: AppTheme;
   onZmien: (p: ProjektBudowy) => void;
-  onPrzypisz?: (konstrukcjaId: string) => void;
+  onPokazObszar?: (cel: { arkuszId: string; obszarId: string; kmOdM: number; kmDoM: number }) => void;
 }
 
 const KATEGORIE: { id: KategoriaWarstwy; etykieta: string }[] = [
@@ -70,7 +72,51 @@ function zakresTrasy(projekt: ProjektBudowy, legendaId: string): { odM: number; 
   return { odM: Math.min(start, koniec), doM: Math.max(start, koniec) };
 }
 
-export function SekcjaKonstrukcje({ projekt, theme, onZmien, onPrzypisz }: Props) {
+function numerZmiany(k: KonstrukcjaObszaru, w: WyjatekKonstrukcji): string {
+  const n = w.numer && w.numer > 0 ? w.numer : Math.max(1, k.wyjatki.findIndex((x) => x.id === w.id) + 1);
+  return `${k.numer ?? ''}.${n}`;
+}
+
+function pozycjeObszarow(projekt: ProjektBudowy, k: KonstrukcjaObszaru) {
+  const klucz = k.id || k.legendaId;
+  const out: {
+    id: string;
+    arkuszId: string;
+    obszarId: string;
+    kmOdM: number;
+    kmDoM: number;
+    sortTrasa: number;
+    sortBoczna: number;
+    numer: string;
+    nazwa: string;
+    tekst: string;
+  }[] = [];
+  for (const para of wszystkieObszary(projekt)) {
+    const wlasna = konstrukcjaDlaObszaru(projekt, para.obszar.id);
+    if (!wlasna || (wlasna.id || wlasna.legendaId) !== klucz) continue;
+    const lok = lokalizacjaObszaru(para.obszar, para.arkusz);
+    for (const d of odcinkiObszaru(para.obszar, para.arkusz, k)) {
+      out.push({
+        id: d.id,
+        arkuszId: para.arkusz.id,
+        obszarId: para.obszar.id,
+        kmOdM: d.kmOdM,
+        kmDoM: d.kmDoM,
+        sortTrasa: lok?.rodzaj === 'boczna' ? lok.kmTrasyOdM : d.kmOdM,
+        sortBoczna: lok?.rodzaj === 'boczna' ? (lok.kmBocznaOdM ?? 0) : 0,
+        numer: d.numer,
+        nazwa: d.nazwa,
+        tekst: lok?.rodzaj === 'boczna'
+          ? lok.tekst
+          : `${formatujKmM(d.kmOdM)} – ${formatujKmM(d.kmDoM)}`,
+      });
+    }
+  }
+  out.sort((a, b) => a.sortTrasa - b.sortTrasa || a.sortBoczna - b.sortBoczna || a.kmOdM - b.kmOdM);
+  return out;
+}
+
+export function SekcjaKonstrukcje({ projekt, theme, onZmien, onPokazObszar }: Props) {
   const mieszanki = useMieszankiStore((s) => s.mieszanki);
   const wytwornie = useWytwornieStore((s) => s.wytwornie);
   const [mixWarstwa, setMixWarstwa] = useState<{ konstrukcjaId: string; warstwaId: string; wyjatekId?: string } | null>(null);
@@ -80,7 +126,6 @@ export function SekcjaKonstrukcje({ projekt, theme, onZmien, onPrzypisz }: Props
   const [wyjatekDoKm, setWyjatekDoKm] = useState('0');
   const [wyjatekDoM, setWyjatekDoM] = useState('200');
   const [wyjatekOpis, setWyjatekOpis] = useState('');
-  const [wyjatekObszary, setWyjatekObszary] = useState<string[]>([]);
   const [mapaWyjatku, setMapaWyjatku] = useState(false);
   const [wybrany, setWybrany] = useState<Record<string, string>>({});
   const [oknoWarstw, setOknoWarstw] = useState<{ legendaId: string; wyjatekId?: string } | null>(null);
@@ -362,7 +407,7 @@ export function SekcjaKonstrukcje({ projekt, theme, onZmien, onPrzypisz }: Props
           Obszary z konstrukcją: {postep.przypisane} / {postep.wszystkie}
           {postep.wszystkie > 0 ? ` (${Math.round((postep.przypisane / postep.wszystkie) * 100)}%)` : ''}
         </Text>
-        <InfoTooltip tresc="Każda konstrukcja ma numer. „Przypisz obszary” przechodzi na PZT: stuknięcie zaznacza obszar, drugie odznacza, zapis jest po OK. Wyjątek może objąć kilka obszarów naraz – kilometraż wpisujesz albo zaznaczasz początek i koniec na planie." />
+        <InfoTooltip tresc="Obszar przypisujesz na PZT. Tutaj widać go z nazwą i kilometrażem, od początku trasy do końca. Stuknięcie otwiera arkusz oraz powierzchnię i tony warstw. Zmiana konstrukcji dzieli ten odcinek na planie i dostaje numer 1.1, 1.2, 1.3." />
       </View>
       <Przycisk
         tekst="Nowa konstrukcja"
@@ -397,16 +442,38 @@ export function SekcjaKonstrukcje({ projekt, theme, onZmien, onPrzypisz }: Props
                 {`Konstrukcja ${k.numer ?? ''}${wpis?.nazwa ? ` · ${wpis.nazwa}` : ''}`}
               </Text>
             </View>
-            <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>
-              {k.obszarIds ? `Przypisane obszary: ${k.obszarIds.length}` : 'Jeszcze bez ręcznego przypisania – przedmiar bierze cały kolor.'}
-            </Text>
-            <Przycisk
-              tekst="Przypisz obszary"
-              wariant="drugi"
-              maly
-              onPress={() => onPrzypisz?.(kluczK)}
-              accessibilityLabel={`Przypisz obszary do konstrukcji ${k.numer ?? ''}`}
-            />
+            {(() => {
+              const pozycje = pozycjeObszarow(projekt, k);
+              if (pozycje.length === 0) {
+                return (
+                  <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>
+                    Brak przypisanych obszarów. Na PZT stuknij obrys i wybierz tę konstrukcję.
+                  </Text>
+                );
+              }
+              return (
+                <View style={{ gap: 6 }}>
+                  {pozycje.map((p) => (
+                    <TouchableOpacity
+                      key={p.id}
+                      accessibilityLabel={`${p.numer} ${p.nazwa} ${p.tekst}`}
+                      onPress={() => onPokazObszar?.({
+                        arkuszId: p.arkuszId,
+                        obszarId: p.obszarId,
+                        kmOdM: p.kmOdM,
+                        kmDoM: p.kmDoM,
+                      })}
+                      style={[styles.odcinekBtn, { borderColor: theme.colors.border, backgroundColor: theme.colors.inputBackground }]}
+                    >
+                      <Text style={{ color: theme.colors.text, fontWeight: '800' }}>
+                        {`${p.numer ? `${p.numer} · ` : ''}${p.nazwa}`}
+                      </Text>
+                      <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>{p.tekst}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              );
+            })()}
             <View style={{ gap: 8 }}>
               {odcinki.map((s) => {
                 const on = klucz(s.od, s.do) === wybranyKlucz;
@@ -430,7 +497,7 @@ export function SekcjaKonstrukcje({ projekt, theme, onZmien, onPrzypisz }: Props
                       </Text>
                       {wyOdcinka ? (
                         <Text style={{ color: on ? '#1A1A1A' : theme.colors.textSecondary, fontSize: 11, textAlign: 'center' }} numberOfLines={1}>
-                          Zmiana konstrukcji
+                          {`Zmiana ${numerZmiany(k, wyOdcinka)}`}
                         </Text>
                       ) : null}
                     </TouchableOpacity>
@@ -459,7 +526,6 @@ export function SekcjaKonstrukcje({ projekt, theme, onZmien, onPrzypisz }: Props
               accessibilityLabel={`Zmiana konstrukcji ${k.numer ?? ''}`}
               onPress={() => {
               setWyjatekDla(kluczK);
-              setWyjatekObszary(k.obszarIds ? [...k.obszarIds] : []);
               const start = projekt.kilometrazPoczatkowyM;
               const od = Z_METROW_BIEZACYCH(start);
               const dos = Z_METROW_BIEZACYCH(start + 200);
@@ -499,7 +565,7 @@ export function SekcjaKonstrukcje({ projekt, theme, onZmien, onPrzypisz }: Props
                 opis: opisWyjatkuZKilometrazem(wyjatekOpis, kmOdM, kmDoM),
                 kmOdM,
                 kmDoM,
-                obszarIds: wyjatekObszary.length ? [...wyjatekObszary] : undefined,
+                numer: nastepnyNumerWyjatku(kk),
                 warstwy: sklonujWarstwy(k.warstwy),
               }],
             }));
@@ -521,28 +587,6 @@ export function SekcjaKonstrukcje({ projekt, theme, onZmien, onPrzypisz }: Props
             placeholderTextColor={theme.colors.textSecondary}
             style={[styles.input, { color: theme.colors.text, borderColor: theme.colors.border, backgroundColor: theme.colors.inputBackground }]}
           />
-          <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>
-            Obszary wyjątku. Bez zaznaczenia zmiana dotyczy wszystkich obszarów tej konstrukcji.
-          </Text>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-            {wszystkieObszary(projekt)
-              .filter((p) => {
-                const k = projekt.konstrukcje.find((x) => x.id === wyjatekDla) ?? projekt.konstrukcje.find((x) => x.legendaId === wyjatekDla);
-                if (!k) return false;
-                return !k.obszarIds || k.obszarIds.includes(p.obszar.id);
-              })
-              .map((p) => (
-                <Wybor
-                  key={p.obszar.id}
-                  zaznaczony={wyjatekObszary.includes(p.obszar.id)}
-                  etykieta={p.obszar.nazwaDodatkowa?.trim() || p.obszar.nazwa}
-                  accessibilityLabel={`Obszar ${p.obszar.nazwa}`}
-                  onPress={() => setWyjatekObszary((prev) => (
-                    prev.includes(p.obszar.id) ? prev.filter((id) => id !== p.obszar.id) : [...prev, p.obszar.id]
-                  ))}
-                />
-              ))}
-          </View>
           <Przycisk
             tekst="Zaznacz początek i koniec na planie"
             wariant="drugi"
@@ -556,7 +600,10 @@ export function SekcjaKonstrukcje({ projekt, theme, onZmien, onPrzypisz }: Props
         visible={mapaWyjatku}
         projekt={projekt}
         theme={theme}
-        obszarIds={wyjatekObszary.length ? wyjatekObszary : undefined}
+        obszarIds={(() => {
+          const k = projekt.konstrukcje.find((x) => x.id === wyjatekDla) ?? projekt.konstrukcje.find((x) => x.legendaId === wyjatekDla);
+          return k?.obszarIds;
+        })()}
         odsLewaCm={0}
         odsPrawaCm={0}
         onClose={() => setMapaWyjatku(false)}

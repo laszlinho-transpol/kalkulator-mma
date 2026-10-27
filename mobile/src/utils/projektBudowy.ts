@@ -1079,6 +1079,34 @@ export function ilosciWarstwObszaru(
     .sort((a, b) => a.kolejnosc - b.kolejnosc);
 }
 
+/** Tony warstw na jednym odcinku obszaru (po zmianie konstrukcji albo na całym obrysie). */
+export function ilosciWarstwOdcinka(
+  obszar: ObszarObmiaru,
+  arkusz: ArkuszPzt,
+  warstwy: WarstwaKonstrukcji[],
+  kmOdM: number,
+  kmDoM: number,
+  mieszanki: Pick<Mieszanka, 'id' | 'ciezarObjetosciowy'>[],
+): IloscWarstwy[] {
+  const acc = new Map<string, IloscWarstwy>();
+  for (const warstwa of [...warstwy].sort((a, b) => a.kolejnosc - b.kolejnosc)) {
+    const ods = odsadzkiWarstwy(warstwa);
+    const powW = powierzchniaWarstwyObszaru(obszar, arkusz, ods.lewa, ods.prawa, kmOdM, kmDoM);
+    const rho = gestoscWarstwy(warstwa, mieszanki);
+    dodajIlosc(acc, {
+      nazwa: warstwa.nazwa,
+      kategoria: warstwa.kategoria,
+      kolejnosc: warstwa.kolejnosc,
+      powierzchniaM2: powW,
+      gruboscCm: warstwa.gruboscCm,
+      odsadzkaCm: ods.lewa + ods.prawa,
+      tony: tonyZPowierzchni(powW, warstwa.gruboscCm, rho),
+      mieszankaIds: warstwa.mieszankaIds,
+    });
+  }
+  return [...acc.values()];
+}
+
 export function zrodlaOdsadzekObszaru(projekt: ProjektBudowy, obszar: ObszarObmiaru): Array<{
   warstwy: WarstwaKonstrukcji[];
   kmOdM: number;

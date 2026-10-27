@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.66';
+export const WERSJA_APLIKACJI = '1.8.67';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,15 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.67',
+    data: '2026-10-28',
+    tytul: 'Kilometraż obszaru i podział zmiany',
+    zmiany: [
+      'Konstrukcję przypisujesz tylko na PZT: numer z nazwą, opcjonalna nazwa obszaru i lokalizacja. Obszar wzdłuż czarnej osi dostaje odcinek od–do, a niebieska linia prostopadła ma własną podziałkę',
+      'Przycisk „Kilometraż” podświetla węzły niebieskiej linii. Wpisany kilometraż węzła dolicza resztę z długości. Zmiana konstrukcji dzieli odcinek na planie (1, 1.1, 1.2), a lista w konstrukcjach otwiera arkusz z powierzchnią i tonami',
+    ],
+  },
   {
     wersja: '1.8.66',
     data: '2026-10-27',

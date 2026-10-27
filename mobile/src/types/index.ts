@@ -432,6 +432,8 @@ export interface ObszarObmiaru {
   stronaTrasy?: 'lewa' | 'prawa';
   /** Opcjonalny opis, np. numer drogi gminnej albo kilometraż wjazdu */
   nazwaDodatkowa?: string;
+  /** Nazwy odcinków powstałych po zmianie konstrukcji (kilometraż w metrach bieżących trasy). */
+  nazwyOdcinkow?: { kmOdM: number; kmDoM: number; nazwa: string }[];
   /** Długość odcinka wzdłuż rosnącego km (oś / boki) */
   dlugoscOdcinkaM?: number;
   /** Szerokość poprzeczna (podstawa L–P) */
@@ -543,6 +545,8 @@ export interface WyjatekKonstrukcji {
   warstwy: WarstwaKonstrukcji[];
   /** Gdy ustawione – wyjątek dotyczy tylko tych obszarów. Puste = wszystkie obszary konstrukcji. */
   obszarIds?: string[];
+  /** Numer zmiany w obrębie konstrukcji: 1 → oznaczenie 1.1, 1.2, … */
+  numer?: number;
 }
 
 export interface KonstrukcjaObszaru {
@@ -615,6 +619,11 @@ export interface OsBocznaPzt {
   /** Kilometraż trasy głównej w miejscu najbliższym tej osi [m bieżące]. */
   kmDowiazaniaM?: number;
   kolor?: string;
+  /**
+   * Ręczny pikietaż węzła XFDF. Program dolicza resztę po długości linii,
+   * rosnąco w stronę czarnej osi.
+   */
+  pikietaWezla?: { indeks: number; kmM: number };
 }
 
 export interface WierszPrzedmiaruScalony {

@@ -29,9 +29,17 @@ import {
   przypiszObszarDoKonstrukcji,
   utworzKonstrukcjeDlaObszaru,
   ilosciWarstwObszaru,
+  ilosciWarstwOdcinka,
   zrodlaOdsadzekObszaru,
   wszystkieObszary,
 } from '../../utils/projektBudowy';
+import {
+  kmWezlaOsiBocznej,
+  lokalizacjaObszaru,
+  odcinkiObszaru,
+  zapiszNazweOdcinka,
+  zapiszPikieteWezla,
+} from '../../utils/lokalizacjaObszaru';
 import { formatLiczby } from '../../utils/calculations';
 import { useMieszankiStore } from '../../stores/mieszankiStore';
 import { karta } from '../../constants/layout';
@@ -53,10 +61,17 @@ import {
 } from '../../utils/tloPdfPamiec';
 import { dlugoscPolilinii } from '../../utils/osPzt';
 import { rysunkiOdsadzekArkusza } from '../../utils/odsadzkaObszaru';
-import { punktWWielokacie } from '../../liniowka/liniowka';
 import { Przycisk } from '../ui';
 import { wymiaryStronyPdf } from '../../utils/pdfjsWeb';
 import type { PlikWebImport } from './PrzyciskImportuXfdf';
+
+export interface CelObszaruPzt {
+  token: number;
+  arkuszId: string;
+  obszarId: string;
+  kmOdM?: number;
+  kmDoM?: number;
+}
 
 interface Props {
   projekt: ProjektBudowy;
@@ -65,11 +80,8 @@ interface Props {
   blokadaPodgladu?: boolean;
   onBlokadaPodgladu?: (v: boolean) => void;
   onDotykZmiana?: (aktywny: boolean) => void;
-  /** Przypisywanie obszarów do wybranej konstrukcji. Zapis dopiero po OK. */
-  przypisanie?: { numer: number; zaznaczone: string[] } | null;
-  onToggleObszar?: (obszarId: string) => void;
-  onOkPrzypisania?: () => void;
-  onAnulujPrzypisania?: () => void;
+  /** Skok z listy konstrukcji: otwiera arkusz i kartę tego obszaru. */
+  cel?: CelObszaruPzt | null;
 }
 
 function potwierdzWeb(pytanie: string): boolean {
@@ -124,9 +136,14 @@ function pokazKomunikat(tytul: string, tresc: string) {
   Alert.alert(tytul, tresc);
 }
 
+function etykietaKonstrukcji(projekt: ProjektBudowy, numer: number | undefined, legendaId: string): string {
+  const nazwa = projekt.legenda.find((w) => w.id === legendaId)?.nazwa?.trim();
+  const n = numer ?? '';
+  return nazwa ? `Konstrukcja ${n} · ${nazwa}` : `Konstrukcja ${n}`;
+}
+
 export function SekcjaPzt({
-  projekt, theme, onZmien, blokadaPodgladu = false, onBlokadaPodgladu, onDotykZmiana,
-  przypisanie, onToggleObszar, onOkPrzypisania, onAnulujPrzypisania,
+  projekt, theme, onZmien, blokadaPodgladu = false, onBlokadaPodgladu, onDotykZmiana, cel,
 }: Props) {
   const [arkuszId, setArkuszId] = useState<string | undefined>(projekt.arkusze[0]?.id);
   const [busy, setBusy] = useState(false);
@@ -143,22 +160,77 @@ export function SekcjaPzt({
   const [mStr, setMStr] = useState(startInit.m);
   const [podzStr, setPodzStr] = useState(String(projekt.podzialkaKilometrazuM ?? 50));
   const aktywny = projekt.arkusze.find((a) => a.id === arkuszId) ?? projekt.arkusze[0];
-  const [nazwaObszaruId, setNazwaObszaruId] = useState<string | null>(null);
   const [kartaObszaruId, setKartaObszaruId] = useState<string | null>(null);
+  const [zakresKarty, setZakresKarty] = useState<{ odM: number; doM: number } | null>(null);
   const [kartaOtwarta, setKartaOtwarta] = useState(false);
+  const [trybKm, setTrybKm] = useState(false);
+  const [wezelKm, setWezelKm] = useState<{ osId: string; indeks: number } | null>(null);
   const mieszanki = useMieszankiStore((s) => s.mieszanki);
   const odsadzki = useMemo(() => (aktywny
     ? rysunkiOdsadzekArkusza(projekt, aktywny, (obszar) => zrodlaOdsadzekObszaru(projekt, obszar))
     : []), [projekt, aktywny]);
-  const obszarNazwy = aktywny?.obszary.find((o) => o.id === nazwaObszaruId);
   const kartaObszaru = kartaObszaruId
     ? wszystkieObszary(projekt).find((x) => x.obszar.id === kartaObszaruId)
     : undefined;
   const konstrukcjaKarty = kartaObszaruId ? konstrukcjaDlaObszaru(projekt, kartaObszaruId) : undefined;
-  const warstwyKarty = useMemo(
-    () => (kartaObszaruId ? ilosciWarstwObszaru(projekt, kartaObszaruId, mieszanki) : []),
-    [kartaObszaruId, projekt, mieszanki],
+  const odcinkiKarty = useMemo(
+    () => (kartaObszaru ? odcinkiObszaru(kartaObszaru.obszar, kartaObszaru.arkusz, konstrukcjaKarty) : []),
+    [kartaObszaru, konstrukcjaKarty],
   );
+  const odcinekKarty = zakresKarty
+    ? odcinkiKarty.find((d) => Math.abs(d.kmOdM - zakresKarty.odM) < 1.5 && Math.abs(d.kmDoM - zakresKarty.doM) < 1.5)
+    : undefined;
+  const edycjaOdcinka = !!(zakresKarty && odcinekKarty && odcinkiKarty.length > 1);
+  const uzyjOdcinka = !!(odcinekKarty && Math.abs(odcinekKarty.kmDoM - odcinekKarty.kmOdM) > 0.4);
+  const lokKarty = kartaObszaru ? lokalizacjaObszaru(kartaObszaru.obszar, kartaObszaru.arkusz) : null;
+  const warstwyKarty = useMemo(() => {
+    if (!kartaObszaru || !konstrukcjaKarty) return [];
+    if (uzyjOdcinka && odcinekKarty) {
+      const zrodlo = odcinekKarty.wyjatekId
+        ? konstrukcjaKarty.wyjatki.find((w) => w.id === odcinekKarty.wyjatekId)?.warstwy ?? konstrukcjaKarty.warstwy
+        : konstrukcjaKarty.warstwy;
+      return ilosciWarstwOdcinka(
+        kartaObszaru.obszar,
+        kartaObszaru.arkusz,
+        zrodlo,
+        odcinekKarty.kmOdM,
+        odcinekKarty.kmDoM,
+        mieszanki,
+      );
+    }
+    return kartaObszaruId ? ilosciWarstwObszaru(projekt, kartaObszaruId, mieszanki) : [];
+  }, [kartaObszaru, konstrukcjaKarty, odcinekKarty, uzyjOdcinka, kartaObszaruId, projekt, mieszanki]);
+  const wycinkiMapy = useMemo(() => {
+    if (!aktywny) return [];
+    const out: { id: string; obszarId: string; wierzcholkiPdf: typeof aktywny.obszary[number]['wierzcholkiPdf']; kmOdM: number; kmDoM: number }[] = [];
+    for (const o of aktywny.obszary) {
+      const odc = odcinkiObszaru(o, aktywny, konstrukcjaDlaObszaru(projekt, o.id));
+      if (odc.length < 2) continue;
+      for (const d of odc) {
+        out.push({
+          id: d.id,
+          obszarId: d.obszarId,
+          wierzcholkiPdf: d.wierzcholkiPdf,
+          kmOdM: d.kmOdM,
+          kmDoM: d.kmDoM,
+        });
+      }
+    }
+    return out;
+  }, [aktywny, projekt]);
+  const podswietlonyWycinekId = kartaObszaru?.arkusz.id === aktywny?.id && odcinekKarty
+    && wycinkiMapy.some((w) => w.id === odcinekKarty.id)
+    ? odcinekKarty.id
+    : undefined;
+  useEffect(() => {
+    if (!cel) return;
+    setArkuszId(cel.arkuszId);
+    setKartaObszaruId(cel.obszarId);
+    setZakresKarty(cel.kmOdM != null && cel.kmDoM != null ? { odM: cel.kmOdM, doM: cel.kmDoM } : null);
+    setKartaOtwarta(true);
+    setTrybKm(false);
+    setWezelKm(null);
+  }, [cel]);
   const ustawNazweDodatkowa = (obszarId: string, nazwa: string) => {
     onZmien({
       ...projekt,
@@ -695,28 +767,29 @@ export function SekcjaPzt({
 
           {aktywny ? (
             <>
-              {przypisanie ? (
+              {trybKm ? (
                 <View style={[karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.primary, gap: 8 }]}>
                   <Text style={{ color: theme.colors.text, fontWeight: '800' }}>
-                    Konstrukcja {przypisanie.numer}: stuknij obszary na arkuszach
+                    {(aktywny.osieBoczne?.length ?? 0) > 0
+                      ? 'Stuknij węzeł niebieskiej linii i wpisz jego kilometraż'
+                      : 'Na tym arkuszu nie ma niebieskiej linii'}
                   </Text>
-                  <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>
-                    Zaznaczone: {przypisanie.zaznaczone.length}. Ponowne stuknięcie zdejmuje zaznaczenie. Zapis po OK.
-                  </Text>
-                  <View style={{ flexDirection: 'row', gap: 8 }}>
-                    <Przycisk tekst="OK" maly onPress={() => onOkPrzypisania?.()} accessibilityLabel="Zatwierdź przypisanie obszarów" />
-                    <Przycisk tekst="Anuluj" maly wariant="drugi" onPress={() => onAnulujPrzypisania?.()} />
-                  </View>
-                  {obszarNazwy ? (
-                    <TextInput
-                      value={obszarNazwy.nazwaDodatkowa ?? ''}
-                      onChangeText={(t) => ustawNazweDodatkowa(obszarNazwy.id, t)}
-                      placeholder="Nazwa dodatkowa, np. nr drogi albo km wjazdu"
-                      placeholderTextColor={theme.colors.textSecondary}
-                      accessibilityLabel="Nazwa dodatkowa obszaru"
-                      style={[styles.input, { color: theme.colors.text, borderColor: theme.colors.border, backgroundColor: theme.colors.inputBackground }]}
+                  {wezelKm ? (
+                    <PikietaPlanu
+                      key={`${wezelKm.osId}-${wezelKm.indeks}`}
+                      theme={theme}
+                      etykieta="Kilometraż węzła"
+                      wartoscM={(() => {
+                        const os = aktywny.osieBoczne?.find((o) => o.id === wezelKm.osId);
+                        return os ? kmWezlaOsiBocznej(os, aktywny, wezelKm.indeks) : null;
+                      })()}
+                      onZapisz={(kmN, mN) => {
+                        const { km, m } = parsujPolaKilometraza(kmN, mN);
+                        onZmien(zapiszPikieteWezla(projekt, aktywny.id, wezelKm.osId, wezelKm.indeks, km * 1000 + m));
+                      }}
                     />
                   ) : null}
+                  <Przycisk tekst="Gotowe" maly onPress={() => { setTrybKm(false); setWezelKm(null); }} accessibilityLabel="Zakończ ustawianie kilometrażu" />
                 </View>
               ) : null}
               <PztArkuszPodglad
@@ -727,18 +800,23 @@ export function SekcjaPzt({
                 onDotykZmiana={onDotykZmiana}
                 podzialkaM={projekt.podzialkaKilometrazuM ?? 50}
                 odsadzki={odsadzki}
-                zaznaczoneIds={przypisanie?.zaznaczone}
-                podswietlonyObszarId={przypisanie ? undefined : kartaObszaruId ?? undefined}
-                onPressObszar={przypisanie ? undefined : (id) => {
-                  setKartaObszaruId(id);
+                wycinki={trybKm ? undefined : wycinkiMapy}
+                podswietlonyWycinekId={trybKm ? undefined : podswietlonyWycinekId}
+                podswietlonyObszarId={trybKm || podswietlonyWycinekId ? undefined : kartaObszaruId ?? undefined}
+                pokazWezlyOsi={trybKm}
+                onPressWezelOsi={trybKm ? (osId, indeks) => setWezelKm({ osId, indeks }) : undefined}
+                onPressWycinek={trybKm ? undefined : (id) => {
+                  const w = wycinkiMapy.find((x) => x.id === id);
+                  if (!w) return;
+                  setKartaObszaruId(w.obszarId);
+                  setZakresKarty({ odM: w.kmOdM, doM: w.kmDoM });
                   setKartaOtwarta(true);
                 }}
-                onWskazPdf={przypisanie ? (p) => {
-                  const traf = [...aktywny.obszary].reverse().find((o) => punktWWielokacie(p, o.wierzcholkiPdf));
-                  if (!traf) return;
-                  setNazwaObszaruId(traf.id);
-                  onToggleObszar?.(traf.id);
-                } : undefined}
+                onPressObszar={trybKm ? undefined : (id) => {
+                  setKartaObszaruId(id);
+                  setZakresKarty(null);
+                  setKartaOtwarta(true);
+                }}
                 onTloZmiana={(patch) => {
                   if (!aktywny.tlo) return;
                   onZmien(ustawTloArkusza(projekt, aktywny.id, { ...aktywny.tlo, ...patch }));
@@ -1010,7 +1088,12 @@ export function SekcjaPzt({
       </SafeModal>
       <SafeModal
         visible={kartaOtwarta && !!kartaObszaru}
-        tytul={kartaObszaru?.obszar.nazwaDodatkowa?.trim() || kartaObszaru?.obszar.nazwa || 'Obszar'}
+        tytul={kartaObszaru
+          ? [
+            edycjaOdcinka ? odcinekKarty?.numer : '',
+            (edycjaOdcinka ? odcinekKarty?.nazwa : kartaObszaru.obszar.nazwaDodatkowa?.trim()) || kartaObszaru.obszar.nazwa,
+          ].filter(Boolean).join(' · ')
+          : 'Obszar'}
         theme={theme}
         onClose={() => setKartaOtwarta(false)}
         prawy={{ tekst: 'Gotowe', onPress: () => setKartaOtwarta(false), kolor: theme.colors.primary }}
@@ -1018,11 +1101,79 @@ export function SekcjaPzt({
         {kartaObszaru ? (
           <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }} keyboardShouldPersistTaps="handled">
             <Text style={{ color: theme.colors.text, fontSize: 22, fontWeight: '800' }}>
-              {formatLiczby(kartaObszaru.obszar.powierzchniaM2, 1)} m²
+              {formatLiczby(uzyjOdcinka && odcinekKarty ? odcinekKarty.powierzchniaM2 : kartaObszaru.obszar.powierzchniaM2, 1)} m²
             </Text>
             <Text style={{ color: theme.colors.textSecondary, fontSize: 13 }}>
-              Powierzchnia obrysu na planie
+              {uzyjOdcinka && edycjaOdcinka ? 'Powierzchnia zaznaczonego odcinka' : 'Powierzchnia obrysu na planie'}
             </Text>
+            {(() => {
+              const tekst = uzyjOdcinka && odcinekKarty && lokKarty?.rodzaj !== 'boczna'
+                ? `${formatujKmM(odcinekKarty.kmOdM)} – ${formatujKmM(odcinekKarty.kmDoM)}`
+                : lokKarty?.tekst;
+              return tekst ? (
+                <Text style={{ color: theme.colors.primary, fontWeight: '800' }}>{tekst}</Text>
+              ) : null;
+            })()}
+            {odcinkiKarty.length > 1 ? (
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                {odcinkiKarty.map((d) => {
+                  const on = edycjaOdcinka && odcinekKarty?.id === d.id;
+                  return (
+                    <TouchableOpacity
+                      key={d.id}
+                      accessibilityLabel={`${d.numer} ${formatujKmM(d.kmOdM)} ${formatujKmM(d.kmDoM)}`}
+                      onPress={() => setZakresKarty({ odM: d.kmOdM, doM: d.kmDoM })}
+                      style={{
+                        borderWidth: 1,
+                        borderRadius: 8,
+                        paddingHorizontal: 10,
+                        paddingVertical: 8,
+                        borderColor: on ? theme.colors.primary : theme.colors.border,
+                        backgroundColor: on ? theme.colors.primary : theme.colors.inputBackground,
+                      }}
+                    >
+                      <Text style={{ color: on ? '#1A1A1A' : theme.colors.text, fontWeight: '800', fontSize: 13 }}>
+                        {`${d.numer ? `${d.numer} · ` : ''}${formatujKmM(d.kmOdM)} – ${formatujKmM(d.kmDoM)}`}
+                      </Text>
+                      <Text style={{ color: on ? '#1A1A1A' : theme.colors.textSecondary, fontSize: 12 }}>
+                        {`${formatLiczby(d.powierzchniaM2, 1)} m²`}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            ) : null}
+            <Text style={[styles.label, { color: theme.colors.text }]}>Nazwa</Text>
+            <TextInput
+              value={edycjaOdcinka && odcinekKarty
+                ? (kartaObszaru.obszar.nazwyOdcinkow?.find((n) => (
+                  Math.abs(n.kmOdM - odcinekKarty.kmOdM) < 1.5 && Math.abs(n.kmDoM - odcinekKarty.kmDoM) < 1.5
+                ))?.nazwa ?? '')
+                : (kartaObszaru.obszar.nazwaDodatkowa ?? '')}
+              onChangeText={(t) => {
+                if (edycjaOdcinka && odcinekKarty) {
+                  onZmien(zapiszNazweOdcinka(projekt, kartaObszaru.obszar.id, odcinekKarty.kmOdM, odcinekKarty.kmDoM, t));
+                  return;
+                }
+                ustawNazweDodatkowa(kartaObszaru.obszar.id, t);
+              }}
+              placeholder="Opcjonalna nazwa, np. wjazd albo zjazd"
+              placeholderTextColor={theme.colors.textSecondary}
+              accessibilityLabel="Nazwa obszaru"
+              style={[styles.input, { color: theme.colors.text, borderColor: theme.colors.border, backgroundColor: theme.colors.inputBackground }]}
+            />
+            <Przycisk
+              tekst="Kilometraż"
+              maly
+              wariant="drugi"
+              accessibilityLabel="Ustaw kilometraż niebieskiej linii"
+              onPress={() => {
+                setArkuszId(kartaObszaru.arkusz.id);
+                setTrybKm(true);
+                setWezelKm(null);
+                setKartaOtwarta(false);
+              }}
+            />
             <Text style={[styles.label, { color: theme.colors.text }]}>Konstrukcja</Text>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
               <TouchableOpacity
@@ -1040,11 +1191,12 @@ export function SekcjaPzt({
                 <Text style={{ color: konstrukcjaKarty ? theme.colors.text : '#1A1A1A', fontWeight: '800', fontSize: 13 }}>Bez numeru</Text>
               </TouchableOpacity>
               {[...projekt.konstrukcje].sort((a, b) => (a.numer ?? 99) - (b.numer ?? 99)).map((k) => {
-                const on = konstrukcjaKarty?.id === k.id;
+                const on = (konstrukcjaKarty?.id || konstrukcjaKarty?.legendaId) === (k.id || k.legendaId);
+                const etykieta = etykietaKonstrukcji(projekt, k.numer, k.legendaId);
                 return (
                   <TouchableOpacity
                     key={k.id ?? k.legendaId}
-                    accessibilityLabel={`Konstrukcja ${k.numer ?? ''}`}
+                    accessibilityLabel={etykieta}
                     onPress={() => onZmien(przypiszObszarDoKonstrukcji(projekt, kartaObszaru.obszar.id, k.id ?? k.legendaId))}
                     style={{
                       borderWidth: 1,
@@ -1056,7 +1208,7 @@ export function SekcjaPzt({
                     }}
                   >
                     <Text style={{ color: on ? '#1A1A1A' : theme.colors.text, fontWeight: '800', fontSize: 13 }}>
-                      {`Konstrukcja ${k.numer ?? ''}`}
+                      {etykieta}
                     </Text>
                   </TouchableOpacity>
                 );
