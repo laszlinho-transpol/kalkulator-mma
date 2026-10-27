@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.62';
+export const WERSJA_APLIKACJI = '1.8.63';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,16 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.63',
+    data: '2026-10-27',
+    tytul: 'Podziałka w skali planu i pomiar łamaną',
+    zmiany: [
+      'Kreski i opisy kilometrażu na PZT i liniówce zostają w obszarze, stoją prostopadle do osi i rosną albo maleją razem z przybliżeniem planu',
+      'Zmierz stawia linię łamaną: dowolna liczba punktów, każdy węzeł można przesunąć. Długość jest w metrach skali rysunku',
+      'Kilometraż arkusza bierze wymiar własnej osi. Dłuższa krawędź łuku obok (np. ścieżka na Ark. 2_17, 443,45 m przy osi 436,80 m) nie rozciąga pikietażu',
+    ],
+  },
   {
     wersja: '1.8.62',
     data: '2026-10-26',

@@ -6,8 +6,10 @@ import { parsujXfdfTekst } from './xfdfParser';
 import { metryNaPunktPdf } from './obmiarGeometry';
 import { DOMYSLNA_SKALA_PZT } from '../types';
 import {
+  dlugoscLamanejPdfM,
   dlugoscOsiPdf1500M,
   kilometrazZPunktuPdf,
+  korytarzPodzialkiPdf,
   ocenaOdstempuPodzialkiM,
   pdfDoSvgPodgladu,
   pomiarWzdlozOsiPdf,
@@ -173,5 +175,24 @@ describe('czoło obmiaru i napis START/KONIEC', () => {
     });
     assert.ok(start.x < 10);
     assert.ok(Math.abs(Math.abs(start.rot) - 90) < 1e-6);
+  });
+
+  it('korytarz podziałki kończy się na krawędzi obszaru', () => {
+    const os = [{ x: 0, y: 10 }, { x: 200, y: 10 }];
+    const jezdnia = {
+      wierzcholkiPdf: [{ x: 0, y: 0 }, { x: 200, y: 0 }, { x: 200, y: 24 }, { x: 0, y: 24 }],
+    };
+    const kor = korytarzPodzialkiPdf([jezdnia], os, 40);
+    assert.ok(kor);
+    assert.ok(Math.abs(kor.minU - (-10)) < 0.4, `min ${kor.minU}`);
+    assert.ok(Math.abs(kor.maxU - 14) < 0.4, `max ${kor.maxU}`);
+    assert.ok(kor.maxU - kor.minU <= 24.2);
+  });
+
+  it('łamana pomiaru sumuje odcinki w metrach 1:500', () => {
+    const k = metryNaPunktPdf(DOMYSLNA_SKALA_PZT);
+    const pts = [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 40 }];
+    const m = dlugoscLamanejPdfM(pts);
+    assert.ok(Math.abs(m - 140 * k) < 0.02);
   });
 });

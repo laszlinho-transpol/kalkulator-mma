@@ -144,9 +144,55 @@ function dlugoscZPikietXml(xml: string): number | undefined {
   return undefined;
 }
 
+/** Kreski z własnym wymiarem „… m” – oś i linie równoległe, nie krawędź łuku obok. */
+function kreskiZEtykieta(xml: string): Array<{ pts: Punkt2D[]; metry: number }> {
+  const out: Array<{ pts: Punkt2D[]; metry: number }> = [];
+  const re = /<(polyline|line)\b([^>]*)>([\s\S]*?)<\/\1>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(xml)) !== null) {
+    const attrs = m[2] ?? '';
+    const body = m[3] ?? '';
+    const metry = etykietaZAnnotacji(attrs, body);
+    if (!metry || metry < 80 || metry > 2500) continue;
+    let pts: Punkt2D[] = [];
+    const vert = body.match(/<vertices[^>]*>([\s\S]*?)<\/vertices>/i);
+    if (vert) pts = parsujVertices(vert[1].trim());
+    if (pts.length < 2) {
+      const start = attr(attrs, 'start');
+      const end = attr(attrs, 'end');
+      if (start && end) {
+        const [x1, y1] = start.split(',').map((s) => parseFloat(s.trim()));
+        const [x2, y2] = end.split(',').map((s) => parseFloat(s.trim()));
+        if ([x1, y1, x2, y2].every((n) => Number.isFinite(n))) {
+          pts = [{ x: x1, y: y1 }, { x: x2, y: y2 }];
+        }
+      }
+    }
+    if (pts.length >= 2) out.push({ pts, metry });
+  }
+  return out;
+}
+
+/** Mediana odległości punktów od łamanej osi, w punktach PDF. */
+function medianaOdOsiPdf(os: Punkt2D[], pts: Punkt2D[]): number {
+  if (os.length < 2 || pts.length === 0) return Infinity;
+  const offs: number[] = [];
+  const krok = Math.max(1, Math.floor((pts.length - 1) / 12));
+  for (let i = 0; i < pts.length; i += krok) {
+    let min = Infinity;
+    for (let j = 0; j < os.length - 1; j++) {
+      const d = distPunktOdcinek(pts[i], os[j], os[j + 1]);
+      if (d < min) min = d;
+    }
+    offs.push(min);
+  }
+  offs.sort((a, b) => a - b);
+  return offs[Math.floor(offs.length / 2)];
+}
+
 /**
- * Wymiar osi arkusza: najdłuższy wiarygodny opis (nie krótsza kreska 1:500 z PDF-XChange).
- * Kreska na polilinii bywa o 0,5–1 m krótsza niż pikietaż / wymiar na linii.
+ * Wymiar osi arkusza: opis tej kreski, a gdy jest krótszy niż równoległy wymiar tej samej osi – dłuższy.
+ * Dłuższa krawędź łuku obok (ścieżka, krawężnik) nie wydłuża kilometraża.
  */
 export function etykietaOsiZArkusza(
   osEtykietaM: number | undefined,
@@ -154,9 +200,17 @@ export function etykietaOsiZArkusza(
   geomM?: number,
 ): number | undefined {
   const zOsi = osEtykietaM && osEtykietaM > 80 && osEtykietaM < 2500 ? osEtykietaM : undefined;
-  const wszystkie = zbierzEtykietyMetrow(xml).filter((e) => e >= 80 && e <= 2500);
   const zPikiet = dlugoscZPikietXml(xml);
-  const kandydaci = [...wszystkie];
+  const kreski = kreskiZEtykieta(xml);
+  const osKreska = zOsi
+    ? kreski
+      .filter((k) => Math.abs(k.metry - zOsi) < 0.06)
+      .sort((a, b) => dlugoscPdfLancucha(b.pts) - dlugoscPdfLancucha(a.pts))[0]
+    : undefined;
+  const przyOsi = osKreska
+    ? kreski.filter((k) => medianaOdOsiPdf(osKreska.pts, k.pts) <= 22).map((k) => k.metry)
+    : zbierzEtykietyMetrow(xml).filter((e) => e >= 80 && e <= 2500);
+  const kandydaci = [...przyOsi];
   if (zOsi) kandydaci.push(zOsi);
   if (zPikiet) kandydaci.push(zPikiet);
   if (kandydaci.length === 0) return osEtykietaM && osEtykietaM > 1 ? osEtykietaM : undefined;

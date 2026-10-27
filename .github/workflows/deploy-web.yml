@@ -7,6 +7,7 @@ on:
       - cursor/kalkulator-mma-obmiar-maps-0a0b
       - cursor/kalkulator-mma-budzet-sprzet-0a0b
       - cursor/kalkulator-mma-obszary-konstrukcje-0a0b
+      - cursor/kalkulator-mma-podzialka-pomiar-0a0b
   workflow_dispatch:
 
 permissions:

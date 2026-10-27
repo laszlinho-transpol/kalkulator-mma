@@ -357,4 +357,12 @@ describe('obmiarGeometry / xfdfParser', () => {
     assert.ok(Math.abs((w.osTrasy?.dlugoscEtykietaM ?? 0) - 422.07) < 0.01);
     assert.ok(w.zrodloPdfHref?.includes('Ark_2_22'));
   });
+
+  it('Ark_2_17: oś 436,80 m, krawędź łuku 443,45 m nie wydłuża kilometraża', () => {
+    const xml = readFileSync(join(process.cwd(), 'src/utils/fixtures/dk25_ark_2_17.xfdf'), 'utf8');
+    const w = parsujXfdfTekst(xml, 'Ark_2_17.xfdf');
+    assert.equal(w.osTrasy?.color?.toUpperCase(), '#000000');
+    assert.ok(Math.abs((w.osTrasy?.dlugoscEtykietaM ?? 0) - 436.8) < 0.05);
+    assert.equal(etykietaOsiZArkusza(436.8, xml, 436.8), 436.8);
+  });
 });

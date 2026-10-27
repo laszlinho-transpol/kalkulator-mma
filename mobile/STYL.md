@@ -78,13 +78,14 @@ opisanych niżej** – bez własnych kolorów, odstępów i nagłówków. Zmiana
     budowy, „Dodaj plan”). Harmonogram łączy wpisy proste (`harmonogramStore`) i plany z „Zaplanuj masę”
     w `src/harmonogram/harmonogram.ts` (tygodnie pn–nd, numer TK wg ISO, eksport PDF z wyborem kolumn).
     W `SiatkaKalendarza` minione dni bez danych to `nieaktywny`, dni z planem `zaplanowany`.
-16. **Szkice i działania na PZT = SVG, proporcjonalnie do pliku.** Wszystko, co rysujemy lub zaznaczamy na
-    arkuszach PZT (szkice, wypełnienia, obszary liniówki, pomiary), zapisujemy i wyświetlamy jako wektor SVG –
-    nigdy jako obraz rastrowy – żeby przy każdym przybliżeniu było ostre i wyraźne. Geometria zawsze we
-    współrzędnych PDF arkusza (jak `wierzcholkiPdf` z XFDF), grubość kreski szkicu w jednostkach PDF
-    (`gruboscPdf`) – rysunek jest proporcjonalny do pliku i przy przybliżaniu/oddalaniu skaluje się razem
-    z planem, nie „pływa” i nie zmienia wielkości względem niego. To samo dotyczy znaków liniówki: strzałki
-    kierunku układania i znak „i” liczymy z szerokości pasa (jednostki PDF), więc rosną i maleją z planem.
+16. **Szkice i działania na PZT = SVG, proporcjonalnie do pliku.** Wszystko, co nakładamy na arkusz PZT
+    (szkice, wypełnienia, obszary liniówki, oś, podziałka kilometrażu, opisy pikiet, pomiar „Zmierz”, znaki),
+    jest wektorem SVG we współrzędnych PDF arkusza – nigdy obrazem rastrowym – żeby przy każdym przybliżeniu
+    było ostre i w skali projektu. Przy przybliżaniu i oddalaniu te elementy rosną i maleją razem z planem,
+    nie zostają stałym rozmiarem na ekranie. Podziałka i opis kilometrażu na PZT i na liniówce leżą wewnątrz
+    obszaru (kreska kończy się na krawędzi korytarza, napis mieści się w tej szerokości) i są prostopadłe do
+    osi, jak na rysunku projektowym. Grubość kreski szkicu jest w jednostkach PDF (`gruboscPdf`). Znaki
+    liniówki (strzałka, „i”) liczymy z szerokości pasa, więc też skalują się z planem.
     Stałą grubość na ekranie (`vectorEffect="non-scaling-stroke"`) mają tylko linie: obrysy obszarów,
     kreski start/koniec, oś, podświetlenie LED i najcieńsza linia szkicu („linia obszaru”, `gruboscPdf: 0`).
     Szkic rysujemy zawsze w jednej warstwie i jednym obszarze naraz (wybór w oknie „Warstwa szkicu” albo stuknięciem
@@ -199,6 +200,6 @@ export default function KartaXScreen() {
 - [ ] opisy tylko w „i”
 - [ ] treść w osobnych `Sekcja`/`Karta`, długie strony podzielone `Zakladki`
 - [ ] daty przez wspólny kalendarz
-- [ ] rysunki na PZT jako SVG we współrzędnych PDF, ostre i proporcjonalne przy każdym przybliżeniu
+- [ ] nakładki na PZT (także podziałka, opis km i pomiar) są SVG w skali arkusza; kreska i opis km nie wychodzą z obszaru i stoją prostopadle do osi
 - [ ] każdy naciskany element ma `accessibilityLabel` (testy Puppeteer klikają po etykietach)
 - [ ] tryb ciemny wygląda poprawnie (kolory tylko z motywu)
