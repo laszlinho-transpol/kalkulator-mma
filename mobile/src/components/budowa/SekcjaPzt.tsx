@@ -72,16 +72,18 @@ function potwierdzWeb(pytanie: string): boolean {
   return true;
 }
 
-function KoniecWgProjektu({
+function PikietaPlanu({
   theme,
-  koniecM,
+  wartoscM,
+  etykieta,
   onZapisz,
 }: {
   theme: AppTheme;
-  koniecM: number | null;
+  wartoscM: number | null;
+  etykieta: string;
   onZapisz: (km: string, m: string) => void;
 }) {
-  const z = koniecM == null ? null : Z_METROW_BIEZACYCH(koniecM);
+  const z = wartoscM == null ? null : Z_METROW_BIEZACYCH(wartoscM);
   const kmZ = z ? String(z.km) : '';
   const mZ = z ? String(z.m).padStart(3, '0') : '';
   const [km, setKm] = useState(kmZ);
@@ -94,7 +96,7 @@ function KoniecWgProjektu({
     <PoleKilometraz
       theme={theme}
       compact
-      accessibilityLabel="Koniec wg projektu"
+      accessibilityLabel={etykieta}
       km={km}
       m={m}
       onKm={(v) => {
@@ -473,6 +475,31 @@ export function SekcjaPzt({
   const wgranePdf = listaWgranychPdf();
   void tlaWersja;
 
+  const zapiszPikietePlanu = (pole: 'poczatek' | 'koniec', kmN: string, mN: string) => {
+    if (!aktywny) return;
+    const { km, m } = parsujPolaKilometraza(kmN, mN);
+    const metry = km * 1000 + m;
+    const patch = pole === 'poczatek' ? { poczatekM: metry } : { koniecM: metry };
+    const nastepny = ustawKilometrazProjektuArkusza(projekt, aktywny.id, patch);
+    const po = nastepny.arkusze.find((a) => a.id === aktywny.id);
+    const startOk = po != null && (
+      po.kilometrazProjektuPoczatkowyM == null
+      || Math.abs(po.kilometrazPoczatkowyM - po.kilometrazProjektuPoczatkowyM) <= 0.6
+    );
+    const koniecOk = po != null && (
+      po.kilometrazProjektuKoncowyM == null
+      || Math.abs(po.kilometrazKoncowyM - po.kilometrazProjektuKoncowyM) <= 0.6
+    );
+    if (!startOk || !koniecOk) {
+      setBlad(pole === 'poczatek'
+        ? 'Początek wg planu musi leżeć przed końcem tej zakładki.'
+        : 'Koniec wg planu musi leżeć za początkiem tej zakładki.');
+      return;
+    }
+    setBlad(null);
+    onZmien(nastepny);
+  };
+
   const przesun = (kierunek: -1 | 1) => {
     if (!aktywny) return;
     const next = przesunArkusz(projekt, aktywny.id, kierunek);
@@ -610,6 +637,11 @@ export function SekcjaPzt({
                           ? `${formatujKmM(a.kilometrazPoczatkowyM)} → ${formatujKmM(a.kilometrazKoncowyM)}`
                           : 'poza trasą główną'}
                       </Text>
+                      {a.kilometrazProjektuPoczatkowyM != null || a.kilometrazProjektuKoncowyM != null ? (
+                        <Text style={{ color: theme.colors.textSecondary, fontSize: 10, marginTop: 2 }}>
+                          wg planu
+                        </Text>
+                      ) : null}
                       {a.tlo ? (
                         <Text style={{ color: theme.colors.textSecondary, fontSize: 10, marginTop: 2 }} numberOfLines={1}>
                           PDF: {a.tlo.nazwa}
@@ -658,7 +690,7 @@ export function SekcjaPzt({
                 <View style={[karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border, gap: 8 }]}>
                   <Text style={{ color: theme.colors.text, fontWeight: '800' }}>Role kolorów</Text>
                   <Text style={{ color: theme.colors.textSecondary, fontSize: 12, lineHeight: 16 }}>
-                    Żółty i różowy to trasa główna, oliwkowy drogi boczne, zielony wjazdy, turkusowy ścieżka. Czerwona linia to krawężnik (obszar się przy niej nie poszerza). Oś trasy to czarna kreska. Koniec wg projektu rozciąga tylko pikietaż wzdłuż niej. Niebieskie kreski to domiary.
+                    Żółty i różowy to trasa główna, oliwkowy drogi boczne, zielony wjazdy, turkusowy ścieżka. Czerwona linia to krawężnik (obszar się przy niej nie poszerza). Oś trasy to czarna kreska. Początek i koniec wg planu rozciągają pikietaż wzdłuż niej. Niebieskie kreski to domiary.
                   </Text>
                   {projekt.legenda.filter((w) => w.typ === 'obszar' || w.typ === 'linia' || w.typ === 'os').map((w) => (
                     <View key={w.id} style={{ gap: 6 }}>
@@ -760,41 +792,52 @@ export function SekcjaPzt({
                   Zakres: {formatujKmM(aktywny.kilometrazPoczatkowyM)} → {formatujKmM(aktywny.kilometrazKoncowyM)}
                 </Text>
                 <View style={styles.rzad}>
-                  <Text style={[styles.label, { color: theme.colors.text }]}>Koniec wg projektu</Text>
-                  <InfoTooltip tresc="Gdy pikiety na rysunku są rozstawione inaczej niż długość czarnej kreski, wpisz pikietę końca tego arkusza. Podziałka idzie wzdłuż kreski aż do tej pikiety. Szerokości, domiary i powierzchnie zostają w skali rysunku. Puste pole liczy koniec z długości kreski. Następny arkusz trasy styka się z tym końcem." />
+                  <Text style={[styles.label, { color: theme.colors.text }]}>Początek i koniec wg planu</Text>
+                  <InfoTooltip tresc="Opcjonalne pikiety tej zakładki. Wpisany początek i koniec prowadzą podziałkę wzdłuż czarnej kreski przez tę rozpiętość, więc długość kreski na pikietach zgadza się z planem. Szerokości, domiary i powierzchnie zostają w skali rysunku. Pusty początek bierze się z poprzedniej zakładki trasy, pusty koniec z długości kreski. Następna zakładka trasy styka się z tym końcem, a własny początek na niej zaczyna pikietaż od wpisanej pikiety." />
                 </View>
-                <KoniecWgProjektu
+                <Text style={[styles.label, { color: theme.colors.textSecondary, fontSize: 12 }]}>Początek</Text>
+                <PikietaPlanu
                   theme={theme}
-                  koniecM={aktywny.kilometrazProjektuKoncowyM ?? null}
-                  onZapisz={(kmN, mN) => {
-                    const { km, m } = parsujPolaKilometraza(kmN, mN);
-                    const koniec = km * 1000 + m;
-                    const nastepny = ustawKilometrazProjektuArkusza(projekt, aktywny.id, koniec);
-                    const po = nastepny.arkusze.find((a) => a.id === aktywny.id);
-                    if (!po || Math.abs(po.kilometrazKoncowyM - koniec) > 0.6) {
-                      setBlad('Koniec wg projektu musi leżeć za początkiem tego arkusza.');
-                      return;
-                    }
-                    setBlad(null);
-                    onZmien(nastepny);
-                  }}
+                  etykieta="Początek wg planu"
+                  wartoscM={aktywny.kilometrazProjektuPoczatkowyM ?? null}
+                  onZapisz={(kmN, mN) => zapiszPikietePlanu('poczatek', kmN, mN)}
                 />
-                {aktywny.kilometrazProjektuKoncowyM != null ? (
-                  <View style={styles.rzad}>
-                    <Text style={{ color: theme.colors.textSecondary, fontSize: 12, flex: 1 }}>
-                      Kreska {Math.round(dlugoscArkuszaM(aktywny))} m
-                    </Text>
+                <Text style={[styles.label, { color: theme.colors.textSecondary, fontSize: 12 }]}>Koniec</Text>
+                <PikietaPlanu
+                  theme={theme}
+                  etykieta="Koniec wg planu"
+                  wartoscM={aktywny.kilometrazProjektuKoncowyM ?? null}
+                  onZapisz={(kmN, mN) => zapiszPikietePlanu('koniec', kmN, mN)}
+                />
+                <View style={styles.rzad}>
+                  <Text style={{ color: theme.colors.textSecondary, fontSize: 12, flex: 1 }}>
+                    Kreska {Math.round(dlugoscArkuszaM(aktywny))} m
+                    {' · '}
+                    pikietaż {Math.round(aktywny.kilometrazKoncowyM - aktywny.kilometrazPoczatkowyM)} m
+                  </Text>
+                  {aktywny.kilometrazProjektuPoczatkowyM != null ? (
                     <TouchableOpacity
                       onPress={() => {
                         setBlad(null);
-                        onZmien(ustawKilometrazProjektuArkusza(projekt, aktywny.id, null));
+                        onZmien(ustawKilometrazProjektuArkusza(projekt, aktywny.id, { poczatekM: null }));
                       }}
-                      accessibilityLabel="Wyczyść koniec wg projektu"
+                      accessibilityLabel="Wyczyść początek wg planu"
                     >
-                      <Text style={{ color: theme.colors.primary, fontWeight: '800', fontSize: 12 }}>Wyczyść</Text>
+                      <Text style={{ color: theme.colors.primary, fontWeight: '800', fontSize: 12 }}>Wyczyść początek</Text>
                     </TouchableOpacity>
-                  </View>
-                ) : null}
+                  ) : null}
+                  {aktywny.kilometrazProjektuKoncowyM != null ? (
+                    <TouchableOpacity
+                      onPress={() => {
+                        setBlad(null);
+                        onZmien(ustawKilometrazProjektuArkusza(projekt, aktywny.id, { koniecM: null }));
+                      }}
+                      accessibilityLabel="Wyczyść koniec wg planu"
+                    >
+                      <Text style={{ color: theme.colors.primary, fontWeight: '800', fontSize: 12 }}>Wyczyść koniec</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
                 {dlAkt ? (
                   <Text style={{ color: theme.colors.textSecondary, fontSize: 12, lineHeight: 16 }}>
                     Oś km: {Math.round(dlAkt.kmM)} m

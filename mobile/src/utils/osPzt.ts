@@ -614,6 +614,52 @@ export function rozmiarPodzialkiOsi(szerokoscObszaruPdf: number): {
   return { halfPdf, fontPdf, odstepTekstuPdf: halfPdf + fontPdf * 0.65 };
 }
 
+/** Kąt SVG napisu: od lewej do prawej zgodnie z wektorem rosnącego kilometrażu. */
+export function obrotOpisuWzdluzKm(ux: number, uy: number): number {
+  return Math.atan2(uy, ux) * (180 / Math.PI);
+}
+
+export interface UkladKrotkiejPodzialki {
+  /** Środek napisu na osi poprzecznej (0 = oś trasy). */
+  uTekst: number;
+  uKreskaA: number;
+  uKreskaB: number;
+}
+
+/**
+ * Krótka kreska poprzeczna i opis w korytarzu [u1, u2].
+ * Opis leży po stronie z większym miejscem. Kreska jest po drugiej stronie
+ * i urywa się przed glifem, więc go nie przecina.
+ */
+export function ukladKrotkiejPodzialki(u1: number, u2: number, fontPdf: number): UkladKrotkiejPodzialki {
+  const inset = 0.35;
+  const font = Math.max(2, fontPdf);
+  let halfH = font * 0.48;
+  const roomPlus = Math.max(0, u2 - inset);
+  const roomMinus = Math.max(0, -u1 - inset);
+  const side = roomPlus >= roomMinus ? 1 : -1;
+  const room = Math.max(0.8, side > 0 ? roomPlus : roomMinus);
+  const opp = side > 0 ? roomMinus : roomPlus;
+  if (halfH * 2.4 > room) halfH = Math.max(0.8, room * 0.38);
+  const odOsi = Math.min(halfH + font * 0.22, Math.max(halfH * 0.55, room - halfH));
+  const uTekst = side * odOsi;
+  const tekstOd = uTekst - side * halfH;
+  const przedTekstem = side > 0 ? tekstOd : -tekstOd;
+
+  if (opp >= 1.8) {
+    const tickLen = Math.min(opp, Math.max(font * 1.05, opp * 0.58));
+    const uFar = -side * tickLen;
+    const uNear = -side * Math.min(font * 0.08, tickLen * 0.18);
+    return { uTekst, uKreskaA: uNear, uKreskaB: uFar };
+  }
+
+  const luz = Math.max(0, przedTekstem - font * 0.16);
+  const tickLen = Math.min(luz, Math.max(font * 0.65, luz));
+  const uNear = side * Math.min(font * 0.05, tickLen);
+  const uFar = side * tickLen;
+  return { uTekst, uKreskaA: uNear, uKreskaB: uFar };
+}
+
 /**
  * Lewa / prawa patrząc zgodnie z rosnącym kilometrażem (kierunek osi).
  * Iloczyn wektorowy > 0 (PDF Y w górę) = lewa strona trasy.

@@ -484,7 +484,7 @@ export function ustawNajdluzszaOs(arkusz: ArkuszPzt): ArkuszPzt {
 
 /**
  * Rozpiętość pikietażu arkusza. Domyślnie długość czarnej kreski.
- * `kilometrazProjektuKoncowyM` rozciąga tylko stacje wzdłuż tej kreski.
+ * Koniec z planu rozciąga stacje wzdłuż tej kreski od podanego początku.
  */
 export function dlugoscPikietazuArkuszaM(arkusz: ArkuszPzt, startM: number): number {
   const kreska = dlugoscArkuszaM(arkusz);
@@ -495,23 +495,39 @@ export function dlugoscPikietazuArkuszaM(arkusz: ArkuszPzt, startM: number): num
   return dl;
 }
 
+function bezPoczatkuPlanu(arkusz: ArkuszPzt): ArkuszPzt {
+  const { kilometrazProjektuPoczatkowyM: _pomin, ...reszta } = arkusz;
+  return reszta;
+}
+
+function bezKoncaPlanu(arkusz: ArkuszPzt): ArkuszPzt {
+  const { kilometrazProjektuKoncowyM: _pomin, ...reszta } = arkusz;
+  return reszta;
+}
+
 /**
- * Ustawia albo czyści koniec pikietażu z projektu na jednym arkuszu
+ * Ustawia albo czyści początek i koniec pikietażu z planu na jednej zakładce
  * i przelicza stacje następnych. Geometria metrów zostaje.
+ * `null` czyści pole, pominięcie zostawia dotychczasową wartość.
  */
 export function ustawKilometrazProjektuArkusza(
   projekt: ProjektBudowy,
   arkuszId: string,
-  koniecM: number | null,
+  wartosci: { poczatekM?: number | null; koniecM?: number | null },
 ): ProjektBudowy {
   const arkusze = zastosujKilometrazArkuszy(
-    projekt.arkusze.map((a) => {
-      if (a.id !== arkuszId) return a;
-      if (koniecM == null) {
-        const { kilometrazProjektuKoncowyM: _pomin, ...reszta } = a;
-        return reszta;
+    projekt.arkusze.map((surowy) => {
+      if (surowy.id !== arkuszId) return surowy;
+      let arkusz = surowy;
+      if (wartosci.poczatekM === null) arkusz = bezPoczatkuPlanu(arkusz);
+      else if (wartosci.poczatekM != null && Number.isFinite(wartosci.poczatekM) && wartosci.poczatekM >= 0) {
+        arkusz = { ...arkusz, kilometrazProjektuPoczatkowyM: round2(wartosci.poczatekM) };
       }
-      return { ...a, kilometrazProjektuKoncowyM: round2(koniecM) };
+      if (wartosci.koniecM === null) arkusz = bezKoncaPlanu(arkusz);
+      else if (wartosci.koniecM != null && Number.isFinite(wartosci.koniecM) && wartosci.koniecM >= 0) {
+        arkusz = { ...arkusz, kilometrazProjektuKoncowyM: round2(wartosci.koniecM) };
+      }
+      return arkusz;
     }),
     projekt.kilometrazPoczatkowyM,
   );
@@ -521,7 +537,7 @@ export function ustawKilometrazProjektuArkusza(
 /**
  * Uciągla kilometraż: pierwszy arkusz od km projektu,
  * kolejne z flagą kontynuacji startują na końcu poprzedniego.
- * Długość = linia osi z XFDF, chyba że arkusz ma koniec wg projektu.
+ * Długość = linia osi z XFDF, chyba że zakładka ma początek albo koniec z planu.
  */
 export function zastosujKilometrazArkuszy(
   arkusze: ArkuszPzt[],
@@ -531,7 +547,9 @@ export function zastosujKilometrazArkuszy(
   let biezacy = Math.max(0, kilometrazPoczatkowyM);
   return przygotowane.map((arkusz, i) => {
     const naTrasie = czyArkuszNaTrasieGlownej(arkusz, i);
-    const start = naTrasie ? biezacy : arkusz.kilometrazPoczatkowyM;
+    const startLancucha = naTrasie ? biezacy : arkusz.kilometrazPoczatkowyM;
+    const reczny = arkusz.kilometrazProjektuPoczatkowyM;
+    const start = reczny != null && Number.isFinite(reczny) && reczny >= 0 ? round2(reczny) : startLancucha;
     const dlugosc = dlugoscPikietazuArkuszaM(arkusz, start);
     const koniec = round2(start + dlugosc);
     if (naTrasie) biezacy = koniec;

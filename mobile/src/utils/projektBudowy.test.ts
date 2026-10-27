@@ -206,11 +206,61 @@ describe('projektBudowy', () => {
     const projekt = ustawKilometrazProjektuArkusza(
       { ...pustyProjektBudowy(start), arkusze: [a, b] },
       'a',
-      null,
+      { koniecM: null },
     );
     assert.equal(projekt.arkusze[0].kilometrazProjektuKoncowyM, undefined);
     assert.equal(formatujKmM(projekt.arkusze[0].kilometrazKoncowyM), '116+016');
     assert.equal(projekt.arkusze[1].kilometrazPoczatkowyM, 116016);
+  });
+
+  it('początek i koniec wg planu ustawiają rozpiętość pikiet na zakładce', () => {
+    const kreska = 422.07;
+    const szer = 7;
+    const arkusz = (
+      id: string,
+      dl: number,
+      poczatek?: number,
+      koniec?: number,
+      kontynuacja = false,
+    ): ArkuszPzt => ({
+      id,
+      nazwa: id,
+      zrodloNazwa: `${id}.xfdf`,
+      kolejnosc: 1,
+      kontynuacjaPoprzedniego: kontynuacja,
+      kilometrazPoczatkowyM: 0,
+      kilometrazKoncowyM: 0,
+      kilometrazProjektuPoczatkowyM: poczatek,
+      kilometrazProjektuKoncowyM: koniec,
+      obszary: [prostokat(id, '#FFEE58', dl, szer, id)],
+      osTrasy: {
+        wierzcholkiPdf: [{ x: 0, y: 0 }, { x: dl, y: 0 }],
+        wierzcholkiM: [{ x: 0, y: 0 }, { x: dl, y: 0 }],
+        dlugoscM: dl,
+        dlugoscEtykietaM: dl,
+        kolor: '#000000',
+      },
+    });
+    const [a, b] = zastosujKilometrazArkuszy([
+      arkusz('a', kreska, 115600, 116031),
+      arkusz('b', 100, undefined, undefined, true),
+    ], 115593.93);
+    assert.equal(a.kilometrazPoczatkowyM, 115600);
+    assert.equal(formatujKmM(a.kilometrazKoncowyM), '116+031');
+    assert.equal(a.osTrasy?.dlugoscEtykietaM, kreska);
+    assert.equal(a.obszary[0].powierzchniaM2, kreska * szer);
+    assert.equal(b.kilometrazPoczatkowyM, 116031);
+    const [samPoczatek] = zastosujKilometrazArkuszy([arkusz('c', kreska, 115600)], 110000);
+    assert.equal(samPoczatek.kilometrazPoczatkowyM, 115600);
+    assert.equal(samPoczatek.kilometrazKoncowyM, 116022.07);
+    const projekt = ustawKilometrazProjektuArkusza(
+      { ...pustyProjektBudowy(115593.93), arkusze: [a] },
+      'a',
+      { poczatekM: null },
+    );
+    assert.equal(projekt.arkusze[0].kilometrazProjektuPoczatkowyM, undefined);
+    assert.equal(projekt.arkusze[0].kilometrazPoczatkowyM, 115593.93);
+    assert.equal(formatujKmM(projekt.arkusze[0].kilometrazKoncowyM), '116+031');
   });
 
   it('kilometraż arkusza to średnia osi L/P, nie max (dłuższa jezdnia / wyspy)', () => {

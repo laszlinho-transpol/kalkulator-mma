@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.64';
+export const WERSJA_APLIKACJI = '1.8.65';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,15 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.65',
+    data: '2026-10-27',
+    tytul: 'Początek i koniec pikiet na zakładce',
+    zmiany: [
+      'Na każdej zakładce PZT pola „Początek” i „Koniec” wg planu ustawiają rozpiętość pikiet wzdłuż czarnej kreski. Szerokości, domiary i powierzchnie zostają w skali rysunku',
+      'Opis podziałki czyta się w kierunku rosnącego kilometrażu. Kreska jest krótsza i urywa się przed opisem, a całość mieści się w obszarze',
+    ],
+  },
   {
     wersja: '1.8.64',
     data: '2026-10-27',

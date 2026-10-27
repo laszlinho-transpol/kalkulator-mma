@@ -585,7 +585,11 @@ export interface ArkuszPzt {
   kilometrazPoczatkowyM: number;
   kilometrazKoncowyM: number;
   /**
-   * Koniec pikietażu z projektu [m bieżące]. Rozciąga tylko kilometraż wzdłuż osi.
+   * Początek pikietażu z planu [m bieżące]. Puste: początek z trasy albo własny początek arkusza poza trasą.
+   */
+  kilometrazProjektuPoczatkowyM?: number;
+  /**
+   * Koniec pikietażu z planu [m bieżące]. Razem z początkiem rozciąga kilometraż wzdłuż osi.
    * Szerokości, domiary i powierzchnie zostają w skali rysunku.
    */
   kilometrazProjektuKoncowyM?: number;

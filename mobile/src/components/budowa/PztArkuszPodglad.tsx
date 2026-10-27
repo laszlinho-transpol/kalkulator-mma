@@ -34,8 +34,10 @@ import {
   pdfDoSvgPodgladu,
   pomiarWzdlozOsiPdf,
   punktNaOsi,
+  obrotOpisuWzdluzKm,
   rozmiarPodzialkiOsi,
   stacjePodzialki,
+  ukladKrotkiejPodzialki,
   stycznyNaOsi,
   svgDoPdfPodgladu,
   pasUkladaniaPdf,
@@ -410,27 +412,19 @@ export function PztArkuszPodglad({
       }
       const etykieta = formatujKmM(kmM);
       let fontPdf = podz.fontPdf * (skalaKreski < 1 ? 0.92 : 1);
-      const szerNapis = (f: number) => f * 0.56 * etykieta.length;
-      while (szerNapis(fontPdf) > Math.max(3, u2 - u1) * 0.9 && fontPdf > 2.1) fontPdf *= 0.92;
-      const polNapis = szerNapis(fontPdf) / 2;
-      const miejscePlus = u2 - polNapis;
-      const miejsceMinus = -u1 - polNapis;
-      let uTekst = (u1 + u2) / 2;
-      if (miejscePlus >= polNapis * -1 && u1 + polNapis <= u2 - polNapis) {
-        uTekst = miejscePlus >= miejsceMinus
-          ? Math.min(miejscePlus, Math.max(u1 + polNapis, fontPdf * 0.2))
-          : Math.max(u1 + polNapis, Math.min(u2 - polNapis, -fontPdf * 0.2));
-      }
-      const p1 = toSvg({ x: punkt.x + nx * u1, y: punkt.y + ny * u1 });
-      const p2 = toSvg({ x: punkt.x + nx * u2, y: punkt.y + ny * u2 });
-      const tp = toSvg({ x: punkt.x + nx * uTekst, y: punkt.y + ny * uTekst });
+      const wiekszaStrona = Math.max(u2 - 0.35, -(u1 + 0.35), 2);
+      while (fontPdf * 1.15 > wiekszaStrona && fontPdf > 2.1) fontPdf *= 0.92;
+      const uklad = ukladKrotkiejPodzialki(u1, u2, fontPdf);
+      const p1 = toSvg({ x: punkt.x + nx * uklad.uKreskaA, y: punkt.y + ny * uklad.uKreskaA });
+      const p2 = toSvg({ x: punkt.x + nx * uklad.uKreskaB, y: punkt.y + ny * uklad.uKreskaB });
+      const tp = toSvg({ x: punkt.x + nx * uklad.uTekst, y: punkt.y + ny * uklad.uTekst });
       const mid = toSvg(punkt);
-      let rot = Math.atan2(p2.y - p1.y, p2.x - p1.x) * (180 / Math.PI);
-      if (rot > 90) rot -= 180;
-      else if (rot < -90) rot += 180;
       const sdx = tSt.dx * skalaFit;
       const sdy = -tSt.dy * skalaFit;
       const sl = Math.hypot(sdx, sdy) || 1;
+      const ux = sdx / sl;
+      const uy = sdy / sl;
+      const rot = obrotOpisuWzdluzKm(ux, uy);
       return {
         kmM,
         etykieta,
@@ -443,8 +437,8 @@ export function PztArkuszPodglad({
         rot,
         mx: mid.x,
         my: mid.y,
-        ux: sdx / sl,
-        uy: sdy / sl,
+        ux,
+        uy,
         fontSvg: fontPdf * skalaFit,
         rMarkerSvg: Math.max(2.2, Math.min(4.2, fontPdf * skalaFit * 0.72)),
       };

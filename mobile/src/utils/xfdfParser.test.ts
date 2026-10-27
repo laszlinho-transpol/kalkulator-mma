@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parsujVertices, parsujXfdfTekst, obszaryZPolygony, parsujListeTekstowXfdf, scalLinieOsi, bazyWzdluzOsi, etykietaOsiZArkusza, pikietyZTekstu, czyLiniaKrawedznika, czyLiniaOsiBocznej } from './xfdfParser';
-import { dlugoscPikietazuJezdniM, dlugoscPolilinii, orientujLancuchDoKm, osPdfZorientowana, rozciagnijLancuchDoDlugosci, rozmiarPodzialkiOsi, stacjePodzialki, stronaWzgledemOsi } from './osPzt';
+import { dlugoscPikietazuJezdniM, dlugoscPolilinii, obrotOpisuWzdluzKm, orientujLancuchDoKm, osPdfZorientowana, rozciagnijLancuchDoDlugosci, rozmiarPodzialkiOsi, stacjePodzialki, stronaWzgledemOsi, ukladKrotkiejPodzialki } from './osPzt';
 import {
   powierzchniaWielokata,
   skalujWierzcholki,
@@ -338,6 +338,30 @@ describe('obmiarGeometry / xfdfParser', () => {
     assert.ok(r.halfPdf * 2 <= 40 + 1e-6);
     assert.ok(r.fontPdf <= 6.2);
     assert.ok(r.odstepTekstuPdf < 40);
+  });
+
+  it('opis podziałki idzie z rosnącym kilometrażem, a kreska jest krótsza i omija napis', () => {
+    assert.equal(obrotOpisuWzdluzKm(1, 0), 0);
+    assert.ok(Math.abs(obrotOpisuWzdluzKm(0, -1) + 90) < 1e-9);
+    assert.ok(Math.abs(Math.abs(obrotOpisuWzdluzKm(-1, 0)) - 180) < 1e-9);
+    const u = ukladKrotkiejPodzialki(-22, 22, 6);
+    const half = 6 * 0.48;
+    const tekst0 = Math.min(u.uTekst - half, u.uTekst + half);
+    const tekst1 = Math.max(u.uTekst - half, u.uTekst + half);
+    const k0 = Math.min(u.uKreskaA, u.uKreskaB);
+    const k1 = Math.max(u.uKreskaA, u.uKreskaB);
+    assert.ok(k1 < tekst0 || k0 > tekst1);
+    assert.ok(k1 - k0 < 20);
+    assert.ok(k1 - k0 > 4);
+    assert.ok(u.uTekst > 0 && tekst1 <= 22.01);
+    assert.ok(k0 >= -22.01);
+    const waski = ukladKrotkiejPodzialki(-1.2, 24, 6);
+    const w0 = Math.min(waski.uKreskaA, waski.uKreskaB);
+    const w1 = Math.max(waski.uKreskaA, waski.uKreskaB);
+    const t0 = waski.uTekst - half;
+    const t1 = waski.uTekst + half;
+    assert.ok(w1 < t0 - 0.05 || w0 > t1 + 0.05);
+    assert.ok(w1 <= 24 && w0 >= -1.2);
   });
 
   it('rozciąga oś do etykiety XFDF, bez zmiany kierunku', () => {

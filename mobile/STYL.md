@@ -83,9 +83,10 @@ opisanych niżej** – bez własnych kolorów, odstępów i nagłówków. Zmiana
     jest wektorem SVG we współrzędnych PDF arkusza – nigdy obrazem rastrowym – żeby przy każdym przybliżeniu
     było ostre i w skali projektu. Przy przybliżaniu i oddalaniu te elementy rosną i maleją razem z planem,
     nie zostają stałym rozmiarem na ekranie. Podziałka i opis kilometrażu na PZT i na liniówce leżą wewnątrz
-    obszaru (kreska kończy się na krawędzi korytarza, napis mieści się w tej szerokości) i są prostopadłe do
-    osi, jak na rysunku projektowym. Gdy rozstaw pikiet projektu różni się od długości kreski, pole
-    „Koniec wg projektu” zmienia tylko kilometraż wzdłuż osi. Metry poprzeczne, domiary i powierzchnie
+    obszaru. Kreska podziałki jest prostopadła do osi, krótsza od szerokości korytarza i urywa się przed
+    opisem, więc go nie przecina. Opis czyta się od lewej do prawej w kierunku rosnącego kilometrażu
+    i rośnie razem z przybliżeniem planu. Na każdej zakładce pola „Początek” i „Koniec” wg planu
+    ustawiają rozpiętość pikiet wzdłuż czarnej kreski. Szerokości, domiary i powierzchnie
     zostają w skali rysunku. Grubość kreski szkicu jest w jednostkach PDF (`gruboscPdf`). Znaki
     liniówki (strzałka, „i”) liczymy z szerokości pasa, więc też skalują się z planem.
     Stałą grubość na ekranie (`vectorEffect="non-scaling-stroke"`) mają tylko linie: obrysy obszarów,
