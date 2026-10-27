@@ -19,9 +19,15 @@ Pełny opis: `mobile/STYL.md` (przeczytaj przed pracą nad UI). Skrót:
 - Dane edytowalne: „Edytuj” w nagłówku karty + ekran `edytuj` z tym samym formularzem; usuwanie z `potwierdzAkcje`.
 - Strony z danymi użytkownika: `AppHeader udostepnij={…}` (ikona udostępniania → PDF); treść z `src/eksport/dokumenty.ts`.
 - Budowa: formularz tylko `FormularzBudowy`, status z `src/utils/statusBudowy.ts`; Harmonogram: logika w `src/harmonogram/harmonogram.ts`.
-- Szkice i wszystkie działania na plikach PZT zapisujemy jako SVG we współrzędnych PDF arkusza (ostre przy każdym
-  przybliżeniu); grubość szkicu w jednostkach PDF – proporcjonalna do pliku, nie zmienia się względem planu przy
-  zoomie. Strzałki i znak „i” liniówki też liczymy w jednostkach pliku (z szerokości pasa); stałą grubość na
+- Wszystko nakładane na PZT (szkic, oś, podziałka, opis kilometrażu, pomiar „Zmierz”, znaki) jest SVG we
+  współrzędnych PDF: ostre przy przybliżeniu i w skali projektu (rośnie i maleje razem z planem). Punkty „Zmierz”
+  to małe kółka z numerem 1, 2, 3 obok, w stałym rozmiarze na ekranie. Stuknięcie obszaru na PZT podświetla
+  go i otwiera powierzchnię oraz numer konstrukcji. Podziałka
+  i opis km na PZT i liniówce mieszczą się w obszarze. Kreska jest prostopadła do osi, krótsza od korytarza
+  i urywa się przed opisem. Opis czyta się w kierunku rosnącego kilometrażu. Na każdej zakładce „Początek”
+  i „Koniec” wg planu ustawiają rozpiętość pikiet wzdłuż osi; szerokości, domiary i powierzchnie zostają
+  w skali rysunku. Grubość szkicu w jednostkach PDF.
+  Strzałki i znak „i” liniówki też liczymy w jednostkach pliku (z szerokości pasa); stałą grubość na
   ekranie mają tylko linie (obrysy, kreski start/koniec, podświetlenie, „linia obszaru” szkicu). Szkic rysujemy
   w jednej warstwie i jednym obszarze naraz i przycinamy do niego; linia łamana: węzły stuknięciem, przeciągane
   do granicy obszaru, środek krawędzi wygina łuk. Logika: `src/liniowka/liniowka.ts`, `src/liniowka/rasterSzkicu.ts`.

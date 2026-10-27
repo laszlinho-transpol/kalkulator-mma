@@ -287,11 +287,37 @@ export function powierzchniaMiedzyPunktamiPdf(
   return round2(Math.max(0, powierzchniaWielokata(pos)));
 }
 
+export interface ZrodloOdsadzki {
+  warstwy: WarstwaKonstrukcji[];
+  /** Opcinek pikietażu. Puste = cały obszar. */
+  kmOdM?: number;
+  kmDoM?: number;
+}
+
+function zrodlaOdsadzek(wejscie: WarstwaKonstrukcji[] | ZrodloOdsadzki[]): ZrodloOdsadzki[] {
+  if (wejscie.length === 0) return [];
+  const pierwszy = wejscie[0] as WarstwaKonstrukcji & ZrodloOdsadzki;
+  if (Array.isArray(pierwszy.warstwy)) return wejscie as ZrodloOdsadzki[];
+  return [{ warstwy: wejscie as WarstwaKonstrukcji[] }];
+}
+
+function wycinekPdfObszaru(obszar: ObszarObmiaru, arkusz: ArkuszPzt, kmOdM?: number, kmDoM?: number): Punkt2D[] | null {
+  const baza = obszar.wierzcholkiPdf;
+  if (kmOdM == null || kmDoM == null) return baza;
+  const osPdf = arkusz.osTrasy?.wierzcholkiPdf;
+  if (!osPdf || osPdf.length < 2) return baza;
+  const { s0, s1, dlOs } = stacjeLokalneNaOsiM(arkusz, kmOdM, kmDoM);
+  if (!(s1 > s0 + 0.05) || s1 - s0 >= dlOs - 0.2) return baza;
+  const dlPdf = dlugoscPolilinii(osPdf);
+  const clip = wycinekWielokataPoOsi(baza, osPdf, (s0 / dlOs) * dlPdf, (s1 / dlOs) * dlPdf);
+  return clip.length >= 3 ? clip : null;
+}
+
 /** Wielokąty odsadzek do dorysowania pod obrysem ścieralnej (jednostki PDF). */
 export function rysunkiOdsadzekArkusza(
   projekt: ProjektBudowy,
   arkusz: ArkuszPzt,
-  warstwyDla: (obszar: ObszarObmiaru) => WarstwaKonstrukcji[],
+  warstwyDla: (obszar: ObszarObmiaru) => WarstwaKonstrukcji[] | ZrodloOdsadzki[],
 ): RysunekOdsadzki[] {
   const k = metryNaPunktPdf(projekt.skala);
   const out: { rys: RysunekOdsadzki; zasieg: number }[] = [];
@@ -299,11 +325,14 @@ export function rysunkiOdsadzekArkusza(
     if (obszar.wierzcholkiPdf.length < 3) continue;
     const osPdf = osPdfDlaObszaru(obszar, arkusz, k);
     const kraw = krawedzieObszaru(obszar, true);
-    for (const w of warstwyDla(obszar)) {
+    for (const zrodlo of zrodlaOdsadzek(warstwyDla(obszar))) {
+      const polyBaza = wycinekPdfObszaru(obszar, arkusz, zrodlo.kmOdM, zrodlo.kmDoM);
+      if (!polyBaza) continue;
+      for (const w of zrodlo.warstwy) {
       const ods = odsadzkiCm(w);
       if (Math.abs(ods.lewa) < 0.05 && Math.abs(ods.prawa) < 0.05) continue;
       const poly = poszerzWielokat(
-        obszar.wierzcholkiPdf,
+        polyBaza,
         osPdf,
         kraw,
         (ods.lewa / 100) / k,
@@ -314,12 +343,13 @@ export function rysunkiOdsadzekArkusza(
       out.push({
         zasieg: Math.max(Math.abs(ods.lewa), Math.abs(ods.prawa)),
         rys: {
-          id: `${obszar.id}|${w.id}`,
+          id: `${obszar.id}|${w.id}|${zrodlo.kmOdM ?? 'caly'}`,
           wierzcholkiPdf: poly,
           kolor: kol.kolor,
           krycie: kol.krycie,
         },
       });
+      }
     }
   }
   out.sort((a, b) => b.zasieg - a.zasieg);

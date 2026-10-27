@@ -13,16 +13,23 @@ const KOLORY: Record<string, string> = {
   inna: '#64748B',
 };
 
-/** Min. wysokość wiersza opisu – cienkie warstwy (SMA 4 cm) nie mogą ścinać czcionki. */
-const MIN_WIERSZ = 40;
-
 interface Props {
   warstwy: WarstwaKonstrukcji[];
   theme: AppTheme;
   szerokoscSzkicu?: number;
 }
 
-/** Przekrój warstw – opisy obok szkicu, każdy wiersz ma wysokość pod dwie linie tekstu. */
+/**
+ * Wysokość paska [px] wprost z grubości. Najgrubsza warstwa ma do 92 px,
+ * cieńsza jest proporcjonalnie niższa – zmiana 4 → 8 cm widać na szkicu.
+ */
+export function wysokoscPaskaWarstwy(gruboscCm: number, maxGruboscCm: number): number {
+  const maxGr = Math.max(1, maxGruboscCm);
+  const skalaPx = Math.min(4.6, 92 / maxGr);
+  return Math.max(14, Math.max(gruboscCm, 0.5) * skalaPx);
+}
+
+/** Przekrój warstw – pasek ma wysokość z grubości, opis stoi obok tego samego wiersza. */
 export function PrzekrojKonstrukcji({ warstwy, theme, szerokoscSzkicu = 132 }: Props) {
   const posortowane = useMemo(
     () => [...warstwy].sort((a, b) => a.kolejnosc - b.kolejnosc),
@@ -37,25 +44,24 @@ export function PrzekrojKonstrukcji({ warstwy, theme, szerokoscSzkicu = 132 }: P
     );
   }
 
-  const sumaH = posortowane.reduce((s, w) => s + Math.max(w.gruboscCm, 1), 0);
+  const maxGr = Math.max(1, ...posortowane.map((w) => Math.max(w.gruboscCm, 0.5)));
   const maxOds = Math.max(0, ...posortowane.map((w) => {
     const o = odsadzkiWarstwy(w);
     return o.lewa + o.prawa;
   }));
-  const pad = 8;
+  const pad = 6;
   const rysW = szerokoscSzkicu - pad * 2;
   const bazaW = rysW * 0.72;
   const skalaW = maxOds > 0 ? (rysW - bazaW) / maxOds : 0;
-  const proporcH = Math.max(MIN_WIERSZ * posortowane.length, 88);
 
   let y = pad;
   const rects = posortowane.map((w) => {
     const ods = odsadzkiWarstwy(w);
-    const h = Math.max((Math.max(w.gruboscCm, 1) / Math.max(sumaH, 1)) * proporcH, MIN_WIERSZ);
+    const hPasek = wysokoscPaskaWarstwy(w.gruboscCm, maxGr);
     const szer = bazaW + (ods.lewa + ods.prawa) * skalaW;
     const x = pad + (rysW - szer) / 2;
-    const item = { w, x, y, h, szer, ods };
-    y += h;
+    const item = { w, x, y, h: hPasek, yPasek: y, hPasek, szer, ods };
+    y += hPasek;
     return item;
   });
 
@@ -68,9 +74,9 @@ export function PrzekrojKonstrukcji({ warstwy, theme, szerokoscSzkicu = 132 }: P
           <Rect
             key={r.w.id}
             x={r.x}
-            y={r.y}
+            y={r.yPasek}
             width={r.szer}
-            height={Math.max(r.h - 1.2, 8)}
+            height={r.hPasek}
             fill={KOLORY[r.w.kategoria] ?? KOLORY.inna}
             rx={3}
           />
@@ -78,14 +84,19 @@ export function PrzekrojKonstrukcji({ warstwy, theme, szerokoscSzkicu = 132 }: P
       </Svg>
       <View style={[styles.opisy, { paddingVertical: pad }]}>
         {rects.map((r) => (
-          <View key={r.w.id} style={[styles.wierszOpisu, { minHeight: r.h, height: r.h }]}>
-            <Text style={[styles.opisNazwa, { color: theme.colors.text }]} numberOfLines={1}>
-              {r.w.nazwa}
+          <View key={r.w.id} style={[styles.wierszOpisu, { minHeight: r.h, height: r.h, paddingVertical: 0 }]}>
+            <Text
+              style={[styles.opisNazwa, { color: theme.colors.text, fontSize: r.h < 32 ? 11 : 13, lineHeight: r.h < 32 ? 13 : 16 }]}
+              numberOfLines={1}
+            >
+              {r.h < 32 ? `${r.w.nazwa} · ${r.w.gruboscCm} cm` : r.w.nazwa}
             </Text>
-            <Text style={[styles.opisWymiary, { color: theme.colors.textSecondary }]} numberOfLines={1}>
-              {r.w.gruboscCm} cm
-              {r.ods.lewa || r.ods.prawa ? ` · ods. L ${r.ods.lewa} / P ${r.ods.prawa} cm` : ''}
-            </Text>
+            {r.h >= 32 ? (
+              <Text style={[styles.opisWymiary, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+                {r.w.gruboscCm} cm
+                {r.ods.lewa || r.ods.prawa ? ` · ods. L ${r.ods.lewa} / P ${r.ods.prawa} cm` : ''}
+              </Text>
+            ) : null}
           </View>
         ))}
       </View>

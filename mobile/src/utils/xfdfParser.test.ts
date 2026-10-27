@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parsujVertices, parsujXfdfTekst, obszaryZPolygony, parsujListeTekstowXfdf, scalLinieOsi, bazyWzdluzOsi, etykietaOsiZArkusza, pikietyZTekstu, czyLiniaKrawedznika, czyLiniaOsiBocznej } from './xfdfParser';
-import { dlugoscPikietazuJezdniM, dlugoscPolilinii, orientujLancuchDoKm, osPdfZorientowana, rozciagnijLancuchDoDlugosci, rozmiarPodzialkiOsi, stacjePodzialki, stronaWzgledemOsi } from './osPzt';
+import { dlugoscPikietazuJezdniM, dlugoscPolilinii, obrotOpisuWzdluzKm, orientujLancuchDoKm, osPdfZorientowana, rozciagnijLancuchDoDlugosci, rozmiarPodzialkiOsi, stacjePodzialki, stronaWzgledemOsi, ukladKrotkiejPodzialki } from './osPzt';
 import {
   powierzchniaWielokata,
   skalujWierzcholki,
@@ -340,6 +340,30 @@ describe('obmiarGeometry / xfdfParser', () => {
     assert.ok(r.odstepTekstuPdf < 40);
   });
 
+  it('opis podziałki idzie z rosnącym kilometrażem, a kreska jest krótsza i omija napis', () => {
+    assert.equal(obrotOpisuWzdluzKm(1, 0), 0);
+    assert.ok(Math.abs(obrotOpisuWzdluzKm(0, -1) + 90) < 1e-9);
+    assert.ok(Math.abs(Math.abs(obrotOpisuWzdluzKm(-1, 0)) - 180) < 1e-9);
+    const u = ukladKrotkiejPodzialki(-22, 22, 6);
+    const half = 6 * 0.48;
+    const tekst0 = Math.min(u.uTekst - half, u.uTekst + half);
+    const tekst1 = Math.max(u.uTekst - half, u.uTekst + half);
+    const k0 = Math.min(u.uKreskaA, u.uKreskaB);
+    const k1 = Math.max(u.uKreskaA, u.uKreskaB);
+    assert.ok(k1 < tekst0 || k0 > tekst1);
+    assert.ok(k1 - k0 < 20);
+    assert.ok(k1 - k0 > 4);
+    assert.ok(u.uTekst > 0 && tekst1 <= 22.01);
+    assert.ok(k0 >= -22.01);
+    const waski = ukladKrotkiejPodzialki(-1.2, 24, 6);
+    const w0 = Math.min(waski.uKreskaA, waski.uKreskaB);
+    const w1 = Math.max(waski.uKreskaA, waski.uKreskaB);
+    const t0 = waski.uTekst - half;
+    const t1 = waski.uTekst + half;
+    assert.ok(w1 < t0 - 0.05 || w0 > t1 + 0.05);
+    assert.ok(w1 <= 24 && w0 >= -1.2);
+  });
+
   it('rozciąga oś do etykiety XFDF, bez zmiany kierunku', () => {
     const os = [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 140, y: 0 }];
     const out = rozciagnijLancuchDoDlugosci(os, 210);
@@ -356,5 +380,13 @@ describe('obmiarGeometry / xfdfParser', () => {
     assert.ok(os[0].x < 120 && os[os.length - 1].x > 2300);
     assert.ok(Math.abs((w.osTrasy?.dlugoscEtykietaM ?? 0) - 422.07) < 0.01);
     assert.ok(w.zrodloPdfHref?.includes('Ark_2_22'));
+  });
+
+  it('Ark_2_17: oś 436,80 m, krawędź łuku 443,45 m nie wydłuża kilometraża', () => {
+    const xml = readFileSync(join(process.cwd(), 'src/utils/fixtures/dk25_ark_2_17.xfdf'), 'utf8');
+    const w = parsujXfdfTekst(xml, 'Ark_2_17.xfdf');
+    assert.equal(w.osTrasy?.color?.toUpperCase(), '#000000');
+    assert.ok(Math.abs((w.osTrasy?.dlugoscEtykietaM ?? 0) - 436.8) < 0.05);
+    assert.equal(etykietaOsiZArkusza(436.8, xml, 436.8), 436.8);
   });
 });

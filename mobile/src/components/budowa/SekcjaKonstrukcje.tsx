@@ -91,7 +91,8 @@ export function SekcjaKonstrukcje({ projekt, theme, onZmien, onPrzypisz }: Props
 
   const mixTarget = useMemo(() => {
     if (!mixWarstwa) return null;
-    const k = projekt.konstrukcje.find((x) => x.legendaId === mixWarstwa.konstrukcjaId);
+    const k = projekt.konstrukcje.find((x) => x.id === mixWarstwa.konstrukcjaId)
+      ?? projekt.konstrukcje.find((x) => x.legendaId === mixWarstwa.konstrukcjaId);
     if (!k) return null;
     const warstwy = mixWarstwa.wyjatekId
       ? k.wyjatki.find((w) => w.id === mixWarstwa.wyjatekId)?.warstwy
@@ -447,7 +448,10 @@ export function SekcjaKonstrukcje({ projekt, theme, onZmien, onPrzypisz }: Props
                 );
               })}
             </View>
-            <PrzekrojKonstrukcji warstwy={sel.warstwy} theme={theme} />
+            <PrzekrojKonstrukcji
+              warstwy={(wyjatekNaSrodku(k, sel.od, sel.do) ?? { warstwy: sel.warstwy }).warstwy}
+              theme={theme}
+            />
             <Przycisk
               tekst="Zmiana konstrukcji"
               ikona="plus"

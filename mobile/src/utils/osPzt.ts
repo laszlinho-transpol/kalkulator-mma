@@ -397,6 +397,66 @@ function przecieciaProstejZKrawedziami(poly: Punkt2D[], p: Punkt2D, nx: number, 
   return us;
 }
 
+type SpanPoprzeczny = { minU: number; maxU: number };
+
+/**
+ * Korytarz obszarów, przez który przechodzi oś: od krawędzi do krawędzi, bez wychodzenia w puste pole.
+ * `u` rośnie w prawo od kierunku osi (PDF, Y w górę).
+ */
+export function korytarzPodzialkiPdf(
+  obszary: Array<{
+    wierzcholkiPdf: Punkt2D[];
+    bazaStart?: { idxLewy?: number; idxPrawy?: number };
+    bazaKoniec?: { idxLewy?: number; idxPrawy?: number };
+  }>,
+  osPdf: Punkt2D[],
+  sPdf: number,
+): { minU: number; maxU: number; punkt: Punkt2D; nx: number; ny: number } | null {
+  const t = stycznyNaOsi(osPdf, sPdf);
+  if (!t) return null;
+  const plen = Math.hypot(t.dx, t.dy) || 1;
+  const nx = -t.dy / plen;
+  const ny = t.dx / plen;
+  const spany: SpanPoprzeczny[] = [];
+  for (const o of obszary) {
+    const us = przecieciaProstejZKrawedziami(o.wierzcholkiPdf, t.punkt, nx, ny)
+      .filter((u) => Math.abs(u) <= ZASIEG_CZOLA_PDF);
+    if (us.length < 2) continue;
+    let minU = Math.min(...us);
+    let maxU = Math.max(...us);
+    const projekt = szerokoscObszaruPdf(o);
+    if (projekt > 1 && maxU - minU > projekt * 1.8) {
+      const pol = projekt / 2;
+      const c = minU <= 0 && maxU >= 0 ? 0 : (Math.abs(minU) < Math.abs(maxU) ? minU : maxU);
+      minU = c - pol;
+      maxU = c + pol;
+    }
+    if (maxU - minU < 1) continue;
+    spany.push({ minU, maxU });
+  }
+  if (!spany.length) return null;
+  spany.sort((a, b) => a.minU - b.minU);
+  const merged: SpanPoprzeczny[] = [];
+  for (const s of spany) {
+    const last = merged[merged.length - 1];
+    const gap = last ? s.minU - last.maxU : Infinity;
+    const typowa = Math.max(last ? last.maxU - last.minU : 0, s.maxU - s.minU);
+    if (last && gap <= Math.max(8, typowa * 0.35)) {
+      last.minU = Math.min(last.minU, s.minU);
+      last.maxU = Math.max(last.maxU, s.maxU);
+    } else {
+      merged.push({ ...s });
+    }
+  }
+  const zawiera = merged.find((s) => s.minU <= 0.5 && s.maxU >= -0.5);
+  const wybrany = zawiera ?? merged.reduce((best, s) => {
+    const odl = s.maxU < 0 ? -s.maxU : s.minU > 0 ? s.minU : 0;
+    const odlBest = best.maxU < 0 ? -best.maxU : best.minU > 0 ? best.minU : 0;
+    return odl < odlBest ? s : best;
+  });
+  return { minU: wybrany.minU, maxU: wybrany.maxU, punkt: t.punkt, nx, ny };
+}
+
 /** Szerokość obszaru w poprzek osi (punkty PDF) w stacji sPdf. */
 export function szerokoscPoprzecznaPdf(
   obszary: Array<{ wierzcholkiPdf: Punkt2D[] }>,
@@ -552,6 +612,52 @@ export function rozmiarPodzialkiOsi(szerokoscObszaruPdf: number): {
   const halfPdf = Math.min(szer * 0.42, szer / 2);
   const fontPdf = Math.min(Math.max(szer * 0.13, 4), 6.2);
   return { halfPdf, fontPdf, odstepTekstuPdf: halfPdf + fontPdf * 0.65 };
+}
+
+/** Kąt SVG napisu: od lewej do prawej zgodnie z wektorem rosnącego kilometrażu. */
+export function obrotOpisuWzdluzKm(ux: number, uy: number): number {
+  return Math.atan2(uy, ux) * (180 / Math.PI);
+}
+
+export interface UkladKrotkiejPodzialki {
+  /** Środek napisu na osi poprzecznej (0 = oś trasy). */
+  uTekst: number;
+  uKreskaA: number;
+  uKreskaB: number;
+}
+
+/**
+ * Krótka kreska poprzeczna i opis w korytarzu [u1, u2].
+ * Opis leży po stronie z większym miejscem. Kreska jest po drugiej stronie
+ * i urywa się przed glifem, więc go nie przecina.
+ */
+export function ukladKrotkiejPodzialki(u1: number, u2: number, fontPdf: number): UkladKrotkiejPodzialki {
+  const inset = 0.35;
+  const font = Math.max(2, fontPdf);
+  let halfH = font * 0.48;
+  const roomPlus = Math.max(0, u2 - inset);
+  const roomMinus = Math.max(0, -u1 - inset);
+  const side = roomPlus >= roomMinus ? 1 : -1;
+  const room = Math.max(0.8, side > 0 ? roomPlus : roomMinus);
+  const opp = side > 0 ? roomMinus : roomPlus;
+  if (halfH * 2.4 > room) halfH = Math.max(0.8, room * 0.38);
+  const odOsi = Math.min(halfH + font * 0.22, Math.max(halfH * 0.55, room - halfH));
+  const uTekst = side * odOsi;
+  const tekstOd = uTekst - side * halfH;
+  const przedTekstem = side > 0 ? tekstOd : -tekstOd;
+
+  if (opp >= 1.8) {
+    const tickLen = Math.min(opp, Math.max(font * 1.05, opp * 0.58));
+    const uFar = -side * tickLen;
+    const uNear = -side * Math.min(font * 0.08, tickLen * 0.18);
+    return { uTekst, uKreskaA: uNear, uKreskaB: uFar };
+  }
+
+  const luz = Math.max(0, przedTekstem - font * 0.16);
+  const tickLen = Math.min(luz, Math.max(font * 0.65, luz));
+  const uNear = side * Math.min(font * 0.05, tickLen);
+  const uFar = side * tickLen;
+  return { uTekst, uKreskaA: uNear, uKreskaB: uFar };
 }
 
 /**
@@ -776,6 +882,27 @@ export function pomiarWzdlozOsiPdf(args: {
     kmXfdfA: kmZUlamka(args.kmXfdf, ua),
     kmXfdfB: kmZUlamka(args.kmXfdf, ub),
   };
+}
+
+/** Długość łamanej na planie w metrach skali 1:500 (suma odcinków, nie rzut na oś). */
+export function dlugoscLamanejPdfM(
+  punkty: Punkt2D[],
+  skala: SkalaPzt = DOMYSLNA_SKALA_PZT,
+): number {
+  if (punkty.length < 2) return 0;
+  return round2(dlugoscPolilinii(punkty) * metryNaPunktPdf(skala));
+}
+
+/** Kilometraż rzutu punktu na oś arkusza. */
+export function kmPunktuNaOsiPdf(
+  osPdf: Punkt2D[],
+  punkt: Punkt2D,
+  km: { odM: number; doM: number },
+): number | null {
+  if (osPdf.length < 2) return null;
+  const L = dlugoscPolilinii(osPdf);
+  if (L < 1e-6) return null;
+  return kmZUlamka(km, stacjaNaOsi(osPdf, punkt) / L);
 }
 
 export function ocenaOdstempuPodzialkiM(metry1500: number): {

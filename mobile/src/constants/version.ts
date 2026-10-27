@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.62';
+export const WERSJA_APLIKACJI = '1.8.66';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,42 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.66',
+    data: '2026-10-27',
+    tytul: 'Obszar na PZT i czytelny pomiar',
+    zmiany: [
+      'Stuknięcie obszaru na arkuszu podświetla go i otwiera powierzchnię oraz numer konstrukcji. Przy przypisaniu widać powierzchnię i tony każdej warstwy',
+      'Punkty „Zmierz” są małymi kółkami z numerami 1, 2, 3. Szkic konstrukcji pokazuje grubość warstw. Wybrana mieszanka zatwierdzona jest zaznaczona kolorem',
+    ],
+  },
+  {
+    wersja: '1.8.65',
+    data: '2026-10-27',
+    tytul: 'Początek i koniec pikiet na zakładce',
+    zmiany: [
+      'Na każdej zakładce PZT pola „Początek” i „Koniec” wg planu ustawiają rozpiętość pikiet wzdłuż czarnej kreski. Szerokości, domiary i powierzchnie zostają w skali rysunku',
+      'Opis podziałki czyta się w kierunku rosnącego kilometrażu. Kreska jest krótsza i urywa się przed opisem, a całość mieści się w obszarze',
+    ],
+  },
+  {
+    wersja: '1.8.64',
+    data: '2026-10-27',
+    tytul: 'Koniec pikietażu wg projektu',
+    zmiany: [
+      'Na arkuszu PZT pole „Koniec wg projektu” ustawia pikietę końca wzdłuż czarnej kreski. Szerokości, domiary i powierzchnie zostają w skali rysunku. Następny arkusz trasy styka się z tym końcem',
+    ],
+  },
+  {
+    wersja: '1.8.63',
+    data: '2026-10-27',
+    tytul: 'Podziałka w skali planu i pomiar łamaną',
+    zmiany: [
+      'Kreski i opisy kilometrażu na PZT i liniówce zostają w obszarze, stoją prostopadle do osi i rosną albo maleją razem z przybliżeniem planu',
+      'Zmierz stawia linię łamaną: dowolna liczba punktów, każdy węzeł można przesunąć. Długość jest w metrach skali rysunku',
+      'Kilometraż arkusza bierze wymiar własnej osi. Dłuższa krawędź łuku obok (np. ścieżka na Ark. 2_17, 443,45 m przy osi 436,80 m) nie rozciąga pikietażu',
+    ],
+  },
   {
     wersja: '1.8.62',
     data: '2026-10-26',

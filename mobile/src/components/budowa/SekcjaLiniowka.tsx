@@ -33,7 +33,7 @@ import {
   type WarstwaLiniowki,
 } from '../../liniowka/liniowka';
 import { wpisLegendyObszaru } from '../../utils/planZBudowy';
-import { czyArkuszNaTrasieGlownej, etykietaZakladkiArkusza, formatujKmM, kluczLegendy, konstrukcjaDlaObszaru, ustawTloArkusza } from '../../utils/projektBudowy';
+import { czyArkuszNaTrasieGlownej, etykietaZakladkiArkusza, formatujKmM, kluczLegendy, ustawTloArkusza, zrodlaOdsadzekObszaru } from '../../utils/projektBudowy';
 import { rysunkiOdsadzekArkusza } from '../../utils/odsadzkaObszaru';
 import { formatLiczby } from '../../utils/calculations';
 import { potwierdzAkcje, pokazKomunikat } from '../../utils/dialog';
@@ -321,7 +321,7 @@ export function SekcjaLiniowka({
   const arkuszSzkicu = szkic ? projekt.arkusze.find((a) => a.id === szkic.arkuszId) ?? aktywny : aktywny;
   const odsadzkiRysunek = useMemo(() => (
     arkuszSzkicu
-      ? rysunkiOdsadzekArkusza(projekt, arkuszSzkicu, (obszar) => konstrukcjaDlaObszaru(projekt, obszar.id)?.warstwy ?? [])
+      ? rysunkiOdsadzekArkusza(projekt, arkuszSzkicu, (obszar) => zrodlaOdsadzekObszaru(projekt, obszar))
       : []
   ), [projekt, arkuszSzkicu]);
   const obszaryDoWyboru: ObszarObmiaru[] = !szkic ? [] : (

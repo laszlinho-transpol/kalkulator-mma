@@ -291,12 +291,12 @@ export function arkuszeTrasyGlownej(arkusze: ArkuszPzt[]): ArkuszPzt[] {
 /** Suma pikietażu trasy głównej = osie XFDF arkuszy z włączoną kontynuacją. */
 export function sumaOsiTrasyM(projekt: ProjektBudowy): number {
   const naTrasie = arkuszeTrasyGlownej(projekt.arkusze);
-  const zOsi = round2(naTrasie.reduce((s, a) => s + dlugoscArkuszaM(a), 0));
-  if (zOsi > 1) return zOsi;
-  return round2(naTrasie.reduce(
+  const zeStacji = round2(naTrasie.reduce(
     (s, a) => s + Math.max(0, a.kilometrazKoncowyM - a.kilometrazPoczatkowyM),
     0,
   ));
+  if (zeStacji > 1) return zeStacji;
+  return round2(naTrasie.reduce((s, a) => s + dlugoscArkuszaM(a), 0));
 }
 
 export function koniecTrasyGlownejM(projekt: ProjektBudowy): number | undefined {
@@ -483,9 +483,61 @@ export function ustawNajdluzszaOs(arkusz: ArkuszPzt): ArkuszPzt {
 }
 
 /**
+ * Rozpiętość pikietażu arkusza. Domyślnie długość czarnej kreski.
+ * Koniec z planu rozciąga stacje wzdłuż tej kreski od podanego początku.
+ */
+export function dlugoscPikietazuArkuszaM(arkusz: ArkuszPzt, startM: number): number {
+  const kreska = dlugoscArkuszaM(arkusz);
+  const koniecProjektu = arkusz.kilometrazProjektuKoncowyM;
+  if (koniecProjektu == null || !Number.isFinite(koniecProjektu)) return kreska;
+  const dl = round2(koniecProjektu - startM);
+  if (dl < 1 || dl > 8000) return kreska;
+  return dl;
+}
+
+function bezPoczatkuPlanu(arkusz: ArkuszPzt): ArkuszPzt {
+  const { kilometrazProjektuPoczatkowyM: _pomin, ...reszta } = arkusz;
+  return reszta;
+}
+
+function bezKoncaPlanu(arkusz: ArkuszPzt): ArkuszPzt {
+  const { kilometrazProjektuKoncowyM: _pomin, ...reszta } = arkusz;
+  return reszta;
+}
+
+/**
+ * Ustawia albo czyści początek i koniec pikietażu z planu na jednej zakładce
+ * i przelicza stacje następnych. Geometria metrów zostaje.
+ * `null` czyści pole, pominięcie zostawia dotychczasową wartość.
+ */
+export function ustawKilometrazProjektuArkusza(
+  projekt: ProjektBudowy,
+  arkuszId: string,
+  wartosci: { poczatekM?: number | null; koniecM?: number | null },
+): ProjektBudowy {
+  const arkusze = zastosujKilometrazArkuszy(
+    projekt.arkusze.map((surowy) => {
+      if (surowy.id !== arkuszId) return surowy;
+      let arkusz = surowy;
+      if (wartosci.poczatekM === null) arkusz = bezPoczatkuPlanu(arkusz);
+      else if (wartosci.poczatekM != null && Number.isFinite(wartosci.poczatekM) && wartosci.poczatekM >= 0) {
+        arkusz = { ...arkusz, kilometrazProjektuPoczatkowyM: round2(wartosci.poczatekM) };
+      }
+      if (wartosci.koniecM === null) arkusz = bezKoncaPlanu(arkusz);
+      else if (wartosci.koniecM != null && Number.isFinite(wartosci.koniecM) && wartosci.koniecM >= 0) {
+        arkusz = { ...arkusz, kilometrazProjektuKoncowyM: round2(wartosci.koniecM) };
+      }
+      return arkusz;
+    }),
+    projekt.kilometrazPoczatkowyM,
+  );
+  return { ...projekt, arkusze };
+}
+
+/**
  * Uciągla kilometraż: pierwszy arkusz od km projektu,
  * kolejne z flagą kontynuacji startują na końcu poprzedniego.
- * Długość = linia osi z XFDF (wymiar kreski), bez korelacji do nadruku PZT.
+ * Długość = linia osi z XFDF, chyba że zakładka ma początek albo koniec z planu.
  */
 export function zastosujKilometrazArkuszy(
   arkusze: ArkuszPzt[],
@@ -495,8 +547,10 @@ export function zastosujKilometrazArkuszy(
   let biezacy = Math.max(0, kilometrazPoczatkowyM);
   return przygotowane.map((arkusz, i) => {
     const naTrasie = czyArkuszNaTrasieGlownej(arkusz, i);
-    const dlugosc = dlugoscArkuszaM(arkusz);
-    const start = naTrasie ? biezacy : arkusz.kilometrazPoczatkowyM;
+    const startLancucha = naTrasie ? biezacy : arkusz.kilometrazPoczatkowyM;
+    const reczny = arkusz.kilometrazProjektuPoczatkowyM;
+    const start = reczny != null && Number.isFinite(reczny) && reczny >= 0 ? round2(reczny) : startLancucha;
+    const dlugosc = dlugoscPikietazuArkuszaM(arkusz, start);
     const koniec = round2(start + dlugosc);
     if (naTrasie) biezacy = koniec;
     return {
@@ -956,6 +1010,90 @@ export function konstrukcjaDlaObszaru(projekt: ProjektBudowy, obszarId: string):
   const klucz = kluczLegendy('obszar', para.obszar.kolorWypelnienia);
   const wpis = projekt.legenda.find((w) => w.klucz === klucz && w.typ === 'obszar');
   return wpis ? projekt.konstrukcje.find((k) => k.legendaId === wpis.id) : undefined;
+}
+
+function obszaryLegendyKonstrukcji(projekt: ProjektBudowy, legendaId: string): string[] {
+  const wpis = projekt.legenda.find((w) => w.id === legendaId && w.typ === 'obszar');
+  if (!wpis) return [];
+  return wszystkieObszary(projekt)
+    .filter((p) => kluczLegendy('obszar', p.obszar.kolorWypelnienia) === wpis.klucz)
+    .map((p) => p.obszar.id);
+}
+
+/**
+ * Przypisuje obszar do konstrukcji o podanym id albo zdejmuje przypisanie (`null`).
+ * Pierwsze ręczne przypisanie przenosi dotychczasowe kolory na listy obszarów.
+ */
+export function przypiszObszarDoKonstrukcji(
+  projekt: ProjektBudowy,
+  obszarId: string,
+  konstrukcjaId: string | null,
+): ProjektBudowy {
+  const konstrukcje = projekt.konstrukcje.map((k) => {
+    const bazowe = Array.isArray(k.obszarIds) ? [...k.obszarIds] : obszaryLegendyKonstrukcji(projekt, k.legendaId);
+    const bez = bazowe.filter((id) => id !== obszarId);
+    const dolacz = konstrukcjaId != null && (k.id === konstrukcjaId || k.legendaId === konstrukcjaId);
+    return { ...k, obszarIds: dolacz ? [...bez, obszarId] : bez };
+  });
+  return { ...projekt, konstrukcje };
+}
+
+/** Nowa konstrukcja z kolejnym numerem, od razu przypisana do obszaru. */
+export function utworzKonstrukcjeDlaObszaru(projekt: ProjektBudowy, obszarId: string): ProjektBudowy {
+  const para = wszystkieObszary(projekt).find((x) => x.obszar.id === obszarId);
+  if (!para) return projekt;
+  const klucz = kluczLegendy('obszar', para.obszar.kolorWypelnienia);
+  let legenda = projekt.legenda;
+  let wpis = legenda.find((w) => w.klucz === klucz && w.typ === 'obszar');
+  if (!wpis) {
+    const sugerowana = sugerowanaNazwaLegendy('obszar', para.obszar.kolorWypelnienia, para.obszar.stronaTrasy);
+    wpis = {
+      id: generujId(),
+      kolor: normalizujKolorHex(para.obszar.kolorWypelnienia),
+      typ: 'obszar',
+      klucz,
+      nazwa: sugerowana || 'Obszar',
+      sugerowanaNazwa: sugerowana || undefined,
+    };
+    legenda = [...legenda, wpis];
+  } else if (!wpis.nazwa.trim()) {
+    const nazwa = wpis.sugerowanaNazwa || 'Obszar';
+    wpis = { ...wpis, nazwa };
+    legenda = legenda.map((w) => (w.id === wpis!.id ? wpis! : w));
+  }
+  const numer = projekt.konstrukcje.reduce((m, k) => Math.max(m, k.numer ?? 0), 0) + 1;
+  const nowa = nowaKonstrukcja(wpis.id, numer);
+  const zNowa = { ...projekt, legenda, konstrukcje: [...projekt.konstrukcje, nowa] };
+  return przypiszObszarDoKonstrukcji(zNowa, obszarId, nowa.id ?? nowa.legendaId);
+}
+
+export function ilosciWarstwObszaru(
+  projekt: ProjektBudowy,
+  obszarId: string,
+  mieszanki: Pick<Mieszanka, 'id' | 'ciezarObjetosciowy'>[],
+): IloscWarstwy[] {
+  const para = wszystkieObszary(projekt).find((x) => x.obszar.id === obszarId);
+  const konstrukcja = konstrukcjaDlaObszaru(projekt, obszarId);
+  if (!para || !konstrukcja) return [];
+  return [...ilosciDlaObszaru(para.obszar, para.arkusz, konstrukcja, mieszanki).values()]
+    .sort((a, b) => a.kolejnosc - b.kolejnosc);
+}
+
+export function zrodlaOdsadzekObszaru(projekt: ProjektBudowy, obszar: ObszarObmiaru): Array<{
+  warstwy: WarstwaKonstrukcji[];
+  kmOdM: number;
+  kmDoM: number;
+}> {
+  const konstrukcja = konstrukcjaDlaObszaru(projekt, obszar.id);
+  if (!konstrukcja) return [];
+  const km = kmObszaru(obszar);
+  const segmenty = segmentyKonstrukcji(konstrukcja, km.od, km.do, obszar.id);
+  const lista = segmenty.length > 0 ? segmenty : [{ od: km.od, do: km.od, warstwy: konstrukcja.warstwy }];
+  return lista.map((s) => ({
+    warstwy: s.warstwy,
+    kmOdM: s.od,
+    kmDoM: s.do,
+  }));
 }
 
 export function zapewnijIdentyfikatoryKonstrukcji(konstrukcje: KonstrukcjaObszaru[]): KonstrukcjaObszaru[] {
