@@ -91,8 +91,10 @@ opisanych niżej** – bez własnych kolorów, odstępów i nagłówków. Zmiana
     ustawiają rozpiętość pikiet wzdłuż czarnej kreski. Szerokości, domiary i powierzchnie
     zostają w skali rysunku. Niebieska linia prostopadła do osi ma własną podziałkę w tej samej skali:
     0+000 na końcu dalszym, styk z czarną osią jest końcem. Przycisk „Kilometraż” podświetla jej węzły,
-    a wpisany kilometraż jednego węzła dolicza resztę z długości. Konstrukcję przypisuje się tylko na PZT
-    i zatwierdza przyciskiem „Zapisz”; wcześniej numer jest propozycją według koloru. Lewa strona leży
+    a wpisany kilometraż jednego węzła dolicza resztę z długości.     Konstrukcję przypisuje się tylko na PZT
+    i zatwierdza przyciskiem „Zapisz”; wcześniej numer jest propozycją według koloru. Ponowne stuknięcie
+    tego samego obszaru podświetla zapisany numer, a niezapisany kawałek tej samej strony podświetla zapis sąsiada.
+    Nazwa wjazdu pochodzi z kilometraża przecięcia niebieskiej linii z czarną osią. Lewa strona leży
     po lewej od osi w kierunku rosnącego kilometrażu (także wjazd, ścieżka i droga boczna). Lista konstrukcji
     to jeden wiersz na numer, a szczegóły otwierają się po stuknięciu.
     Zmiana konstrukcji dzieli odcinek na osobno zaznaczane kawałki (1, 1.1, 1.2). Grubość kreski szkicu jest w jednostkach PDF (`gruboscPdf`). Znaki

@@ -6,11 +6,10 @@ import { round2 } from './calculations';
 import { powierzchniaWielokata } from './obmiarGeometry';
 import { punktWWielokacie } from '../liniowka/liniowka';
 import { formatujKmM, normalizujKolorHex, zsynchronizujLegendeProjektu } from './projektBudowy';
-import { nazwaAutomatycznaObszaru } from './xfdfParser';
+import { nazwaAutomatycznaObszaru, rolaKoloruObszaru } from './xfdfParser';
 import {
   dlugoscPolilinii,
   osMZorientowana,
-  punktNaOsi,
   stacjaNaOsi,
   stacjeLokalneNaOsiM,
   stronaWzgledemOsi,
@@ -72,11 +71,67 @@ function kmTrasyZeStacji(arkusz: ArkuszPzt, stacjaM: number): number | null {
   return arkusz.kilometrazPoczatkowyM + (stacjaM / dl) * span;
 }
 
-function dystansDoOsi(os: Punkt2D[], p: Punkt2D): { d: number; stacja: number } {
-  const stacja = stacjaNaOsi(os, p);
-  const foot = punktNaOsi(os, stacja);
-  if (!foot) return { d: Infinity, stacja };
-  return { d: Math.hypot(p.x - foot.x, p.y - foot.y), stacja };
+function rzutNaOdcinek(a: Punkt2D, b: Punkt2D, p: Punkt2D): { punkt: Punkt2D; t: number; d: number } {
+  const abx = b.x - a.x;
+  const aby = b.y - a.y;
+  const len2 = abx * abx + aby * aby;
+  const t = len2 < 1e-12 ? 0 : Math.max(0, Math.min(1, ((p.x - a.x) * abx + (p.y - a.y) * aby) / len2));
+  const punkt = { x: a.x + t * abx, y: a.y + t * aby };
+  return { punkt, t, d: Math.hypot(punkt.x - p.x, punkt.y - p.y) };
+}
+
+function przeciecieOdcinkow(
+  a: Punkt2D, b: Punkt2D, c: Punkt2D, d: Punkt2D,
+): { punkt: Punkt2D; t: number; u: number } | null {
+  const rx = b.x - a.x;
+  const ry = b.y - a.y;
+  const sx = d.x - c.x;
+  const sy = d.y - c.y;
+  const den = rx * sy - ry * sx;
+  if (Math.abs(den) < 1e-9) return null;
+  const qpx = c.x - a.x;
+  const qpy = c.y - a.y;
+  const t = (qpx * sy - qpy * sx) / den;
+  const u = (qpx * ry - qpy * rx) / den;
+  if (t < -1e-6 || t > 1 + 1e-6 || u < -1e-6 || u > 1 + 1e-6) return null;
+  return { punkt: { x: a.x + t * rx, y: a.y + t * ry }, t, u };
+}
+
+/** Najbliższy styk niebieskiej linii z czarną osią, najlepiej prawdziwe przecięcie. */
+function stykLiniiZOsia(linia: Punkt2D[], glowna: Punkt2D[]): {
+  d: number;
+  stacjaLinii: number;
+  punktNaGlownej: Punkt2D;
+} | null {
+  const stLinia = stacjeWierzcholkow(linia);
+  const dlLinia = stLinia[stLinia.length - 1] ?? 0;
+  let best: { d: number; stacjaLinii: number; punktNaGlownej: Punkt2D; odKonca: number } | null = null;
+  for (let i = 0; i < linia.length - 1; i++) {
+    const a = linia[i];
+    const b = linia[i + 1];
+    const dlSeg = stLinia[i + 1] - stLinia[i];
+    for (let j = 0; j < glowna.length - 1; j++) {
+      const c = glowna[j];
+      const d = glowna[j + 1];
+      const przec = przeciecieOdcinkow(a, b, c, d);
+      const kandydaci = przec
+        ? [{ d: 0, tLinii: przec.t, punkt: przec.punkt }]
+        : [
+          (() => { const r = rzutNaOdcinek(c, d, a); return { d: r.d, tLinii: 0, punkt: r.punkt }; })(),
+          (() => { const r = rzutNaOdcinek(c, d, b); return { d: r.d, tLinii: 1, punkt: r.punkt }; })(),
+          (() => { const r = rzutNaOdcinek(a, b, c); return { d: r.d, tLinii: r.t, punkt: c }; })(),
+          (() => { const r = rzutNaOdcinek(a, b, d); return { d: r.d, tLinii: r.t, punkt: d }; })(),
+        ];
+      for (const k of kandydaci) {
+        const stacjaLinii = stLinia[i] + k.tLinii * dlSeg;
+        const odKonca = Math.min(stacjaLinii, Math.abs(dlLinia - stacjaLinii));
+        if (!best || k.d < best.d - 1e-3 || (Math.abs(k.d - best.d) <= 1e-3 && odKonca < best.odKonca)) {
+          best = { d: k.d, stacjaLinii, punktNaGlownej: k.punkt, odKonca };
+        }
+      }
+    }
+  }
+  return best;
 }
 
 /** Układ niebieskiej linii: 0 po stronie dalszej, koniec przy czarnej osi. */
@@ -90,13 +145,11 @@ export function lancuchOsiBocznej(os: OsBocznaPzt, arkusz: ArkuszPzt): LancuchOs
   let dystansStykuM = Infinity;
   let punktStyku = linia[0];
   if (glowna && glowna.length >= 2) {
-    for (let i = 0; i < linia.length; i++) {
-      const odl = dystansDoOsi(glowna, linia[i]);
-      if (odl.d < dystansStykuM) {
-        dystansStykuM = odl.d;
-        stacjaStyku = stacje[i];
-        punktStyku = linia[i];
-      }
+    const styk = stykLiniiZOsia(linia, glowna);
+    if (styk) {
+      dystansStykuM = styk.d;
+      stacjaStyku = styk.stacjaLinii;
+      punktStyku = styk.punktNaGlownej;
     }
   } else {
     dystansStykuM = Infinity;
@@ -236,7 +289,58 @@ export function stronaObszaruGeometryczna(
   return stronaWzgledemOsi(srodek, glowna);
 }
 
-const NAZWA_AUTO = /^(Obszar \d+|Trasa [LP]|Droga boczna|Wjazd|Ścieżka rowerowa)$/;
+const NAZWA_AUTO = /^(Obszar \d+|Trasa [LP]|Droga boczna|Wjazd( \d+\+\d{3})?|Ścieżka rowerowa)$/;
+
+/** Kilometraż trasy głównej w przecięciu niebieskiej linii wjazdu z czarną osią. */
+function kmWjazduNaTrasieGlownej(obszar: ObszarObmiaru, arkusz: ArkuszPzt): number | null {
+  let best: { km: number; dl: number } | null = null;
+  for (const os of arkusz.osieBoczne ?? []) {
+    const lancuch = lancuchOsiBocznej(os, arkusz);
+    if (!lancuch || lancuch.kmTrasyM == null) continue;
+    const odcinek = odcinekBocznyWObszarze(os, obszar);
+    if (!odcinek) continue;
+    if (!best || odcinek.dlugoscM > best.dl) best = { km: lancuch.kmTrasyM, dl: odcinek.dlugoscM };
+  }
+  return best?.km ?? null;
+}
+
+function nazwaAutomatycznaZGeometria(obszar: ObszarObmiaru, arkusz: ArkuszPzt, strona?: 'lewa' | 'prawa'): string {
+  if (rolaKoloruObszaru(obszar.kolorWypelnienia) === 'wjazd') {
+    const km = kmWjazduNaTrasieGlownej(obszar, arkusz);
+    return km == null ? 'Wjazd' : `Wjazd ${formatujKmM(km)}`;
+  }
+  return nazwaAutomatycznaObszaru(obszar.kolorWypelnienia, obszar.kolejnosc, strona);
+}
+
+function srodekKmObszaru(obszar: ObszarObmiaru, arkusz: ArkuszPzt): number | null {
+  const lok = lokalizacjaObszaru(obszar, arkusz);
+  if (!lok) return null;
+  return (lok.kmTrasyOdM + lok.kmTrasyDoM) / 2;
+}
+
+/** Zapisany numer najbliższego obszaru tej samej barwy i strony. Do podświetlenia, zanim ten obszar dostanie własny zapis. */
+export function kluczZapisuSasiedztwa(
+  projekt: ProjektBudowy,
+  obszar: ObszarObmiaru,
+  arkusz: ArkuszPzt,
+): string | undefined {
+  if (obszar.konstrukcjaId === null || typeof obszar.konstrukcjaId === 'string') return undefined;
+  const kolor = normalizujKolorHex(obszar.kolorWypelnienia);
+  const strona = obszar.stronaTrasy;
+  const km = srodekKmObszaru(obszar, arkusz);
+  let best: { klucz: string; d: number } | undefined;
+  for (const a of projekt.arkusze) {
+    for (const o of a.obszary) {
+      if (o.id === obszar.id || typeof o.konstrukcjaId !== 'string') continue;
+      if (normalizujKolorHex(o.kolorWypelnienia) !== kolor) continue;
+      if (strona && o.stronaTrasy && o.stronaTrasy !== strona) continue;
+      const km2 = srodekKmObszaru(o, a);
+      const d = (km != null && km2 != null ? Math.abs(km - km2) : 0) + (a.id === arkusz.id ? 0 : 1_000_000);
+      if (!best || d < best.d) best = { klucz: o.konstrukcjaId, d };
+    }
+  }
+  return best?.klucz;
+}
 const NAZWA_STRONY_LEGENDY = /^Trasa główna \(strona (lewa|prawa)\)$/;
 
 /**
@@ -258,7 +362,7 @@ export function uzupelnijStronyObszarow(projekt: ProjektBudowy): ProjektBudowy {
         licznik.set(klucz, slot);
       }
       const nazwa = NAZWA_AUTO.test(o.nazwa)
-        ? nazwaAutomatycznaObszaru(o.kolorWypelnienia, o.kolejnosc, strona)
+        ? nazwaAutomatycznaZGeometria(o, arkusz, strona)
         : o.nazwa;
       if (nazwa === o.nazwa && strona === o.stronaTrasy) return o;
       zmieniono = true;

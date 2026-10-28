@@ -29,6 +29,7 @@ import {
   ustawKolorWarstwy,
   warstwyLiniowki,
   najmniejszyWielokatPodPunktem,
+  obszarPodTapnieciem,
   wymazGumka,
   zapiszWpisReczny,
 } from './liniowka';
@@ -315,5 +316,23 @@ describe('liniówka – obszar szkicu i linia łamana', () => {
     assert.equal(najmniejszyWielokatPodPunktem([duzy, maly], { x: 50, y: 50 })?.id, 'm');
     assert.equal(najmniejszyWielokatPodPunktem([maly, duzy], { x: 50, y: 50 })?.id, 'm');
     assert.equal(najmniejszyWielokatPodPunktem([duzy, maly], { x: 10, y: 10 })?.id, 'd');
+  });
+
+  it('niezapisany kawałek tej samej barwy otwiera zapisany obszar, inna barwa zostaje', () => {
+    const duzy = {
+      id: 'd', kolor: '#FFEE58', zapisany: true,
+      wierzcholkiPdf: [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }, { x: 0, y: 100 }],
+    };
+    const kawalek = {
+      id: 'k', kolor: '#FFEE58', zapisany: false,
+      wierzcholkiPdf: [{ x: 40, y: 40 }, { x: 60, y: 40 }, { x: 60, y: 60 }, { x: 40, y: 60 }],
+    };
+    const wjazd = {
+      id: 'w', kolor: '#009300', zapisany: false,
+      wierzcholkiPdf: [{ x: 70, y: 70 }, { x: 90, y: 70 }, { x: 90, y: 90 }, { x: 70, y: 90 }],
+    };
+    assert.equal(obszarPodTapnieciem([duzy, kawalek], { x: 50, y: 50 })?.id, 'd');
+    assert.equal(obszarPodTapnieciem([duzy, kawalek], { x: 10, y: 10 })?.id, 'd');
+    assert.equal(obszarPodTapnieciem([duzy, wjazd], { x: 80, y: 80 })?.id, 'w');
   });
 });

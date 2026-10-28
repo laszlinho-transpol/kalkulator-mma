@@ -348,6 +348,28 @@ export function najmniejszyWielokatPodPunktem<T extends { wierzcholkiPdf: Punkt2
   return best;
 }
 
+/**
+ * Obszar pod palcem. Najmniejsza figura wygrywa, ale niezapisany kawałek tej samej barwy
+ * oddaje stuknięcie większemu obszarowi, który ma już zapis konstrukcji.
+ */
+export function obszarPodTapnieciem<T extends { wierzcholkiPdf: Punkt2D[]; kolor?: string; zapisany?: boolean }>(
+  lista: readonly T[],
+  punkt: Punkt2D,
+): T | undefined {
+  const trafione: { el: T; pole: number }[] = [];
+  for (const el of lista) {
+    const w = el.wierzcholkiPdf;
+    if (w.length < 3 || !punktWWielokacie(punkt, w)) continue;
+    trafione.push({ el, pole: poleWielokata(w) });
+  }
+  if (trafione.length === 0) return undefined;
+  trafione.sort((a, b) => a.pole - b.pole);
+  const naj = trafione[0].el;
+  if (naj.zapisany || !naj.kolor) return naj;
+  const zapisany = trafione.find((t) => t.el.zapisany && t.el.kolor === naj.kolor);
+  return zapisany?.el ?? naj;
+}
+
 function poleWielokata(poly: Punkt2D[]): number {
   let s = 0;
   for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) s += (poly[j].x + poly[i].x) * (poly[j].y - poly[i].y);
