@@ -1130,7 +1130,15 @@ export function SekcjaPzt({
           : 'Obszar'}
         theme={theme}
         onClose={() => setKartaOtwarta(false)}
-        prawy={{ tekst: 'Gotowe', onPress: () => setKartaOtwarta(false), kolor: theme.colors.primary }}
+        prawy={{
+          tekst: 'Zapisz',
+          onPress: () => {
+            if (!kartaObszaru || !szkicGotowy) return;
+            onZmien(przypiszObszarDoKonstrukcji(projekt, kartaObszaru.obszar.id, szkicKlucz));
+            setKartaOtwarta(false);
+          },
+          kolor: theme.colors.primary,
+        }}
       >
         {kartaObszaru ? (
           <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }} keyboardShouldPersistTaps="handled">
@@ -1148,66 +1156,6 @@ export function SekcjaPzt({
                 <Text style={{ color: theme.colors.primary, fontWeight: '800' }}>{tekst}</Text>
               ) : null;
             })()}
-            {odcinkiKarty.length > 1 ? (
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                {odcinkiKarty.map((d) => {
-                  const on = edycjaOdcinka && odcinekKarty?.id === d.id;
-                  return (
-                    <TouchableOpacity
-                      key={d.id}
-                      accessibilityLabel={`${d.numer} ${formatujKmM(d.kmOdM)} ${formatujKmM(d.kmDoM)}`}
-                      onPress={() => setZakresKarty({ odM: d.kmOdM, doM: d.kmDoM })}
-                      style={{
-                        borderWidth: 1,
-                        borderRadius: 8,
-                        paddingHorizontal: 10,
-                        paddingVertical: 8,
-                        borderColor: on ? theme.colors.primary : theme.colors.border,
-                        backgroundColor: on ? theme.colors.primary : theme.colors.inputBackground,
-                      }}
-                    >
-                      <Text style={{ color: on ? '#1A1A1A' : theme.colors.text, fontWeight: '800', fontSize: 13 }}>
-                        {`${d.numer ? `${d.numer} · ` : ''}${formatujKmM(d.kmOdM)} – ${formatujKmM(d.kmDoM)}`}
-                      </Text>
-                      <Text style={{ color: on ? '#1A1A1A' : theme.colors.textSecondary, fontSize: 12 }}>
-                        {`${formatLiczby(d.powierzchniaM2, 1)} m²`}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            ) : null}
-            <Text style={[styles.label, { color: theme.colors.text }]}>Nazwa</Text>
-            <TextInput
-              value={edycjaOdcinka && odcinekKarty
-                ? (kartaObszaru.obszar.nazwyOdcinkow?.find((n) => (
-                  Math.abs(n.kmOdM - odcinekKarty.kmOdM) < 1.5 && Math.abs(n.kmDoM - odcinekKarty.kmDoM) < 1.5
-                ))?.nazwa ?? '')
-                : (kartaObszaru.obszar.nazwaDodatkowa ?? '')}
-              onChangeText={(t) => {
-                if (edycjaOdcinka && odcinekKarty) {
-                  onZmien(zapiszNazweOdcinka(projekt, kartaObszaru.obszar.id, odcinekKarty.kmOdM, odcinekKarty.kmDoM, t));
-                  return;
-                }
-                ustawNazweDodatkowa(kartaObszaru.obszar.id, t);
-              }}
-              placeholder="Opcjonalna nazwa, np. wjazd albo zjazd"
-              placeholderTextColor={theme.colors.textSecondary}
-              accessibilityLabel="Nazwa obszaru"
-              style={[styles.input, { color: theme.colors.text, borderColor: theme.colors.border, backgroundColor: theme.colors.inputBackground }]}
-            />
-            <Przycisk
-              tekst="Kilometraż"
-              maly
-              wariant="drugi"
-              accessibilityLabel="Ustaw kilometraż niebieskiej linii"
-              onPress={() => {
-                setArkuszId(kartaObszaru.arkusz.id);
-                setTrybKm(true);
-                setWezelKm(null);
-                setKartaOtwarta(false);
-              }}
-            />
             <Text style={[styles.label, { color: theme.colors.text }]}>Konstrukcja</Text>
             {(() => {
               const zapisany = kluczZapisanegoPrzypisania(projekt, kartaObszaru.obszar.id);
@@ -1315,6 +1263,66 @@ export function SekcjaPzt({
             >
               <Text style={{ color: theme.colors.primary, fontWeight: '800', fontSize: 15 }}>+ Nowa konstrukcja</Text>
             </TouchableOpacity>
+            {odcinkiKarty.length > 1 ? (
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                {odcinkiKarty.map((d) => {
+                  const on = edycjaOdcinka && odcinekKarty?.id === d.id;
+                  return (
+                    <TouchableOpacity
+                      key={d.id}
+                      accessibilityLabel={`${d.numer} ${formatujKmM(d.kmOdM)} ${formatujKmM(d.kmDoM)}`}
+                      onPress={() => setZakresKarty({ odM: d.kmOdM, doM: d.kmDoM })}
+                      style={{
+                        borderWidth: 1,
+                        borderRadius: 8,
+                        paddingHorizontal: 10,
+                        paddingVertical: 8,
+                        borderColor: on ? theme.colors.primary : theme.colors.border,
+                        backgroundColor: on ? theme.colors.primary : theme.colors.inputBackground,
+                      }}
+                    >
+                      <Text style={{ color: on ? '#1A1A1A' : theme.colors.text, fontWeight: '800', fontSize: 13 }}>
+                        {`${d.numer ? `${d.numer} · ` : ''}${formatujKmM(d.kmOdM)} – ${formatujKmM(d.kmDoM)}`}
+                      </Text>
+                      <Text style={{ color: on ? '#1A1A1A' : theme.colors.textSecondary, fontSize: 12 }}>
+                        {`${formatLiczby(d.powierzchniaM2, 1)} m²`}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            ) : null}
+            <Text style={[styles.label, { color: theme.colors.text }]}>Nazwa</Text>
+            <TextInput
+              value={edycjaOdcinka && odcinekKarty
+                ? (kartaObszaru.obszar.nazwyOdcinkow?.find((n) => (
+                  Math.abs(n.kmOdM - odcinekKarty.kmOdM) < 1.5 && Math.abs(n.kmDoM - odcinekKarty.kmDoM) < 1.5
+                ))?.nazwa ?? '')
+                : (kartaObszaru.obszar.nazwaDodatkowa ?? '')}
+              onChangeText={(t) => {
+                if (edycjaOdcinka && odcinekKarty) {
+                  onZmien(zapiszNazweOdcinka(projekt, kartaObszaru.obszar.id, odcinekKarty.kmOdM, odcinekKarty.kmDoM, t));
+                  return;
+                }
+                ustawNazweDodatkowa(kartaObszaru.obszar.id, t);
+              }}
+              placeholder="Opcjonalna nazwa, np. wjazd albo zjazd"
+              placeholderTextColor={theme.colors.textSecondary}
+              accessibilityLabel="Nazwa obszaru"
+              style={[styles.input, { color: theme.colors.text, borderColor: theme.colors.border, backgroundColor: theme.colors.inputBackground }]}
+            />
+            <Przycisk
+              tekst="Kilometraż"
+              maly
+              wariant="drugi"
+              accessibilityLabel="Ustaw kilometraż niebieskiej linii"
+              onPress={() => {
+                setArkuszId(kartaObszaru.arkusz.id);
+                setTrybKm(true);
+                setWezelKm(null);
+                setKartaOtwarta(false);
+              }}
+            />
             {konstrukcjaPodgladu && warstwyKarty.length > 0 ? (
               <View style={{ gap: 8 }}>
                 <Text style={[styles.label, { color: theme.colors.text }]}>Warstwy tego obszaru</Text>
