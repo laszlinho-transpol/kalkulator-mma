@@ -2,7 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import type { ArkuszPzt, KonstrukcjaObszaru, ObszarObmiaru, OsBocznaPzt } from '../types';
 import { domyslneWarstwyKonstrukcji, nowaKonstrukcja, pustyProjektBudowy } from './projektBudowy';
-import { kmNaOsiBocznej, lancuchOsiBocznej, lokalizacjaObszaru, odcinkiObszaru, stronaObszaruGeometryczna, uzupelnijStronyObszarow } from './lokalizacjaObszaru';
+import { kluczZapisuSasiedztwa, kmNaOsiBocznej, lancuchOsiBocznej, lokalizacjaObszaru, odcinkiObszaru, stronaObszaruGeometryczna, uzupelnijStronyObszarow } from './lokalizacjaObszaru';
 
 function arkusz(obszary: ObszarObmiaru[], boczne: OsBocznaPzt[] = []): ArkuszPzt {
   return {
@@ -146,5 +146,46 @@ describe('lokalizacja obszaru', () => {
     assert.equal(po[1].stronaTrasy, 'lewa');
     assert.equal(projekt.legenda[0].nazwa, 'Trasa główna (strona lewa)');
     assert.equal(uzupelnijStronyObszarow(projekt), projekt);
+  });
+
+  it('nazwa wjazdu to kilometraż przecięcia niebieskiej linii z czarną osią', () => {
+    const boczna: OsBocznaPzt = {
+      id: 'nb',
+      wierzcholkiPdf: [{ x: 30, y: 20 }, { x: 50, y: -10 }],
+      wierzcholkiM: [{ x: 30, y: 20 }, { x: 50, y: -10 }],
+      dlugoscM: 36,
+      kolor: '#0000FF',
+    };
+    const wjazd = prostokat('wjazd', 28, 55, -12, 22);
+    wjazd.nazwa = 'Wjazd';
+    wjazd.kolorWypelnienia = '#009300';
+    const wlasny = prostokat('wlasny', 28, 55, -12, 22);
+    wlasny.nazwa = 'Zjazd do posesji';
+    wlasny.kolorWypelnienia = '#009300';
+    const po = uzupelnijStronyObszarow({
+      ...pustyProjektBudowy(1000),
+      arkusze: [arkusz([wjazd, wlasny], [boczna])],
+    });
+    assert.equal(po.arkusze[0].obszary[0].nazwa, 'Wjazd 1+043');
+    assert.equal(po.arkusze[0].obszary[1].nazwa, 'Zjazd do posesji');
+    assert.equal(uzupelnijStronyObszarow(po), po);
+  });
+
+  it('niezapisany obszar tej samej strony podświetla zapis sąsiada', () => {
+    const zapisany = prostokat('zapis', 0, 20, 2, 8);
+    zapisany.kolorWypelnienia = '#FFEE58';
+    zapisany.stronaTrasy = 'lewa';
+    zapisany.konstrukcjaId = 'k-lewa';
+    const obok = prostokat('obok', 40, 70, 2, 8);
+    obok.kolorWypelnienia = '#FFEE58';
+    obok.stronaTrasy = 'lewa';
+    const prawa = prostokat('prawa', 40, 70, -8, -2);
+    prawa.kolorWypelnienia = '#FFEE58';
+    prawa.stronaTrasy = 'prawa';
+    prawa.konstrukcjaId = 'k-prawa';
+    const a = arkusz([zapisany, obok, prawa]);
+    const projekt = { ...pustyProjektBudowy(1000), arkusze: [a] };
+    assert.equal(kluczZapisuSasiedztwa(projekt, obok, a), 'k-lewa');
+    assert.equal(kluczZapisuSasiedztwa(projekt, zapisany, a), undefined);
   });
 });

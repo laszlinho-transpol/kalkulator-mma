@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.68';
+export const WERSJA_APLIKACJI = '1.8.69';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,15 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.69',
+    data: '2026-10-28',
+    tytul: 'Ten sam obszar i nazwa wjazdu',
+    zmiany: [
+      'Ponowne stuknięcie obszaru, także po przesunięciu planu, podświetla zapisany numer. Niezapisany kawałek tej samej strony bierze podświetlenie z sąsiedniego zapisu',
+      'Nazwa wjazdu to kilometraż trasy głównej w miejscu, gdzie niebieska linia przecina czarną oś',
+    ],
+  },
   {
     wersja: '1.8.68',
     data: '2026-10-28',

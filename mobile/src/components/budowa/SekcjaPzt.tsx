@@ -35,6 +35,7 @@ import {
   wszystkieObszary,
 } from '../../utils/projektBudowy';
 import {
+  kluczZapisuSasiedztwa,
   kmWezlaOsiBocznej,
   lokalizacjaObszaru,
   odcinkiObszaru,
@@ -180,22 +181,26 @@ export function SekcjaPzt({
     ? projekt.konstrukcje.find((k) => (k.id || k.legendaId) === szkicKlucz)
     : undefined;
   const konstrukcjaPodgladu = szkicGotowy ? konstrukcjaSzkicu : konstrukcjaKarty;
+  const otwarcieKarty = kartaOtwarta ? kartaObszaruId : null;
   useEffect(() => {
-    if (!kartaOtwarta || !kartaObszaru) {
-      if (szkicGotowy) setSzkicGotowy(false);
+    if (!otwarcieKarty || !kartaObszaru) {
+      setSzkicGotowy(false);
       return;
     }
-    if (szkicGotowy) return;
     const zapis = kartaObszaru.obszar.konstrukcjaId;
     if (zapis === null) setSzkicKlucz(null);
     else if (typeof zapis === 'string') setSzkicKlucz(zapis);
     else {
       const lista = projekt.konstrukcje.filter((k) => k.obszarIds?.includes(kartaObszaru.obszar.id));
+      const sasiad = kluczZapisuSasiedztwa(projekt, kartaObszaru.obszar, kartaObszaru.arkusz);
       if (lista.length === 1) setSzkicKlucz(lista[0].id || lista[0].legendaId);
+      else if (sasiad) setSzkicKlucz(sasiad);
       else setSzkicKlucz(konstrukcjaKarty ? (konstrukcjaKarty.id || konstrukcjaKarty.legendaId) : null);
     }
     setSzkicGotowy(true);
-  }, [kartaOtwarta, kartaObszaru, konstrukcjaKarty, projekt.konstrukcje, szkicGotowy]);
+    // Świeży wybór tylko przy otwarciu innego obszaru. Zapis i edycja nazwy nie mogą zgasić podświetlenia.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [otwarcieKarty]);
   const odcinkiKarty = useMemo(
     () => (kartaObszaru ? odcinkiObszaru(kartaObszaru.obszar, kartaObszaru.arkusz, konstrukcjaPodgladu) : []),
     [kartaObszaru, konstrukcjaPodgladu],
@@ -1160,6 +1165,10 @@ export function SekcjaPzt({
             {(() => {
               const zapisany = kluczZapisanegoPrzypisania(projekt, kartaObszaru.obszar.id);
               const zgodny = szkicGotowy && zapisany !== undefined && zapisany === szkicKlucz;
+              const sasiad = zapisany === undefined
+                ? kluczZapisuSasiedztwa(projekt, kartaObszaru.obszar, kartaObszaru.arkusz)
+                : undefined;
+              const zSasiedztwa = szkicGotowy && zapisany === undefined && !!sasiad && szkicKlucz === sasiad;
               const etykietaZapisu = zapisany
                 ? etykietaKonstrukcji(
                   projekt,
@@ -1168,10 +1177,12 @@ export function SekcjaPzt({
                 )
                 : 'bez numeru';
               return (
-                <Text style={{ color: zgodny ? theme.colors.primary : theme.colors.textSecondary, fontSize: 13, fontWeight: '700' }}>
+                <Text style={{ color: zgodny || zSasiedztwa ? theme.colors.primary : theme.colors.textSecondary, fontSize: 13, fontWeight: '700' }}>
                   {zgodny
                     ? `Zapisano: ${etykietaZapisu}`
-                    : 'Jeszcze bez zapisu. Propozycja według koloru.'}
+                    : zSasiedztwa
+                      ? 'Podświetlono zapis tej samej strony. Zapisz, żeby utrwalić go na tym obszarze.'
+                      : 'Jeszcze bez zapisu. Propozycja według koloru.'}
                 </Text>
               );
             })()}

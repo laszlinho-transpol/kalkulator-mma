@@ -15,7 +15,7 @@ import { InfoTooltip } from '../common/InfoTooltip';
 import type { ArkuszPzt, ElementSzkicu, Punkt2D, TloArkuszaPzt } from '../../types';
 import {
   dociagnijDoObszaru, dodajPunktKreski, dodajWezel, elementPodPunktem, krawedzieLamanej, lukPrzezPunkt, obrysLamanej,
-  najmniejszyWielokatPodPunktem, przesunWezel, punktWWielokacie, srodekKrawedzi, stacjeZnakowInfo, ustawLuk, wymazGumka, type LamanaSzkicu,
+  najmniejszyWielokatPodPunktem, obszarPodTapnieciem, przesunWezel, punktWWielokacie, srodekKrawedzi, stacjeZnakowInfo, ustawLuk, wymazGumka, type LamanaSzkicu,
 } from '../../liniowka/liniowka';
 import { wypelnijDoKrawedzi, zakresPunktow } from '../../liniowka/rasterSzkicu';
 import { kluczLegendy } from '../../utils/projektBudowy';
@@ -805,6 +805,27 @@ export function PztArkuszPodglad({
     return svgDoPdfPodgladu(svg, m.mapaSvg);
   };
 
+  const punktWidoku = (absX: number, absY: number): { x: number; y: number } | null => {
+    const el = hostHtml(klipRef.current);
+    if (!el) return null;
+    const rect = el.getBoundingClientRect();
+    if (rect.width < 1 || rect.height < 1) return null;
+    const { w, h } = rozmiarRef.current;
+    return {
+      x: ((absX - rect.left) / rect.width) * (w || rect.width),
+      y: ((absY - rect.top) / rect.height) * (h || rect.height),
+    };
+  };
+
+  const punktZGestu = (ne: { x?: number; y?: number; absoluteX?: number; absoluteY?: number }): { x: number; y: number } | null => {
+    if (typeof ne.absoluteX === 'number' && typeof ne.absoluteY === 'number') {
+      const zWidoku = punktWidoku(ne.absoluteX, ne.absoluteY);
+      if (zWidoku) return zWidoku;
+    }
+    if (typeof ne.x === 'number' && typeof ne.y === 'number') return { x: ne.x, y: ne.y };
+    return null;
+  };
+
   const tapRef = useRef<(x: number, y: number) => void>(() => undefined);
   const pdfNaEkranPx = () => (mapaRef.current?.skalaFit ?? 1) * bazaSkali.current;
 
@@ -960,15 +981,6 @@ export function PztArkuszPodglad({
         return;
       }
     }
-    const cbWycinek = onPressWycinekRef.current;
-    const listaWycinkow = wycinkiRef.current;
-    if (cbWycinek && pdfTap0 && listaWycinkow?.length) {
-      const traf = najmniejszyWielokatPodPunktem(listaWycinkow, pdfTap0);
-      if (traf) {
-        cbWycinek(traf.id);
-        return;
-      }
-    }
     const r = rysowanieRef.current;
     if (r) {
       if (r.onWskazObszar) {
@@ -1023,12 +1035,25 @@ export function PztArkuszPodglad({
       }
     }
     const cbObszar = onPressObszarRef.current;
-    if (cbObszar) {
+    const cbWycinek = onPressWycinekRef.current;
+    if (cbObszar || cbWycinek) {
       const pdfObszar = pdfZEkranu(ekranX, ekranY);
       if (pdfObszar) {
-        const trafObszar = najmniejszyWielokatPodPunktem(arkuszRef.current.obszary, pdfObszar);
+        const trafObszar = obszarPodTapnieciem(arkuszRef.current.obszary.map((o) => ({
+          id: o.id,
+          wierzcholkiPdf: o.wierzcholkiPdf,
+          kolor: (o.kolorWypelnienia || '').toUpperCase(),
+          zapisany: o.konstrukcjaId === null || typeof o.konstrukcjaId === 'string',
+        })), pdfObszar);
         if (trafObszar) {
-          cbObszar(trafObszar.id);
+          const wycinek = cbWycinek
+            ? najmniejszyWielokatPodPunktem(
+              (wycinkiRef.current ?? []).filter((w) => w.obszarId === trafObszar.id),
+              pdfObszar,
+            )
+            : undefined;
+          if (wycinek && cbWycinek) cbWycinek(wycinek.id);
+          else cbObszar?.(trafObszar.id);
           return;
         }
       }
@@ -1198,9 +1223,10 @@ export function PztArkuszPodglad({
     };
     el.addEventListener('wheel', handler, { passive: false });
     const onClick = (e: MouseEvent) => {
+      const lokalny = punktWidoku(e.clientX, e.clientY);
       const rect = el.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
+      const x = lokalny?.x ?? (e.clientX - rect.left);
+      const y = lokalny?.y ?? (e.clientY - rect.top);
       if (zmierzRef.current) {
         if (Date.now() - ostatniPanMs.current < 350) return;
         dodajPunktPomiaru(x, y);
@@ -1373,18 +1399,16 @@ export function PztArkuszPodglad({
     if (e.nativeEvent.oldState !== State.ACTIVE) {
       if (st === State.FAILED || st === State.CANCELLED || st === State.END) {
         if (tap) {
-          const x = e.nativeEvent.x as number | undefined;
-          const y = e.nativeEvent.y as number | undefined;
-          if (x != null && y != null) obsluzTapMapy(x, y);
+          const p = punktZGestu(e.nativeEvent);
+          if (p) obsluzTapMapy(p.x, p.y);
         }
         onDotykZmiana?.(false);
       }
       return;
     }
     if (tap) {
-      const x = e.nativeEvent.x as number | undefined;
-      const y = e.nativeEvent.y as number | undefined;
-      if (x != null && y != null) obsluzTapMapy(x, y);
+      const p = punktZGestu(e.nativeEvent);
+      if (p) obsluzTapMapy(p.x, p.y);
       if (zmierzRef.current || wskazRef.current) {
         onDotykZmiana?.(false);
         return;
