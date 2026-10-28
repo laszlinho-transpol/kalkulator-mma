@@ -15,7 +15,7 @@ import { InfoTooltip } from '../common/InfoTooltip';
 import type { ArkuszPzt, ElementSzkicu, Punkt2D, TloArkuszaPzt } from '../../types';
 import {
   dociagnijDoObszaru, dodajPunktKreski, dodajWezel, elementPodPunktem, krawedzieLamanej, lukPrzezPunkt, obrysLamanej,
-  przesunWezel, punktWWielokacie, srodekKrawedzi, stacjeZnakowInfo, ustawLuk, wymazGumka, type LamanaSzkicu,
+  najmniejszyWielokatPodPunktem, przesunWezel, punktWWielokacie, srodekKrawedzi, stacjeZnakowInfo, ustawLuk, wymazGumka, type LamanaSzkicu,
 } from '../../liniowka/liniowka';
 import { wypelnijDoKrawedzi, zakresPunktow } from '../../liniowka/rasterSzkicu';
 import { kluczLegendy } from '../../utils/projektBudowy';
@@ -963,7 +963,7 @@ export function PztArkuszPodglad({
     const cbWycinek = onPressWycinekRef.current;
     const listaWycinkow = wycinkiRef.current;
     if (cbWycinek && pdfTap0 && listaWycinkow?.length) {
-      const traf = [...listaWycinkow].reverse().find((w) => punktWWielokacie(pdfTap0, w.wierzcholkiPdf));
+      const traf = najmniejszyWielokatPodPunktem(listaWycinkow, pdfTap0);
       if (traf) {
         cbWycinek(traf.id);
         return;
@@ -1026,7 +1026,7 @@ export function PztArkuszPodglad({
     if (cbObszar) {
       const pdfObszar = pdfZEkranu(ekranX, ekranY);
       if (pdfObszar) {
-        const trafObszar = [...arkuszRef.current.obszary].reverse().find((o) => punktWWielokacie(pdfObszar, o.wierzcholkiPdf));
+        const trafObszar = najmniejszyWielokatPodPunktem(arkuszRef.current.obszary, pdfObszar);
         if (trafObszar) {
           cbObszar(trafObszar.id);
           return;

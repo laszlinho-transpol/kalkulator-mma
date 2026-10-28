@@ -5,12 +5,15 @@ import type { ArkuszPzt, KonstrukcjaObszaru, ObszarObmiaru, OsBocznaPzt, Projekt
 import { round2 } from './calculations';
 import { powierzchniaWielokata } from './obmiarGeometry';
 import { punktWWielokacie } from '../liniowka/liniowka';
-import { formatujKmM } from './projektBudowy';
+import { formatujKmM, normalizujKolorHex, zsynchronizujLegendeProjektu } from './projektBudowy';
+import { nazwaAutomatycznaObszaru } from './xfdfParser';
 import {
   dlugoscPolilinii,
+  osMZorientowana,
   punktNaOsi,
   stacjaNaOsi,
   stacjeLokalneNaOsiM,
+  stronaWzgledemOsi,
   stycznyNaOsi,
   wycinekWielokataPoOsi,
 } from './osPzt';
@@ -178,6 +181,117 @@ function odcinekBocznyWObszarze(os: OsBocznaPzt, obszar: ObszarObmiaru): { sMin:
 function tekstZakresu(odM: number, doM: number): string {
   if (Math.abs(doM - odM) < 0.5) return formatujKmM(odM);
   return `${formatujKmM(Math.min(odM, doM))} – ${formatujKmM(Math.max(odM, doM))}`;
+}
+
+function centroid(pts: Punkt2D[]): Punkt2D {
+  let x = 0;
+  let y = 0;
+  for (const p of pts) {
+    x += p.x;
+    y += p.y;
+  }
+  const n = Math.max(pts.length, 1);
+  return { x: x / n, y: y / n };
+}
+
+/** Oś główna ustawiona tak, że idziemy w stronę rosnącego kilometrażu. */
+function osWKierunkuKm(arkusz: ArkuszPzt): Punkt2D[] | undefined {
+  const os = arkusz.osTrasy?.wierzcholkiM;
+  if (!os || os.length < 2) return undefined;
+  const zorient = osMZorientowana(arkusz);
+  const baza = zorient.length >= 2 ? zorient : os;
+  if (arkusz.kilometrazKoncowyM < arkusz.kilometrazPoczatkowyM) return [...baza].reverse();
+  return baza;
+}
+
+/** Niebieska linia w kierunku rosnącego jej kilometrażu (także po ręcznej pikiecie). */
+function liniaRosnacegoKm(os: OsBocznaPzt, lancuch: LancuchOsiBocznej): Punkt2D[] {
+  const linia = os.wierzcholkiM;
+  const kmPoczatek = kmNaOsiBocznej(os, lancuch, 0);
+  const kmKoniec = kmNaOsiBocznej(os, lancuch, lancuch.dlugoscM);
+  if (kmKoniec + 1e-6 < kmPoczatek) return [...linia].reverse();
+  return linia;
+}
+
+/**
+ * Lewa / prawa względem osi, patrząc w kierunku rosnącego kilometrażu.
+ * Obszar wzdłuż niebieskiej linii (wjazd, ścieżka, droga boczna) bierze stronę z tej linii.
+ */
+export function stronaObszaruGeometryczna(
+  obszar: ObszarObmiaru,
+  arkusz: ArkuszPzt,
+): 'lewa' | 'prawa' | undefined {
+  if (obszar.wierzcholkiM.length < 1) return undefined;
+  const srodek = centroid(obszar.wierzcholkiM);
+  const lok = lokalizacjaObszaru(obszar, arkusz);
+  if (lok?.rodzaj === 'boczna' && lok.osBocznaId) {
+    const os = arkusz.osieBoczne?.find((o) => o.id === lok.osBocznaId);
+    const lancuch = os ? lancuchOsiBocznej(os, arkusz) : null;
+    if (os && lancuch && os.wierzcholkiM.length >= 2) {
+      return stronaWzgledemOsi(srodek, liniaRosnacegoKm(os, lancuch));
+    }
+  }
+  const glowna = osWKierunkuKm(arkusz);
+  if (!glowna) return undefined;
+  return stronaWzgledemOsi(srodek, glowna);
+}
+
+const NAZWA_AUTO = /^(Obszar \d+|Trasa [LP]|Droga boczna|Wjazd|Ścieżka rowerowa)$/;
+const NAZWA_STRONY_LEGENDY = /^Trasa główna \(strona (lewa|prawa)\)$/;
+
+/**
+ * Ustawia stronę z geometrii na już wgranym projekcie.
+ * Podmienia tylko nazwy automatyczne i domyślny tytuł legendy „strona lewa/prawa”.
+ */
+export function uzupelnijStronyObszarow(projekt: ProjektBudowy): ProjektBudowy {
+  const licznik = new Map<string, { lewa: number; prawa: number }>();
+  let arkuszeZmienione = false;
+  const arkusze = projekt.arkusze.map((arkusz) => {
+    let zmieniono = false;
+    const obszary = arkusz.obszary.map((o) => {
+      const geo = stronaObszaruGeometryczna(o, arkusz);
+      const strona = geo ?? o.stronaTrasy;
+      if (strona) {
+        const klucz = normalizujKolorHex(o.kolorWypelnienia);
+        const slot = licznik.get(klucz) ?? { lewa: 0, prawa: 0 };
+        slot[strona] += 1;
+        licznik.set(klucz, slot);
+      }
+      const nazwa = NAZWA_AUTO.test(o.nazwa)
+        ? nazwaAutomatycznaObszaru(o.kolorWypelnienia, o.kolejnosc, strona)
+        : o.nazwa;
+      if (nazwa === o.nazwa && strona === o.stronaTrasy) return o;
+      zmieniono = true;
+      return { ...o, nazwa, stronaTrasy: strona };
+    });
+    if (!zmieniono) return arkusz;
+    arkuszeZmienione = true;
+    return { ...arkusz, obszary };
+  });
+
+  let legendaZmieniona = false;
+  const legenda = projekt.legenda.map((w) => {
+    if (w.typ !== 'obszar' || !NAZWA_STRONY_LEGENDY.test(w.nazwa)) return w;
+    const stat = licznik.get(normalizujKolorHex(w.kolor));
+    if (!stat || stat.lewa === stat.prawa) return w;
+    const wieksza = stat.lewa > stat.prawa ? 'lewa' : 'prawa';
+    const nazwa = `Trasa główna (strona ${wieksza})`;
+    if (nazwa === w.nazwa) return w;
+    legendaZmieniona = true;
+    return { ...w, nazwa };
+  });
+
+  if (!arkuszeZmienione && !legendaZmieniona) return projekt;
+  return {
+    ...projekt,
+    arkusze: arkuszeZmienione ? arkusze : projekt.arkusze,
+    legenda: legendaZmieniona ? legenda : projekt.legenda,
+  };
+}
+
+/** Legenda, konstrukcje i strony obszarów. Ten sam obiekt, gdy nic się nie zmieniło. */
+export function przygotujProjekt(projekt: ProjektBudowy): ProjektBudowy {
+  return uzupelnijStronyObszarow(zsynchronizujLegendeProjektu(projekt));
 }
 
 export function lokalizacjaObszaru(obszar: ObszarObmiaru, arkusz: ArkuszPzt): LokalizacjaObszaru | null {

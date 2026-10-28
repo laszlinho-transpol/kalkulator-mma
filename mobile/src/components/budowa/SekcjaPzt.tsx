@@ -26,6 +26,7 @@ import {
   dlugoscArkuszaM,
   ustawKilometrazProjektuArkusza,
   konstrukcjaDlaObszaru,
+  kluczZapisanegoPrzypisania,
   przypiszObszarDoKonstrukcji,
   utworzKonstrukcjeDlaObszaru,
   ilosciWarstwObszaru,
@@ -44,7 +45,7 @@ import { formatLiczby } from '../../utils/calculations';
 import { useMieszankiStore } from '../../stores/mieszankiStore';
 import { karta } from '../../constants/layout';
 import { Z_METROW_BIEZACYCH } from '../../constants';
-import type { WynikParsowaniaXfdf } from '../../utils/xfdfParser';
+import { opisPolozeniaObszaru, type WynikParsowaniaXfdf } from '../../utils/xfdfParser';
 import type { TloArkuszaPzt } from '../../types';
 import { SafeModal } from '../common/SafeModal';
 import { InfoTooltip } from '../common/InfoTooltip';
@@ -163,6 +164,8 @@ export function SekcjaPzt({
   const [kartaObszaruId, setKartaObszaruId] = useState<string | null>(null);
   const [zakresKarty, setZakresKarty] = useState<{ odM: number; doM: number } | null>(null);
   const [kartaOtwarta, setKartaOtwarta] = useState(false);
+  const [szkicKlucz, setSzkicKlucz] = useState<string | null>(null);
+  const [szkicGotowy, setSzkicGotowy] = useState(false);
   const [trybKm, setTrybKm] = useState(false);
   const [wezelKm, setWezelKm] = useState<{ osId: string; indeks: number } | null>(null);
   const mieszanki = useMieszankiStore((s) => s.mieszanki);
@@ -173,9 +176,29 @@ export function SekcjaPzt({
     ? wszystkieObszary(projekt).find((x) => x.obszar.id === kartaObszaruId)
     : undefined;
   const konstrukcjaKarty = kartaObszaruId ? konstrukcjaDlaObszaru(projekt, kartaObszaruId) : undefined;
+  const konstrukcjaSzkicu = szkicKlucz
+    ? projekt.konstrukcje.find((k) => (k.id || k.legendaId) === szkicKlucz)
+    : undefined;
+  const konstrukcjaPodgladu = szkicGotowy ? konstrukcjaSzkicu : konstrukcjaKarty;
+  useEffect(() => {
+    if (!kartaOtwarta || !kartaObszaru) {
+      if (szkicGotowy) setSzkicGotowy(false);
+      return;
+    }
+    if (szkicGotowy) return;
+    const zapis = kartaObszaru.obszar.konstrukcjaId;
+    if (zapis === null) setSzkicKlucz(null);
+    else if (typeof zapis === 'string') setSzkicKlucz(zapis);
+    else {
+      const lista = projekt.konstrukcje.filter((k) => k.obszarIds?.includes(kartaObszaru.obszar.id));
+      if (lista.length === 1) setSzkicKlucz(lista[0].id || lista[0].legendaId);
+      else setSzkicKlucz(konstrukcjaKarty ? (konstrukcjaKarty.id || konstrukcjaKarty.legendaId) : null);
+    }
+    setSzkicGotowy(true);
+  }, [kartaOtwarta, kartaObszaru, konstrukcjaKarty, projekt.konstrukcje, szkicGotowy]);
   const odcinkiKarty = useMemo(
-    () => (kartaObszaru ? odcinkiObszaru(kartaObszaru.obszar, kartaObszaru.arkusz, konstrukcjaKarty) : []),
-    [kartaObszaru, konstrukcjaKarty],
+    () => (kartaObszaru ? odcinkiObszaru(kartaObszaru.obszar, kartaObszaru.arkusz, konstrukcjaPodgladu) : []),
+    [kartaObszaru, konstrukcjaPodgladu],
   );
   const odcinekKarty = zakresKarty
     ? odcinkiKarty.find((d) => Math.abs(d.kmOdM - zakresKarty.odM) < 1.5 && Math.abs(d.kmDoM - zakresKarty.doM) < 1.5)
@@ -184,11 +207,11 @@ export function SekcjaPzt({
   const uzyjOdcinka = !!(odcinekKarty && Math.abs(odcinekKarty.kmDoM - odcinekKarty.kmOdM) > 0.4);
   const lokKarty = kartaObszaru ? lokalizacjaObszaru(kartaObszaru.obszar, kartaObszaru.arkusz) : null;
   const warstwyKarty = useMemo(() => {
-    if (!kartaObszaru || !konstrukcjaKarty) return [];
+    if (!kartaObszaru || !konstrukcjaPodgladu) return [];
     if (uzyjOdcinka && odcinekKarty) {
       const zrodlo = odcinekKarty.wyjatekId
-        ? konstrukcjaKarty.wyjatki.find((w) => w.id === odcinekKarty.wyjatekId)?.warstwy ?? konstrukcjaKarty.warstwy
-        : konstrukcjaKarty.warstwy;
+        ? konstrukcjaPodgladu.wyjatki.find((w) => w.id === odcinekKarty.wyjatekId)?.warstwy ?? konstrukcjaPodgladu.warstwy
+        : konstrukcjaPodgladu.warstwy;
       return ilosciWarstwOdcinka(
         kartaObszaru.obszar,
         kartaObszaru.arkusz,
@@ -198,8 +221,19 @@ export function SekcjaPzt({
         mieszanki,
       );
     }
-    return kartaObszaruId ? ilosciWarstwObszaru(projekt, kartaObszaruId, mieszanki) : [];
-  }, [kartaObszaru, konstrukcjaKarty, odcinekKarty, uzyjOdcinka, kartaObszaruId, projekt, mieszanki]);
+    const projektWarstw = {
+      ...projekt,
+      arkusze: projekt.arkusze.map((a) => ({
+        ...a,
+        obszary: a.obszary.map((o) => (
+          o.id === kartaObszaru.obszar.id
+            ? { ...o, konstrukcjaId: konstrukcjaPodgladu.id || konstrukcjaPodgladu.legendaId }
+            : o
+        )),
+      })),
+    };
+    return ilosciWarstwObszaru(projektWarstw, kartaObszaru.obszar.id, mieszanki);
+  }, [kartaObszaru, konstrukcjaPodgladu, odcinekKarty, uzyjOdcinka, kartaObszaruId, projekt, mieszanki]);
   const wycinkiMapy = useMemo(() => {
     if (!aktywny) return [];
     const out: { id: string; obszarId: string; wierzcholkiPdf: typeof aktywny.obszary[number]['wierzcholkiPdf']; kmOdM: number; kmDoM: number }[] = [];
@@ -1175,60 +1209,113 @@ export function SekcjaPzt({
               }}
             />
             <Text style={[styles.label, { color: theme.colors.text }]}>Konstrukcja</Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+            {(() => {
+              const zapisany = kluczZapisanegoPrzypisania(projekt, kartaObszaru.obszar.id);
+              const zgodny = szkicGotowy && zapisany !== undefined && zapisany === szkicKlucz;
+              const etykietaZapisu = zapisany
+                ? etykietaKonstrukcji(
+                  projekt,
+                  projekt.konstrukcje.find((k) => (k.id || k.legendaId) === zapisany)?.numer,
+                  projekt.konstrukcje.find((k) => (k.id || k.legendaId) === zapisany)?.legendaId ?? '',
+                )
+                : 'bez numeru';
+              return (
+                <Text style={{ color: zgodny ? theme.colors.primary : theme.colors.textSecondary, fontSize: 13, fontWeight: '700' }}>
+                  {zgodny
+                    ? `Zapisano: ${etykietaZapisu}`
+                    : 'Jeszcze bez zapisu. Propozycja według koloru.'}
+                </Text>
+              );
+            })()}
+            {(() => {
+              const polozenie = opisPolozeniaObszaru(kartaObszaru.obszar.kolorWypelnienia, kartaObszaru.obszar.stronaTrasy);
+              return polozenie ? (
+                <Text style={{ color: theme.colors.text, fontWeight: '700' }}>{polozenie}</Text>
+              ) : null;
+            })()}
+            <View style={{ gap: 8 }}>
               <TouchableOpacity
                 accessibilityLabel="Bez konstrukcji"
-                onPress={() => onZmien(przypiszObszarDoKonstrukcji(projekt, kartaObszaru.obszar.id, null))}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: szkicGotowy && szkicKlucz == null }}
+                onPress={() => { setSzkicKlucz(null); setSzkicGotowy(true); }}
                 style={{
                   borderWidth: 1,
                   borderRadius: 8,
-                  paddingHorizontal: 10,
-                  paddingVertical: 8,
-                  borderColor: konstrukcjaKarty ? theme.colors.border : theme.colors.primary,
-                  backgroundColor: konstrukcjaKarty ? theme.colors.inputBackground : theme.colors.primary,
+                  paddingHorizontal: 12,
+                  paddingVertical: 10,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 10,
+                  borderColor: szkicGotowy && szkicKlucz == null ? theme.colors.primary : theme.colors.border,
+                  backgroundColor: szkicGotowy && szkicKlucz == null ? theme.colors.primary : theme.colors.inputBackground,
                 }}
               >
-                <Text style={{ color: konstrukcjaKarty ? theme.colors.text : '#1A1A1A', fontWeight: '800', fontSize: 13 }}>Bez numeru</Text>
+                <Text style={{ color: szkicGotowy && szkicKlucz == null ? '#1A1A1A' : theme.colors.text, fontWeight: '800', fontSize: 15 }}>
+                  Bez numeru
+                </Text>
               </TouchableOpacity>
               {[...projekt.konstrukcje].sort((a, b) => (a.numer ?? 99) - (b.numer ?? 99)).map((k) => {
-                const on = (konstrukcjaKarty?.id || konstrukcjaKarty?.legendaId) === (k.id || k.legendaId);
+                const klucz = k.id || k.legendaId;
+                const on = szkicGotowy && szkicKlucz === klucz;
                 const etykieta = etykietaKonstrukcji(projekt, k.numer, k.legendaId);
+                const kolor = projekt.legenda.find((w) => w.id === k.legendaId)?.kolor ?? theme.colors.primary;
                 return (
                   <TouchableOpacity
-                    key={k.id ?? k.legendaId}
+                    key={klucz}
                     accessibilityLabel={etykieta}
-                    onPress={() => onZmien(przypiszObszarDoKonstrukcji(projekt, kartaObszaru.obszar.id, k.id ?? k.legendaId))}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: on }}
+                    onPress={() => { setSzkicKlucz(klucz); setSzkicGotowy(true); }}
                     style={{
                       borderWidth: 1,
                       borderRadius: 8,
-                      paddingHorizontal: 10,
-                      paddingVertical: 8,
+                      paddingHorizontal: 12,
+                      paddingVertical: 10,
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 10,
                       borderColor: on ? theme.colors.primary : theme.colors.border,
                       backgroundColor: on ? theme.colors.primary : theme.colors.inputBackground,
                     }}
                   >
-                    <Text style={{ color: on ? '#1A1A1A' : theme.colors.text, fontWeight: '800', fontSize: 13 }}>
+                    <View style={{ width: 16, height: 16, borderRadius: 4, backgroundColor: kolor }} />
+                    <Text style={{ color: on ? '#1A1A1A' : theme.colors.text, fontWeight: '800', fontSize: 15, flex: 1 }}>
                       {etykieta}
                     </Text>
                   </TouchableOpacity>
                 );
               })}
-              <TouchableOpacity
-                accessibilityLabel="Nowa konstrukcja"
-                onPress={() => onZmien(utworzKonstrukcjeDlaObszaru(projekt, kartaObszaru.obszar.id))}
-                style={{
-                  borderWidth: 1,
-                  borderRadius: 8,
-                  paddingHorizontal: 10,
-                  paddingVertical: 8,
-                  borderColor: theme.colors.border,
-                  backgroundColor: theme.colors.card,
-                }}
-              >
-                <Text style={{ color: theme.colors.primary, fontWeight: '800', fontSize: 13 }}>+ Nowa</Text>
-              </TouchableOpacity>
             </View>
-            {konstrukcjaKarty && warstwyKarty.length > 0 ? (
+            <Przycisk
+              tekst="Zapisz"
+              accessibilityLabel="Zapisz przypisanie konstrukcji"
+              onPress={() => {
+                if (!kartaObszaru || !szkicGotowy) return;
+                onZmien(przypiszObszarDoKonstrukcji(projekt, kartaObszaru.obszar.id, szkicKlucz));
+              }}
+            />
+            <TouchableOpacity
+              accessibilityLabel="Nowa konstrukcja"
+              onPress={() => {
+                const next = utworzKonstrukcjeDlaObszaru(projekt, kartaObszaru.obszar.id);
+                onZmien(next);
+                const k = konstrukcjaDlaObszaru(next, kartaObszaru.obszar.id);
+                setSzkicKlucz(k ? (k.id || k.legendaId) : null);
+                setSzkicGotowy(true);
+              }}
+              style={{
+                borderWidth: 1,
+                borderRadius: 8,
+                paddingHorizontal: 12,
+                paddingVertical: 10,
+                borderColor: theme.colors.border,
+                backgroundColor: theme.colors.card,
+              }}
+            >
+              <Text style={{ color: theme.colors.primary, fontWeight: '800', fontSize: 15 }}>+ Nowa konstrukcja</Text>
+            </TouchableOpacity>
+            {konstrukcjaPodgladu && warstwyKarty.length > 0 ? (
               <View style={{ gap: 8 }}>
                 <Text style={[styles.label, { color: theme.colors.text }]}>Warstwy tego obszaru</Text>
                 {warstwyKarty.map((w) => (

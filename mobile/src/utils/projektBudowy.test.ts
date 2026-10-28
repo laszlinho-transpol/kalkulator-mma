@@ -32,6 +32,10 @@ import {
   ustawKilometrazProjektuArkusza,
   przypiszObszarDoKonstrukcji,
   utworzKonstrukcjeDlaObszaru,
+  postepPrzypisan,
+  zapiszPrzypisaniaWedlugKoloru,
+  nowaKonstrukcja,
+  czyPrzypisaniaAktywne,
   ilosciWarstwObszaru,
   konstrukcjaDlaObszaru,
   zrodlaOdsadzekObszaru,
@@ -294,6 +298,47 @@ describe('projektBudowy', () => {
     assert.equal(sma?.tony, 68.6);
     const bez = przypiszObszarDoKonstrukcji(zK, 'o1', null);
     assert.equal(konstrukcjaDlaObszaru(bez, 'o1'), undefined);
+  });
+
+  it('zapis konstrukcji dotyczy tylko wskazanego obszaru i pamięta wybór', () => {
+    const o1 = prostokat('o1', '#FFEE58', 40, 7, 'L');
+    const o2 = prostokat('o2', '#FFEE58', 30, 7, 'L');
+    const arkusz: ArkuszPzt = {
+      id: 'a',
+      nazwa: 'a',
+      zrodloNazwa: 'a.xfdf',
+      kolejnosc: 1,
+      kontynuacjaPoprzedniego: false,
+      kilometrazPoczatkowyM: 0,
+      kilometrazKoncowyM: 100,
+      obszary: [o1, o2],
+    };
+    const start = { ...pustyProjektBudowy(0), arkusze: [arkusz] };
+    const z1 = utworzKonstrukcjeDlaObszaru(start, 'o1');
+    const k1 = konstrukcjaDlaObszaru(z1, 'o1');
+    assert.ok(k1);
+    assert.deepEqual(k1?.obszarIds, ['o1']);
+    assert.equal(z1.arkusze[0].obszary.find((o) => o.id === 'o1')?.konstrukcjaId, k1?.id);
+    assert.equal(konstrukcjaDlaObszaru(z1, 'o2')?.id, k1?.id);
+    assert.equal(postepPrzypisan(z1).przypisane, 1);
+    assert.equal(postepPrzypisan(z1).wszystkie, 2);
+    const z2 = utworzKonstrukcjeDlaObszaru(z1, 'o2');
+    const po1 = konstrukcjaDlaObszaru(z2, 'o1');
+    const po2 = konstrukcjaDlaObszaru(z2, 'o2');
+    assert.notEqual(po1?.id, po2?.id);
+    assert.deepEqual(po1?.obszarIds, ['o1']);
+    assert.deepEqual(po2?.obszarIds, ['o2']);
+    const bez = przypiszObszarDoKonstrukcji(z2, 'o1', null);
+    assert.equal(konstrukcjaDlaObszaru(bez, 'o1'), undefined);
+    assert.equal(bez.arkusze[0].obszary.find((o) => o.id === 'o1')?.konstrukcjaId, null);
+    assert.equal(konstrukcjaDlaObszaru(bez, 'o2')?.id, po2?.id);
+    const zKoloru = zapiszPrzypisaniaWedlugKoloru(bez);
+    assert.equal(konstrukcjaDlaObszaru(zKoloru, 'o1'), undefined);
+    assert.equal(postepPrzypisan(zKoloru).przypisane, 2);
+    const pusta = nowaKonstrukcja(k1?.legendaId ?? 'leg', 9);
+    const zePusta = { ...start, legenda: z1.legenda, konstrukcje: [pusta] };
+    assert.equal(czyPrzypisaniaAktywne(zePusta), false);
+    assert.equal(konstrukcjaDlaObszaru(zePusta, 'o1')?.id, pusta.id);
   });
 
   it('szkic odsadzek na planie bierze warstwy zmiany konstrukcji, nie tylko podstawę', () => {

@@ -18,7 +18,8 @@ import { SekcjaPrzedmiar } from '../../src/components/budowa/SekcjaPrzedmiar';
 import { SekcjaRaporty } from '../../src/components/budowa/SekcjaRaporty';
 import { SekcjaLiniowka } from '../../src/components/budowa/SekcjaLiniowka';
 import { SekcjaZaawansowanie } from '../../src/components/budowa/SekcjaZaawansowanie';
-import { pustyProjektBudowy, zsynchronizujLegendeProjektu } from '../../src/utils/projektBudowy';
+import { pustyProjektBudowy } from '../../src/utils/projektBudowy';
+import { przygotujProjekt } from '../../src/utils/lokalizacjaObszaru';
 import type { ProjektBudowy } from '../../src/types';
 import { useMieszankiStore } from '../../src/stores/mieszankiStore';
 import { useWytwornieStore } from '../../src/stores/wytwornieStore';
@@ -91,7 +92,7 @@ export default function BudowaSzablonScreen() {
 
   useEffect(() => {
     if (!budowa?.projekt) return;
-    const next = zsynchronizujLegendeProjektu(budowa.projekt);
+    const next = przygotujProjekt(budowa.projekt);
     if (next !== budowa.projekt) {
       void zapiszProjekt(budowa.id, next);
     }
@@ -125,7 +126,7 @@ export default function BudowaSzablonScreen() {
   };
 
   const onZmien = (p: ProjektBudowy) => {
-    void zapiszProjekt(budowa.id, zsynchronizujLegendeProjektu(p));
+    void zapiszProjekt(budowa.id, przygotujProjekt(p));
   };
 
   return (

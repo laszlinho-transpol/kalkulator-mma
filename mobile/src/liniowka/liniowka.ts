@@ -329,6 +329,25 @@ export function punktWWielokacie(p: Punkt2D, poly: Punkt2D[]): boolean {
   return wewnatrz;
 }
 
+/** Spośród figur zawierających punkt wybiera najmniejszą — widoczny środek, nie duży obrys pod spodem. */
+export function najmniejszyWielokatPodPunktem<T extends { wierzcholkiPdf: Punkt2D[] }>(
+  lista: readonly T[],
+  punkt: Punkt2D,
+): T | undefined {
+  let best: T | undefined;
+  let bestA = Infinity;
+  for (const el of lista) {
+    const w = el.wierzcholkiPdf;
+    if (w.length < 3 || !punktWWielokacie(punkt, w)) continue;
+    const a = poleWielokata(w);
+    if (a < bestA) {
+      best = el;
+      bestA = a;
+    }
+  }
+  return best;
+}
+
 function poleWielokata(poly: Punkt2D[]): number {
   let s = 0;
   for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) s += (poly[j].x + poly[i].x) * (poly[j].y - poly[i].y);

@@ -1,8 +1,8 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import type { ArkuszPzt, KonstrukcjaObszaru, ObszarObmiaru, OsBocznaPzt } from '../types';
-import { domyslneWarstwyKonstrukcji, nowaKonstrukcja } from './projektBudowy';
-import { kmNaOsiBocznej, lancuchOsiBocznej, lokalizacjaObszaru, odcinkiObszaru } from './lokalizacjaObszaru';
+import { domyslneWarstwyKonstrukcji, nowaKonstrukcja, pustyProjektBudowy } from './projektBudowy';
+import { kmNaOsiBocznej, lancuchOsiBocznej, lokalizacjaObszaru, odcinkiObszaru, stronaObszaruGeometryczna, uzupelnijStronyObszarow } from './lokalizacjaObszaru';
 
 function arkusz(obszary: ObszarObmiaru[], boczne: OsBocznaPzt[] = []): ArkuszPzt {
   return {
@@ -103,5 +103,48 @@ describe('lokalizacja obszaru', () => {
     assert.ok(odcinki[1].powierzchniaM2 > 0);
     assert.ok(odcinki[1].powierzchniaM2 < obszar.powierzchniaM2);
     assert.ok(odcinki[1].wierzcholkiPdf.length >= 3);
+  });
+
+  it('lewa strona wjazdu jest po lewej od niebieskiej osi w kierunku rosnącego kilometrażu', () => {
+    const boczna: OsBocznaPzt = {
+      id: 'nb',
+      wierzcholkiPdf: [{ x: 40, y: 0 }, { x: 40, y: 60 }],
+      wierzcholkiM: [{ x: 40, y: 0 }, { x: 40, y: 60 }],
+      dlugoscM: 60,
+      kolor: '#0000FF',
+    };
+    const lewy = prostokat('lewy', 36, 50, 20, 40);
+    const prawy = prostokat('prawy', 30, 44, 20, 40);
+    assert.equal(stronaObszaruGeometryczna(lewy, arkusz([lewy], [boczna])), 'lewa');
+    assert.equal(stronaObszaruGeometryczna(prawy, arkusz([prawy], [boczna])), 'prawa');
+  });
+
+  it('uzupełnia stronę z geometrii i nie rusza własnej nazwy', () => {
+    const zly = prostokat('zly', 10, 40, 2, 8);
+    zly.nazwa = 'Trasa P';
+    zly.stronaTrasy = 'prawa';
+    zly.kolorWypelnienia = '#FFEE58';
+    const wlasny = prostokat('wlasny', 50, 80, 2, 8);
+    wlasny.nazwa = 'Jezdnia południe';
+    wlasny.stronaTrasy = 'prawa';
+    wlasny.kolorWypelnienia = '#FFEE58';
+    const projekt = uzupelnijStronyObszarow({
+      ...pustyProjektBudowy(1000),
+      arkusze: [arkusz([zly, wlasny])],
+      legenda: [{
+        id: 'leg',
+        kolor: '#FFEE58',
+        typ: 'obszar',
+        klucz: 'obszar|#FFEE58',
+        nazwa: 'Trasa główna (strona prawa)',
+      }],
+    });
+    const po = projekt.arkusze[0].obszary;
+    assert.equal(po[0].stronaTrasy, 'lewa');
+    assert.equal(po[0].nazwa, 'Trasa L');
+    assert.equal(po[1].nazwa, 'Jezdnia południe');
+    assert.equal(po[1].stronaTrasy, 'lewa');
+    assert.equal(projekt.legenda[0].nazwa, 'Trasa główna (strona lewa)');
+    assert.equal(uzupelnijStronyObszarow(projekt), projekt);
   });
 });

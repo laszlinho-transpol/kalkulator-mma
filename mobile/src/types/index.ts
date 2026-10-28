@@ -428,8 +428,16 @@ export interface ObszarObmiaru {
   odsadzki?: OdsadzkaObmiaru[];
   /** Czerwone obwody z XFDF – krawężnik na krawędzi (bez odbicia obrysu) */
   krawedzniki?: KrawedznikObmiaru[];
-  /** Żółty = lewa, różowy = prawa (trasa główna) */
+  /**
+   * Lewa albo prawa patrząc w kierunku rosnącego kilometrażu.
+   * Przy osi czarnej: strona trasy. Przy niebieskiej: strona wjazdu, ścieżki albo drogi bocznej.
+   */
   stronaTrasy?: 'lewa' | 'prawa';
+  /**
+   * Zapisany wybór konstrukcji.
+   * Tekst = klucz konstrukcji, `null` = świadomie bez numeru, brak pola = propozycja według koloru.
+   */
+  konstrukcjaId?: string | null;
   /** Opcjonalny opis, np. numer drogi gminnej albo kilometraż wjazdu */
   nazwaDodatkowa?: string;
   /** Nazwy odcinków powstałych po zmianie konstrukcji (kilometraż w metrach bieżących trasy). */

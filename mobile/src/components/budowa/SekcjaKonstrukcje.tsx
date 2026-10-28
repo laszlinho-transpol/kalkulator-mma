@@ -8,7 +8,6 @@ import { PrzekrojKonstrukcji } from './PrzekrojKonstrukcji';
 import { SafeModal } from '../common/SafeModal';
 import { InfoTooltip } from '../common/InfoTooltip';
 import { PoleKilometraz, parsujPolaKilometraza, polaZKilometraza } from '../common/PoleKilometraz';
-import { karta } from '../../constants/layout';
 import { WyborMieszanki } from '../mieszanki/WyborMieszanki';
 import { posortujMieszanki } from '../../mieszanki/kolejnosc';
 import { useMieszankiStore } from '../../stores/mieszankiStore';
@@ -23,13 +22,14 @@ import {
   opisWyjatkuZKilometrazem,
   postepPrzypisan,
   segmentyKonstrukcji,
+  zapiszPrzypisaniaWedlugKoloru,
   sklonujWarstwy,
   wszystkieObszary,
 } from '../../utils/projektBudowy';
 import { lokalizacjaObszaru, nastepnyNumerWyjatku, odcinkiObszaru } from '../../utils/lokalizacjaObszaru';
 import { zakresKmObszaru } from '../../utils/planZBudowy';
 import { Z_METROW_BIEZACYCH } from '../../constants';
-import { Przycisk, PrzyciskIkony } from '../ui';
+import { PozycjaListy, Przycisk, PrzyciskIkony } from '../ui';
 import { WyborZakresuNaPlanie } from '../plan/WyborZakresuNaPlanie';
 import { potwierdzAkcje } from '../../utils/dialog';
 import { rodzajMieszanki } from '../../mieszanki/kolejnosc';
@@ -129,6 +129,7 @@ export function SekcjaKonstrukcje({ projekt, theme, onZmien, onPokazObszar }: Pr
   const [mapaWyjatku, setMapaWyjatku] = useState(false);
   const [wybrany, setWybrany] = useState<Record<string, string>>({});
   const [oknoWarstw, setOknoWarstw] = useState<{ legendaId: string; wyjatekId?: string } | null>(null);
+  const [otwartaId, setOtwartaId] = useState<string | null>(null);
 
   const obszary = projekt.legenda.filter((w) => w.typ === 'obszar' && w.nazwa.trim());
   const etykietaWytworni = (id?: string) => wytwornie.find((w) => w.id === id)?.nazwa;
@@ -399,81 +400,59 @@ export function SekcjaKonstrukcje({ projekt, theme, onZmien, onPokazObszar }: Pr
 
   const postep = postepPrzypisan(projekt);
   const konstrukcje = [...projekt.konstrukcje].sort((a, b) => (a.numer ?? 99) - (b.numer ?? 99));
+  const otwarta = konstrukcje.find((k) => (k.id || k.legendaId) === otwartaId) ?? null;
 
-  return (
-    <View style={{ gap: 12 }}>
-      <View style={styles.rzad}>
-        <Text style={{ color: theme.colors.text, fontWeight: '800', flex: 1 }}>
-          Obszary z konstrukcją: {postep.przypisane} / {postep.wszystkie}
-          {postep.wszystkie > 0 ? ` (${Math.round((postep.przypisane / postep.wszystkie) * 100)}%)` : ''}
-        </Text>
-        <InfoTooltip tresc="Obszar przypisujesz na PZT. Tutaj widać go z nazwą i kilometrażem, od początku trasy do końca. Stuknięcie otwiera arkusz oraz powierzchnię i tony warstw. Zmiana konstrukcji dzieli ten odcinek na planie i dostaje numer 1.1, 1.2, 1.3." />
-      </View>
-      <Przycisk
-        tekst="Nowa konstrukcja"
-        ikona="plus"
-        wariant="drugi"
-        onPress={() => {
-          const legendaId = obszary[0]?.id;
-          if (!legendaId) return;
-          const numer = konstrukcje.reduce((m, k) => Math.max(m, k.numer ?? 0), 0) + 1;
-          zapiszKonstrukcje([...projekt.konstrukcje, nowaKonstrukcja(legendaId, numer)]);
-        }}
-        accessibilityLabel="Nowa konstrukcja"
-      />
-      {konstrukcje.map((k) => {
-        const wpis = projekt.legenda.find((w) => w.id === k.legendaId);
-        const kluczK = k.id || k.legendaId;
-        const zakres = zakresTrasy(projekt, k.legendaId);
-        const segmenty = segmentyKonstrukcji(k, zakres.odM, zakres.doM);
-        const odcinki = segmenty.length > 0
-          ? segmenty
-          : [{ od: zakres.odM, do: zakres.doM, warstwy: k.warstwy }];
-        const klucz = (od: number, doM: number) => `${od}|${doM}`;
-        const wybranyKlucz = odcinki.some((s) => klucz(s.od, s.do) === wybrany[kluczK])
-          ? wybrany[kluczK]
-          : klucz(odcinki[0].od, odcinki[0].do);
-        const sel = odcinki.find((s) => klucz(s.od, s.do) === wybranyKlucz) ?? odcinki[0];
-        return (
-          <View key={kluczK} style={[karta, { backgroundColor: theme.colors.card, borderColor: theme.colors.border, gap: 10 }]}>
-            <View style={styles.rzad}>
-              <View style={[styles.probka, { backgroundColor: wpis?.kolor ?? theme.colors.primary }]} />
-              <Text style={{ color: theme.colors.text, fontWeight: '800', flex: 1, fontSize: 16 }}>
-                {`Konstrukcja ${k.numer ?? ''}${wpis?.nazwa ? ` · ${wpis.nazwa}` : ''}`}
-              </Text>
-            </View>
-            {(() => {
-              const pozycje = pozycjeObszarow(projekt, k);
-              if (pozycje.length === 0) {
-                return (
-                  <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>
-                    Brak przypisanych obszarów. Na PZT stuknij obrys i wybierz tę konstrukcję.
-                  </Text>
-                );
-              }
-              return (
-                <View style={{ gap: 6 }}>
-                  {pozycje.map((p) => (
-                    <TouchableOpacity
-                      key={p.id}
-                      accessibilityLabel={`${p.numer} ${p.nazwa} ${p.tekst}`}
-                      onPress={() => onPokazObszar?.({
-                        arkuszId: p.arkuszId,
-                        obszarId: p.obszarId,
-                        kmOdM: p.kmOdM,
-                        kmDoM: p.kmDoM,
-                      })}
-                      style={[styles.odcinekBtn, { borderColor: theme.colors.border, backgroundColor: theme.colors.inputBackground }]}
-                    >
-                      <Text style={{ color: theme.colors.text, fontWeight: '800' }}>
-                        {`${p.numer ? `${p.numer} · ` : ''}${p.nazwa}`}
-                      </Text>
-                      <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>{p.tekst}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              );
-            })()}
+  const szczegolyKonstrukcji = (k: KonstrukcjaObszaru) => {
+    const wpis = projekt.legenda.find((w) => w.id === k.legendaId);
+    const kluczK = k.id || k.legendaId;
+    const zakres = zakresTrasy(projekt, k.legendaId);
+    const segmenty = segmentyKonstrukcji(k, zakres.odM, zakres.doM);
+    const odcinki = segmenty.length > 0
+      ? segmenty
+      : [{ od: zakres.odM, do: zakres.doM, warstwy: k.warstwy }];
+    const klucz = (od: number, doM: number) => `${od}|${doM}`;
+    const wybranyKlucz = odcinki.some((s) => klucz(s.od, s.do) === wybrany[kluczK])
+      ? wybrany[kluczK]
+      : klucz(odcinki[0].od, odcinki[0].do);
+    const sel = odcinki.find((s) => klucz(s.od, s.do) === wybranyKlucz) ?? odcinki[0];
+    const pozycje = pozycjeObszarow(projekt, k);
+    return (
+      <View style={{ gap: 12 }}>
+        <View style={styles.rzad}>
+          <View style={[styles.probka, { backgroundColor: wpis?.kolor ?? theme.colors.primary }]} />
+          <Text style={{ color: theme.colors.text, fontWeight: '800', flex: 1, fontSize: 16 }}>
+            {wpis?.nazwa?.trim() || 'Bez nazwy w legendzie'}
+          </Text>
+        </View>
+        {pozycje.length === 0 ? (
+          <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>
+            Brak przypisanych obszarów. Na PZT stuknij obrys, wybierz konstrukcję i stuknij Zapisz.
+          </Text>
+        ) : (
+          <View style={{ gap: 6 }}>
+            {pozycje.map((p) => (
+              <TouchableOpacity
+                key={p.id}
+                accessibilityLabel={`${p.numer} ${p.nazwa} ${p.tekst}`}
+                onPress={() => {
+                  setOtwartaId(null);
+                  onPokazObszar?.({
+                    arkuszId: p.arkuszId,
+                    obszarId: p.obszarId,
+                    kmOdM: p.kmOdM,
+                    kmDoM: p.kmDoM,
+                  });
+                }}
+                style={[styles.odcinekBtn, { borderColor: theme.colors.border, backgroundColor: theme.colors.inputBackground }]}
+              >
+                <Text style={{ color: theme.colors.text, fontWeight: '800' }}>
+                  {`${p.numer ? `${p.numer} · ` : ''}${p.nazwa}`}
+                </Text>
+                <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>{p.tekst}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
             <View style={{ gap: 8 }}>
               {odcinki.map((s) => {
                 const on = klucz(s.od, s.do) === wybranyKlucz;
@@ -536,9 +515,87 @@ export function SekcjaKonstrukcje({ projekt, theme, onZmien, onPokazObszar }: Pr
               setWyjatekOpis('');
             }}
             />
+      </View>
+    );
+  };
+
+  return (
+    <View style={{ gap: 12 }}>
+      <View style={styles.rzad}>
+        <Text style={{ color: theme.colors.text, fontWeight: '800', flex: 1 }}>
+          {`Zapisane: ${postep.przypisane} / ${postep.wszystkie}`}
+          {postep.wszystkie > 0 ? ` (${Math.round((postep.przypisane / postep.wszystkie) * 100)}%)` : ''}
+        </Text>
+        <InfoTooltip tresc="Każdy wiersz to jedna konstrukcja. Stuknięcie otwiera jej obszary, kilometraż i warstwy. Na PZT wybór konstrukcji zapisujesz przyciskiem Zapisz. Dopóki obszar nie jest zapisany, numer bierze się z koloru. Lewa strona leży po lewej od osi, gdy patrzysz w kierunku rosnącego kilometrażu." />
+      </View>
+      {postep.przypisane < postep.wszystkie ? (
+        <Text style={{ color: theme.colors.textSecondary, fontSize: 13, lineHeight: 18 }}>
+          Pozostałe obszary biorą konstrukcję z koloru. Zapiszesz je pojedynczo na PZT albo wszystkie naraz.
+        </Text>
+      ) : null}
+      {postep.przypisane < postep.wszystkie ? (
+        <Przycisk
+          tekst="Zapisz według koloru"
+          wariant="drugi"
+          onPress={() => onZmien(zapiszPrzypisaniaWedlugKoloru(projekt))}
+          accessibilityLabel="Zapisz według koloru"
+        />
+      ) : null}
+      <Przycisk
+        tekst="Nowa konstrukcja"
+        ikona="plus"
+        wariant="drugi"
+        onPress={() => {
+          const legendaId = obszary[0]?.id;
+          if (!legendaId) return;
+          const numer = konstrukcje.reduce((m, k) => Math.max(m, k.numer ?? 0), 0) + 1;
+          zapiszKonstrukcje([...projekt.konstrukcje, nowaKonstrukcja(legendaId, numer)]);
+        }}
+        accessibilityLabel="Nowa konstrukcja"
+      />
+      {konstrukcje.map((k) => {
+        const wpis = projekt.legenda.find((w) => w.id === k.legendaId);
+        const kluczK = k.id || k.legendaId;
+        const pozycje = pozycjeObszarow(projekt, k);
+        const kmOd = pozycje.length ? Math.min(...pozycje.map((p) => p.sortTrasa)) : 0;
+        const kmDo = pozycje.length ? Math.max(...pozycje.map((p) => Math.max(p.sortTrasa, p.kmDoM))) : 0;
+        const ile = pozycje.length === 1
+          ? '1 obszar'
+          : pozycje.length >= 2 && pozycje.length <= 4
+            ? `${pozycje.length} obszary`
+            : `${pozycje.length} obszarów`;
+        const podtytul = pozycje.length
+          ? `${ile} · ${formatujKmM(kmOd)} – ${formatujKmM(kmDo)}`
+          : 'Brak obszarów';
+        const tytul = `Konstrukcja ${k.numer ?? ''}${wpis?.nazwa ? ` · ${wpis.nazwa}` : ''}`;
+        return (
+          <View key={kluczK} style={styles.rzad}>
+            <View style={[styles.pasek, { backgroundColor: wpis?.kolor ?? theme.colors.border }]} />
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <PozycjaListy
+                tytul={tytul}
+                podtytul={podtytul}
+                ikona={String(k.numer ?? '–')}
+                prawy={pozycje.length ? String(pozycje.length) : undefined}
+                onPress={() => setOtwartaId(kluczK)}
+                accessibilityLabel={tytul}
+              />
+            </View>
           </View>
         );
       })}
+
+      <SafeModal
+        visible={!!otwarta}
+        tytul={otwarta ? `Konstrukcja ${otwarta.numer ?? ''}` : 'Konstrukcja'}
+        theme={theme}
+        onClose={() => setOtwartaId(null)}
+        lewy={{ tekst: '‹ Wstecz', onPress: () => setOtwartaId(null) }}
+      >
+        <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }} keyboardShouldPersistTaps="handled">
+          {otwarta ? szczegolyKonstrukcji(otwarta) : null}
+        </ScrollView>
+      </SafeModal>
 
       <SafeModal
         visible={!!wyjatekDla}
@@ -692,6 +749,7 @@ export function SekcjaKonstrukcje({ projekt, theme, onZmien, onPokazObszar }: Pr
 const styles = StyleSheet.create({
   rzad: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   probka: { width: 18, height: 18, borderRadius: 4 },
+  pasek: { width: 8, borderRadius: 4, alignSelf: 'stretch' },
   warstwa: { borderWidth: 1, borderRadius: 10, padding: 10, gap: 8 },
   input: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 14 },
   miniLabel: { fontSize: 11, fontWeight: '700', marginBottom: 4, color: '#6B7280' },
