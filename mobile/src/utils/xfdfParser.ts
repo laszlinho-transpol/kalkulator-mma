@@ -641,12 +641,38 @@ export function parsujXfdfTekst(xml: string, zrodloNazwa: string): WynikParsowan
   return { zrodloNazwa, zrodloPdfHref, polygony, polilinie, osTrasy };
 }
 
-function rolaKoloruObszaru(hex?: string): 'boczna' | 'wjazd' | 'sciezka' | undefined {
+export function rolaKoloruObszaru(hex?: string): 'boczna' | 'wjazd' | 'sciezka' | undefined {
   const h = (hex || '').toUpperCase();
   if (h === '#8B8B00' || h === '#827717' || h === '#9E9D24' || h === '#AFB42B') return 'boczna';
   if (h === '#009300' || h === '#00C853' || h === '#2E7D32' || h === '#43A047' || h === '#008000') return 'wjazd';
   if (h === '#40E0D0' || h === '#26A69A' || h === '#00BCD4' || h === '#388E8E' || h === '#80DEEA') return 'sciezka';
   return undefined;
+}
+
+/** Nazwa nadawana przy imporcie. Własny opis użytkownika tej reguły nie rusza. */
+export function nazwaAutomatycznaObszaru(
+  kolor: string | undefined,
+  kolejnosc: number,
+  strona?: 'lewa' | 'prawa',
+): string {
+  const rola = rolaKoloruObszaru(kolor);
+  if (rola === 'boczna') return 'Droga boczna';
+  if (rola === 'wjazd') return 'Wjazd';
+  if (rola === 'sciezka') return 'Ścieżka rowerowa';
+  const s = strona ?? stronaTrasyZKoloru(kolor);
+  if (s === 'lewa') return 'Trasa L';
+  if (s === 'prawa') return 'Trasa P';
+  return `Obszar ${kolejnosc}`;
+}
+
+/** Krótki opis położenia: rola i strona względem osi rosnącego kilometrażu. */
+export function opisPolozeniaObszaru(kolor?: string, strona?: 'lewa' | 'prawa'): string | undefined {
+  const rola = rolaKoloruObszaru(kolor);
+  const bok = strona === 'lewa' ? 'strona lewa' : strona === 'prawa' ? 'strona prawa' : undefined;
+  const nazwa = rola === 'boczna' ? 'Droga boczna' : rola === 'wjazd' ? 'Wjazd' : rola === 'sciezka' ? 'Ścieżka rowerowa' : undefined;
+  if (nazwa && bok) return `${nazwa} · ${bok}`;
+  if (bok) return bok.charAt(0).toUpperCase() + bok.slice(1);
+  return nazwa;
 }
 
 function nazwaObszaru(
@@ -655,14 +681,7 @@ function nazwaObszaru(
   kolejnoscStart: number,
   strona?: 'lewa' | 'prawa',
 ): string {
-  const rola = rolaKoloruObszaru(p.kolorWypelnienia);
-  if (rola === 'boczna') return 'Droga boczna';
-  if (rola === 'wjazd') return 'Wjazd';
-  if (rola === 'sciezka') return 'Ścieżka rowerowa';
-  const s = strona ?? stronaTrasyZKoloru(p.kolorWypelnienia);
-  if (s === 'lewa') return 'Trasa L';
-  if (s === 'prawa') return 'Trasa P';
-  return `Obszar ${kolejnoscStart + i}`;
+  return nazwaAutomatycznaObszaru(p.kolorWypelnienia, kolejnoscStart + i, strona);
 }
 
 function dopasujKrawedzniki(
@@ -723,8 +742,8 @@ export function obszaryZPolygony(
       x: p.wierzcholki.reduce((s, q) => s + q.x, 0) / Math.max(p.wierzcholki.length, 1),
       y: p.wierzcholki.reduce((s, q) => s + q.y, 0) / Math.max(p.wierzcholki.length, 1),
     };
-    const stronaTrasy = stronaTrasyZKoloru(p.kolorWypelnienia)
-      ?? (rolaKoloruObszaru(p.kolorWypelnienia) ? undefined : (osPdf ? stronaWzgledemOsi(centroid, osPdf) : undefined));
+    const stronaTrasy = (osPdf && osPdf.length >= 2 ? stronaWzgledemOsi(centroid, osPdf) : undefined)
+      ?? stronaTrasyZKoloru(p.kolorWypelnienia);
     const dlugoscOdcinkaM = zOsi ? round2(zOsi.dlugosc * k) : undefined;
     const iL = bazy?.start.idxLewy;
     const iP = bazy?.start.idxPrawy;

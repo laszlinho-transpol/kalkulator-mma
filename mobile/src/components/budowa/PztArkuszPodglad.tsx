@@ -15,10 +15,11 @@ import { InfoTooltip } from '../common/InfoTooltip';
 import type { ArkuszPzt, ElementSzkicu, Punkt2D, TloArkuszaPzt } from '../../types';
 import {
   dociagnijDoObszaru, dodajPunktKreski, dodajWezel, elementPodPunktem, krawedzieLamanej, lukPrzezPunkt, obrysLamanej,
-  przesunWezel, punktWWielokacie, srodekKrawedzi, stacjeZnakowInfo, ustawLuk, wymazGumka, type LamanaSzkicu,
+  najmniejszyWielokatPodPunktem, przesunWezel, punktWWielokacie, srodekKrawedzi, stacjeZnakowInfo, ustawLuk, wymazGumka, type LamanaSzkicu,
 } from '../../liniowka/liniowka';
 import { wypelnijDoKrawedzi, zakresPunktow } from '../../liniowka/rasterSzkicu';
 import { kluczLegendy } from '../../utils/projektBudowy';
+import { podzialkaOsiBocznej } from '../../utils/lokalizacjaObszaru';
 import { bboxWielokata } from '../../utils/obmiarGeometry';
 import {
   czoloObmiaruPdf,
@@ -248,6 +249,13 @@ interface Props {
   /** Obszar podświetlony po stuknięciu (karta powierzchni i konstrukcji). */
   podswietlonyObszarId?: string;
   onPressObszar?: (obszarId: string) => void;
+  /** Kawałki obszaru po zmianie konstrukcji – osobno stukalne. */
+  wycinki?: { id: string; obszarId: string; wierzcholkiPdf: Punkt2D[] }[];
+  podswietlonyWycinekId?: string;
+  onPressWycinek?: (id: string) => void;
+  /** Węzły niebieskich linii do ręcznego pikietażu. */
+  pokazWezlyOsi?: boolean;
+  onPressWezelOsi?: (osId: string, indeks: number) => void;
   liniowka?: LiniowkaPodgladu;
   /** Tryb szkicu: jeden palec rysuje, dwa przybliżają. */
   rysowanie?: RysowaniePodgladu;
@@ -272,6 +280,11 @@ export function PztArkuszPodglad({
   zaznaczoneIds,
   podswietlonyObszarId,
   onPressObszar,
+  wycinki,
+  podswietlonyWycinekId,
+  onPressWycinek,
+  pokazWezlyOsi = false,
+  onPressWezelOsi,
   liniowka,
   rysowanie,
 }: Props) {
@@ -568,6 +581,70 @@ export function PztArkuszPodglad({
     };
   }, [arkusz, geometria, rozmiar.w, rozmiar.h, liveStacjaM, liveAuta, podzialkaM, zakresStartM, zakresKoniecM, odsadzki, zaznaczoneIds]);
 
+  const podzialkiBoczne = useMemo(() => {
+    if (!mapa) return [];
+    const toSvg = (p: Punkt2D) => pdfDoSvgPodgladu(p, mapa.mapaSvg);
+    const out: {
+      key: string; etykieta: string; x1: number; y1: number; x2: number; y2: number;
+      tx: number; ty: number; rot: number; fontSvg: number;
+    }[] = [];
+    const krok = podzialkaM ?? 0;
+    for (const os of arkusz.osieBoczne ?? []) {
+      const pdf = os.wierzcholkiPdf;
+      if (pdf.length < 2) continue;
+      const dlPdf = dlugoscPolilinii(pdf);
+      const dlM = os.wierzcholkiM.length >= 2 ? dlugoscPolilinii(os.wierzcholkiM) : os.dlugoscM;
+      if (dlPdf < 1 || dlM < 1) continue;
+      for (const st of podzialkaOsiBocznej(os, arkusz, krok)) {
+        const sPdf = Math.max(0, Math.min(dlPdf, (st.stacjaM / dlM) * dlPdf));
+        const t = stycznyNaOsi(pdf, sPdf);
+        if (!t) continue;
+        const half = Math.min(10, Math.max(3.2, 2.4 / Math.max(dlM / dlPdf, 0.05)));
+        const fontPdf = Math.min(5.2, Math.max(3.1, half * 0.5));
+        const uklad = ukladKrotkiejPodzialki(-half, half, fontPdf);
+        const nx = -t.dy;
+        const ny = t.dx;
+        const p1 = toSvg({ x: t.punkt.x + nx * uklad.uKreskaA, y: t.punkt.y + ny * uklad.uKreskaA });
+        const p2 = toSvg({ x: t.punkt.x + nx * uklad.uKreskaB, y: t.punkt.y + ny * uklad.uKreskaB });
+        const tp = toSvg({ x: t.punkt.x + nx * uklad.uTekst, y: t.punkt.y + ny * uklad.uTekst });
+        const sdx = t.dx * mapa.skalaFit;
+        const sdy = -t.dy * mapa.skalaFit;
+        const sl = Math.hypot(sdx, sdy) || 1;
+        out.push({
+          key: `${os.id}-${st.kmM}`,
+          etykieta: st.etykieta,
+          x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y,
+          tx: tp.x, ty: tp.y,
+          rot: obrotOpisuWzdluzKm(sdx / sl, sdy / sl),
+          fontSvg: fontPdf * mapa.skalaFit,
+        });
+      }
+    }
+    return out;
+  }, [arkusz, mapa, podzialkaM]);
+
+  const wezlyOsi = useMemo(() => {
+    if (!mapa || !pokazWezlyOsi) return [];
+    const toSvg = (p: Punkt2D) => pdfDoSvgPodgladu(p, mapa.mapaSvg);
+    const out: { osId: string; indeks: number; x: number; y: number }[] = [];
+    for (const os of arkusz.osieBoczne ?? []) {
+      os.wierzcholkiPdf.forEach((p, indeks) => {
+        const s = toSvg(p);
+        out.push({ osId: os.id, indeks, x: s.x, y: s.y });
+      });
+    }
+    return out;
+  }, [arkusz.osieBoczne, mapa, pokazWezlyOsi]);
+
+  const wycinkiSvg = useMemo(() => {
+    if (!mapa || !wycinki?.length) return [];
+    const toSvg = (p: Punkt2D) => pdfDoSvgPodgladu(p, mapa.mapaSvg);
+    return wycinki.map((w) => ({
+      id: w.id,
+      punkty: w.wierzcholkiPdf.map(toSvg).map((p) => `${p.x},${p.y}`).join(' '),
+    }));
+  }, [mapa, wycinki]);
+
   const odcinkiLiniowki = liniowka?.odcinki;
   const liniowkaSvg = useMemo(() => {
     const osPdf = mapa?.osPdf;
@@ -700,6 +777,14 @@ export function PztArkuszPodglad({
   wskazRef.current = onWskazPdf;
   const onPressObszarRef = useRef(onPressObszar);
   onPressObszarRef.current = onPressObszar;
+  const onPressWycinekRef = useRef(onPressWycinek);
+  onPressWycinekRef.current = onPressWycinek;
+  const onPressWezelRef = useRef(onPressWezelOsi);
+  onPressWezelRef.current = onPressWezelOsi;
+  const pokazWezlyRef = useRef(pokazWezlyOsi);
+  pokazWezlyRef.current = pokazWezlyOsi;
+  const wycinkiRef = useRef(wycinki);
+  wycinkiRef.current = wycinki;
   const onPressAutoRef = useRef(onPressAuto);
   onPressAutoRef.current = onPressAuto;
   const lastTapMs = useRef(0);
@@ -858,6 +943,32 @@ export function PztArkuszPodglad({
       dodajPunktPomiaru(ekranX, ekranY);
       return;
     }
+    const pdfTap0 = pdfZEkranu(ekranX, ekranY);
+    const cbWezel = onPressWezelRef.current;
+    if (cbWezel && pokazWezlyRef.current && pdfTap0) {
+      const zasieg = 16 / Math.max(pdfNaEkranPx(), 0.05);
+      let best: { osId: string; indeks: number; d: number } | null = null;
+      for (const os of arkuszRef.current.osieBoczne ?? []) {
+        for (let indeks = 0; indeks < os.wierzcholkiPdf.length; indeks++) {
+          const p = os.wierzcholkiPdf[indeks];
+          const d = Math.hypot(p.x - pdfTap0.x, p.y - pdfTap0.y);
+          if (d <= zasieg && (!best || d < best.d)) best = { osId: os.id, indeks, d };
+        }
+      }
+      if (best) {
+        cbWezel(best.osId, best.indeks);
+        return;
+      }
+    }
+    const cbWycinek = onPressWycinekRef.current;
+    const listaWycinkow = wycinkiRef.current;
+    if (cbWycinek && pdfTap0 && listaWycinkow?.length) {
+      const traf = najmniejszyWielokatPodPunktem(listaWycinkow, pdfTap0);
+      if (traf) {
+        cbWycinek(traf.id);
+        return;
+      }
+    }
     const r = rysowanieRef.current;
     if (r) {
       if (r.onWskazObszar) {
@@ -915,7 +1026,7 @@ export function PztArkuszPodglad({
     if (cbObszar) {
       const pdfObszar = pdfZEkranu(ekranX, ekranY);
       if (pdfObszar) {
-        const trafObszar = [...arkuszRef.current.obszary].reverse().find((o) => punktWWielokacie(pdfObszar, o.wierzcholkiPdf));
+        const trafObszar = najmniejszyWielokatPodPunktem(arkuszRef.current.obszary, pdfObszar);
         if (trafObszar) {
           cbObszar(trafObszar.id);
           return;
@@ -1644,9 +1755,9 @@ export function PztArkuszPodglad({
                             key={os.id}
                             points={os.punkty}
                             fill="none"
-                            stroke="#2563EB"
-                            strokeWidth={swEkran * 1.35}
-                            strokeDasharray={`${dash * 1.2} ${dash * 0.7}`}
+                            stroke={pokazWezlyOsi ? '#1D4ED8' : '#2563EB'}
+                            strokeWidth={swEkran * (pokazWezlyOsi ? 2.4 : 1.35)}
+                            strokeDasharray={pokazWezlyOsi ? undefined : `${dash * 1.2} ${dash * 0.7}`}
                             strokeLinejoin="round"
                             strokeLinecap="round"
                             vectorEffect="non-scaling-stroke"
@@ -1664,6 +1775,45 @@ export function PztArkuszPodglad({
                             vectorEffect="non-scaling-stroke"
                           />
                         ) : null}
+                        {podzialkiBoczne.map((t) => (
+                          <G key={`pkb-${t.key}`}>
+                            <Line
+                              x1={t.x1}
+                              y1={t.y1}
+                              x2={t.x2}
+                              y2={t.y2}
+                              stroke="#1D4ED8"
+                              strokeWidth={swEkran}
+                              strokeLinecap="butt"
+                              vectorEffect="non-scaling-stroke"
+                            />
+                            <G transform={`rotate(${t.rot} ${t.tx} ${t.ty})`}>
+                              <SvgText
+                                x={t.tx}
+                                y={t.ty}
+                                fontSize={t.fontSvg}
+                                fontWeight="700"
+                                fill="#1E3A8A"
+                                textAnchor="middle"
+                                alignmentBaseline="middle"
+                              >
+                                {t.etykieta}
+                              </SvgText>
+                            </G>
+                          </G>
+                        ))}
+                        {wezlyOsi.map((w) => (
+                          <Circle
+                            key={`wezel-${w.osId}-${w.indeks}`}
+                            cx={w.x}
+                            cy={w.y}
+                            r={6 / xform.s}
+                            fill="#FFFFFF"
+                            stroke="#1D4ED8"
+                            strokeWidth={2}
+                            vectorEffect="non-scaling-stroke"
+                          />
+                        ))}
                         {mapa.podzialki.map((t) => (
                           <G key={`pk-${t.kmM}`}>
                             <Line
@@ -1865,7 +2015,20 @@ export function PztArkuszPodglad({
                             vectorEffect="non-scaling-stroke"
                           />
                         ) : null}
-                        {mapa.obszary.filter((o) => o.id === podswietlonyObszarId).map((o) => (
+                        {wycinkiSvg.filter((w) => w.id === podswietlonyWycinekId).map((w) => (
+                          <G key={`led-wycinek-${w.id}`} accessibilityLabel="Podświetlony obszar">
+                            {obrysLed(`led-wycinek-${w.id}`, (p) => (
+                              <Polygon
+                                points={w.punkty}
+                                fill="none"
+                                {...p}
+                                strokeLinejoin="round"
+                                vectorEffect="non-scaling-stroke"
+                              />
+                            ))}
+                          </G>
+                        ))}
+                        {mapa.obszary.filter((o) => o.id === podswietlonyObszarId && !podswietlonyWycinekId).map((o) => (
                           <G key={`led-obszar-${o.id}`} accessibilityLabel="Podświetlony obszar">
                             {obrysLed(`led-obszar-${o.id}`, (p) => (
                               <Polygon

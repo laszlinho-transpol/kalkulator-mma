@@ -28,6 +28,7 @@ import {
   szukajPoKm,
   ustawKolorWarstwy,
   warstwyLiniowki,
+  najmniejszyWielokatPodPunktem,
   wymazGumka,
   zapiszWpisReczny,
 } from './liniowka';
@@ -306,5 +307,13 @@ describe('liniówka – obszar szkicu i linia łamana', () => {
     } as ArkuszPzt;
     assert.deepEqual(klipSzkicu(projekt, arkusz, { warstwaKlucz: 'sma', obszarId: 'o2' })?.map((o) => o.id), ['o2']);
     assert.deepEqual(klipSzkicu(projekt, arkusz, { warstwaKlucz: 'sma' })?.map((o) => o.id), ['o1', 'o2']);
+  });
+
+  it('stuknięcie w nakładające się obszary wybiera najmniejszy', () => {
+    const duzy = { id: 'd', wierzcholkiPdf: [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }, { x: 0, y: 100 }] };
+    const maly = { id: 'm', wierzcholkiPdf: [{ x: 40, y: 40 }, { x: 60, y: 40 }, { x: 60, y: 60 }, { x: 40, y: 60 }] };
+    assert.equal(najmniejszyWielokatPodPunktem([duzy, maly], { x: 50, y: 50 })?.id, 'm');
+    assert.equal(najmniejszyWielokatPodPunktem([maly, duzy], { x: 50, y: 50 })?.id, 'm');
+    assert.equal(najmniejszyWielokatPodPunktem([duzy, maly], { x: 10, y: 10 })?.id, 'd');
   });
 });

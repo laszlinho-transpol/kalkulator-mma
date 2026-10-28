@@ -87,7 +87,7 @@ describe('obmiarGeometry / xfdfParser', () => {
     assert.equal(obszary[0].nazwa, 'Droga boczna');
   });
 
-  it('ciągła czarna polilinia jest osią główną, a oliwkowy obszar nie dostaje strony trasy', () => {
+  it('ciągła czarna polilinia jest osią główną, a wjazd i droga boczna dostają stronę z geometrii', () => {
     const xfdf = `<?xml version="1.0"?><xfdf>
 <polygon interior-color="#FFEE58" color="#FBC02D" subject="Obszar"><vertices>0,20;200,20;200,40;0,40</vertices></polygon>
 <polygon interior-color="#8B8B00" color="#FBC02D" subject="Obszar"><vertices>80,40;100,40;100,90;80,90</vertices></polygon>
@@ -102,7 +102,9 @@ describe('obmiarGeometry / xfdfParser', () => {
     assert.equal(w.polilinie.filter((l) => czyLiniaOsiBocznej(l.color, l.subject)).length, 1);
     const obszary = obszaryZPolygony(w, DOMYSLNA_SKALA_PZT);
     assert.equal(obszary.map((o) => o.nazwa).join(','), 'Trasa L,Droga boczna,Wjazd');
-    assert.equal(obszary[1].stronaTrasy, undefined);
+    assert.equal(obszary[0].stronaTrasy, 'lewa');
+    assert.equal(obszary[1].stronaTrasy, 'lewa');
+    assert.equal(obszary[2].stronaTrasy, 'lewa');
     assert.equal(obszary[0].krawedzniki?.length, 1);
   });
 
@@ -151,6 +153,19 @@ describe('obmiarGeometry / xfdfParser', () => {
     assert.ok(krL.some((k) => k.polozenie === 'odOsi') || krP.some((k) => k.polozenie === 'odOsi'));
     assert.ok(obszary[0].odsadzki?.every((o) => !o.zastosowana));
     assert.ok(obszary[0].bazaStart?.idxLewy != null && obszary[0].bazaStart.idxPrawy != null);
+  });
+
+  it('przy osi geometria wygrywa z kolorem: lewa jest po lewej w kierunku rosnącego km', () => {
+    const xfdf = `<?xml version="1.0"?><xfdf>
+<polygon interior-color="#FFEE58" subject="Obszar"><vertices>0,0;200,0;200,20;0,20</vertices></polygon>
+<polygon interior-color="#FFC0CB" subject="Obszar"><vertices>0,40;200,40;200,60;0,60</vertices></polygon>
+<polyline color="#000000" subject="oś trasy"><vertices>0,30;200,30</vertices></polyline>
+</xfdf>`;
+    const obszary = obszaryZPolygony(parsujXfdfTekst(xfdf, 'os.xfdf'), DOMYSLNA_SKALA_PZT);
+    assert.equal(obszary[0].stronaTrasy, 'prawa');
+    assert.equal(obszary[0].nazwa, 'Trasa P');
+    assert.equal(obszary[1].stronaTrasy, 'lewa');
+    assert.equal(obszary[1].nazwa, 'Trasa L');
   });
 
   it('parsujListeTekstowXfdf – sortuje arkusze i pomija śmieci', () => {

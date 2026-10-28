@@ -51,7 +51,7 @@ export function SekcjaZaawansowanie({ projekt, raporty, theme }: Props) {
       ]} />
       {postep.wszystkie > 0 && postep.przypisane < postep.wszystkie ? (
         <Text style={{ color: theme.colors.textSecondary, fontSize: 12 }}>
-          Przypisane konstrukcje: {postep.przypisane} z {postep.wszystkie} obszarów. Przedmiar mas liczy obszary z konstrukcją.
+          Zapisane konstrukcje: {postep.przypisane} z {postep.wszystkie} obszarów. Reszta bierze numer z koloru, dopóki nie zapiszesz.
         </Text>
       ) : null}
       {wynik.wiersze.map((w) => (

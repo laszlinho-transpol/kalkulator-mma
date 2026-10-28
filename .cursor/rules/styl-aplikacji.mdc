@@ -26,7 +26,11 @@ Pełny opis: `mobile/STYL.md` (przeczytaj przed pracą nad UI). Skrót:
   i opis km na PZT i liniówce mieszczą się w obszarze. Kreska jest prostopadła do osi, krótsza od korytarza
   i urywa się przed opisem. Opis czyta się w kierunku rosnącego kilometrażu. Na każdej zakładce „Początek”
   i „Koniec” wg planu ustawiają rozpiętość pikiet wzdłuż osi; szerokości, domiary i powierzchnie zostają
-  w skali rysunku. Grubość szkicu w jednostkach PDF.
+  w skali rysunku. Niebieska linia prostopadła ma własną podziałkę (0+000 na końcu dalszym).
+  Konstrukcję przypisuje się tylko na PZT i zatwierdza przyciskiem „Zapisz” (wcześniej numer jest propozycją koloru).
+  Lewa strona jest po lewej od osi w kierunku rosnącego kilometrażu. Lista konstrukcji to jeden wiersz na numer.
+  Zmiana konstrukcji dzieli odcinek na kawałki 1, 1.1, 1.2.
+  Grubość szkicu w jednostkach PDF.
   Strzałki i znak „i” liniówki też liczymy w jednostkach pliku (z szerokości pasa); stałą grubość na
   ekranie mają tylko linie (obrysy, kreski start/koniec, podświetlenie, „linia obszaru” szkicu). Szkic rysujemy
   w jednej warstwie i jednym obszarze naraz i przycinamy do niego; linia łamana: węzły stuknięciem, przeciągane

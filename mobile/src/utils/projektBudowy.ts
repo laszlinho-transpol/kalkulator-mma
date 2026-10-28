@@ -86,11 +86,11 @@ export function sugerowanaNazwaLegendy(
     return 'oś trasy';
   }
   if (typ === 'obszar') {
-    if (stronaZKoloru === 'lewa') return 'Trasa główna (strona lewa)';
-    if (stronaZKoloru === 'prawa') return 'Trasa główna (strona prawa)';
     if (k === '#8B8B00' || k === '#827717' || k === '#9E9D24' || k === '#AFB42B') return 'Droga boczna';
     if (k === '#009300' || k === '#00C853' || k === '#2E7D32' || k === '#43A047' || k === '#008000') return 'Wjazd';
     if (k === '#40E0D0' || k === '#26A69A' || k === '#00BCD4' || k === '#388E8E' || k === '#80DEEA') return 'Ścieżka rowerowa';
+    if (stronaZKoloru === 'lewa') return 'Trasa główna (strona lewa)';
+    if (stronaZKoloru === 'prawa') return 'Trasa główna (strona prawa)';
     return '';
   }
   if (k === '#FF0000' || k === '#E53935' || k === '#C62828' || k === '#F44336') {
@@ -987,55 +987,123 @@ export function wszystkieObszary(projekt: ProjektBudowy): { obszar: ObszarObmiar
   return out;
 }
 
-/** Tryb klikania na PZT: choć jedna konstrukcja ma zapisaną listę obszarów. */
-export function czyPrzypisaniaAktywne(projekt: Pick<ProjektBudowy, 'konstrukcje'>): boolean {
-  return projekt.konstrukcje.some((k) => Array.isArray(k.obszarIds));
+function kluczKonstrukcji(k: KonstrukcjaObszaru): string {
+  return k.id || k.legendaId;
 }
 
-export function postepPrzypisan(projekt: ProjektBudowy): { wszystkie: number; przypisane: number } {
-  const ids = new Set(wszystkieObszary(projekt).map((x) => x.obszar.id));
-  const przypisane = new Set<string>();
-  for (const k of projekt.konstrukcje) {
-    for (const id of k.obszarIds ?? []) if (ids.has(id)) przypisane.add(id);
-  }
-  return { wszystkie: ids.size, przypisane: przypisane.size };
-}
-
-export function konstrukcjaDlaObszaru(projekt: ProjektBudowy, obszarId: string): KonstrukcjaObszaru | undefined {
-  if (czyPrzypisaniaAktywne(projekt)) {
-    return projekt.konstrukcje.find((k) => k.obszarIds?.includes(obszarId));
-  }
-  const para = wszystkieObszary(projekt).find((x) => x.obszar.id === obszarId);
-  if (!para) return undefined;
-  const klucz = kluczLegendy('obszar', para.obszar.kolorWypelnienia);
+/** Konstrukcja koloru obszaru: najniższy numer przy tej legendzie. */
+export function konstrukcjaKoloru(projekt: ProjektBudowy, obszar: ObszarObmiaru): KonstrukcjaObszaru | undefined {
+  const klucz = kluczLegendy('obszar', obszar.kolorWypelnienia);
   const wpis = projekt.legenda.find((w) => w.klucz === klucz && w.typ === 'obszar');
-  return wpis ? projekt.konstrukcje.find((k) => k.legendaId === wpis.id) : undefined;
-}
-
-function obszaryLegendyKonstrukcji(projekt: ProjektBudowy, legendaId: string): string[] {
-  const wpis = projekt.legenda.find((w) => w.id === legendaId && w.typ === 'obszar');
-  if (!wpis) return [];
-  return wszystkieObszary(projekt)
-    .filter((p) => kluczLegendy('obszar', p.obszar.kolorWypelnienia) === wpis.klucz)
-    .map((p) => p.obszar.id);
+  if (!wpis) return undefined;
+  const pasujace = projekt.konstrukcje.filter((k) => k.legendaId === wpis.id);
+  if (pasujace.length === 0) return undefined;
+  return [...pasujace].sort((a, b) => (a.numer ?? 99) - (b.numer ?? 99))[0];
 }
 
 /**
- * Przypisuje obszar do konstrukcji o podanym id albo zdejmuje przypisanie (`null`).
- * Pierwsze ręczne przypisanie przenosi dotychczasowe kolory na listy obszarów.
+ * Zapisany wybór: klucz konstrukcji, `null` = bez numeru, `undefined` = jeszcze propozycja koloru.
+ * Starszy zapis bez pola na obszarze liczy się jako zapis, gdy obszar jest na dokładnie jednej liście.
+ */
+export function kluczZapisanegoPrzypisania(projekt: ProjektBudowy, obszarId: string): string | null | undefined {
+  const para = wszystkieObszary(projekt).find((x) => x.obszar.id === obszarId);
+  if (!para) return undefined;
+  const zapis = para.obszar.konstrukcjaId;
+  if (zapis === null || typeof zapis === 'string') return zapis;
+  const lista = projekt.konstrukcje.filter((k) => k.obszarIds?.includes(obszarId));
+  if (lista.length === 1) return kluczKonstrukcji(lista[0]);
+  return undefined;
+}
+
+/** Czy choć jeden obszar ma zapisany wybór (także „bez numeru”). Pusta lista konstrukcji tego nie włącza. */
+export function czyPrzypisaniaAktywne(projekt: ProjektBudowy): boolean {
+  return wszystkieObszary(projekt).some((x) => kluczZapisanegoPrzypisania(projekt, x.obszar.id) !== undefined);
+}
+
+export function postepPrzypisan(projekt: ProjektBudowy): { wszystkie: number; przypisane: number } {
+  const pary = wszystkieObszary(projekt);
+  let przypisane = 0;
+  for (const { obszar } of pary) {
+    if (kluczZapisanegoPrzypisania(projekt, obszar.id) !== undefined) przypisane += 1;
+  }
+  return { wszystkie: pary.length, przypisane };
+}
+
+export function konstrukcjaDlaObszaru(projekt: ProjektBudowy, obszarId: string): KonstrukcjaObszaru | undefined {
+  const para = wszystkieObszary(projekt).find((x) => x.obszar.id === obszarId);
+  if (!para) return undefined;
+  const zapis = para.obszar.konstrukcjaId;
+  if (zapis === null) return undefined;
+  if (typeof zapis === 'string') {
+    return projekt.konstrukcje.find((k) => kluczKonstrukcji(k) === zapis);
+  }
+  const trafione = projekt.konstrukcje.filter((k) => k.obszarIds?.includes(obszarId));
+  if (trafione.length === 1) return trafione[0];
+  if (trafione.length > 1) {
+    const kolor = konstrukcjaKoloru(projekt, para.obszar);
+    if (kolor && trafione.some((k) => kluczKonstrukcji(k) === kluczKonstrukcji(kolor))) return kolor;
+    return [...trafione].sort((a, b) => (a.numer ?? 99) - (b.numer ?? 99))[0];
+  }
+  return konstrukcjaKoloru(projekt, para.obszar);
+}
+
+/**
+ * Zapisuje wybór konstrukcji na obszarze. Pasuje tylko do jednej konstrukcji (jej id),
+ * nie do każdej o tym samym kolorze i nie przepisuje pozostałych obszarów tego koloru.
  */
 export function przypiszObszarDoKonstrukcji(
   projekt: ProjektBudowy,
   obszarId: string,
   konstrukcjaId: string | null,
 ): ProjektBudowy {
-  const konstrukcje = projekt.konstrukcje.map((k) => {
-    const bazowe = Array.isArray(k.obszarIds) ? [...k.obszarIds] : obszaryLegendyKonstrukcji(projekt, k.legendaId);
-    const bez = bazowe.filter((id) => id !== obszarId);
-    const dolacz = konstrukcjaId != null && (k.id === konstrukcjaId || k.legendaId === konstrukcjaId);
-    return { ...k, obszarIds: dolacz ? [...bez, obszarId] : bez };
+  let arkuszeZmienione = false;
+  const arkusze = projekt.arkusze.map((a) => {
+    let zmieniono = false;
+    const obszary = a.obszary.map((o) => {
+      if (o.id !== obszarId || o.konstrukcjaId === konstrukcjaId) return o;
+      zmieniono = true;
+      return { ...o, konstrukcjaId };
+    });
+    if (!zmieniono) return a;
+    arkuszeZmienione = true;
+    return { ...a, obszary };
   });
-  return { ...projekt, konstrukcje };
+  let konstrukcjeZmienione = false;
+  const konstrukcje = projekt.konstrukcje.map((k) => {
+    const dolacz = konstrukcjaId != null && kluczKonstrukcji(k) === konstrukcjaId;
+    const ma = k.obszarIds?.includes(obszarId) ?? false;
+    if (!ma && !dolacz) return k;
+    const bez = (k.obszarIds ?? []).filter((id) => id !== obszarId);
+    const obszarIds = dolacz ? [...bez, obszarId] : bez;
+    if (k.obszarIds && obszarIds.length === k.obszarIds.length && obszarIds.every((id, i) => id === k.obszarIds?.[i])) {
+      return k;
+    }
+    konstrukcjeZmienione = true;
+    return { ...k, obszarIds };
+  });
+  if (!arkuszeZmienione && !konstrukcjeZmienione) return projekt;
+  return {
+    ...projekt,
+    arkusze: arkuszeZmienione ? arkusze : projekt.arkusze,
+    konstrukcje: konstrukcjeZmienione ? konstrukcje : projekt.konstrukcje,
+  };
+}
+
+/** Zapisuje propozycję koloru na obszarach, które nie mają jeszcze własnego wyboru. „Bez numeru” zostaje. */
+export function zapiszPrzypisaniaWedlugKoloru(projekt: ProjektBudowy): ProjektBudowy {
+  let next = projekt;
+  for (const { obszar } of wszystkieObszary(projekt)) {
+    if (obszar.konstrukcjaId === null || typeof obszar.konstrukcjaId === 'string') continue;
+    const lista = next.konstrukcje.filter((k) => k.obszarIds?.includes(obszar.id));
+    if (lista.length === 1) {
+      next = przypiszObszarDoKonstrukcji(next, obszar.id, kluczKonstrukcji(lista[0]));
+      continue;
+    }
+    const kolor = konstrukcjaKoloru(next, obszar);
+    if (!kolor) continue;
+    next = przypiszObszarDoKonstrukcji(next, obszar.id, kluczKonstrukcji(kolor));
+  }
+  return next;
 }
 
 /** Nowa konstrukcja z kolejnym numerem, od razu przypisana do obszaru. */
@@ -1077,6 +1145,34 @@ export function ilosciWarstwObszaru(
   if (!para || !konstrukcja) return [];
   return [...ilosciDlaObszaru(para.obszar, para.arkusz, konstrukcja, mieszanki).values()]
     .sort((a, b) => a.kolejnosc - b.kolejnosc);
+}
+
+/** Tony warstw na jednym odcinku obszaru (po zmianie konstrukcji albo na całym obrysie). */
+export function ilosciWarstwOdcinka(
+  obszar: ObszarObmiaru,
+  arkusz: ArkuszPzt,
+  warstwy: WarstwaKonstrukcji[],
+  kmOdM: number,
+  kmDoM: number,
+  mieszanki: Pick<Mieszanka, 'id' | 'ciezarObjetosciowy'>[],
+): IloscWarstwy[] {
+  const acc = new Map<string, IloscWarstwy>();
+  for (const warstwa of [...warstwy].sort((a, b) => a.kolejnosc - b.kolejnosc)) {
+    const ods = odsadzkiWarstwy(warstwa);
+    const powW = powierzchniaWarstwyObszaru(obszar, arkusz, ods.lewa, ods.prawa, kmOdM, kmDoM);
+    const rho = gestoscWarstwy(warstwa, mieszanki);
+    dodajIlosc(acc, {
+      nazwa: warstwa.nazwa,
+      kategoria: warstwa.kategoria,
+      kolejnosc: warstwa.kolejnosc,
+      powierzchniaM2: powW,
+      gruboscCm: warstwa.gruboscCm,
+      odsadzkaCm: ods.lewa + ods.prawa,
+      tony: tonyZPowierzchni(powW, warstwa.gruboscCm, rho),
+      mieszankaIds: warstwa.mieszankaIds,
+    });
+  }
+  return [...acc.values()];
 }
 
 export function zrodlaOdsadzekObszaru(projekt: ProjektBudowy, obszar: ObszarObmiaru): Array<{
@@ -1202,30 +1298,37 @@ function obliczPrzedmiarZPrzypisan(
   mieszanki: Pick<Mieszanka, 'id' | 'ciezarObjetosciowy'>[],
 ): WierszPrzedmiaru[] {
   const pary = wszystkieObszary(projekt);
-  const uzyte = new Set<string>();
-  const wynik: WierszPrzedmiaru[] = [];
-  const konstrukcje = [...projekt.konstrukcje].sort((a, b) => (a.numer ?? 99) - (b.numer ?? 99));
-  for (const k of konstrukcje) {
-    const swoje = pary.filter((p) => k.obszarIds?.includes(p.obszar.id));
-    for (const p of swoje) uzyte.add(p.obszar.id);
-    if (swoje.length === 0) continue;
-    const legenda = projekt.legenda.find((w) => w.id === k.legendaId);
-    const nazwy = [...new Set(swoje.map((p) => p.obszar.nazwaDodatkowa?.trim() || p.obszar.nazwa))];
-    const nazwa = `Konstrukcja ${k.numer ?? ''}`.trim() + (legenda?.nazwa ? ` · ${legenda.nazwa}` : '');
-    const wiersz = wierszZObszarow(
-      k.id || k.legendaId,
-      swoje.length === 1 && nazwy[0] ? `${nazwa} (${nazwy[0]})` : nazwa,
-      [...new Set(swoje.map((p) => {
-        const klucz = kluczLegendy('obszar', p.obszar.kolorWypelnienia);
-        return projekt.legenda.find((w) => w.klucz === klucz)?.id ?? k.legendaId;
-      }))],
-      swoje,
-      k,
-      mieszanki,
-    );
-    wynik.push(wiersz);
+  const grupy = new Map<string, { k: KonstrukcjaObszaru; swoje: { obszar: ObszarObmiaru; arkusz: ArkuszPzt }[] }>();
+  const wolne: { obszar: ObszarObmiaru; arkusz: ArkuszPzt }[] = [];
+  for (const para of pary) {
+    const k = konstrukcjaDlaObszaru(projekt, para.obszar.id);
+    if (!k) {
+      wolne.push(para);
+      continue;
+    }
+    const klucz = kluczKonstrukcji(k);
+    const g = grupy.get(klucz) ?? { k, swoje: [] };
+    g.swoje.push(para);
+    grupy.set(klucz, g);
   }
-  const wolne = pary.filter((p) => !uzyte.has(p.obszar.id));
+  const wynik: WierszPrzedmiaru[] = [...grupy.values()]
+    .sort((a, b) => (a.k.numer ?? 99) - (b.k.numer ?? 99))
+    .map(({ k, swoje }) => {
+      const legenda = projekt.legenda.find((w) => w.id === k.legendaId);
+      const nazwy = [...new Set(swoje.map((p) => p.obszar.nazwaDodatkowa?.trim() || p.obszar.nazwa))];
+      const nazwa = `Konstrukcja ${k.numer ?? ''}`.trim() + (legenda?.nazwa ? ` · ${legenda.nazwa}` : '');
+      return wierszZObszarow(
+        kluczKonstrukcji(k),
+        swoje.length === 1 && nazwy[0] ? `${nazwa} (${nazwy[0]})` : nazwa,
+        [...new Set(swoje.map((p) => {
+          const klucz = kluczLegendy('obszar', p.obszar.kolorWypelnienia);
+          return projekt.legenda.find((w) => w.klucz === klucz)?.id ?? k.legendaId;
+        }))],
+        swoje,
+        k,
+        mieszanki,
+      );
+    });
   if (wolne.length > 0) {
     wynik.push(wierszZObszarow('bez-konstrukcji', 'Bez konstrukcji', [], wolne, undefined, mieszanki));
   }
