@@ -325,6 +325,7 @@ export function PztArkuszPodglad({
   const bazaSkali = useRef(1);
   const bazaX = useRef(0);
   const bazaY = useRef(0);
+  const widokRef = useRef({ s: 1, tx: 0, ty: 0 });
   const pinchStart = useRef({ s: 1, tx: 0, ty: 0, f0x: 0, f0y: 0 });
   const pinchRef = useRef(null);
   const panRef = useRef(null);
@@ -792,15 +793,16 @@ export function PztArkuszPodglad({
   const pdfZEkranu = (ekranX: number, ekranY: number): Punkt2D | null => {
     const m = mapaRef.current;
     if (!m?.mapaSvg) return null;
+    const w = widokRef.current;
     const svg = punktSvgZEkranu({
       ekranX,
       ekranY,
       szer: rozmiarRef.current.w,
       wys: rozmiarRef.current.h,
-      tx: bazaX.current,
-      ty: bazaY.current,
+      tx: w.tx,
+      ty: w.ty,
       rot: 0,
-      skala: bazaSkali.current,
+      skala: w.s,
     });
     return svgDoPdfPodgladu(svg, m.mapaSvg);
   };
@@ -827,7 +829,7 @@ export function PztArkuszPodglad({
   };
 
   const tapRef = useRef<(x: number, y: number) => void>(() => undefined);
-  const pdfNaEkranPx = () => (mapaRef.current?.skalaFit ?? 1) * bazaSkali.current;
+  const pdfNaEkranPx = () => (mapaRef.current?.skalaFit ?? 1) * widokRef.current.s;
 
   const zmienElementy = (elementy: ElementSzkicu[]) => {
     elementyRef.current = elementy;
@@ -995,19 +997,20 @@ export function PztArkuszPodglad({
     }
     const lin = liniowkaSvgRef.current;
     const cbOdcinek = onPressOdcinekRef.current;
+    const widok = widokRef.current;
     const svg = punktSvgZEkranu({
       ekranX,
       ekranY,
       szer: rozmiarRef.current.w,
       wys: rozmiarRef.current.h,
-      tx: bazaX.current,
-      ty: bazaY.current,
+      tx: widok.tx,
+      ty: widok.ty,
       rot: 0,
-      skala: bazaSkali.current,
+      skala: widok.s,
     });
     const odGory = [...lin].reverse();
     if (cbOdcinek) {
-      const zapas = 8 / bazaSkali.current;
+      const zapas = 8 / widok.s;
       const zeZnakiem = odGory.find((o) => o.znaki.some((z) => Math.hypot(z.x - svg.x, z.y - svg.y) <= Math.max(z.r, zapas)));
       if (zeZnakiem) {
         cbOdcinek(zeZnakiem.id);
@@ -1044,6 +1047,7 @@ export function PztArkuszPodglad({
           wierzcholkiPdf: o.wierzcholkiPdf,
           kolor: (o.kolorWypelnienia || '').toUpperCase(),
           zapisany: o.konstrukcjaId === null || typeof o.konstrukcjaId === 'string',
+          strona: o.stronaTrasy,
         })), pdfObszar);
         if (trafObszar) {
           const wycinek = cbWycinek
@@ -1060,15 +1064,16 @@ export function PztArkuszPodglad({
     }
     const m = mapaRef.current;
     if (m?.maszyny && onPressAutoRef.current) {
+      const widokAuta = widokRef.current;
       const svg = punktSvgZEkranu({
         ekranX,
         ekranY,
         szer: rozmiarRef.current.w,
         wys: rozmiarRef.current.h,
-        tx: bazaX.current,
-        ty: bazaY.current,
+        tx: widokAuta.tx,
+        ty: widokAuta.ty,
         rot: 0,
-        skala: bazaSkali.current,
+        skala: widokAuta.s,
       });
       const id = idAutaPodPunktem(m.maszyny, svg.x, svg.y);
       if (id) {
@@ -1160,6 +1165,7 @@ export function PztArkuszPodglad({
   };
 
   const ustawWidok = (s: number, tx: number, ty: number) => {
+    widokRef.current = { s, tx, ty };
     setXform({ s, tx, ty });
     setSkalaPct(Math.round(s * 100));
   };
@@ -1216,8 +1222,11 @@ export function PztArkuszPodglad({
       e.stopPropagation();
       const rect = el.getBoundingClientRect();
       const { w, h } = rozmiarRef.current;
-      const f0x = e.clientX - rect.left - w / 2;
-      const f0y = e.clientY - rect.top - h / 2;
+      const lokalnyZoom = punktWidoku(e.clientX, e.clientY);
+      const zx = lokalnyZoom?.x ?? (e.clientX - rect.left);
+      const zy = lokalnyZoom?.y ?? (e.clientY - rect.top);
+      const f0x = zx - w / 2;
+      const f0y = zy - h / 2;
       const dir: -1 | 1 = e.deltaY > 0 ? -1 : 1;
       zoomFnRef.current(nastepnyPresetZoom(bazaSkali.current, dir), f0x, f0y);
     };
@@ -1379,7 +1388,7 @@ export function PztArkuszPodglad({
       if (st === State.FAILED || st === State.CANCELLED || st === State.END) {
         const c = chwytRef.current;
         chwytRef.current = null;
-        if (c?.typ === 'widok' && !tap && e.nativeEvent.oldState === State.ACTIVE) {
+        if (c?.typ === 'widok' && e.nativeEvent.oldState === State.ACTIVE) {
           const t = clampTrans(bazaX.current + dx * PAN_CZYNNIK, bazaY.current + dy * PAN_CZYNNIK);
           bazaX.current = t.x;
           bazaY.current = t.y;
@@ -1387,7 +1396,8 @@ export function PztArkuszPodglad({
         }
         if (tap && kreskaRef.current.length < 2 && (!c || c.typ === 'widok')) {
           kreskaRef.current = [];
-          if (x != null && y != null) obsluzTapMapy(x, y);
+          const p = punktZGestu(e.nativeEvent);
+          if (p) obsluzTapMapy(p.x, p.y);
         }
         zakonczKreske();
         ostatniPanMs.current = Date.now();
@@ -1395,7 +1405,11 @@ export function PztArkuszPodglad({
       }
       return;
     }
-    if (e.nativeEvent.oldState === State.ACTIVE && !tap) ostatniPanMs.current = Date.now();
+    if (e.nativeEvent.oldState === State.ACTIVE) {
+      const t = clampTrans(bazaX.current + dx * PAN_CZYNNIK, bazaY.current + dy * PAN_CZYNNIK);
+      ustawWidok(bazaSkali.current, t.x, t.y);
+      if (!tap) ostatniPanMs.current = Date.now();
+    }
     if (e.nativeEvent.oldState !== State.ACTIVE) {
       if (st === State.FAILED || st === State.CANCELLED || st === State.END) {
         if (tap) {

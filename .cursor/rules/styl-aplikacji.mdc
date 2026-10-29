@@ -28,7 +28,7 @@ Pełny opis: `mobile/STYL.md` (przeczytaj przed pracą nad UI). Skrót:
   i „Koniec” wg planu ustawiają rozpiętość pikiet wzdłuż osi; szerokości, domiary i powierzchnie zostają
   w skali rysunku. Niebieska linia prostopadła ma własną podziałkę (0+000 na końcu dalszym).
   Konstrukcję przypisuje się tylko na PZT i zatwierdza przyciskiem „Zapisz” (wcześniej numer jest propozycją koloru).
-  Ponowne stuknięcie podświetla zapisany numer. Nazwa wjazdu to kilometraż przecięcia niebieskiej linii z czarną osią.
+  Ponowne stuknięcie, także po przybliżeniu i przesunięciu, podświetla konstrukcję tej samej strony. Trasa P nie dostaje numeru strony lewej. Nazwa wjazdu to kilometraż przecięcia niebieskiej linii z czarną osią.
   Lewa strona jest po lewej od osi w kierunku rosnącego kilometrażu. Lista konstrukcji to jeden wiersz na numer.
   Zmiana konstrukcji dzieli odcinek na kawałki 1, 1.1, 1.2.
   Grubość szkicu w jednostkach PDF.

@@ -2,7 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import type { ArkuszPzt, KonstrukcjaObszaru, ObszarObmiaru, OsBocznaPzt } from '../types';
 import { domyslneWarstwyKonstrukcji, nowaKonstrukcja, pustyProjektBudowy } from './projektBudowy';
-import { kluczZapisuSasiedztwa, kmNaOsiBocznej, lancuchOsiBocznej, lokalizacjaObszaru, odcinkiObszaru, stronaObszaruGeometryczna, uzupelnijStronyObszarow } from './lokalizacjaObszaru';
+import { kluczPodswietlenia, kluczZapisuSasiedztwa, kmNaOsiBocznej, lancuchOsiBocznej, lokalizacjaObszaru, odcinkiObszaru, przygotujProjekt, stronaObszaruGeometryczna, uzupelnijStronyObszarow } from './lokalizacjaObszaru';
 
 function arkusz(obszary: ObszarObmiaru[], boczne: OsBocznaPzt[] = []): ArkuszPzt {
   return {
@@ -187,5 +187,48 @@ describe('lokalizacja obszaru', () => {
     const projekt = { ...pustyProjektBudowy(1000), arkusze: [a] };
     assert.equal(kluczZapisuSasiedztwa(projekt, obok, a), 'k-lewa');
     assert.equal(kluczZapisuSasiedztwa(projekt, zapisany, a), undefined);
+  });
+
+  it('Trasa P nie podświetla konstrukcji strony lewej, także po ponownym otwarciu', () => {
+    const lewa = prostokat('lewa', 0, 40, 2, 8);
+    lewa.nazwa = 'Trasa L';
+    lewa.kolorWypelnienia = '#FFEE58';
+    lewa.stronaTrasy = 'lewa';
+    lewa.konstrukcjaId = 'k-lewa';
+    const prawa = prostokat('prawa', 0, 40, -8, -2);
+    prawa.nazwa = 'Trasa P';
+    prawa.kolorWypelnienia = '#FFEE58';
+    prawa.stronaTrasy = 'prawa';
+    prawa.konstrukcjaId = 'k-lewa';
+    const wjazd = prostokat('wjazd', 50, 70, -6, 6);
+    wjazd.nazwa = 'Wjazd 1+060';
+    wjazd.kolorWypelnienia = '#009300';
+    wjazd.stronaTrasy = 'prawa';
+    wjazd.konstrukcjaId = 'k-wjazd';
+    const legenda = [
+      { id: 'leg-l', kolor: '#FFEE58', typ: 'obszar' as const, klucz: 'obszar|#FFEE58', nazwa: 'Trasa główna (strona lewa)' },
+      { id: 'leg-p', kolor: '#FFC0CB', typ: 'obszar' as const, klucz: 'obszar|#FFC0CB', nazwa: 'Trasa główna (strona prawa)' },
+      { id: 'leg-w', kolor: '#009300', typ: 'obszar' as const, klucz: 'obszar|#009300', nazwa: 'Zjazdy' },
+    ];
+    const konstrukcje: KonstrukcjaObszaru[] = [
+      { ...nowaKonstrukcja('leg-l', 2), id: 'k-lewa', obszarIds: ['lewa', 'prawa'] },
+      { ...nowaKonstrukcja('leg-p', 1), id: 'k-prawa', obszarIds: [] },
+      { ...nowaKonstrukcja('leg-w', 5), id: 'k-wjazd', obszarIds: ['wjazd'] },
+    ];
+    const projekt = {
+      ...pustyProjektBudowy(1000),
+      legenda,
+      konstrukcje,
+      arkusze: [arkusz([lewa, prawa, wjazd])],
+    };
+    const a = projekt.arkusze[0];
+    assert.equal(kluczPodswietlenia(projekt, prawa, a), 'k-prawa');
+    assert.equal(kluczPodswietlenia(projekt, lewa, a), 'k-lewa');
+    assert.equal(kluczPodswietlenia(projekt, wjazd, a), 'k-wjazd');
+    const po = przygotujProjekt(projekt);
+    assert.equal(po.arkusze[0].obszary.find((o) => o.id === 'prawa')?.konstrukcjaId, 'k-prawa');
+    assert.equal(po.arkusze[0].obszary.find((o) => o.id === 'lewa')?.konstrukcjaId, 'k-lewa');
+    assert.equal(po.arkusze[0].obszary.find((o) => o.id === 'wjazd')?.konstrukcjaId, 'k-wjazd');
+    assert.equal(przygotujProjekt(po), po);
   });
 });

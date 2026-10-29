@@ -334,5 +334,8 @@ describe('liniówka – obszar szkicu i linia łamana', () => {
     assert.equal(obszarPodTapnieciem([duzy, kawalek], { x: 50, y: 50 })?.id, 'd');
     assert.equal(obszarPodTapnieciem([duzy, kawalek], { x: 10, y: 10 })?.id, 'd');
     assert.equal(obszarPodTapnieciem([duzy, wjazd], { x: 80, y: 80 })?.id, 'w');
+    const lewa = { ...duzy, strona: 'lewa' as const };
+    const kawalekPrawej = { ...kawalek, strona: 'prawa' as const };
+    assert.equal(obszarPodTapnieciem([lewa, kawalekPrawej], { x: 50, y: 50 })?.id, 'k');
   });
 });

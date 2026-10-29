@@ -5,7 +5,7 @@ import type { ArkuszPzt, KonstrukcjaObszaru, ObszarObmiaru, OsBocznaPzt, Projekt
 import { round2 } from './calculations';
 import { powierzchniaWielokata } from './obmiarGeometry';
 import { punktWWielokacie } from '../liniowka/liniowka';
-import { formatujKmM, normalizujKolorHex, zsynchronizujLegendeProjektu } from './projektBudowy';
+import { formatujKmM, normalizujKolorHex, przypiszObszarDoKonstrukcji, wszystkieObszary, zsynchronizujLegendeProjektu } from './projektBudowy';
 import { nazwaAutomatycznaObszaru, rolaKoloruObszaru } from './xfdfParser';
 import {
   dlugoscPolilinii,
@@ -318,20 +318,48 @@ function srodekKmObszaru(obszar: ObszarObmiaru, arkusz: ArkuszPzt): number | nul
   return (lok.kmTrasyOdM + lok.kmTrasyDoM) / 2;
 }
 
-/** Zapisany numer najbliższego obszaru tej samej barwy i strony. Do podświetlenia, zanim ten obszar dostanie własny zapis. */
-export function kluczZapisuSasiedztwa(
+const STRONA_W_NAZWIE = /strona (lewa|prawa)/;
+
+function kluczKonstr(k: KonstrukcjaObszaru): string {
+  return k.id || k.legendaId;
+}
+
+/** Strona z nazwy legendy, tej samej, którą widać przy numerze konstrukcji. */
+export function stronaKonstrukcji(projekt: ProjektBudowy, k: KonstrukcjaObszaru): 'lewa' | 'prawa' | undefined {
+  const nazwa = projekt.legenda.find((w) => w.id === k.legendaId)?.nazwa ?? '';
+  const m = nazwa.match(STRONA_W_NAZWIE);
+  return m?.[1] === 'lewa' || m?.[1] === 'prawa' ? m[1] : undefined;
+}
+
+function stronaKlucza(projekt: ProjektBudowy, klucz: string): 'lewa' | 'prawa' | undefined {
+  const k = projekt.konstrukcje.find((x) => kluczKonstr(x) === klucz);
+  return k ? stronaKonstrukcji(projekt, k) : undefined;
+}
+
+function kluczKoloru(projekt: ProjektBudowy, obszar: ObszarObmiaru): string | null {
+  const klucz = `obszar|${normalizujKolorHex(obszar.kolorWypelnienia)}`;
+  const wpis = projekt.legenda.find((w) => w.klucz === klucz && w.typ === 'obszar');
+  if (!wpis) return null;
+  const pasujace = projekt.konstrukcje.filter((k) => k.legendaId === wpis.id);
+  if (pasujace.length === 0) return null;
+  const best = [...pasujace].sort((a, b) => (a.numer ?? 99) - (b.numer ?? 99))[0];
+  return kluczKonstr(best);
+}
+
+/** Zapis sąsiada tej samej barwy. Pomija numer, którego strona nie zgadza się ze stroną obszaru. */
+function kluczSasiedztwa(
   projekt: ProjektBudowy,
   obszar: ObszarObmiaru,
   arkusz: ArkuszPzt,
+  akceptuj: (klucz: string) => boolean,
 ): string | undefined {
-  if (obszar.konstrukcjaId === null || typeof obszar.konstrukcjaId === 'string') return undefined;
   const kolor = normalizujKolorHex(obszar.kolorWypelnienia);
   const strona = obszar.stronaTrasy;
   const km = srodekKmObszaru(obszar, arkusz);
   let best: { klucz: string; d: number } | undefined;
   for (const a of projekt.arkusze) {
     for (const o of a.obszary) {
-      if (o.id === obszar.id || typeof o.konstrukcjaId !== 'string') continue;
+      if (o.id === obszar.id || typeof o.konstrukcjaId !== 'string' || !akceptuj(o.konstrukcjaId)) continue;
       if (normalizujKolorHex(o.kolorWypelnienia) !== kolor) continue;
       if (strona && o.stronaTrasy && o.stronaTrasy !== strona) continue;
       const km2 = srodekKmObszaru(o, a);
@@ -340,6 +368,76 @@ export function kluczZapisuSasiedztwa(
     }
   }
   return best?.klucz;
+}
+
+/** Zapisany numer najbliższego obszaru tej samej barwy i strony. Do podświetlenia, zanim ten obszar dostanie własny zapis. */
+export function kluczZapisuSasiedztwa(
+  projekt: ProjektBudowy,
+  obszar: ObszarObmiaru,
+  arkusz: ArkuszPzt,
+): string | undefined {
+  if (obszar.konstrukcjaId === null || typeof obszar.konstrukcjaId === 'string') return undefined;
+  return kluczSasiedztwa(projekt, obszar, arkusz, (klucz) => {
+    const s = stronaKlucza(projekt, klucz);
+    return !obszar.stronaTrasy || !s || s === obszar.stronaTrasy;
+  });
+}
+
+/** Numer konstrukcji o tej samej stronie co obszar. Przy kilku numerach bierze najbliższy zapis, potem najniższy numer. */
+export function kluczZgodnyZeStrona(
+  projekt: ProjektBudowy,
+  obszar: ObszarObmiaru,
+  arkusz: ArkuszPzt,
+): string | undefined {
+  const strona = obszar.stronaTrasy;
+  if (!strona) return undefined;
+  const kandydaci = projekt.konstrukcje.filter((k) => stronaKonstrukcji(projekt, k) === strona);
+  if (kandydaci.length === 0) return undefined;
+  if (kandydaci.length === 1) return kluczKonstr(kandydaci[0]);
+  const dozwolone = new Set(kandydaci.map(kluczKonstr));
+  const sasiad = kluczSasiedztwa(projekt, obszar, arkusz, (klucz) => dozwolone.has(klucz));
+  if (sasiad) return sasiad;
+  const best = [...kandydaci].sort((a, b) => (a.numer ?? 99) - (b.numer ?? 99))[0];
+  return kluczKonstr(best);
+}
+
+/**
+ * Numer do podświetlenia. Zapis tej samej strony zostaje.
+ * Zapis przeciwnej strony (Trasa P i konstrukcja lewa) ustępuje numerowi zgodnemu ze stroną obszaru.
+ */
+export function kluczPodswietlenia(
+  projekt: ProjektBudowy,
+  obszar: ObszarObmiaru,
+  arkusz: ArkuszPzt,
+): string | null {
+  const zapis = obszar.konstrukcjaId;
+  if (zapis === null) return null;
+  const zgodny = kluczZgodnyZeStrona(projekt, obszar, arkusz);
+  if (typeof zapis === 'string') {
+    const s = stronaKlucza(projekt, zapis);
+    if (!obszar.stronaTrasy || !s || s === obszar.stronaTrasy) return zapis;
+    return zgodny ?? zapis;
+  }
+  const lista = projekt.konstrukcje.filter((k) => k.obszarIds?.includes(obszar.id));
+  if (lista.length === 1) {
+    const klucz = kluczKonstr(lista[0]);
+    const s = stronaKonstrukcji(projekt, lista[0]);
+    if (!obszar.stronaTrasy || !s || s === obszar.stronaTrasy) return klucz;
+  }
+  return kluczZapisuSasiedztwa(projekt, obszar, arkusz) ?? zgodny ?? kluczKoloru(projekt, obszar);
+}
+
+/** Zapis przeciwnej strony przepisuje na konstrukcję strony obszaru. Własny numer tej samej strony zostaje. */
+export function uzgodnijKonstrukcjeZeStrona(projekt: ProjektBudowy): ProjektBudowy {
+  const zmiany: { id: string; klucz: string }[] = [];
+  for (const { obszar, arkusz } of wszystkieObszary(projekt)) {
+    if (typeof obszar.konstrukcjaId !== 'string') continue;
+    const podsw = kluczPodswietlenia(projekt, obszar, arkusz);
+    if (podsw && podsw !== obszar.konstrukcjaId) zmiany.push({ id: obszar.id, klucz: podsw });
+  }
+  let next = projekt;
+  for (const z of zmiany) next = przypiszObszarDoKonstrukcji(next, z.id, z.klucz);
+  return next;
 }
 const NAZWA_STRONY_LEGENDY = /^Trasa główna \(strona (lewa|prawa)\)$/;
 
@@ -395,7 +493,8 @@ export function uzupelnijStronyObszarow(projekt: ProjektBudowy): ProjektBudowy {
 
 /** Legenda, konstrukcje i strony obszarów. Ten sam obiekt, gdy nic się nie zmieniło. */
 export function przygotujProjekt(projekt: ProjektBudowy): ProjektBudowy {
-  return uzupelnijStronyObszarow(zsynchronizujLegendeProjektu(projekt));
+  const zeStrona = uzupelnijStronyObszarow(zsynchronizujLegendeProjektu(projekt));
+  return uzgodnijKonstrukcjeZeStrona(zeStrona);
 }
 
 export function lokalizacjaObszaru(obszar: ObszarObmiaru, arkusz: ArkuszPzt): LokalizacjaObszaru | null {

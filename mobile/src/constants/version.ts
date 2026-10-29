@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.69';
+export const WERSJA_APLIKACJI = '1.8.70';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,14 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.70',
+    data: '2026-10-29',
+    tytul: 'Konstrukcja zgodna ze stroną',
+    zmiany: [
+      'Ponowne stuknięcie obszaru, także po przybliżeniu i przesunięciu planu, podświetla konstrukcję tej samej strony. Trasa P nie dostaje numeru strony lewej',
+    ],
+  },
   {
     wersja: '1.8.69',
     data: '2026-10-28',

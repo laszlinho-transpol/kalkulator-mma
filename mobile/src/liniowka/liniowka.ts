@@ -352,7 +352,12 @@ export function najmniejszyWielokatPodPunktem<T extends { wierzcholkiPdf: Punkt2
  * Obszar pod palcem. Najmniejsza figura wygrywa, ale niezapisany kawałek tej samej barwy
  * oddaje stuknięcie większemu obszarowi, który ma już zapis konstrukcji.
  */
-export function obszarPodTapnieciem<T extends { wierzcholkiPdf: Punkt2D[]; kolor?: string; zapisany?: boolean }>(
+export function obszarPodTapnieciem<T extends {
+  wierzcholkiPdf: Punkt2D[];
+  kolor?: string;
+  zapisany?: boolean;
+  strona?: 'lewa' | 'prawa';
+}>(
   lista: readonly T[],
   punkt: Punkt2D,
 ): T | undefined {
@@ -366,7 +371,11 @@ export function obszarPodTapnieciem<T extends { wierzcholkiPdf: Punkt2D[]; kolor
   trafione.sort((a, b) => a.pole - b.pole);
   const naj = trafione[0].el;
   if (naj.zapisany || !naj.kolor) return naj;
-  const zapisany = trafione.find((t) => t.el.zapisany && t.el.kolor === naj.kolor);
+  const zapisany = trafione.find((t) => (
+    t.el.zapisany
+    && t.el.kolor === naj.kolor
+    && (!naj.strona || !t.el.strona || t.el.strona === naj.strona)
+  ));
   return zapisany?.el ?? naj;
 }
 
