@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.70';
+export const WERSJA_APLIKACJI = '1.8.71';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,15 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.71',
+    data: '2026-10-29',
+    tytul: 'Zapisany numer zostaje',
+    zmiany: [
+      'Obszar wychodzący za oś zachowuje konstrukcję wybraną przyciskiem Zapisz. Ponowne stuknięcie podświetla ten numer na pomarańczowo',
+      'Inna konstrukcja przypisuje się dopiero po Zapisz. Przycisk pojawia się, gdy wybór różni się od zapisu',
+    ],
+  },
   {
     wersja: '1.8.70',
     data: '2026-10-29',

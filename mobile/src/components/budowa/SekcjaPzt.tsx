@@ -184,7 +184,6 @@ export function SekcjaPzt({
   const konstrukcjaPodgladu = szkicGotowy ? konstrukcjaSzkicu : konstrukcjaKarty;
   const otwarcieKarty = kartaOtwarta ? kartaObszaruId : null;
   const zapisOtwarcia = kartaObszaru?.obszar.konstrukcjaId;
-  const stronaOtwarcia = kartaObszaru?.obszar.stronaTrasy;
   useEffect(() => {
     if (!otwarcieKarty || !kartaObszaru) {
       setSzkicGotowy(false);
@@ -192,10 +191,15 @@ export function SekcjaPzt({
     }
     setSzkicKlucz(kluczPodswietlenia(projekt, kartaObszaru.obszar, kartaObszaru.arkusz));
     setSzkicGotowy(true);
-    // Podświetlenie odświeża się przy innym obszarze albo gdy zapis lub strona się zmienią.
-    // Ręczny wybór w liście i edycja nazwy nie wchodzą w zależności.
+    // Podświetlenie bierze zapisany numer przy otwarciu i po Zapisz. Strona z osi tego nie zmienia.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [otwarcieKarty, zapisOtwarcia, stronaOtwarcia]);
+  }, [otwarcieKarty, zapisOtwarcia]);
+  const zapisKarty = kartaObszaru ? kluczZapisanegoPrzypisania(projekt, kartaObszaru.obszar.id) : undefined;
+  const wyborDoZapisu = !!(kartaObszaru && szkicGotowy && zapisKarty !== szkicKlucz);
+  const zapiszWybor = () => {
+    if (!kartaObszaru || !szkicGotowy) return;
+    onZmien(przypiszObszarDoKonstrukcji(projekt, kartaObszaru.obszar.id, szkicKlucz));
+  };
   const odcinkiKarty = useMemo(
     () => (kartaObszaru ? odcinkiObszaru(kartaObszaru.obszar, kartaObszaru.arkusz, konstrukcjaPodgladu) : []),
     [kartaObszaru, konstrukcjaPodgladu],
@@ -1130,15 +1134,14 @@ export function SekcjaPzt({
           : 'Obszar'}
         theme={theme}
         onClose={() => setKartaOtwarta(false)}
-        prawy={{
+        prawy={wyborDoZapisu ? {
           tekst: 'Zapisz',
           onPress: () => {
-            if (!kartaObszaru || !szkicGotowy) return;
-            onZmien(przypiszObszarDoKonstrukcji(projekt, kartaObszaru.obszar.id, szkicKlucz));
+            zapiszWybor();
             setKartaOtwarta(false);
           },
           kolor: theme.colors.primary,
-        }}
+        } : undefined}
       >
         {kartaObszaru ? (
           <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }} keyboardShouldPersistTaps="handled">
@@ -1172,12 +1175,14 @@ export function SekcjaPzt({
                 )
                 : 'bez numeru';
               return (
-                <Text style={{ color: zgodny || zSasiedztwa ? theme.colors.primary : theme.colors.textSecondary, fontSize: 13, fontWeight: '700' }}>
+                <Text style={{ color: zgodny || zSasiedztwa || wyborDoZapisu ? theme.colors.primary : theme.colors.textSecondary, fontSize: 13, fontWeight: '700' }}>
                   {zgodny
                     ? `Zapisano: ${etykietaZapisu}`
-                    : zSasiedztwa
-                      ? 'Podświetlono zapis tej samej strony. Zapisz, żeby utrwalić go na tym obszarze.'
-                      : 'Jeszcze bez zapisu. Propozycja według koloru.'}
+                    : zapisany !== undefined
+                      ? `Zapisano: ${etykietaZapisu}. Zapisz, żeby przypisać inną.`
+                      : zSasiedztwa
+                        ? 'Podświetlono zapis tej samej strony. Zapisz, żeby utrwalić go na tym obszarze.'
+                        : 'Jeszcze bez zapisu. Zapisz, żeby utrwalić podświetloną konstrukcję.'}
                 </Text>
               );
             })()}
@@ -1241,14 +1246,13 @@ export function SekcjaPzt({
                 );
               })}
             </View>
-            <Przycisk
-              tekst="Zapisz"
-              accessibilityLabel="Zapisz przypisanie konstrukcji"
-              onPress={() => {
-                if (!kartaObszaru || !szkicGotowy) return;
-                onZmien(przypiszObszarDoKonstrukcji(projekt, kartaObszaru.obszar.id, szkicKlucz));
-              }}
-            />
+            {wyborDoZapisu ? (
+              <Przycisk
+                tekst="Zapisz"
+                accessibilityLabel="Zapisz przypisanie konstrukcji"
+                onPress={zapiszWybor}
+              />
+            ) : null}
             <TouchableOpacity
               accessibilityLabel="Nowa konstrukcja"
               onPress={() => {
