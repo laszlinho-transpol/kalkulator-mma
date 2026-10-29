@@ -10,6 +10,7 @@ on:
       - cursor/kalkulator-mma-podzialka-pomiar-0a0b
       - cursor/kalkulator-mma-obszary-km-0a0b
       - cursor/kalkulator-mma-wjazd-zapis-0a0b
+      - cursor/kalkulator-mma-strona-konstrukcji-0a0b
   workflow_dispatch:
 
 permissions:

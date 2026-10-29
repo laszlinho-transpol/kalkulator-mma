@@ -35,6 +35,7 @@ import {
   wszystkieObszary,
 } from '../../utils/projektBudowy';
 import {
+  kluczPodswietlenia,
   kluczZapisuSasiedztwa,
   kmWezlaOsiBocznej,
   lokalizacjaObszaru,
@@ -182,25 +183,19 @@ export function SekcjaPzt({
     : undefined;
   const konstrukcjaPodgladu = szkicGotowy ? konstrukcjaSzkicu : konstrukcjaKarty;
   const otwarcieKarty = kartaOtwarta ? kartaObszaruId : null;
+  const zapisOtwarcia = kartaObszaru?.obszar.konstrukcjaId;
+  const stronaOtwarcia = kartaObszaru?.obszar.stronaTrasy;
   useEffect(() => {
     if (!otwarcieKarty || !kartaObszaru) {
       setSzkicGotowy(false);
       return;
     }
-    const zapis = kartaObszaru.obszar.konstrukcjaId;
-    if (zapis === null) setSzkicKlucz(null);
-    else if (typeof zapis === 'string') setSzkicKlucz(zapis);
-    else {
-      const lista = projekt.konstrukcje.filter((k) => k.obszarIds?.includes(kartaObszaru.obszar.id));
-      const sasiad = kluczZapisuSasiedztwa(projekt, kartaObszaru.obszar, kartaObszaru.arkusz);
-      if (lista.length === 1) setSzkicKlucz(lista[0].id || lista[0].legendaId);
-      else if (sasiad) setSzkicKlucz(sasiad);
-      else setSzkicKlucz(konstrukcjaKarty ? (konstrukcjaKarty.id || konstrukcjaKarty.legendaId) : null);
-    }
+    setSzkicKlucz(kluczPodswietlenia(projekt, kartaObszaru.obszar, kartaObszaru.arkusz));
     setSzkicGotowy(true);
-    // Świeży wybór tylko przy otwarciu innego obszaru. Zapis i edycja nazwy nie mogą zgasić podświetlenia.
+    // Podświetlenie odświeża się przy innym obszarze albo gdy zapis lub strona się zmienią.
+    // Ręczny wybór w liście i edycja nazwy nie wchodzą w zależności.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [otwarcieKarty]);
+  }, [otwarcieKarty, zapisOtwarcia, stronaOtwarcia]);
   const odcinkiKarty = useMemo(
     () => (kartaObszaru ? odcinkiObszaru(kartaObszaru.obszar, kartaObszaru.arkusz, konstrukcjaPodgladu) : []),
     [kartaObszaru, konstrukcjaPodgladu],

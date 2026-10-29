@@ -93,7 +93,8 @@ opisanych niżej** – bez własnych kolorów, odstępów i nagłówków. Zmiana
     0+000 na końcu dalszym, styk z czarną osią jest końcem. Przycisk „Kilometraż” podświetla jej węzły,
     a wpisany kilometraż jednego węzła dolicza resztę z długości.     Konstrukcję przypisuje się tylko na PZT
     i zatwierdza przyciskiem „Zapisz”; wcześniej numer jest propozycją według koloru. Ponowne stuknięcie
-    tego samego obszaru podświetla zapisany numer, a niezapisany kawałek tej samej strony podświetla zapis sąsiada.
+    tego samego obszaru, także po przybliżeniu i przesunięciu, podświetla konstrukcję tej samej strony.
+    Trasa P nie dostaje numeru strony lewej. Niezapisany kawałek tej samej strony podświetla zapis sąsiada.
     Nazwa wjazdu pochodzi z kilometraża przecięcia niebieskiej linii z czarną osią. Lewa strona leży
     po lewej od osi w kierunku rosnącego kilometrażu (także wjazd, ścieżka i droga boczna). Lista konstrukcji
     to jeden wiersz na numer, a szczegóły otwierają się po stuknięciu.
