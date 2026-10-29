@@ -189,7 +189,7 @@ describe('lokalizacja obszaru', () => {
     assert.equal(kluczZapisuSasiedztwa(projekt, zapisany, a), undefined);
   });
 
-  it('Trasa P nie podświetla konstrukcji strony lewej, także po ponownym otwarciu', () => {
+  it('zapis lewej konstrukcji zostaje na obszarze wychodzącym na prawą stronę osi', () => {
     const lewa = prostokat('lewa', 0, 40, 2, 8);
     lewa.nazwa = 'Trasa L';
     lewa.kolorWypelnienia = '#FFEE58';
@@ -222,11 +222,16 @@ describe('lokalizacja obszaru', () => {
       arkusze: [arkusz([lewa, prawa, wjazd])],
     };
     const a = projekt.arkusze[0];
-    assert.equal(kluczPodswietlenia(projekt, prawa, a), 'k-prawa');
+    const swiezy = prostokat('swiezy', 0, 40, -8, -2);
+    swiezy.nazwa = 'Trasa P';
+    swiezy.kolorWypelnienia = '#FFEE58';
+    swiezy.stronaTrasy = 'prawa';
+    assert.equal(kluczPodswietlenia(projekt, prawa, a), 'k-lewa');
+    assert.equal(kluczPodswietlenia(projekt, swiezy, a), 'k-prawa');
     assert.equal(kluczPodswietlenia(projekt, lewa, a), 'k-lewa');
     assert.equal(kluczPodswietlenia(projekt, wjazd, a), 'k-wjazd');
     const po = przygotujProjekt(projekt);
-    assert.equal(po.arkusze[0].obszary.find((o) => o.id === 'prawa')?.konstrukcjaId, 'k-prawa');
+    assert.equal(po.arkusze[0].obszary.find((o) => o.id === 'prawa')?.konstrukcjaId, 'k-lewa');
     assert.equal(po.arkusze[0].obszary.find((o) => o.id === 'lewa')?.konstrukcjaId, 'k-lewa');
     assert.equal(po.arkusze[0].obszary.find((o) => o.id === 'wjazd')?.konstrukcjaId, 'k-wjazd');
     assert.equal(przygotujProjekt(po), po);
