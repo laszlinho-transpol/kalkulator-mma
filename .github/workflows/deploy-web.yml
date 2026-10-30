@@ -12,6 +12,7 @@ on:
       - cursor/kalkulator-mma-wjazd-zapis-0a0b
       - cursor/kalkulator-mma-strona-konstrukcji-0a0b
       - cursor/kalkulator-mma-zapis-wyboru-0a0b
+      - cursor/kalkulator-mma-zapisana-na-gorze-0a0b
   workflow_dispatch:
 
 permissions:

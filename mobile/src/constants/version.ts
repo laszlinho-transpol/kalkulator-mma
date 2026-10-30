@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.71';
+export const WERSJA_APLIKACJI = '1.8.72';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,15 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.72',
+    data: '2026-10-30',
+    tytul: 'Zapisana konstrukcja na górze',
+    zmiany: [
+      'Ponowne wejście w obszar podświetla na pomarańczowo zapisany numer, a nie wybór z poprzedniego obszaru',
+      'Zapisana konstrukcja stoi na górze listy, oddzielona od pozostałych. Ta sama zasada dotyczy każdego obszaru',
+    ],
+  },
   {
     wersja: '1.8.71',
     data: '2026-10-29',

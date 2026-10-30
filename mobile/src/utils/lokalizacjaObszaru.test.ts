@@ -2,7 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import type { ArkuszPzt, KonstrukcjaObszaru, ObszarObmiaru, OsBocznaPzt } from '../types';
 import { domyslneWarstwyKonstrukcji, nowaKonstrukcja, pustyProjektBudowy } from './projektBudowy';
-import { kluczPodswietlenia, kluczZapisuSasiedztwa, kmNaOsiBocznej, lancuchOsiBocznej, lokalizacjaObszaru, odcinkiObszaru, przygotujProjekt, stronaObszaruGeometryczna, uzupelnijStronyObszarow } from './lokalizacjaObszaru';
+import { kluczPodswietlenia, kluczWidocznegoWyboru, kluczZapisuSasiedztwa, kmNaOsiBocznej, lancuchOsiBocznej, lokalizacjaObszaru, odcinkiObszaru, podzialListyKonstrukcji, przygotujProjekt, stronaObszaruGeometryczna, uzupelnijStronyObszarow } from './lokalizacjaObszaru';
 
 function arkusz(obszary: ObszarObmiaru[], boczne: OsBocznaPzt[] = []): ArkuszPzt {
   return {
@@ -235,5 +235,17 @@ describe('lokalizacja obszaru', () => {
     assert.equal(po.arkusze[0].obszary.find((o) => o.id === 'lewa')?.konstrukcjaId, 'k-lewa');
     assert.equal(po.arkusze[0].obszary.find((o) => o.id === 'wjazd')?.konstrukcjaId, 'k-wjazd');
     assert.equal(przygotujProjekt(po), po);
+  });
+
+  it('ponowne wejście podświetla zapisany numer, a nie wybór z poprzedniego obszaru', () => {
+    const konstrukcje: KonstrukcjaObszaru[] = [
+      { ...nowaKonstrukcja('leg-p', 1), id: 'k-prawa' },
+      { ...nowaKonstrukcja('leg-s', 4), id: 'k-sciezka' },
+    ];
+    assert.equal(kluczWidocznegoWyboru('k-sciezka', 'k-prawa', { obszarId: 'poprzedni', klucz: 'k-prawa' }, 'sciezka'), 'k-sciezka');
+    assert.equal(kluczWidocznegoWyboru('k-sciezka', 'k-prawa', { obszarId: 'sciezka', klucz: 'k-prawa' }, 'sciezka'), 'k-prawa');
+    const podzial = podzialListyKonstrukcji(konstrukcje, 'k-sciezka');
+    assert.equal(podzial.zapisana?.id, 'k-sciezka');
+    assert.deepEqual(podzial.inne.map((k) => k.id), ['k-prawa']);
   });
 });

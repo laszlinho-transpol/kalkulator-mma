@@ -419,6 +419,36 @@ export function kluczPodswietlenia(
     ?? kluczZgodnyZeStrona(projekt, obszar, arkusz)
     ?? kluczKoloru(projekt, obszar);
 }
+
+/**
+ * Numer widoczny na karcie. Zapis tego obszaru wygrywa z wyborem z poprzedniej karty.
+ * Ręczny wybór dotyczy tylko obszaru, na którym go stuknięto.
+ */
+export function kluczWidocznegoWyboru(
+  zapisany: string | null | undefined,
+  propozycja: string | null,
+  reczny: { obszarId: string; klucz: string | null } | null,
+  obszarId: string,
+): string | null {
+  if (reczny && reczny.obszarId === obszarId) return reczny.klucz;
+  if (zapisany === null) return null;
+  if (typeof zapisany === 'string') return zapisany;
+  return propozycja;
+}
+
+/** Zapisana konstrukcja na górze, reszta pod spodem w kolejności numerów. */
+export function podzialListyKonstrukcji(
+  konstrukcje: readonly KonstrukcjaObszaru[],
+  zapisany: string | null | undefined,
+): { zapisana?: KonstrukcjaObszaru; inne: KonstrukcjaObszaru[] } {
+  const posortowane = [...konstrukcje].sort(
+    (a, b) => (a.numer ?? 99) - (b.numer ?? 99) || kluczKonstr(a).localeCompare(kluczKonstr(b)),
+  );
+  if (typeof zapisany !== 'string') return { inne: posortowane };
+  const zapisana = posortowane.find((k) => kluczKonstr(k) === zapisany);
+  if (!zapisana) return { inne: posortowane };
+  return { zapisana, inne: posortowane.filter((k) => k !== zapisana) };
+}
 const NAZWA_STRONY_LEGENDY = /^Trasa główna \(strona (lewa|prawa)\)$/;
 
 /**
