@@ -36,7 +36,9 @@ import {
 } from '../../utils/projektBudowy';
 import {
   kluczPodswietlenia,
+  kluczWidocznegoWyboru,
   kluczZapisuSasiedztwa,
+  podzialListyKonstrukcji,
   kmWezlaOsiBocznej,
   lokalizacjaObszaru,
   odcinkiObszaru,
@@ -166,8 +168,7 @@ export function SekcjaPzt({
   const [kartaObszaruId, setKartaObszaruId] = useState<string | null>(null);
   const [zakresKarty, setZakresKarty] = useState<{ odM: number; doM: number } | null>(null);
   const [kartaOtwarta, setKartaOtwarta] = useState(false);
-  const [szkicKlucz, setSzkicKlucz] = useState<string | null>(null);
-  const [szkicGotowy, setSzkicGotowy] = useState(false);
+  const [wyborReczny, setWyborReczny] = useState<{ obszarId: string; klucz: string | null } | null>(null);
   const [trybKm, setTrybKm] = useState(false);
   const [wezelKm, setWezelKm] = useState<{ osId: string; indeks: number } | null>(null);
   const mieszanki = useMieszankiStore((s) => s.mieszanki);
@@ -177,28 +178,54 @@ export function SekcjaPzt({
   const kartaObszaru = kartaObszaruId
     ? wszystkieObszary(projekt).find((x) => x.obszar.id === kartaObszaruId)
     : undefined;
-  const konstrukcjaKarty = kartaObszaruId ? konstrukcjaDlaObszaru(projekt, kartaObszaruId) : undefined;
+  const zapisKarty = kartaObszaru ? kluczZapisanegoPrzypisania(projekt, kartaObszaru.obszar.id) : undefined;
+  const propozycjaKarty = kartaObszaru
+    ? kluczPodswietlenia(projekt, kartaObszaru.obszar, kartaObszaru.arkusz)
+    : null;
+  const szkicKlucz = kartaObszaru
+    ? kluczWidocznegoWyboru(zapisKarty, propozycjaKarty, wyborReczny, kartaObszaru.obszar.id)
+    : null;
   const konstrukcjaSzkicu = szkicKlucz
     ? projekt.konstrukcje.find((k) => (k.id || k.legendaId) === szkicKlucz)
     : undefined;
-  const konstrukcjaPodgladu = szkicGotowy ? konstrukcjaSzkicu : konstrukcjaKarty;
-  const otwarcieKarty = kartaOtwarta ? kartaObszaruId : null;
-  const zapisOtwarcia = kartaObszaru?.obszar.konstrukcjaId;
-  useEffect(() => {
-    if (!otwarcieKarty || !kartaObszaru) {
-      setSzkicGotowy(false);
-      return;
-    }
-    setSzkicKlucz(kluczPodswietlenia(projekt, kartaObszaru.obszar, kartaObszaru.arkusz));
-    setSzkicGotowy(true);
-    // Podświetlenie bierze zapisany numer przy otwarciu i po Zapisz. Strona z osi tego nie zmienia.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [otwarcieKarty, zapisOtwarcia]);
-  const zapisKarty = kartaObszaru ? kluczZapisanegoPrzypisania(projekt, kartaObszaru.obszar.id) : undefined;
-  const wyborDoZapisu = !!(kartaObszaru && szkicGotowy && zapisKarty !== szkicKlucz);
+  const konstrukcjaPodgladu = konstrukcjaSzkicu;
+  const wyborDoZapisu = !!(kartaObszaru && zapisKarty !== szkicKlucz);
+  const wybierzKlucz = (klucz: string | null) => {
+    if (!kartaObszaru) return;
+    setWyborReczny({ obszarId: kartaObszaru.obszar.id, klucz });
+  };
   const zapiszWybor = () => {
-    if (!kartaObszaru || !szkicGotowy) return;
+    if (!kartaObszaru) return;
     onZmien(przypiszObszarDoKonstrukcji(projekt, kartaObszaru.obszar.id, szkicKlucz));
+    setWyborReczny({ obszarId: kartaObszaru.obszar.id, klucz: szkicKlucz });
+  };
+  const wierszKonstrukcji = (klucz: string | null, etykieta: string, kolor?: string) => {
+    const on = szkicKlucz === klucz;
+    return (
+      <TouchableOpacity
+        key={klucz ?? 'bez-numeru'}
+        accessibilityLabel={etykieta}
+        accessibilityRole="radio"
+        accessibilityState={{ selected: on }}
+        onPress={() => wybierzKlucz(klucz)}
+        style={{
+          borderWidth: 1,
+          borderRadius: 8,
+          paddingHorizontal: 12,
+          paddingVertical: 10,
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 10,
+          borderColor: on ? theme.colors.primary : theme.colors.border,
+          backgroundColor: on ? theme.colors.primary : theme.colors.inputBackground,
+        }}
+      >
+        {kolor ? <View style={{ width: 16, height: 16, borderRadius: 4, backgroundColor: kolor }} /> : null}
+        <Text style={{ color: on ? '#1A1A1A' : theme.colors.text, fontWeight: '800', fontSize: 15, flex: 1 }}>
+          {etykieta}
+        </Text>
+      </TouchableOpacity>
+    );
   };
   const odcinkiKarty = useMemo(
     () => (kartaObszaru ? odcinkiObszaru(kartaObszaru.obszar, kartaObszaru.arkusz, konstrukcjaPodgladu) : []),
@@ -1161,18 +1188,17 @@ export function SekcjaPzt({
             })()}
             <Text style={[styles.label, { color: theme.colors.text }]}>Konstrukcja</Text>
             {(() => {
-              const zapisany = kluczZapisanegoPrzypisania(projekt, kartaObszaru.obszar.id);
-              const zgodny = szkicGotowy && zapisany !== undefined && zapisany === szkicKlucz;
+              const zapisany = zapisKarty;
+              const zgodny = zapisany !== undefined && zapisany === szkicKlucz;
               const sasiad = zapisany === undefined
                 ? kluczZapisuSasiedztwa(projekt, kartaObszaru.obszar, kartaObszaru.arkusz)
                 : undefined;
-              const zSasiedztwa = szkicGotowy && zapisany === undefined && !!sasiad && szkicKlucz === sasiad;
-              const etykietaZapisu = zapisany
-                ? etykietaKonstrukcji(
-                  projekt,
-                  projekt.konstrukcje.find((k) => (k.id || k.legendaId) === zapisany)?.numer,
-                  projekt.konstrukcje.find((k) => (k.id || k.legendaId) === zapisany)?.legendaId ?? '',
-                )
+              const zSasiedztwa = zapisany === undefined && !!sasiad && szkicKlucz === sasiad;
+              const znaleziona = typeof zapisany === 'string'
+                ? projekt.konstrukcje.find((k) => (k.id || k.legendaId) === zapisany)
+                : undefined;
+              const etykietaZapisu = typeof zapisany === 'string'
+                ? etykietaKonstrukcji(projekt, znaleziona?.numer, znaleziona?.legendaId ?? '')
                 : 'bez numeru';
               return (
                 <Text style={{ color: zgodny || zSasiedztwa || wyborDoZapisu ? theme.colors.primary : theme.colors.textSecondary, fontSize: 13, fontWeight: '700' }}>
@@ -1192,60 +1218,30 @@ export function SekcjaPzt({
                 <Text style={{ color: theme.colors.text, fontWeight: '700' }}>{polozenie}</Text>
               ) : null;
             })()}
-            <View style={{ gap: 8 }}>
-              <TouchableOpacity
-                accessibilityLabel="Bez konstrukcji"
-                accessibilityRole="radio"
-                accessibilityState={{ selected: szkicGotowy && szkicKlucz == null }}
-                onPress={() => { setSzkicKlucz(null); setSzkicGotowy(true); }}
-                style={{
-                  borderWidth: 1,
-                  borderRadius: 8,
-                  paddingHorizontal: 12,
-                  paddingVertical: 10,
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: 10,
-                  borderColor: szkicGotowy && szkicKlucz == null ? theme.colors.primary : theme.colors.border,
-                  backgroundColor: szkicGotowy && szkicKlucz == null ? theme.colors.primary : theme.colors.inputBackground,
-                }}
-              >
-                <Text style={{ color: szkicGotowy && szkicKlucz == null ? '#1A1A1A' : theme.colors.text, fontWeight: '800', fontSize: 15 }}>
-                  Bez numeru
-                </Text>
-              </TouchableOpacity>
-              {[...projekt.konstrukcje].sort((a, b) => (a.numer ?? 99) - (b.numer ?? 99)).map((k) => {
+            {(() => {
+              const { zapisana, inne } = podzialListyKonstrukcji(projekt.konstrukcje, zapisKarty);
+              const jestZapis = zapisKarty !== undefined && (zapisKarty === null || !!zapisana);
+              const wierszZListy = (k: (typeof projekt.konstrukcje)[number]) => {
                 const klucz = k.id || k.legendaId;
-                const on = szkicGotowy && szkicKlucz === klucz;
-                const etykieta = etykietaKonstrukcji(projekt, k.numer, k.legendaId);
                 const kolor = projekt.legenda.find((w) => w.id === k.legendaId)?.kolor ?? theme.colors.primary;
-                return (
-                  <TouchableOpacity
-                    key={klucz}
-                    accessibilityLabel={etykieta}
-                    accessibilityRole="radio"
-                    accessibilityState={{ selected: on }}
-                    onPress={() => { setSzkicKlucz(klucz); setSzkicGotowy(true); }}
-                    style={{
-                      borderWidth: 1,
-                      borderRadius: 8,
-                      paddingHorizontal: 12,
-                      paddingVertical: 10,
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      gap: 10,
-                      borderColor: on ? theme.colors.primary : theme.colors.border,
-                      backgroundColor: on ? theme.colors.primary : theme.colors.inputBackground,
-                    }}
-                  >
-                    <View style={{ width: 16, height: 16, borderRadius: 4, backgroundColor: kolor }} />
-                    <Text style={{ color: on ? '#1A1A1A' : theme.colors.text, fontWeight: '800', fontSize: 15, flex: 1 }}>
-                      {etykieta}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+                return wierszKonstrukcji(klucz, etykietaKonstrukcji(projekt, k.numer, k.legendaId), kolor);
+              };
+              return (
+                <View style={{ gap: 8 }}>
+                  {jestZapis ? (
+                    <>
+                      <Text style={{ color: theme.colors.textSecondary, fontSize: 12, fontWeight: '700' }}>Zapisana</Text>
+                      {zapisKarty === null
+                        ? wierszKonstrukcji(null, 'Bez numeru')
+                        : zapisana ? wierszZListy(zapisana) : null}
+                      <Text style={{ color: theme.colors.textSecondary, fontSize: 12, fontWeight: '700', marginTop: 4 }}>Inne</Text>
+                    </>
+                  ) : null}
+                  {zapisKarty === null ? null : wierszKonstrukcji(null, 'Bez numeru')}
+                  {inne.map(wierszZListy)}
+                </View>
+              );
+            })()}
             {wyborDoZapisu ? (
               <Przycisk
                 tekst="Zapisz"
@@ -1259,8 +1255,7 @@ export function SekcjaPzt({
                 const next = utworzKonstrukcjeDlaObszaru(projekt, kartaObszaru.obszar.id);
                 onZmien(next);
                 const k = konstrukcjaDlaObszaru(next, kartaObszaru.obszar.id);
-                setSzkicKlucz(k ? (k.id || k.legendaId) : null);
-                setSzkicGotowy(true);
+                setWyborReczny({ obszarId: kartaObszaru.obszar.id, klucz: k ? (k.id || k.legendaId) : null });
               }}
               style={{
                 borderWidth: 1,
