@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.73';
+export const WERSJA_APLIKACJI = '1.8.74';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,15 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.74',
+    data: '2026-11-12',
+    tytul: 'Metry z tony: warstwa przy aucie',
+    zmiany: [
+      'Każde auto ma własną grubość i szerokość. Nowe auto dostaje je na start, a potem można je zmienić',
+      'Gęstość wczytuje się z mieszanki zapisanej przy wytwórni. Metry wpisujesz z auta albo od początku odcinka',
+    ],
+  },
   {
     wersja: '1.8.73',
     data: '2026-11-12',

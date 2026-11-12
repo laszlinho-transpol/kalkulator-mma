@@ -14,6 +14,7 @@ on:
       - cursor/kalkulator-mma-zapis-wyboru-0a0b
       - cursor/kalkulator-mma-zapisana-na-gorze-0a0b
       - cursor/kalkulator-mma-metry-auta-0a0b
+      - cursor/kalkulator-mma-metry-warstwa-0a0b
   workflow_dispatch:
 
 permissions:
