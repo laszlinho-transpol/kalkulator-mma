@@ -14,6 +14,118 @@ export function wydajnoscGrubosciowa(
   return (masaMg / (dlugoscM * szerokoscM * gestosc)) * 100;
 }
 
+/** Jak w LIVE: strzałka dopiero po przekroczeniu 0,2 cm względem założenia. */
+export const PROG_ROZNICY_GRUBOSCI_CM = 0.2;
+
+export type OcenaGrubosci = 'rowna' | 'grubsza' | 'ciensza';
+
+export interface PorownanieGrubosci {
+  uzyskanaCm: number;
+  zalozenaCm: number;
+  roznicaCm: number;
+  ocena: OcenaGrubosci;
+}
+
+/** Uzyskana grubość obok założonej. `null`, gdy którejś wartości nie da się porównać. */
+export function porownajGrubosc(uzyskanaCm: number, zalozenaCm: number): PorownanieGrubosci | null {
+  if (!(uzyskanaCm > 0) || !(zalozenaCm > 0) || !Number.isFinite(uzyskanaCm) || !Number.isFinite(zalozenaCm)) return null;
+  const roznicaCm = uzyskanaCm - zalozenaCm;
+  const setne = Math.round(roznicaCm * 100) / 100;
+  const ocena: OcenaGrubosci = setne > PROG_ROZNICY_GRUBOSCI_CM
+    ? 'grubsza'
+    : setne < -PROG_ROZNICY_GRUBOSCI_CM
+      ? 'ciensza'
+      : 'rowna';
+  return { uzyskanaCm, zalozenaCm, roznicaCm, ocena };
+}
+
+export interface WarstwaUkladania {
+  gruboscCm: number;
+  szerokoscM: number;
+  gestosc: number;
+}
+
+export interface AutoDoRozliczenia {
+  tonaz: number;
+  /** Faktycznie ułożone metry tego auta. Brak albo wartość ≤ 0 zostawia sam wynik z założenia. */
+  metryWbudowane: number | null;
+}
+
+export interface WynikAutaMetry {
+  metryZalozenia: number;
+  powierzchniaM2: number;
+  uzyskanaCm: number | null;
+  porownanie: PorownanieGrubosci | null;
+}
+
+function warstwaDoMetrow(w: WarstwaUkladania): boolean {
+  return w.gruboscCm > 0 && w.szerokoscM > 0 && w.gestosc > 0;
+}
+
+/** Metry z założonej grubości oraz grubość, która wyszła z faktycznie wbudowanych metrów. */
+export function wynikAutaMetry(auto: AutoDoRozliczenia, warstwa: WarstwaUkladania): WynikAutaMetry {
+  const metryZalozenia = auto.tonaz > 0 && warstwaDoMetrow(warstwa)
+    ? wydajnoscPowierzchniowa(auto.tonaz, warstwa.gruboscCm, warstwa.szerokoscM, warstwa.gestosc)
+    : 0;
+  const powierzchniaM2 = metryZalozenia > 0 && warstwa.szerokoscM > 0 ? metryZalozenia * warstwa.szerokoscM : 0;
+  const metry = auto.metryWbudowane;
+  const uzyskana = metry != null && metry > 0 && auto.tonaz > 0 && warstwa.szerokoscM > 0 && warstwa.gestosc > 0
+    ? wydajnoscGrubosciowa(auto.tonaz, metry, warstwa.szerokoscM, warstwa.gestosc)
+    : 0;
+  const uzyskanaCm = uzyskana > 0 ? uzyskana : null;
+  return {
+    metryZalozenia,
+    powierzchniaM2,
+    uzyskanaCm,
+    porownanie: uzyskanaCm != null ? porownajGrubosc(uzyskanaCm, warstwa.gruboscCm) : null,
+  };
+}
+
+export interface BilansAutMetry {
+  liczba: number;
+  tonaz: number;
+  metryWbudowane: number;
+  metryZalozenia: number;
+  /** Auta, które mają tonaż i metry – z nich liczy się średnia grubość. */
+  autaDoSredniej: number;
+  uzyskanaCm: number | null;
+  porownanie: PorownanieGrubosci | null;
+}
+
+/** Suma aut od pierwszego: tonaż, metry i średnia grubość jak odcinek 1→N w LIVE. */
+export function bilansAutMetry(auta: AutoDoRozliczenia[], warstwa: WarstwaUkladania): BilansAutMetry {
+  let tonaz = 0;
+  let metryWbudowane = 0;
+  let metryZalozenia = 0;
+  let tonazSredniej = 0;
+  let metrySredniej = 0;
+  let autaDoSredniej = 0;
+  for (const auto of auta) {
+    const wynik = wynikAutaMetry(auto, warstwa);
+    if (auto.tonaz > 0) tonaz += auto.tonaz;
+    if (wynik.metryZalozenia > 0) metryZalozenia += wynik.metryZalozenia;
+    if (auto.metryWbudowane != null && auto.metryWbudowane > 0) metryWbudowane += auto.metryWbudowane;
+    if (auto.tonaz > 0 && auto.metryWbudowane != null && auto.metryWbudowane > 0 && warstwa.szerokoscM > 0 && warstwa.gestosc > 0) {
+      tonazSredniej += auto.tonaz;
+      metrySredniej += auto.metryWbudowane;
+      autaDoSredniej += 1;
+    }
+  }
+  const uzyskana = autaDoSredniej > 0
+    ? wydajnoscGrubosciowa(tonazSredniej, metrySredniej, warstwa.szerokoscM, warstwa.gestosc)
+    : 0;
+  const uzyskanaCm = uzyskana > 0 ? uzyskana : null;
+  return {
+    liczba: auta.length,
+    tonaz,
+    metryWbudowane,
+    metryZalozenia,
+    autaDoSredniej,
+    uzyskanaCm,
+    porownanie: uzyskanaCm != null ? porownajGrubosc(uzyskanaCm, warstwa.gruboscCm) : null,
+  };
+}
+
 export const MAX_POSZERZEN_STRONA = 4;
 export const DOMYSLNA_SZER_POSZERZENIA = 0.75;
 
