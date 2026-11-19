@@ -8,6 +8,7 @@ import {
   porownajGrubosc,
   wynikAutaMetry,
   bilansAutMetry,
+  rozwiazMetryOdcinka,
 } from './kalkulatoryMasiarza';
 
 describe('konfiguracja stołu', () => {
@@ -101,10 +102,13 @@ describe('trojkat345', () => {
 });
 
 const WARSTWA = { gruboscCm: 4, szerokoscM: 3.5, gestosc: 2.5 };
+const auto = (tonaz: number, metry: number | null, warstwa = WARSTWA) => ({
+  tonaz, metryWbudowane: metry, warstwa,
+});
 
 describe('metry z tony – kilka aut', () => {
   it('metry z założenia zostają, dopóki nie ma faktycznie wbudowanych metrów', () => {
-    const wynik = wynikAutaMetry({ tonaz: 24.5, metryWbudowane: null }, WARSTWA);
+    const wynik = wynikAutaMetry(auto(24.5, null));
     assert.equal(wynik.metryZalozenia, 70);
     assert.equal(wynik.powierzchniaM2, 245);
     assert.equal(wynik.uzyskanaCm, null);
@@ -112,12 +116,12 @@ describe('metry z tony – kilka aut', () => {
   });
 
   it('faktyczne metry dają grubość grubszą albo cieńszą niż założenie', () => {
-    const grubsza = wynikAutaMetry({ tonaz: 24.5, metryWbudowane: 60 }, WARSTWA);
+    const grubsza = wynikAutaMetry(auto(24.5, 60));
     assert.ok(grubsza.porownanie);
     assert.equal(grubsza.porownanie?.ocena, 'grubsza');
     assert.ok((grubsza.uzyskanaCm ?? 0) > 4.2);
 
-    const ciensza = wynikAutaMetry({ tonaz: 24.5, metryWbudowane: 80 }, WARSTWA);
+    const ciensza = wynikAutaMetry(auto(24.5, 80));
     assert.ok(Math.abs((ciensza.uzyskanaCm ?? 0) - 3.5) < 1e-9);
     assert.equal(ciensza.porownanie?.ocena, 'ciensza');
     assert.ok(Math.abs((ciensza.porownanie?.roznicaCm ?? 0) + 0.5) < 1e-9);
@@ -133,10 +137,10 @@ describe('metry z tony – kilka aut', () => {
 
   it('narastająco sumuje tonaż i metry, a średnią liczy z aut z wpisanymi metrami', () => {
     const bilans = bilansAutMetry([
-      { tonaz: 24.5, metryWbudowane: 70 },
-      { tonaz: 24.5, metryWbudowane: 80 },
-      { tonaz: 10, metryWbudowane: null },
-    ], WARSTWA);
+      auto(24.5, 70),
+      auto(24.5, 80),
+      auto(10, null),
+    ]);
     assert.equal(bilans.liczba, 3);
     assert.equal(bilans.tonaz, 59);
     assert.equal(bilans.metryWbudowane, 150);
@@ -147,5 +151,29 @@ describe('metry z tony – kilka aut', () => {
     assert.ok(bilans.uzyskanaCm != null);
     assert.ok(Math.abs((bilans.uzyskanaCm ?? 0) - oczekiwana) < 1e-9);
     assert.equal(bilans.porownanie?.ocena, 'ciensza');
+  });
+
+  it('średnia waży powierzchnią, gdy auta mają różne szerokości', () => {
+    const bilans = bilansAutMetry([
+      auto(10, 10, { gruboscCm: 4, szerokoscM: 2, gestosc: 2.5 }),
+      auto(10, 10, { gruboscCm: 4, szerokoscM: 4, gestosc: 2.5 }),
+    ]);
+    assert.ok(Math.abs((bilans.uzyskanaCm ?? 0) - (800 / 60)) < 1e-9);
+    assert.equal(bilans.porownanie?.ocena, 'grubsza');
+  });
+
+  it('od początku odcinka odejmuje metry poprzednich aut', () => {
+    const [pierwsze, drugie, zaKrotkie] = rozwiazMetryOdcinka([
+      { tryb: 'zAuta', wpisane: 70 },
+      { tryb: 'odPoczatku', wpisane: 150 },
+      { tryb: 'odPoczatku', wpisane: 100 },
+    ]);
+    assert.equal(pierwsze.zAuta, 70);
+    assert.equal(pierwsze.odPoczatku, 70);
+    assert.equal(drugie.zAuta, 80);
+    assert.equal(drugie.odPoczatku, 150);
+    assert.equal(drugie.przedPoprzednim, false);
+    assert.equal(zaKrotkie.zAuta, null);
+    assert.equal(zaKrotkie.przedPoprzednim, true);
   });
 });

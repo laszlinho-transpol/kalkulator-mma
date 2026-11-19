@@ -49,6 +49,48 @@ export interface AutoDoRozliczenia {
   tonaz: number;
   /** Faktycznie ułożone metry tego auta. Brak albo wartość ≤ 0 zostawia sam wynik z założenia. */
   metryWbudowane: number | null;
+  /** Grubość, szerokość i gęstość tego auta. Każde auto może mieć własne. */
+  warstwa: WarstwaUkladania;
+}
+
+export type TrybMetrowOdcinka = 'zAuta' | 'odPoczatku';
+
+export interface WpisMetrowAuta {
+  tryb: TrybMetrowOdcinka;
+  /** Liczba z pola: metry tego auta albo pozycja od początku odcinka. */
+  wpisane: number | null;
+}
+
+export interface OdczytMetrow {
+  zAuta: number | null;
+  odPoczatku: number | null;
+  /** Wpis „od początku” nie sięga za metry poprzednich aut. */
+  przedPoprzednim: boolean;
+}
+
+/** Zamienia wpis „z auta” albo „od początku odcinka” na metry tego auta. */
+export function odczytMetrowOdcinka(tryb: TrybMetrowOdcinka, wpisane: number | null, metryPoprzednich: number): OdczytMetrow {
+  const poprzednie = metryPoprzednich > 0 ? metryPoprzednich : 0;
+  if (wpisane == null || !(wpisane > 0)) {
+    return { zAuta: null, odPoczatku: tryb === 'zAuta' && poprzednie > 0 ? poprzednie : null, przedPoprzednim: false };
+  }
+  if (tryb === 'zAuta') {
+    return { zAuta: wpisane, odPoczatku: poprzednie + wpisane, przedPoprzednim: false };
+  }
+  if (wpisane <= poprzednie) {
+    return { zAuta: null, odPoczatku: wpisane, przedPoprzednim: true };
+  }
+  return { zAuta: wpisane - poprzednie, odPoczatku: wpisane, przedPoprzednim: false };
+}
+
+/** Kolejne auta: „od początku” liczy się od sumy metrów poprzednich aut na tym odcinku. */
+export function rozwiazMetryOdcinka(wpisy: WpisMetrowAuta[]): OdczytMetrow[] {
+  let suma = 0;
+  return wpisy.map((wpis) => {
+    const odczyt = odczytMetrowOdcinka(wpis.tryb, wpis.wpisane, suma);
+    if (odczyt.zAuta != null && odczyt.zAuta > 0) suma += odczyt.zAuta;
+    return odczyt;
+  });
 }
 
 export interface WynikAutaMetry {
@@ -63,7 +105,8 @@ function warstwaDoMetrow(w: WarstwaUkladania): boolean {
 }
 
 /** Metry z założonej grubości oraz grubość, która wyszła z faktycznie wbudowanych metrów. */
-export function wynikAutaMetry(auto: AutoDoRozliczenia, warstwa: WarstwaUkladania): WynikAutaMetry {
+export function wynikAutaMetry(auto: AutoDoRozliczenia): WynikAutaMetry {
+  const warstwa = auto.warstwa;
   const metryZalozenia = auto.tonaz > 0 && warstwaDoMetrow(warstwa)
     ? wydajnoscPowierzchniowa(auto.tonaz, warstwa.gruboscCm, warstwa.szerokoscM, warstwa.gestosc)
     : 0;
@@ -92,29 +135,41 @@ export interface BilansAutMetry {
   porownanie: PorownanieGrubosci | null;
 }
 
-/** Suma aut od pierwszego: tonaż, metry i średnia grubość jak odcinek 1→N w LIVE. */
-export function bilansAutMetry(auta: AutoDoRozliczenia[], warstwa: WarstwaUkladania): BilansAutMetry {
+/**
+ * Suma aut od pierwszego. Średnia grubość waży powierzchnią każdego auta,
+ * więc różne szerokości i gęstości nie zlewają się w jedną warstwę.
+ */
+export function bilansAutMetry(auta: AutoDoRozliczenia[]): BilansAutMetry {
   let tonaz = 0;
   let metryWbudowane = 0;
   let metryZalozenia = 0;
-  let tonazSredniej = 0;
-  let metrySredniej = 0;
+  let tonPrzezGestosc = 0;
+  let powierzchnia = 0;
+  let gruboscRazyPow = 0;
   let autaDoSredniej = 0;
   for (const auto of auta) {
-    const wynik = wynikAutaMetry(auto, warstwa);
+    const wynik = wynikAutaMetry(auto);
+    const warstwa = auto.warstwa;
     if (auto.tonaz > 0) tonaz += auto.tonaz;
     if (wynik.metryZalozenia > 0) metryZalozenia += wynik.metryZalozenia;
     if (auto.metryWbudowane != null && auto.metryWbudowane > 0) metryWbudowane += auto.metryWbudowane;
-    if (auto.tonaz > 0 && auto.metryWbudowane != null && auto.metryWbudowane > 0 && warstwa.szerokoscM > 0 && warstwa.gestosc > 0) {
-      tonazSredniej += auto.tonaz;
-      metrySredniej += auto.metryWbudowane;
+    if (
+      auto.tonaz > 0
+      && auto.metryWbudowane != null
+      && auto.metryWbudowane > 0
+      && warstwa.szerokoscM > 0
+      && warstwa.gestosc > 0
+      && warstwa.gruboscCm > 0
+    ) {
+      const pole = auto.metryWbudowane * warstwa.szerokoscM;
+      tonPrzezGestosc += auto.tonaz / warstwa.gestosc;
+      powierzchnia += pole;
+      gruboscRazyPow += warstwa.gruboscCm * pole;
       autaDoSredniej += 1;
     }
   }
-  const uzyskana = autaDoSredniej > 0
-    ? wydajnoscGrubosciowa(tonazSredniej, metrySredniej, warstwa.szerokoscM, warstwa.gestosc)
-    : 0;
-  const uzyskanaCm = uzyskana > 0 ? uzyskana : null;
+  const uzyskanaCm = powierzchnia > 0 ? (tonPrzezGestosc / powierzchnia) * 100 : null;
+  const zalozena = powierzchnia > 0 ? gruboscRazyPow / powierzchnia : 0;
   return {
     liczba: auta.length,
     tonaz,
@@ -122,7 +177,7 @@ export function bilansAutMetry(auta: AutoDoRozliczenia[], warstwa: WarstwaUklada
     metryZalozenia,
     autaDoSredniej,
     uzyskanaCm,
-    porownanie: uzyskanaCm != null ? porownajGrubosc(uzyskanaCm, warstwa.gruboscCm) : null,
+    porownanie: uzyskanaCm != null ? porownajGrubosc(uzyskanaCm, zalozena) : null,
   };
 }
 
