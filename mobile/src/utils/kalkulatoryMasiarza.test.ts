@@ -5,6 +5,9 @@ import {
   trojkat345,
   konfiguracjaStolu,
   obliczWskaznikRozkladarki,
+  porownajGrubosc,
+  wynikAutaMetry,
+  bilansAutMetry,
 } from './kalkulatoryMasiarza';
 
 describe('konfiguracja stołu', () => {
@@ -94,5 +97,55 @@ describe('trojkat345', () => {
   });
   it('przy zerze lub braku wartości wraca do 3-4-5 m', () => {
     assert.deepEqual(trojkat345(0, 'c'), { mnoznik: 1, bokA: 3, bokB: 4, przeciwprostokatna: 5 });
+  });
+});
+
+const WARSTWA = { gruboscCm: 4, szerokoscM: 3.5, gestosc: 2.5 };
+
+describe('metry z tony – kilka aut', () => {
+  it('metry z założenia zostają, dopóki nie ma faktycznie wbudowanych metrów', () => {
+    const wynik = wynikAutaMetry({ tonaz: 24.5, metryWbudowane: null }, WARSTWA);
+    assert.equal(wynik.metryZalozenia, 70);
+    assert.equal(wynik.powierzchniaM2, 245);
+    assert.equal(wynik.uzyskanaCm, null);
+    assert.equal(wynik.porownanie, null);
+  });
+
+  it('faktyczne metry dają grubość grubszą albo cieńszą niż założenie', () => {
+    const grubsza = wynikAutaMetry({ tonaz: 24.5, metryWbudowane: 60 }, WARSTWA);
+    assert.ok(grubsza.porownanie);
+    assert.equal(grubsza.porownanie?.ocena, 'grubsza');
+    assert.ok((grubsza.uzyskanaCm ?? 0) > 4.2);
+
+    const ciensza = wynikAutaMetry({ tonaz: 24.5, metryWbudowane: 80 }, WARSTWA);
+    assert.ok(Math.abs((ciensza.uzyskanaCm ?? 0) - 3.5) < 1e-9);
+    assert.equal(ciensza.porownanie?.ocena, 'ciensza');
+    assert.ok(Math.abs((ciensza.porownanie?.roznicaCm ?? 0) + 0.5) < 1e-9);
+  });
+
+  it('różnica do 0,2 cm nie dostaje strzałki, tak jak w LIVE', () => {
+    assert.equal(porownajGrubosc(4.2, 4)?.ocena, 'rowna');
+    assert.equal(porownajGrubosc(3.8, 4)?.ocena, 'rowna');
+    assert.equal(porownajGrubosc(4.3, 4)?.ocena, 'grubsza');
+    assert.equal(porownajGrubosc(3.7, 4)?.ocena, 'ciensza');
+    assert.equal(porownajGrubosc(0, 4), null);
+  });
+
+  it('narastająco sumuje tonaż i metry, a średnią liczy z aut z wpisanymi metrami', () => {
+    const bilans = bilansAutMetry([
+      { tonaz: 24.5, metryWbudowane: 70 },
+      { tonaz: 24.5, metryWbudowane: 80 },
+      { tonaz: 10, metryWbudowane: null },
+    ], WARSTWA);
+    assert.equal(bilans.liczba, 3);
+    assert.equal(bilans.tonaz, 59);
+    assert.equal(bilans.metryWbudowane, 150);
+    const metryTrzeciego = 10 / (4 / 100 * 3.5 * 2.5);
+    assert.ok(Math.abs(bilans.metryZalozenia - (70 + 70 + metryTrzeciego)) < 1e-9);
+    assert.equal(bilans.autaDoSredniej, 2);
+    const oczekiwana = ((24.5 + 24.5) / (150 * 3.5 * 2.5)) * 100;
+    assert.ok(bilans.uzyskanaCm != null);
+    assert.ok(Math.abs((bilans.uzyskanaCm ?? 0) - oczekiwana) < 1e-9);
+    assert.equal(bilans.porownanie?.ocena, 'ciensza');
   });
 });
