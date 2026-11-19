@@ -1,13 +1,15 @@
 // Kalkulator spadków: spadek z dwóch rzędnych albo odczyt łaty w punkcie B.
 
 import React, { useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import Svg, { Circle, G, Line, Polygon, Text as SvgText } from 'react-native-svg';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   AppHeader, Przycisk, RamkaWyniku, Sekcja, SiatkaDanych, Wiersz, WycinekPola, WycinekWiersz, WycinekWyniku, Zakladki, ZasadaDzialania, useMotyw,
 } from '../../../src/components/ui';
 import { KlawiaturaLiczb, PoleLiczby, StrefaKlawiatury, usePrzewijanieDoDanych } from '../../../src/components/geodezja/KlawiaturaLiczb';
+import { CZCIONKA } from '../../../src/components/geodezja/RysunkiGeodezji';
 import { RysSpadek } from '../../../src/components/geodezja/ZasadyGeodezji';
 import { fm, liczbaZTekstu, zeZnakiem } from '../../../src/geodezja/geometria';
 import { kalkulatorSpadkow, odczytLatyZeSpadku } from '../../../src/utils/kalkulatoryMasiarza';
@@ -98,7 +100,7 @@ export default function SpadkiScreen() {
             {
               tytul: 'Odczyt łaty w punkcie B',
               rysunek: <WycinekWyniku etykieta="Odczyt B" wartosc="1210 mm" />,
-              opis: 'Na zakładce **Łata** wpisz odczyt w A, odległość do B i spadek. **Minus** na spadku opuszcza teren i **zwiększa odczyt** — wyżej położony punkt ma mniejszy odczyt. **Światło +12 cm** podnosi punkt B, na przykład krawężnik, i odczyt maleje o 120 mm.',
+              opis: 'Na zakładce **Łata** wpisz odczyt w A, odległość do B i spadek. **Strzałka** pokazuje, czy teren jest malejący, czy rosnący. Stuknij ją, żeby odwrócić kierunek — odczyt w B przeliczy się od razu. **Światło +12 cm** podnosi punkt B i odczyt maleje o 120 mm.',
             },
           ]}
         />
@@ -156,6 +158,12 @@ export default function SpadkiScreen() {
                     />
                   </Wiersz>
                   {bladLaty ? <Text style={{ color: theme.colors.danger, fontWeight: '700' }}>{bladLaty}</Text> : null}
+                  <StrzalkaSpadku
+                    spadek={spadekProc}
+                    odczytA={odczytAMm != null ? `${fm(odczytAMm, 0)} mm` : '—'}
+                    odczytB={odczytB}
+                    onOdwroc={() => setSpadek((teraz) => odwrocZnakSpadku(teraz))}
+                  />
                   <RamkaWyniku etykieta="Odczyt B" accessibilityLabel="Odczyt łaty w punkcie B" wartosc={odczytB} />
                   {lata ? (
                     <SiatkaDanych
@@ -182,10 +190,87 @@ export default function SpadkiScreen() {
 
 function opisKierunkuLaty(spadek: number | null | undefined): string {
   if (spadek == null || spadek === 0) return 'poziomo';
-  return spadek < 0 ? 'teren opada' : 'teren w górę';
+  return spadek < 0 ? 'malejący' : 'rosnący';
+}
+
+/** Zostawia zapis liczby, zmienia tylko znak. Zero i puste pole zostają bez zmian. */
+function odwrocZnakSpadku(tekst: string): string {
+  const n = liczbaZTekstu(tekst);
+  if (n == null || n === 0) return tekst;
+  const t = tekst.trim().replace(/^[−–]/, '-');
+  return t.startsWith('-') ? t.slice(1) : `-${t}`;
+}
+
+function StrzalkaSpadku({ spadek, odczytA, odczytB, onOdwroc }: {
+  spadek: number | null | undefined;
+  odczytA: string;
+  odczytB: string;
+  onOdwroc: () => void;
+}) {
+  const theme = useMotyw();
+  const opada = spadek != null && spadek < 0;
+  const wGore = spadek != null && spadek > 0;
+  const yA = opada ? 26 : wGore ? 70 : 48;
+  const yB = opada ? 70 : wGore ? 26 : 48;
+  const yNapisA = yA < 48 ? 14 : 98;
+  const yNapisB = yB < 48 ? 14 : 98;
+  const xA = 36;
+  const xB = 284;
+  const kat = Math.atan2(yB - yA, xB - xA);
+  const grotX = xB - Math.cos(kat) * 9;
+  const grotY = yB - Math.sin(kat) * 9;
+  const koniecX = grotX - Math.cos(kat) * 14;
+  const koniecY = grotY - Math.sin(kat) * 14;
+  const bok = (znak: number) => ({
+    x: grotX - Math.cos(kat) * 16 + Math.cos(kat + znak * Math.PI / 2) * 8,
+    y: grotY - Math.sin(kat) * 16 + Math.sin(kat + znak * Math.PI / 2) * 8,
+  });
+  const lewy = bok(1);
+  const prawy = bok(-1);
+  const napis = opada
+    ? 'Malejący: teren opada, odczyt w B rośnie'
+    : wGore
+      ? 'Rosnący: teren się wznosi, odczyt w B maleje'
+      : 'Wpisz spadek. Strzałka pokaże, czy jest malejący, czy rosnący';
+  const etykieta = opada
+    ? 'Strzałka spadku malejącego. Stuknij, aby odwrócić kierunek'
+    : wGore
+      ? 'Strzałka spadku rosnącego. Stuknij, aby odwrócić kierunek'
+      : 'Strzałka spadku. Wpisz spadek, a stuknięcie odwróci kierunek';
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={etykieta}
+      onPress={onOdwroc}
+      style={[styles.strzalka, { borderColor: theme.colors.border, backgroundColor: theme.colors.card }]}
+    >
+      <Svg width="100%" height={108} viewBox="0 0 320 108">
+        <G fontFamily={CZCIONKA}>
+          {yA !== yB ? <Line x1={xA} y1={48} x2={xB} y2={48} stroke={theme.colors.border} strokeWidth={1.4} strokeDasharray="5 4" /> : null}
+          <Line x1={xA} y1={yA} x2={koniecX} y2={koniecY} stroke={theme.colors.primary} strokeWidth={4} strokeLinecap="round" />
+          <Polygon points={`${grotX},${grotY} ${lewy.x},${lewy.y} ${prawy.x},${prawy.y}`} fill={theme.colors.primary} />
+          <Circle cx={xA} cy={yA} r={7} fill={theme.colors.card} stroke={theme.colors.text} strokeWidth={2} />
+          <Circle cx={xB} cy={yB} r={7} fill={theme.colors.primary} stroke={theme.colors.text} strokeWidth={2} />
+          <SvgText x={xA} y={yNapisA} fontSize={14} fontWeight="800" fill={theme.colors.text} textAnchor="middle">A</SvgText>
+          <SvgText x={xB} y={yNapisB} fontSize={14} fontWeight="800" fill={theme.colors.text} textAnchor="middle">B</SvgText>
+        </G>
+      </Svg>
+      <View style={styles.odczyty}>
+        <Text style={[styles.odczyt, { color: theme.colors.text }]}>A {odczytA}</Text>
+        <Text style={[styles.odczyt, { color: theme.colors.text, textAlign: 'right' }]}>B {odczytB}</Text>
+      </View>
+      <Text style={[styles.kierunek, { color: theme.colors.text }]}>{napis}</Text>
+      <Text style={{ color: theme.colors.textSecondary, fontSize: 12, textAlign: 'center' }}>Stuknij strzałkę, żeby odwrócić kierunek</Text>
+    </Pressable>
+  );
 }
 
 const styles = StyleSheet.create({
   ekran: { flex: 1 },
   tresc: { padding: 14, gap: 12 },
+  strzalka: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 10, paddingTop: 4, paddingBottom: 10, gap: 2 },
+  odczyty: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
+  odczyt: { flex: 1, fontSize: 15, fontWeight: '800' },
+  kierunek: { fontSize: 13, fontWeight: '700', textAlign: 'center' },
 });
