@@ -300,6 +300,35 @@ export function kalkulatorSpadkow(rzednaStart: number, rzednaKoniec: number, odl
   return { procent: Math.round(procent * 1000) / 1000, promile: Math.round(procent * 10 * 10) / 10 };
 }
 
+export interface OdczytLatyZeSpadku {
+  /** Odczyt, który powinien być na łacie w punkcie B [mm]. */
+  odczytBMm: number;
+  /** Zmiana odczytu ze spadku [mm]. Plus = większy odczyt, teren w B jest niżej. */
+  zeSpadkuMm: number;
+  /** Zmiana odczytu ze światła [mm]. Plus na światle (punkt wyżej) zmniejsza odczyt. */
+  zeSwiatlaMm: number;
+}
+
+/**
+ * Odczyt łaty w B. Spadek jak przy rzędnych: minus = teren opada od A do B i odczyt rośnie.
+ * Światło [cm]: plus podnosi punkt B (np. +12 cm na krawężnik) i zmniejsza odczyt.
+ * Odczyty w mm, jak na szkicu geodezyjnym. Wyżej położony punkt ma mniejszy odczyt.
+ */
+export function odczytLatyZeSpadku(
+  odczytAMm: number,
+  odlegloscM: number,
+  spadekProcent: number,
+  swiatloCm = 0,
+): OdczytLatyZeSpadku {
+  const zeSpadkuMm = -(odlegloscM * spadekProcent * 10) || 0;
+  const zeSwiatlaMm = -(swiatloCm * 10) || 0;
+  return {
+    odczytBMm: Math.round(odczytAMm + zeSpadkuMm + zeSwiatlaMm),
+    zeSpadkuMm,
+    zeSwiatlaMm,
+  };
+}
+
 export function przenoszenieWysokosci(
   rzednaStart: number, spadekProcent: number, odlegloscM: number, kierunek: 'gora' | 'dol',
 ): number {
