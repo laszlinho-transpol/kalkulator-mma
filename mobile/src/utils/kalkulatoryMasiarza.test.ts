@@ -9,6 +9,7 @@ import {
   wynikAutaMetry,
   bilansAutMetry,
   rozwiazMetryOdcinka,
+  odczytLatyZeSpadku,
 } from './kalkulatoryMasiarza';
 
 describe('konfiguracja stołu', () => {
@@ -175,5 +176,27 @@ describe('metry z tony – kilka aut', () => {
     assert.equal(drugie.przedPoprzednim, false);
     assert.equal(zaKrotkie.zAuta, null);
     assert.equal(zaKrotkie.przedPoprzednim, true);
+  });
+});
+
+describe('odczyt łaty ze spadku', () => {
+  it('teren opadający zwiększa odczyt, jak cel 2% na szkicu', () => {
+    const w = odczytLatyZeSpadku(1230, 5, -2);
+    assert.equal(w.zeSpadkuMm, 100);
+    assert.equal(w.zeSwiatlaMm, 0);
+    assert.equal(w.odczytBMm, 1330);
+  });
+
+  it('światło +12 cm na krawężnik zmniejsza odczyt', () => {
+    const w = odczytLatyZeSpadku(1230, 5, -2, 12);
+    assert.equal(w.zeSwiatlaMm, -120);
+    assert.equal(w.odczytBMm, 1210);
+  });
+
+  it('wzniesienie i ujemne światło działają w drugą stronę', () => {
+    const w = odczytLatyZeSpadku(1500, 10, 1.5, -4);
+    assert.equal(w.zeSpadkuMm, -150);
+    assert.equal(w.zeSwiatlaMm, 40);
+    assert.equal(w.odczytBMm, 1390);
   });
 });

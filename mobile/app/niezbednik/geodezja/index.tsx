@@ -10,7 +10,7 @@ import { RysunekKafelka, type RodzajRysunku } from '../../../src/components/geod
 const KALKULATORY: { tytul: string; podtytul: string; rysunek: RodzajRysunku; sciezka: string; kolor: string }[] = [
   { tytul: 'Szkic geodezyjny', podtytul: 'Rzut z góry, odczyty, cel', rysunek: 'szkic', sciezka: '/niezbednik/geodezja/szkice', kolor: '#2E86AB' },
   { tytul: 'Przekrój poprzeczny', podtytul: 'Krawężniki, warstwy, łata', rysunek: 'przekroj', sciezka: '/niezbednik/geodezja/przekroje', kolor: '#C2410C' },
-  { tytul: 'Kalkulator spadków', podtytul: 'Spadek z rzędnych', rysunek: 'spadki', sciezka: '/niezbednik/geodezja/spadki', kolor: '#15803D' },
+  { tytul: 'Kalkulator spadków', podtytul: 'Rzędne i odczyt łaty', rysunek: 'spadki', sciezka: '/niezbednik/geodezja/spadki', kolor: '#15803D' },
   { tytul: 'Tyczenie łuków', podtytul: 'Rzędne od stycznej', rysunek: 'luki', sciezka: '/niezbednik/geodezja/luki', kolor: '#8B5CF6' },
   { tytul: 'Wierzchołek łuku', podtytul: 'Strzałka X z cięciwy i R', rysunek: 'wierzcholek', sciezka: '/niezbednik/geodezja/wierzcholek-luku', kolor: '#E8A020' },
   { tytul: 'Tyczenie kąta prostego', podtytul: 'Trójkąt 3-4-5', rysunek: 'katProsty', sciezka: '/niezbednik/geodezja/kat-prosty', kolor: '#DB2777' },

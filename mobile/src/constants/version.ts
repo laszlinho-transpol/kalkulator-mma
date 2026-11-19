@@ -2,7 +2,7 @@
 // WERSJA APLIKACJI + lista zmian (changelog)
 // ============================================================
 
-export const WERSJA_APLIKACJI = '1.8.74';
+export const WERSJA_APLIKACJI = '1.8.76';
 
 /** SHA wdrożenia Pages (`EXPO_PUBLIC_MMA_BUILD`) – widać, czy przeglądarka nie trzyma starego JS. */
 export const MMA_WEB_BUILD =
@@ -16,6 +16,25 @@ export interface WpisChangelog {
 }
 
 export const CHANGELOG: WpisChangelog[] = [
+  {
+    wersja: '1.8.76',
+    data: '2026-11-19',
+    tytul: 'Kalkulator spadków: strzałka kierunku',
+    zmiany: [
+      'Na zakładce Łata strzałka pokazuje, czy spadek jest malejący, czy rosnący',
+      'Stuknięcie strzałki odwraca kierunek i od razu przelicza odczyt łaty w punkcie B',
+    ],
+  },
+  {
+    wersja: '1.8.75',
+    data: '2026-11-19',
+    tytul: 'Kalkulator spadków: odczyt łaty w punkcie B',
+    zmiany: [
+      'Odczyt z łaty w A, odległość, spadek i światło (np. +12 cm na krawężnik) dają odczyt, który powinien być w B',
+      'Minus na spadku oznacza teren opadający od A do B — odczyt wtedy rośnie, tak jak na szkicu',
+      'Dotychczasowe liczenie spadku z dwóch rzędnych zostaje na osobnej zakładce',
+    ],
+  },
   {
     wersja: '1.8.74',
     data: '2026-11-12',
